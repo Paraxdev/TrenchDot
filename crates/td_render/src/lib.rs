@@ -540,12 +540,14 @@ pub struct Renderer {
     lights: LightsUniform,
     materials: HashMap<String, Material>,
     terrain_materials: HashMap<String, wgpu::BindGroup>,
+    lost: std::sync::Arc<std::sync::Mutex<Option<String>>>,
 }
 
 impl Renderer {
     pub fn new(state: &egui_wgpu::RenderState) -> Self {
         let device = state.device.clone();
         let queue = state.queue.clone();
+        let lost = Self::watch_device(&device);
 
         let uniform_entry = |binding: u32, visibility: wgpu::ShaderStages| wgpu::BindGroupLayoutEntry {
             binding,
@@ -916,6 +918,7 @@ impl Renderer {
             lights: bytemuck::Zeroable::zeroed(),
             materials: HashMap::new(),
             terrain_materials: HashMap::new(),
+            lost,
         };
         r.set_lighting(&Lighting::default(), None);
         r.set_material(WHITE_MATERIAL, &image::RgbaImage::from_pixel(4, 4, image::Rgba([255, 255, 255, 255])));
@@ -966,6 +969,45 @@ impl Renderer {
             .expect("missing material exists")
     }
 
+    /// Records why the device was lost. Once it is, buffers come back invalid and every use of one is reported as a
+    /// validation error that wgpu would turn into a panic, so those errors are dropped from then on. Any other error
+    /// still panics the way wgpu does by default.
+    fn watch_device(device: &wgpu::Device) -> std::sync::Arc<std::sync::Mutex<Option<String>>> {
+        let lost = std::sync::Arc::new(std::sync::Mutex::new(None));
+        let sink = lost.clone();
+        device.set_device_lost_callback(move |reason, message| {
+            *sink.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(format!("{reason:?}: {message}"));
+        });
+        let sink = lost.clone();
+        device.on_uncaptured_error(std::sync::Arc::new(move |error: wgpu::Error| {
+            if sink.lock().unwrap_or_else(std::sync::PoisonError::into_inner).is_none() {
+                panic!(
+                    "wgpu error: {error}
+"
+                );
+            }
+        }));
+        lost
+    }
+
+    /// Why the GPU device was lost, or `None` while it works. The editor cannot draw again after a loss.
+    pub fn lost(&self) -> Option<String> {
+        self.lost.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
+    }
+
+    /// Like `create_buffer_init`, but a buffer the lost device could not map comes back empty instead of panicking.
+    fn buffer_init(&self, label: &str, contents: &[u8], usage: wgpu::BufferUsages) -> wgpu::Buffer {
+        let size = (contents.len() as u64).next_multiple_of(wgpu::COPY_BUFFER_ALIGNMENT).max(wgpu::COPY_BUFFER_ALIGNMENT);
+        let buffer = self.device.create_buffer(&wgpu::BufferDescriptor { label: Some(label), size, usage, mapped_at_creation: true });
+        if let Ok(mut view) = buffer.get_mapped_range_mut(..) {
+            view.slice(..contents.len()).copy_from_slice(contents);
+            drop(view);
+            buffer.unmap();
+        }
+
+        buffer
+    }
+
     fn material_bind_group(
         &self,
         label: &str,
@@ -975,11 +1017,7 @@ impl Renderer {
         third: &wgpu::TextureView,
         uniform: &MaterialUniform,
     ) -> wgpu::BindGroup {
-        let params = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("material params"),
-            contents: bytemuck::bytes_of(uniform),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
+        let params = self.buffer_init("material params", bytemuck::bytes_of(uniform), wgpu::BufferUsages::UNIFORM);
         self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some(label),
             layout: &self.material_bgl,
@@ -1137,11 +1175,7 @@ impl Renderer {
         let four = |v: &[f32]| [v[0], v[1], v[2], v[3]];
         let uniform =
             TerrainUniform::new(four(&tiles), four(&detiles), four(&sharpens), std::array::from_fn(|l| self.materials.get(&names[l]).map(|m| &m.uniform)));
-        let params = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("terrain params"),
-            contents: bytemuck::bytes_of(&uniform),
-            usage: wgpu::BufferUsages::UNIFORM,
-        });
+        let params = self.buffer_init("terrain params", bytemuck::bytes_of(&uniform), wgpu::BufferUsages::UNIFORM);
         let bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("terrain material"),
             layout: &self.terrain_bgl,
@@ -1318,33 +1352,21 @@ impl Renderer {
             draws.push((k.clone(), start..indices.len() as u32));
         }
 
-        if indices.is_empty() {
+        if indices.is_empty() || self.lost().is_some() {
             return None;
         }
 
-        let vertex = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("mesh vertices"),
-            contents: bytemuck::cast_slice(&batch.vertices),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
-        let index = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("mesh indices"),
-            contents: bytemuck::cast_slice(&indices),
-            usage: wgpu::BufferUsages::INDEX,
-        });
+        let vertex = self.buffer_init("mesh vertices", bytemuck::cast_slice(&batch.vertices), wgpu::BufferUsages::VERTEX);
+        let index = self.buffer_init("mesh indices", bytemuck::cast_slice(&indices), wgpu::BufferUsages::INDEX);
         Some(GpuMesh { vertex, index, draws, instances: None })
     }
 
     pub fn upload_instances(&self, instances: &[MeshInstance]) -> Option<GpuInstances> {
-        if instances.is_empty() {
+        if instances.is_empty() || self.lost().is_some() {
             return None;
         }
 
-        let buffer = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("mesh instances"),
-            contents: bytemuck::cast_slice(instances),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+        let buffer = self.buffer_init("mesh instances", bytemuck::cast_slice(instances), wgpu::BufferUsages::VERTEX);
         Some(GpuInstances { buffer })
     }
 
@@ -1364,15 +1386,11 @@ impl Renderer {
     }
 
     pub fn upload_lines(&self, lines: &[LineVertex]) -> Option<GpuLines> {
-        if lines.len() < 2 {
+        if lines.len() < 2 || self.lost().is_some() {
             return None;
         }
 
-        let vertex = self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("lines"),
-            contents: bytemuck::cast_slice(lines),
-            usage: wgpu::BufferUsages::VERTEX,
-        });
+        let vertex = self.buffer_init("lines", bytemuck::cast_slice(lines), wgpu::BufferUsages::VERTEX);
         Some(GpuLines { vertex, count: (lines.len() / 2 * 2) as u32, wide: false })
     }
 
