@@ -7,7 +7,6 @@ use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
 
 use glam::Vec3;
-use wgpu::util::DeviceExt;
 
 use crate::atlas::PAD;
 use crate::bvh::Tri;
@@ -149,6 +148,10 @@ impl Gpu {
         device.on_uncaptured_error(Arc::new(move |e: wgpu::Error| {
             slot.lock().unwrap_or_else(|p| p.into_inner()).get_or_insert_with(|| e.to_string());
         }));
+        let slot = error.clone();
+        device.set_device_lost_callback(move |reason, message| {
+            slot.lock().unwrap_or_else(|p| p.into_inner()).get_or_insert_with(|| format!("the device was lost ({reason:?}: {message})"));
+        });
 
         let tris: Vec<Tri> = scene.bvh.tris.iter().map(|t| Tri { _pad1: scene.tri_surface[t.id as usize], ..*t }).collect();
         let surfaces: Vec<GpuSurface> = scene
@@ -214,17 +217,14 @@ impl Gpu {
             return Err(format!("the map is too big for the buffers {} allows", info.name));
         }
 
-        let storage = |label: &str, bytes: &[u8]| {
-            // wgpu refuses empty bindings, a zero row stands in for an empty list.
-            let contents: &[u8] = if bytes.is_empty() { &[0u8; 64] } else { bytes };
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some(label), contents, usage: wgpu::BufferUsages::STORAGE })
-        };
-        let nodes = storage("bake nodes", bytemuck::cast_slice(&scene.bvh.nodes));
-        let tris = storage("bake triangles", bytemuck::cast_slice(&tris));
-        let surfaces = storage("bake surfaces", bytemuck::cast_slice(&surfaces));
-        let charts = storage("bake charts", bytemuck::cast_slice(&charts));
-        let gpu_samples_buf = storage("bake samples", bytemuck::cast_slice(&gpu_samples));
-        let lights_buf = storage("bake lights", bytemuck::cast_slice(&lights));
+        let storage =
+            |label: &str, bytes: &[u8]| storage(&device, label, bytes).ok_or_else(|| format!("{} lost the device while uploading the map", info.name));
+        let nodes = storage("bake nodes", bytemuck::cast_slice(&scene.bvh.nodes))?;
+        let tris = storage("bake triangles", bytemuck::cast_slice(&tris))?;
+        let surfaces = storage("bake surfaces", bytemuck::cast_slice(&surfaces))?;
+        let charts = storage("bake charts", bytemuck::cast_slice(&charts))?;
+        let gpu_samples_buf = storage("bake samples", bytemuck::cast_slice(&gpu_samples))?;
+        let lights_buf = storage("bake lights", bytemuck::cast_slice(&lights))?;
         let prev = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("bake bounce source"),
             size: (texels * 8).max(64),
@@ -411,6 +411,20 @@ impl Gpu {
     }
 }
 
+/// A storage buffer holding `bytes`, or `None` when the device is lost. `create_buffer_init` panics then, since the
+/// buffer comes back invalid and its mapped range cannot be taken.
+fn storage(device: &wgpu::Device, label: &str, bytes: &[u8]) -> Option<wgpu::Buffer> {
+    // wgpu refuses empty bindings, a zero row stands in for an empty list.
+    let contents: &[u8] = if bytes.is_empty() { &[0u8; 64] } else { bytes };
+    let size = (contents.len() as u64).next_multiple_of(wgpu::COPY_BUFFER_ALIGNMENT);
+    let buffer = device.create_buffer(&wgpu::BufferDescriptor { label: Some(label), size, usage: wgpu::BufferUsages::STORAGE, mapped_at_creation: true });
+    let mut view = buffer.get_mapped_range_mut(..).ok()?;
+    view.slice(..contents.len()).copy_from_slice(contents);
+    drop(view);
+    buffer.unmap();
+    Some(buffer)
+}
+
 /// Half float bits of `f`, rounded to nearest, for values in the half range.
 fn half(f: f32) -> u16 {
     let x = f.to_bits();
@@ -432,4 +446,35 @@ fn half(f: f32) -> u16 {
 
     let h = (sign as u32 | (exp as u32) << 10 | man >> 13) + ((man >> 12) & 1);
     h as u16
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The noop backend keeps wgpu's own device state, so `destroy` loses the device the way a driver reset does.
+    fn noop_device() -> wgpu::Device {
+        let mut descriptor = wgpu::InstanceDescriptor::new_without_display_handle();
+        descriptor.backends = wgpu::Backends::NOOP;
+        descriptor.backend_options.noop.enable = true;
+        let instance = wgpu::Instance::new(descriptor);
+        let adapter = block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default())).unwrap();
+        block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).unwrap().0
+    }
+
+    #[test]
+    fn storage_uploads_on_a_healthy_device() {
+        let device = noop_device();
+        assert_eq!(storage(&device, "rows", &[1, 2, 3, 4, 5, 6]).map(|b| b.size()), Some(8));
+        assert_eq!(storage(&device, "empty", &[]).map(|b| b.size()), Some(64));
+    }
+
+    #[test]
+    fn a_lost_device_fails_the_upload_instead_of_panicking() {
+        let device = noop_device();
+        device.on_uncaptured_error(Arc::new(|_| {}));
+        device.destroy();
+        let _ = device.poll(wgpu::PollType::Poll);
+        assert!(storage(&device, "rows", &[7; 40]).is_none());
+    }
 }
