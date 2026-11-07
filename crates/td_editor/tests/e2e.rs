@@ -3194,6 +3194,49 @@ fn the_walkable_area_comes_from_godot() {
     assert!(e.contains("Cannot show the walkable area") && e.contains("not running"), "{e}");
 }
 
+/// The selected entity is outlined two pixels thick on paper, where one pixel washes out to pink, and one pixel as before on dark.
+#[test]
+#[ignore]
+fn selected_entity_outline_reads_on_paper() {
+    let ed = Editor::launch("selection_outline");
+    let id = ed.call("create_entity", json!({ "classname": "info_player_start", "origin": [7, 0, 5] }))["id"].clone();
+    ed.call("create_entity", json!({ "classname": "info_player_start", "origin": [-50, 0, -30] }));
+    ed.call("select", json!({ "ids": [id] }));
+    ed.call("set_camera", json!({ "view": "top", "center": [0, 0, 0], "zoom": 4 }));
+    let args = json!({ "target": "top", "width": 400, "height": 300, "overlays": true });
+    let count_near = |img: &image::RgbaImage, want: [u8; 3]| img.pixels().filter(|p| (0..3).all(|i| p.0[i].abs_diff(want[i]) <= 3)).count();
+    let ratio = |a: [u8; 3], b: egui::Color32| {
+        let lum = |c: [u8; 3]| {
+            let l = |v: u8| egui::Rgba::from(egui::Color32::from_rgb(v, v, v)).r();
+            0.2126 * l(c[0]) + 0.7152 * l(c[1]) + 0.0722 * l(c[2])
+        };
+        let (a, b) = (lum(a) + 0.05, lum([b.r(), b.g(), b.b()]) + 0.05);
+        a.max(b) / a.min(b)
+    };
+
+    let selected = td_editor::scene::SELECTED_COLOR;
+    let dark = shot(&ed, args.clone(), "dark");
+    let half = [188, 79, 66];
+    assert_eq!(count_near(&dark, half), 1300, "the dark outline keeps its one pixel look");
+    assert_eq!(count_near(&dark, over(selected, td_editor::theme::DARK.view_2d, 1)), 0);
+
+    ed.call("set_editor", json!({ "theme": "light" }));
+    theme_active(&ed, "light");
+    let light = td_editor::theme::LIGHT;
+    let paper = shot(&ed, args.clone(), "light");
+    let ink = over(td_render::ink::flip_linear(selected, light.flip_pivot().unwrap()), light.view_2d, 1);
+    assert_eq!(ink, [192, 47, 34]);
+    assert!(ratio(ink, light.view_2d) >= 3.0);
+    let full = count_near(&paper, ink);
+    // The entity box is about 128 px a side, and a two pixel line covers one full row of it at any offset.
+    assert!(full >= 4 * 120, "only {full} pixels of the full outline color on paper");
+    assert_eq!(count_near(&paper, [217, 179, 180]), 0, "no half covered pink outline is left");
+
+    ed.call("set_editor", json!({ "theme": "dark" }));
+    theme_active(&ed, "dark");
+    assert_eq!(count_near(&shot(&ed, args, "dark_again"), half), 1300, "switching back restores the dark outline");
+}
+
 /// Answers the GitHub release API with a rolling beta that holds `asset`, and serves its download. Returns the API url.
 fn fake_release(asset: &'static str, bytes: Vec<u8>) -> String {
     use std::io::BufRead;

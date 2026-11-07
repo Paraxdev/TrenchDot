@@ -1007,6 +1007,7 @@ impl Viewport {
                 crate::theme::linear(crate::theme::VIEW.gray_1)
             },
             line_width,
+            selection_line_width: if is_2d { line_width * palette.selection_line_scale } else { line_width },
             line_flip: if is_2d { palette.flip_pivot() } else { None },
         }
     }

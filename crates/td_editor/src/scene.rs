@@ -1519,7 +1519,7 @@ fn upload_bucket(renderer: &Renderer, builder: Builder) -> Bucket {
         overlay: renderer.upload_mesh(&builder.face_overlay),
         edges: renderer.upload_lines(&builder.edges),
         edges_2d: renderer.upload_lines(&builder.edges_2d),
-        sel_edges: renderer.upload_lines(&builder.sel_edges),
+        sel_edges: renderer.upload_lines(&builder.sel_edges).map(GpuLines::wide),
         xray: renderer.upload_lines(&xray),
         stats: builder.stats,
         instance_bounds: builder.instance_bounds,
@@ -2014,7 +2014,7 @@ impl SceneCache {
                     dl.gpu_opaque = renderer.upload_mesh(&dl.opaque.translated(off));
                     dl.gpu_double = renderer.upload_mesh(&dl.double.translated(off));
                     dl.gpu_transparent = renderer.upload_mesh(&dl.transparent.translated(off));
-                    dl.gpu_edges = renderer.upload_lines(&translate_lines(&dl.edges, req.offset));
+                    dl.gpu_edges = renderer.upload_lines(&translate_lines(&dl.edges, req.offset)).map(GpuLines::wide);
                 }
             }
             _ => self.drag = None,

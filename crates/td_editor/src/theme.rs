@@ -55,6 +55,8 @@ pub struct Palette {
     pub shadow_alpha: u8,
     /// The shadow of the command palette, which floats higher than a window.
     pub modal_shadow_alpha: u8,
+    /// How many times thicker than the other lines the selected objects are outlined in the 2D views.
+    pub selection_line_scale: f32,
 }
 
 // Accents use a colorblind-safe palette derived from Okabe & Ito, so meaning carried by hue (axes,
@@ -93,6 +95,7 @@ pub const DARK: Palette = Palette {
     weak_text: None,
     shadow_alpha: 90,
     modal_shadow_alpha: 160,
+    selection_line_scale: 1.0,
 };
 
 /// Accents are the darker family of the same hues, 4.7 or more on panels so they read as text, with the CVD order
@@ -129,6 +132,7 @@ pub const LIGHT: Palette = Palette {
     weak_text: Some(Color32::from_rgb(0x55, 0x5c, 0x6b)),
     shadow_alpha: 40,
     modal_shadow_alpha: 80,
+    selection_line_scale: 2.0,
 };
 
 /// The palette of the 3D view, the texture canvases and what is drawn over a thumbnail. They sit on a render or

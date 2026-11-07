@@ -83,6 +83,12 @@ impl CameraUniform {
             viewport: [size[0] as f32, size[1] as f32, params.line_width.max(1.0), params.line_flip.unwrap_or(0.0)],
         }
     }
+
+    /// The uniform for the lines marked [`GpuLines::wide`], identical but for the line width.
+    fn wide(mut self, params: &FrameParams) -> Self {
+        self.viewport[2] = params.selection_line_width.max(1.0);
+        self
+    }
 }
 
 fn line_shader() -> String {
@@ -405,6 +411,15 @@ pub struct GpuInstances {
 pub struct GpuLines {
     vertex: wgpu::Buffer,
     count: u32,
+    wide: bool,
+}
+
+impl GpuLines {
+    /// Draws these lines at [`FrameParams::selection_line_width`] instead of [`FrameParams::line_width`].
+    pub fn wide(mut self) -> Self {
+        self.wide = true;
+        self
+    }
 }
 
 pub struct Material {
@@ -452,6 +467,8 @@ pub struct ViewTarget {
     depth: wgpu::TextureView,
     camera: wgpu::Buffer,
     camera_bg: wgpu::BindGroup,
+    camera_wide: wgpu::Buffer,
+    camera_wide_bg: wgpu::BindGroup,
     pub texture_id: egui::TextureId,
 }
 
@@ -465,6 +482,8 @@ pub struct FrameParams {
     pub clear: [f64; 4],
     /// Line thickness in physical pixels, usually the UI pixels per point.
     pub line_width: f32,
+    /// Thickness of the lines marked [`GpuLines::wide`], in physical pixels.
+    pub selection_line_width: f32,
     /// Pivot from [`ink::flip_pivot`] to flip the lightness of every line and mesh, `None` draws them in their own colors.
     pub line_flip: Option<f32>,
 }
@@ -1354,7 +1373,7 @@ impl Renderer {
             contents: bytemuck::cast_slice(lines),
             usage: wgpu::BufferUsages::VERTEX,
         });
-        Some(GpuLines { vertex, count: (lines.len() / 2 * 2) as u32 })
+        Some(GpuLines { vertex, count: (lines.len() / 2 * 2) as u32, wide: false })
     }
 
     /// Creates or resizes the target. Returns true if it was (re)created.
@@ -1398,23 +1417,28 @@ impl Renderer {
             }
             None => egui_r.register_native_texture(&self.device, &egui_view, wgpu::FilterMode::Linear),
         };
-        let camera = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("camera"),
-            size: std::mem::size_of::<CameraUniform>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        let camera_bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("camera"),
-            layout: &self.camera_bgl,
-            entries: &[
-                wgpu::BindGroupEntry { binding: 0, resource: camera.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 1, resource: self.lights_buffer.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&self.shadow_view) },
-                wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::Sampler(&self.shadow_sampler) },
-            ],
-        });
-        *target = Some(ViewTarget { size, msaa, resolve, resolve_view, depth, camera, camera_bg, texture_id });
+        let camera_pair = |label: &str| {
+            let camera = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some(label),
+                size: std::mem::size_of::<CameraUniform>() as u64,
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            let camera_bg = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some(label),
+                layout: &self.camera_bgl,
+                entries: &[
+                    wgpu::BindGroupEntry { binding: 0, resource: camera.as_entire_binding() },
+                    wgpu::BindGroupEntry { binding: 1, resource: self.lights_buffer.as_entire_binding() },
+                    wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&self.shadow_view) },
+                    wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::Sampler(&self.shadow_sampler) },
+                ],
+            });
+            (camera, camera_bg)
+        };
+        let (camera, camera_bg) = camera_pair("camera");
+        let (camera_wide, camera_wide_bg) = camera_pair("camera wide");
+        *target = Some(ViewTarget { size, msaa, resolve, resolve_view, depth, camera, camera_bg, camera_wide, camera_wide_bg, texture_id });
         true
     }
 
@@ -1466,6 +1490,7 @@ impl Renderer {
     pub fn render(&self, target: &ViewTarget, params: &FrameParams, frame: &Frame) {
         let uniform = CameraUniform::new(target.size, params);
         self.queue.write_buffer(&target.camera, 0, bytemuck::bytes_of(&uniform));
+        self.queue.write_buffer(&target.camera_wide, 0, bytemuck::bytes_of(&uniform.wide(params)));
 
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("viewport") });
         {
@@ -1513,9 +1538,19 @@ impl Renderer {
                 }
 
                 pass.set_pipeline(pipeline);
+                let mut wide = false;
                 for l in lines {
+                    if l.wide != wide {
+                        wide = l.wide;
+                        pass.set_bind_group(0, if wide { &target.camera_wide_bg } else { &target.camera_bg }, &[]);
+                    }
+
                     pass.set_vertex_buffer(0, l.vertex.slice(..));
                     pass.draw(0..6, 0..l.count / 2);
+                }
+
+                if wide {
+                    pass.set_bind_group(0, &target.camera_bg, &[]);
                 }
             };
 
@@ -1849,6 +1884,7 @@ mod tests {
             orthographic: true,
             clear: [0.0; 4],
             line_width: 0.5,
+            selection_line_width: 3.0,
             line_flip: None,
         };
         let off = super::CameraUniform::new([640, 360], &params);
@@ -1858,6 +1894,30 @@ mod tests {
         params.line_flip = Some(1.1);
         params.line_width = 2.5;
         assert_eq!(super::CameraUniform::new([300, 700], &params).viewport, [300.0, 700.0, 2.5, 1.1]);
+    }
+
+    #[test]
+    fn wide_camera_uniform_only_changes_the_line_width() {
+        let mut params = super::FrameParams {
+            view_proj: glam::Mat4::from_translation(glam::Vec3::new(3.0, -2.0, 0.5)),
+            eye: glam::Vec3::new(64.0, -96.0, 160.0),
+            grid_size: 16.0,
+            grid_alpha: 0.4,
+            shade: super::ShadeMode::Flat,
+            orthographic: true,
+            clear: [0.0; 4],
+            line_width: 1.5,
+            selection_line_width: 3.0,
+            line_flip: Some(1.1),
+        };
+        let normal = super::CameraUniform::new([300, 700], &params);
+        let wide = normal.wide(&params);
+        assert_eq!(normal.viewport, [300.0, 700.0, 1.5, 1.1]);
+        assert_eq!(wide.viewport, [300.0, 700.0, 3.0, 1.1]);
+        assert_eq!((wide.view_proj, wide.inv_view_proj, wide.eye, wide.params), (normal.view_proj, normal.inv_view_proj, normal.eye, normal.params));
+
+        params.selection_line_width = 0.25;
+        assert_eq!(normal.wide(&params).viewport[2], 1.0, "a width under one pixel clamps like the normal one");
     }
 
     #[test]
