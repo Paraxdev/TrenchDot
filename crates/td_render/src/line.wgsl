@@ -8,14 +8,6 @@ struct Camera {
 
 @group(0) @binding(0) var<uniform> cam: Camera;
 
-struct VIn {
-    @builtin(vertex_index) corner: u32,
-    @location(0) a: vec3<f32>,
-    @location(1) color_a: vec4<f32>,
-    @location(2) b: vec3<f32>,
-    @location(3) color_b: vec4<f32>,
-};
-
 struct VOut {
     @builtin(position) clip: vec4<f32>,
     @location(0) color: vec4<f32>,
@@ -23,19 +15,24 @@ struct VOut {
 
 const NEAR_W: f32 = 0.0001;
 
-@vertex
-fn vs_main(v: VIn) -> VOut {
+fn hidden() -> VOut {
+    var o: VOut;
+    o.clip = vec4<f32>(2.0, 2.0, 2.0, 1.0);
+    return o;
+}
+
+/// Corner `index` of the quad that draws the segment from `a` to `b`.
+fn segment(a: vec3<f32>, b: vec3<f32>, color_a: vec4<f32>, color_b: vec4<f32>, index: u32) -> VOut {
     var corners = array<vec2<f32>, 6>(
         vec2<f32>(0.0, -1.0), vec2<f32>(1.0, -1.0), vec2<f32>(1.0, 1.0),
         vec2<f32>(0.0, -1.0), vec2<f32>(1.0, 1.0), vec2<f32>(0.0, 1.0),
     );
-    let corner = corners[v.corner];
+    let corner = corners[index];
     var o: VOut;
-    var ca = cam.view_proj * vec4<f32>(v.a, 1.0);
-    var cb = cam.view_proj * vec4<f32>(v.b, 1.0);
+    var ca = cam.view_proj * vec4<f32>(a, 1.0);
+    var cb = cam.view_proj * vec4<f32>(b, 1.0);
     if (ca.w < NEAR_W && cb.w < NEAR_W) {
-        o.clip = vec4<f32>(2.0, 2.0, 2.0, 1.0);
-        return o;
+        return hidden();
     }
     // Clip against the camera plane before the perspective divide, an endpoint behind the eye would flip the quad.
     if (ca.w < NEAR_W) {
@@ -57,7 +54,7 @@ fn vs_main(v: VIn) -> VOut {
     // so edges win the depth test against their own faces at any range.
     clip.z = clip.z * 1.002;
     o.clip = clip;
-    o.color = mix(v.color_a, v.color_b, corner.x);
+    o.color = mix(color_a, color_b, corner.x);
     return o;
 }
 

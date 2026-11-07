@@ -111,9 +111,9 @@ fn scatter_instances_upload_their_model_once() {
     assert_eq!(many_tris, one_tris * trees(11_000));
     // A record per instance plus its cross in the 2D views, the tree itself is uploaded once.
     let per_instance = (many - few) / 10_000;
-    assert!(per_instance <= 192, "a scatter instance takes {per_instance} B of GPU memory");
+    assert!(per_instance <= 128, "a scatter instance takes {per_instance} B of GPU memory");
     let per_set = (sets - one) / 100;
-    assert!(per_set <= 2048, "a scatter set of one tree takes {per_set} B of GPU memory");
+    assert!(per_set <= 256, "a scatter set of one tree takes {per_set} B of GPU memory");
 }
 
 fn entities(n: usize, model: Option<&str>) -> Map {
@@ -144,9 +144,9 @@ fn point_entity_markers_share_one_box() {
     let (many, many_tris) = gpu.scene_cost(&entities(11_000, None));
     assert_eq!((empty_tris, one_tris, few_tris, many_tris), (0, 0, 0, 0), "markers are editor stand-ins, not scene triangles");
     assert!(one > empty, "one entity uploads its marker");
-    // An instance record plus one copy of the outline and arrow, the box itself is uploaded once.
+    // An instance record plus an outline record that draws the box edges and arrow, the box itself is uploaded once.
     let per_marker = (many - few) / 10_000;
-    assert!(per_marker <= 1024, "a point entity marker takes {per_marker} B of GPU memory");
+    assert!(per_marker <= 128, "a point entity marker takes {per_marker} B of GPU memory");
 }
 
 #[test]
@@ -158,7 +158,7 @@ fn model_point_entities_upload_their_model_once() {
     let (many, many_tris) = gpu.scene_cost(&entities(11_000, Some(TREE)));
     assert!(one_tris > 0, "one entity draws its model");
     assert_eq!((few_tris, many_tris), (one_tris * 1_000, one_tris * 11_000));
-    // A record per entity plus its box in the 2D views, the model itself is uploaded once.
+    // A record per entity plus an outline record for its box in the 2D views, the model itself is uploaded once.
     let per_entity = (many - few) / 10_000;
-    assert!(per_entity <= 1024, "a model point entity takes {per_entity} B of GPU memory");
+    assert!(per_entity <= 128, "a model point entity takes {per_entity} B of GPU memory");
 }

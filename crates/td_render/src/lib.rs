@@ -35,6 +35,54 @@ pub struct LineVertex {
     pub color: [f32; 4],
 }
 
+/// A box outline, optionally with an arrow from its center, or a flat cross, drawn from one record instead of a
+/// [`LineVertex`] pair per segment.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct LineShape {
+    min: [f32; 3],
+    /// sRGB encoded, so colors that came from 8 bit sRGB survive the round trip exactly.
+    color: [u8; 4],
+    max: [f32; 3],
+    /// Snorm: xyz the arrow direction, w 1 for a box with an arrow, 0 for a box without, -1 for a cross.
+    arrow: [i16; 4],
+}
+
+impl LineShape {
+    /// The twelve edges of a box, plus a line from its center along `arrow` three quarters of its longest side long.
+    pub fn outline(min: Vec3, max: Vec3, color: [f32; 4], arrow: Option<Vec3>) -> Self {
+        let (dir, w) = match arrow.and_then(|a| a.try_normalize()) {
+            Some(d) => (d, i16::MAX),
+            None => (Vec3::ZERO, 0),
+        };
+        let snorm = |v: f32| (v * i16::MAX as f32).round() as i16;
+        LineShape { min: min.to_array(), color: srgb_bytes(color), max: max.to_array(), arrow: [snorm(dir.x), snorm(dir.y), snorm(dir.z), w] }
+    }
+
+    /// Two lines through `center` along X and Z, `radius` long each way.
+    pub fn cross(center: Vec3, radius: f32, color: [f32; 4]) -> Self {
+        let r = Vec3::new(radius, 0.0, radius);
+        LineShape { min: (center - r).to_array(), color: srgb_bytes(color), max: (center + r).to_array(), arrow: [0, 0, 0, -i16::MAX] }
+    }
+
+    fn segments(&self) -> u32 {
+        match self.arrow[3] {
+            w if w < 0 => 2,
+            0 => 12,
+            _ => 13,
+        }
+    }
+}
+
+fn srgb_bytes(c: [f32; 4]) -> [u8; 4] {
+    let encode = |v: f32| {
+        let v = v.clamp(0.0, 1.0);
+        let s = if v <= 0.003_130_8 { v * 12.92 } else { 1.055 * v.powf(1.0 / 2.4) - 0.055 };
+        (s * 255.0).round() as u8
+    };
+    [encode(c[0]), encode(c[1]), encode(c[2]), (c[3].clamp(0.0, 1.0) * 255.0).round() as u8]
+}
+
 /// One placement of an instanced [`GpuMesh`]: the rows of an affine transform and a tint the vertex colors are
 /// multiplied with.
 #[repr(C)]
@@ -92,7 +140,11 @@ impl CameraUniform {
 }
 
 fn line_shader() -> String {
-    format!("{}\n{}", ink::wgsl(), include_str!("line.wgsl"))
+    format!("{}\n{}\n{}", ink::wgsl(), include_str!("line.wgsl"), include_str!("line_pairs.wgsl"))
+}
+
+fn shape_shader() -> String {
+    format!("{}\n{}\n{}", ink::wgsl(), include_str!("line.wgsl"), include_str!("line_shapes.wgsl"))
 }
 
 fn mesh_shader() -> String {
@@ -412,6 +464,8 @@ pub struct GpuLines {
     vertex: wgpu::Buffer,
     count: u32,
     wide: bool,
+    /// Segments per [`LineShape`] record, 0 when the buffer holds [`LineVertex`] pairs.
+    shape_segments: u32,
 }
 
 impl GpuLines {
@@ -528,6 +582,8 @@ pub struct Renderer {
     mesh_overlay: wgpu::RenderPipeline,
     line_depth: wgpu::RenderPipeline,
     line_overlay: wgpu::RenderPipeline,
+    shape_depth: wgpu::RenderPipeline,
+    shape_overlay: wgpu::RenderPipeline,
     terrain_pipeline: wgpu::RenderPipeline,
     shadow_pipeline: wgpu::RenderPipeline,
     /// The one record a mesh without instances is drawn with.
@@ -717,6 +773,8 @@ impl Renderer {
             .create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("shadow"), source: wgpu::ShaderSource::Wgsl(include_str!("shadow.wgsl").into()) });
         let line_shader =
             device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("line"), source: wgpu::ShaderSource::Wgsl(line_shader().into()) });
+        let shape_shader =
+            device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("line shapes"), source: wgpu::ShaderSource::Wgsl(shape_shader().into()) });
         let sky_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("sky"),
             source: wgpu::ShaderSource::Wgsl(format!("{common}\n{}", include_str!("sky.wgsl")).into()),
@@ -858,6 +916,14 @@ impl Renderer {
         let mesh_overlay = make("mesh overlay", &mesh_shader, &mesh_layout, &mesh_buffers, tri, false, true, false, Always);
         let line_depth = make("line depth", &line_shader, &line_layout, &line_buffers, tri, false, true, false, GreaterEqual);
         let line_overlay = make("line overlay", &line_shader, &line_layout, &line_buffers, tri, false, true, false, Always);
+        let shape_attrs = wgpu::vertex_attr_array![0 => Float32x3, 1 => Unorm8x4, 2 => Float32x3, 3 => Snorm16x4];
+        let shape_buffers = [Some(wgpu::VertexBufferLayout {
+            array_stride: std::mem::size_of::<LineShape>() as u64,
+            step_mode: wgpu::VertexStepMode::Instance,
+            attributes: &shape_attrs,
+        })];
+        let shape_depth = make("line shape depth", &shape_shader, &line_layout, &shape_buffers, tri, false, true, false, GreaterEqual);
+        let shape_overlay = make("line shape overlay", &shape_shader, &line_layout, &shape_buffers, tri, false, true, false, Always);
         let terrain_pipeline = make("terrain", &terrain_shader, &terrain_layout, &[Some(mesh_buffer)], tri, true, false, true, Greater);
         let shadow_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("shadow"),
@@ -908,6 +974,8 @@ impl Renderer {
             mesh_overlay,
             line_depth,
             line_overlay,
+            shape_depth,
+            shape_overlay,
             terrain_pipeline,
             shadow_pipeline,
             shadow_uniform,
@@ -1391,7 +1459,17 @@ impl Renderer {
         }
 
         let vertex = self.buffer_init("lines", bytemuck::cast_slice(lines), wgpu::BufferUsages::VERTEX);
-        Some(GpuLines { vertex, count: (lines.len() / 2 * 2) as u32, wide: false })
+        Some(GpuLines { vertex, count: (lines.len() / 2 * 2) as u32, wide: false, shape_segments: 0 })
+    }
+
+    pub fn upload_shapes(&self, shapes: &[LineShape]) -> Option<GpuLines> {
+        if shapes.is_empty() || self.lost().is_some() {
+            return None;
+        }
+
+        let vertex = self.buffer_init("line shapes", bytemuck::cast_slice(shapes), wgpu::BufferUsages::VERTEX);
+        let shape_segments = shapes.iter().map(LineShape::segments).max().unwrap_or(0);
+        Some(GpuLines { vertex, count: shapes.len() as u32, wide: false, shape_segments })
     }
 
     /// Creates or resizes the target. Returns true if it was (re)created.
@@ -1550,21 +1628,27 @@ impl Renderer {
                     }
                 }
             };
-            let draw_lines = |pass: &mut wgpu::RenderPass, pipeline: &wgpu::RenderPipeline, lines: &[&GpuLines]| {
-                if lines.is_empty() {
-                    return;
-                }
-
-                pass.set_pipeline(pipeline);
+            let draw_lines = |pass: &mut wgpu::RenderPass, pipelines: [&wgpu::RenderPipeline; 2], lines: &[&GpuLines]| {
                 let mut wide = false;
+                let mut shapes = None;
                 for l in lines {
+                    let is_shape = l.shape_segments > 0;
+                    if shapes != Some(is_shape) {
+                        shapes = Some(is_shape);
+                        pass.set_pipeline(pipelines[is_shape as usize]);
+                    }
+
                     if l.wide != wide {
                         wide = l.wide;
                         pass.set_bind_group(0, if wide { &target.camera_wide_bg } else { &target.camera_bg }, &[]);
                     }
 
                     pass.set_vertex_buffer(0, l.vertex.slice(..));
-                    pass.draw(0..6, 0..l.count / 2);
+                    if is_shape {
+                        pass.draw(0..6 * l.shape_segments, 0..l.count);
+                    } else {
+                        pass.draw(0..6, 0..l.count / 2);
+                    }
                 }
 
                 if wide {
@@ -1578,10 +1662,10 @@ impl Renderer {
             }
 
             if params.shade == ShadeMode::Wireframe {
-                draw_lines(&mut pass, &self.line_depth, &frame.wire_lines);
-                draw_lines(&mut pass, &self.line_depth, &frame.lines);
+                draw_lines(&mut pass, [&self.line_depth, &self.shape_depth], &frame.wire_lines);
+                draw_lines(&mut pass, [&self.line_depth, &self.shape_depth], &frame.lines);
                 draw_meshes(&mut pass, &self.mesh_overlay, &frame.overlay_meshes);
-                draw_lines(&mut pass, &self.line_overlay, &frame.overlay_lines);
+                draw_lines(&mut pass, [&self.line_overlay, &self.shape_overlay], &frame.overlay_lines);
                 drop(pass);
                 self.queue.submit([encoder.finish()]);
                 return;
@@ -1603,7 +1687,7 @@ impl Renderer {
                 }
             }
 
-            draw_lines(&mut pass, &self.line_depth, &frame.lines);
+            draw_lines(&mut pass, [&self.line_depth, &self.shape_depth], &frame.lines);
             let mut double_sided: Option<bool> = None;
             for mesh in &frame.transparent {
                 pass.set_vertex_buffer(0, mesh.vertex.slice(..));
@@ -1622,7 +1706,7 @@ impl Renderer {
             }
 
             draw_meshes(&mut pass, &self.mesh_overlay, &frame.overlay_meshes);
-            draw_lines(&mut pass, &self.line_overlay, &frame.overlay_lines);
+            draw_lines(&mut pass, [&self.line_overlay, &self.shape_overlay], &frame.overlay_lines);
         }
 
         self.queue.submit([encoder.finish()]);
@@ -1798,7 +1882,24 @@ mod tests {
         validate("sky", &format!("{common}\n{}", include_str!("sky.wgsl")));
 
         validate("line", &super::line_shader());
+        validate("line shapes", &super::shape_shader());
         validate("shadow", include_str!("shadow.wgsl"));
+    }
+
+    #[test]
+    fn line_shapes_pack_small_and_keep_8_bit_colors() {
+        use super::{LineShape, srgb_bytes, srgb_to_linear};
+        use glam::Vec3;
+        assert_eq!(std::mem::size_of::<LineShape>(), 36);
+        let (lo, hi) = (Vec3::ZERO, Vec3::splat(16.0));
+        assert_eq!(LineShape::outline(lo, hi, [1.0; 4], None).segments(), 12);
+        assert_eq!(LineShape::outline(lo, hi, [1.0; 4], Some(Vec3::NEG_Z)).segments(), 13);
+        assert_eq!(LineShape::outline(lo, hi, [1.0; 4], Some(Vec3::ZERO)).segments(), 12, "a zero arrow draws no arrow");
+        assert_eq!(LineShape::cross(lo, 8.0, [1.0; 4]).segments(), 2);
+        for v in 0..=255u8 {
+            let c = srgb_to_linear(v as f32 / 255.0);
+            assert_eq!(srgb_bytes([c, c, c, v as f32 / 255.0]), [v; 4]);
+        }
     }
 
     #[test]

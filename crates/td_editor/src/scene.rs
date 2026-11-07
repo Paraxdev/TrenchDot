@@ -6,7 +6,7 @@ use td_core::{Aabb, Color, DMat4, DVec2, DVec3, NodeId};
 use td_doc::{Entity, Map, NodeKind, Selection};
 use td_formats::{EntityDef, GameConfig};
 use td_geom::{Brush, Mesh, Terrain};
-use td_render::{Frame, GpuLines, GpuMesh, Lighting, LineVertex, MeshBatch, MeshInstance, MeshVertex, PointLight, Renderer};
+use td_render::{Frame, GpuLines, GpuMesh, Lighting, LineShape, LineVertex, MeshBatch, MeshInstance, MeshVertex, PointLight, Renderer};
 
 use crate::face_cull::{FaceCull, FacePieces};
 use crate::prefabs::{self, PrefabCache};
@@ -67,6 +67,8 @@ struct Bucket {
     edges: Option<GpuLines>,
     edges_2d: Option<GpuLines>,
     marker_edges: Option<GpuLines>,
+    /// Box outlines of unselected model point entities, drawn where `edges_2d` is.
+    model_boxes: Option<GpuLines>,
     /// Instanced models of point entities and prefab scatter sets, by pass like `opaque` to `volumes` above.
     placed: [Vec<GpuMesh>; 4],
     placed_keys: Vec<PlacedKey>,
@@ -118,6 +120,7 @@ fn build_drag_batches(renderer: &Renderer, game: &GameConfig, base: &Map, nodes:
         edges: Vec::new(),
         edges_2d: Vec::new(),
         marker_edges: Vec::new(),
+        model_boxes: Vec::new(),
         placed: BTreeMap::new(),
         placed_models,
         sel_edges: Vec::new(),
@@ -346,7 +349,8 @@ struct Builder<'a> {
     edges: Vec<LineVertex>,
     edges_2d: Vec<LineVertex>,
     /// Outlines and arrows of unselected point entity boxes, drawn by both the 2D and the 3D views.
-    marker_edges: Vec<LineVertex>,
+    marker_edges: Vec<LineShape>,
+    model_boxes: Vec<LineShape>,
     /// Records of the models placed so far, by the shared meshes they draw.
     placed: BTreeMap<PlacedKey, (Arc<PlacedMeshes>, Vec<MeshInstance>)>,
     placed_models: &'a PlacedModels,
@@ -441,7 +445,10 @@ const SCATTER_CHUNK: f64 = 1024.0;
 #[derive(Default)]
 struct ScatterGpu {
     chunks: HashMap<(i64, i64), ScatterChunk>,
+    /// Outline of an unselected set, drawn in the 2D views.
     lines_2d: Option<GpuLines>,
+    /// Marks each instance of a Props set in the 2D views.
+    crosses: Option<GpuLines>,
     sel_lines: Option<GpuLines>,
     triangles: usize,
     models: Vec<ModelKey>,
@@ -602,30 +609,29 @@ fn build_scatter(
 
     let bounds = set.bounds();
     let color = if selected { SELECTED_COLOR } else { [0.45, 0.95, 0.5, 0.6] };
-    let mut lines = Vec::new();
+    let mut crosses = Vec::new();
     if set.kind == td_doc::ScatterKind::Props && set.instances.len() <= 20_000 {
         for inst in &set.instances {
             let r = set.items.get(inst.item as usize).map(|i| i.spacing * 0.25).unwrap_or(8.0).clamp(4.0, 64.0);
-            push_line(&mut lines, inst.position - DVec3::X * r, inst.position + DVec3::X * r, color);
-            push_line(&mut lines, inst.position - DVec3::Z * r, inst.position + DVec3::Z * r, color);
+            crosses.push(LineShape::cross(Vec3::from_array(v3(inst.position)), r as f32, color));
         }
     }
 
-    let mut outline = Vec::new();
+    out.crosses = renderer.upload_shapes(&crosses);
     if !bounds.is_empty() {
-        let c = bounds.corners();
-        for (i, j) in Aabb::EDGES {
-            push_line(&mut outline, c[i], c[j], [color[0], color[1], color[2], 0.5]);
+        let outline = renderer.upload_shapes(&[LineShape::outline(
+            Vec3::from_array(v3(bounds.min)),
+            Vec3::from_array(v3(bounds.max)),
+            [color[0], color[1], color[2], 0.5],
+            None,
+        )]);
+        if selected {
+            out.sel_lines = outline.map(GpuLines::wide);
+        } else {
+            out.lines_2d = outline;
         }
     }
 
-    if selected {
-        out.sel_lines = renderer.upload_lines(&outline).map(GpuLines::wide);
-    } else {
-        lines.extend(outline.iter().copied());
-    }
-
-    out.lines_2d = renderer.upload_lines(&lines);
     out
 }
 
@@ -1020,32 +1026,27 @@ impl Builder<'_> {
                 bounds
             }
         };
-        let corners = bounds.corners();
-        for (a, b) in Aabb::EDGES {
-            if selected {
+        let fwd = e.rotation() * DVec3::NEG_Z;
+        let (lo, hi) = (Vec3::from_array(v3(bounds.min)), Vec3::from_array(v3(bounds.max)));
+        if selected {
+            let corners = bounds.corners();
+            for (a, b) in Aabb::EDGES {
                 push_line(&mut self.sel_edges, corners[a], corners[b], line_color);
-            } else if model.is_none() {
-                push_line(&mut self.marker_edges, corners[a], corners[b], [c.r, c.g, c.b, 1.0]);
-            } else {
-                push_line(&mut self.edges_2d, corners[a], corners[b], [c.r, c.g, c.b, 1.0]);
             }
+
+            let start = bounds.center();
+            let end = start + fwd * (bounds.size().max_element() * 0.75);
+            push_line(&mut self.edges_2d, start, end, line_color);
+            push_line(&mut self.sel_edges, start, end, line_color);
+        } else if model.is_none() {
+            self.marker_edges.push(LineShape::outline(lo, hi, [c.r, c.g, c.b, 1.0], Some(Vec3::from_array(v3(fwd)))));
+        } else {
+            // Models already show their orientation, arrows on hundreds of scattered props only add noise.
+            self.model_boxes.push(LineShape::outline(lo, hi, [c.r, c.g, c.b, 1.0], None));
         }
 
         if is_decal(def) {
             self.decal_preview(id, e, selected);
-        }
-
-        // Models already show their orientation, arrows on hundreds of scattered props only add noise.
-        if model.is_none() || selected {
-            let fwd = e.rotation() * DVec3::NEG_Z;
-            let start = bounds.center();
-            let end = start + fwd * (bounds.size().max_element() * 0.75);
-            if selected {
-                push_line(&mut self.edges_2d, start, end, line_color);
-                push_line(&mut self.sel_edges, start, end, line_color);
-            } else {
-                push_line(&mut self.marker_edges, start, end, line_color);
-            }
         }
     }
 
@@ -1507,6 +1508,7 @@ fn build_bucket<'a>(ctx: &BucketCtx<'a>, ids: &[NodeId]) -> Builder<'a> {
         edges: Vec::new(),
         edges_2d: Vec::new(),
         marker_edges: Vec::new(),
+        model_boxes: Vec::new(),
         placed: BTreeMap::new(),
         placed_models: ctx.placed_models,
         sel_edges: Vec::new(),
@@ -1595,7 +1597,8 @@ fn upload_bucket(ctx: &BucketCtx, builder: Builder) -> Bucket {
         overlay: renderer.upload_mesh(&builder.face_overlay),
         edges: renderer.upload_lines(&builder.edges),
         edges_2d: renderer.upload_lines(&builder.edges_2d),
-        marker_edges: renderer.upload_lines(&builder.marker_edges),
+        marker_edges: renderer.upload_shapes(&builder.marker_edges),
+        model_boxes: renderer.upload_shapes(&builder.model_boxes),
         placed,
         placed_keys: builder.placed.into_keys().collect(),
         sel_edges: renderer.upload_lines(&builder.sel_edges).map(GpuLines::wide),
@@ -2257,6 +2260,7 @@ impl SceneCache {
 
         for s in self.scatters.values() {
             if is_2d {
+                frame.overlay_lines.extend(s.crosses.as_ref());
                 frame.overlay_lines.extend(s.lines_2d.as_ref());
                 frame.overlay_lines.extend(s.sel_lines.as_ref());
             } else {
@@ -2270,10 +2274,12 @@ impl SceneCache {
         for b in &self.buckets {
             if is_2d {
                 frame.overlay_lines.extend(b.edges_2d.as_ref());
+                frame.overlay_lines.extend(b.model_boxes.as_ref());
                 frame.overlay_lines.extend(b.marker_edges.as_ref());
                 frame.overlay_lines.extend(b.sel_edges.as_ref());
             } else {
                 frame.wire_lines.extend(b.edges_2d.as_ref());
+                frame.wire_lines.extend(b.model_boxes.as_ref());
                 frame.wire_lines.extend(b.marker_edges.as_ref());
                 frame.opaque.extend(b.opaque.as_ref());
                 frame.double_sided.extend(b.double.as_ref());
