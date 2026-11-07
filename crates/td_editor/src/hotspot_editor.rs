@@ -21,6 +21,7 @@ pub struct HotspotEditor {
     loaded: Option<String>,
     drag: Option<HotDrag>,
     zoom: f32,
+    fit: bool,
     snap: u32,
     split: [u32; 2],
     dirty: bool,
@@ -36,6 +37,7 @@ impl Default for HotspotEditor {
             loaded: None,
             drag: None,
             zoom: 4.0,
+            fit: true,
             snap: 8,
             split: [4, 4],
             dirty: false,
@@ -65,6 +67,12 @@ pub fn grid_rects(size: [f64; 2], nx: u32, ny: u32) -> Vec<[f64; 4]> {
     (0..ny).flat_map(|j| (0..nx).map(move |i| [i as f64 * w, j as f64 * h, w, h])).collect()
 }
 
+/// Zoom that shows the whole texture in `avail` points, within the zoom slider's range.
+pub fn fit_zoom(size: [f64; 2], avail: Vec2) -> f32 {
+    let z = (avail.x as f64 / size[0].max(1.0)).min(avail.y as f64 / size[1].max(1.0));
+    (z as f32).clamp(0.5, 16.0)
+}
+
 impl HotspotEditor {
     pub fn open_for(&mut self, material: &str) {
         self.open = true;
@@ -88,6 +96,7 @@ impl HotspotEditor {
             self.loaded = Some(self.material.clone());
             self.selected = None;
             self.dirty = false;
+            self.fit = true;
         }
 
         let mut open = self.open;
@@ -157,6 +166,10 @@ impl HotspotEditor {
             });
             ui.label(RichText::new(tr("Drag to draw a rectangle, drag one to move it, drag its corner to resize, right click deletes.")).weak());
             egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
+                if std::mem::take(&mut self.fit) {
+                    self.zoom = fit_zoom(size, ui.available_size() - Vec2::splat(4.0));
+                }
+
                 let zoom = self.zoom as f64;
                 let (rect, response) = ui.allocate_exact_size(Vec2::new((size[0] * zoom) as f32, (size[1] * zoom) as f32), Sense::click_and_drag());
                 let painter = ui.painter_at(rect);
@@ -298,5 +311,13 @@ mod tests {
         let grid = grid_rects([128.0, 64.0], 4, 2);
         assert_eq!(grid.len(), 8);
         assert_eq!(grid[5], [32.0, 32.0, 32.0, 32.0]);
+    }
+
+    #[test]
+    fn fit_zoom_shows_the_whole_texture() {
+        assert_eq!(fit_zoom([1024.0, 512.0], Vec2::new(600.0, 450.0)), 600.0 / 1024.0);
+        assert_eq!(fit_zoom([64.0, 64.0], Vec2::new(600.0, 450.0)), 450.0 / 64.0);
+        assert_eq!(fit_zoom([4096.0, 4096.0], Vec2::new(600.0, 450.0)), 0.5);
+        assert_eq!(fit_zoom([8.0, 8.0], Vec2::new(600.0, 450.0)), 16.0);
     }
 }
