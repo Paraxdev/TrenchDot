@@ -111,6 +111,7 @@ pub const PAGES: &[(Topic<'static>, &str, &str)] = &[
     (Menu("Keyboard Shortcuts…"), "editor/shortcuts", ""),
     (Menu("Entity and Code Reference"), "gameplay/placing", "code-for-any-entity"),
     (Menu("Getting Started Guide"), "getting-started", ""),
+    (Menu("Tips"), "tips", ""),
     (Menu("Manual"), "README", ""),
     (Menu("Mouse and Keys"), "editor/shortcuts", "mouse-in-the-views"),
     (Section("Map (worldspawn)"), "godot/building", "environment-and-sun"),

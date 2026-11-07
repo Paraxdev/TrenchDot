@@ -29,6 +29,8 @@
   "Tab edits meshes Blender style: 1/2/3 modes, G/R/S, E extrude, I inset, Ctrl+R loop cut, K knife": "Tab edita mallas al estilo Blender: modos 1/2/3, G/R/S, E extruir, I inset, Ctrl+R corte en bucle, K cuchillo",
   "F1 over a tool, panel tab, menu or Inspector section opens its manual page, so does {click} on a tool": "F1 sobre una herramienta, pestaña, menú o sección del Inspector abre su página del manual, igual que {click} en una herramienta",
   "Getting Started Guide": "Guía de inicio",
+  "Tips": "Consejos",
+  "Short tips that save time in the editor and in Godot": "Consejos breves que ahorran tiempo en el editor y en Godot",
   "Manual": "Manual",
   "Mouse and Keys": "Ratón y teclas",
   "TrenchDot": "TrenchDot",

@@ -646,6 +646,7 @@ fn help_menu_links(ui: &mut Ui) {
         }
     };
     link(ui, en!("Getting Started Guide"), &crate::welcome::getting_started_url());
+    link(ui, en!("Tips"), tr("Short tips that save time in the editor and in Godot"));
     link(ui, en!("Manual"), &manual);
     link(ui, en!("Mouse and Keys"), &mouse);
 }

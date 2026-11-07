@@ -62,9 +62,9 @@ section and press **F1**, and the matching page of this manual opens. A Ctrl+cli
 (Cmd+click on macOS) does the same. A tooltip ending in *F1: manual* has a page behind it, over anything else F1 opens
 the command palette.
 
-*Help > Manual* opens the start of the manual.
+*Help > Manual* opens the start of the manual, and *Help > Tips* a page of small things that save time.
 
-![The Help menu with Manual hovered](../assets/interface/help-menu.png)
+![The Help menu with Tips hovered](../assets/interface/help-menu.png)
 
 Once you know your way around, untick *Help text* in *File > Preferences* to hide the short guidance lines in the tool
 options bar and the panels. Their tooltips stay.

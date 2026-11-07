@@ -29,6 +29,8 @@
   "Tab edits meshes Blender style: 1/2/3 modes, G/R/S, E extrude, I inset, Ctrl+R loop cut, K knife": "TabでBlender風にメッシュを編集：1/2/3モード、G/R/S、E押し出し、Iインセット、Ctrl+Rループカット、Kナイフ",
   "F1 over a tool, panel tab, menu or Inspector section opens its manual page, so does {click} on a tool": "ツール、パネルタブ、メニュー、インスペクターの節の上でF1を押すとマニュアルが開き、ツールを{click}しても開きます",
   "Getting Started Guide": "はじめにガイド",
+  "Tips": "ヒント",
+  "Short tips that save time in the editor and in Godot": "エディターと Godot で時間を節約できる短いヒント",
   "Manual": "マニュアル",
   "Mouse and Keys": "マウスとキー",
   "TrenchDot": "TrenchDot",

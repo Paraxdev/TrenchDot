@@ -29,6 +29,8 @@
   "Tab edits meshes Blender style: 1/2/3 modes, G/R/S, E extrude, I inset, Ctrl+R loop cut, K knife": "Tab 以 Blender 方式编辑网格：1/2/3 模式，G/R/S，E 挤出，I 内插，Ctrl+R 环切，K 刀",
   "F1 over a tool, panel tab, menu or Inspector section opens its manual page, so does {click} on a tool": "在工具、面板标签、菜单或检查器分区上按 F1 打开其手册页，在工具上{click}也可以",
   "Getting Started Guide": "入门指南",
+  "Tips": "提示",
+  "Short tips that save time in the editor and in Godot": "在编辑器和 Godot 中节省时间的简短提示",
   "Manual": "手册",
   "Mouse and Keys": "鼠标与按键",
   "TrenchDot": "TrenchDot",
