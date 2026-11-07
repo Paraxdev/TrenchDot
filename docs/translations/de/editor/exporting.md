@@ -1,5 +1,5 @@
 ---
-source: 5b25efdda7a0b559f9cff81871758a2f55e33a9c
+source: 595e0f3c91019c21e987ec5ff2c31aa290bcf496
 ---
 
 # Export nach Blender und in andere 3D-Tools { #exporting-to-blender-and-other-3d-tools }
@@ -21,7 +21,7 @@ Du kannst speichern, wie deine Karte aussieht, als eine einzige 3D-Modelldatei: 
 
     Das Fenster *Für 3D-Werkzeuge exportieren* öffnet sich. Hak an, was du willst, siehe [die Optionen](#options) unten. Die Zahlen neben *Prop-Modelle* und *Scatter-Instanzen* sagen dir, wie viele Objekte jede Option hinzufügt. Oben kannst du das Format auf OBJ umstellen.
 
-    ![Das Fenster Für 3D-Werkzeuge exportieren mit gewähltem glTF Binary, Ganze Karte, angehakten Prop-Modellen (5) und nicht angehakten Scatter-Instanzen (4081)](../assets/exporting/export-dialog.png)
+    ![Das Fenster Für 3D-Werkzeuge exportieren mit gewähltem glTF Binary, Ganze Karte, angehakten Prop-Modellen (5) und nicht angehakten Scatter-Instanzen (3766)](../assets/exporting/export-dialog.png)
 
 3. Speichern
 

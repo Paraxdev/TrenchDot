@@ -1,5 +1,5 @@
 ---
-source: 5b25efdda7a0b559f9cff81871758a2f55e33a9c
+source: 595e0f3c91019c21e987ec5ff2c31aa290bcf496
 ---
 
 # 导出到 Blender 和其他 3D 工具 { #exporting-to-blender-and-other-3d-tools }
@@ -21,7 +21,7 @@ source: 5b25efdda7a0b559f9cff81871758a2f55e33a9c
 
     *导出到 3D 工具*窗口会打开。勾选你想要的内容，参见下面的[选项](#options)。*道具模型*和*散布实例*旁边的数字，告诉你每一项会加入多少个对象。你可以在顶部把格式切换成 OBJ。
 
-    ![导出到 3D 工具窗口，选的是 glTF Binary，整个地图、道具模型（5）已勾选，散布实例（4081）未勾选](../assets/exporting/export-dialog.png)
+    ![导出到 3D 工具窗口，选的是 glTF Binary，整个地图、道具模型（5）已勾选，散布实例（3766）未勾选](../assets/exporting/export-dialog.png)
 
 3. 保存
 

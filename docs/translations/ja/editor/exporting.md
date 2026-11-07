@@ -1,5 +1,5 @@
 ---
-source: 5b25efdda7a0b559f9cff81871758a2f55e33a9c
+source: 595e0f3c91019c21e987ec5ff2c31aa290bcf496
 ---
 
 # Blenderなどの3Dツールにエクスポートする { #exporting-to-blender-and-other-3d-tools }
@@ -21,7 +21,7 @@ source: 5b25efdda7a0b559f9cff81871758a2f55e33a9c
 
     *3Dツール向けにエクスポート*ウィンドウが開きます。入れたいものにチェックを付けます。下の[オプション](#options)を参照してください。*プロップモデル*と*散布インスタンス*の横の数字は、それぞれがオブジェクトをいくつ追加するかを示します。上部で形式をOBJに切り替えることもできます。
 
-    ![glTF Binaryを選び、マップ全体とプロップモデル（5）にチェックがあり、散布インスタンス（4081）にチェックがない、3Dツール向けにエクスポートウィンドウ](../assets/exporting/export-dialog.png)
+    ![glTF Binaryを選び、マップ全体とプロップモデル（5）にチェックがあり、散布インスタンス（3766）にチェックがない、3Dツール向けにエクスポートウィンドウ](../assets/exporting/export-dialog.png)
 
 3. 保存する
 

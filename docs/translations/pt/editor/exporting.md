@@ -1,5 +1,5 @@
 ---
-source: 5b25efdda7a0b559f9cff81871758a2f55e33a9c
+source: 595e0f3c91019c21e987ec5ff2c31aa290bcf496
 ---
 
 # Exportando para o Blender e outras ferramentas 3D { #exporting-to-blender-and-other-3d-tools }
@@ -21,7 +21,7 @@ Você pode salvar a aparência do seu mapa como um único arquivo de modelo 3D: 
 
     A janela *Exportar para ferramentas 3D* abre. Marque o que você quer, veja [as opções](#options) abaixo. Os números ao lado de *Modelos de props* e *Instâncias de scatter* dizem quantos objetos cada um acrescenta. Você pode trocar o formato para OBJ no topo.
 
-    ![A janela Exportar para ferramentas 3D com glTF Binary escolhido, Mapa inteiro, Modelos de props (5) marcado e Instâncias de scatter (4081) desmarcado](../assets/exporting/export-dialog.png)
+    ![A janela Exportar para ferramentas 3D com glTF Binary escolhido, Mapa inteiro, Modelos de props (5) marcado e Instâncias de scatter (3766) desmarcado](../assets/exporting/export-dialog.png)
 
 3. Salve
 

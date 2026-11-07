@@ -1,5 +1,5 @@
 ---
-source: 5b25efdda7a0b559f9cff81871758a2f55e33a9c
+source: 595e0f3c91019c21e987ec5ff2c31aa290bcf496
 ---
 
 # Exporter vers Blender et d'autres outils 3D { #exporting-to-blender-and-other-3d-tools }
@@ -28,7 +28,7 @@ bande-annonce, ou confier un blockout à un artiste qui construit par-dessus les
     Les nombres à côté de *Modèles de props* et *Instances de scatter* vous disent combien d'objets chacune ajoute. Vous
     pouvez passer le format en OBJ en haut.
 
-    ![La fenêtre Exporter pour des outils 3D avec glTF Binary choisi, Carte entière, Modèles de props (5) coché et Instances de scatter (4081) décoché](../assets/exporting/export-dialog.png)
+    ![La fenêtre Exporter pour des outils 3D avec glTF Binary choisi, Carte entière, Modèles de props (5) coché et Instances de scatter (3766) décoché](../assets/exporting/export-dialog.png)
 
 3. Enregistrez
 
