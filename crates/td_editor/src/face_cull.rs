@@ -149,7 +149,13 @@ pub(crate) fn plane_key(normal: DVec3, dist: f64) -> PlaneKey {
 
 impl FaceCull {
     /// Faces of a node that take part: opaque, single sided, not tool textures, triggers or displacements.
-    fn node_faces(map: &Map, game: &GameConfig, opaque: &(dyn Fn(&str) -> bool + Sync), takes_part: &dyn Fn(NodeId) -> bool, id: NodeId) -> Vec<CullFace> {
+    pub(crate) fn node_faces(
+        map: &Map,
+        game: &GameConfig,
+        opaque: &(dyn Fn(&str) -> bool + Sync),
+        takes_part: &dyn Fn(NodeId) -> bool,
+        id: NodeId,
+    ) -> Vec<CullFace> {
         let Some(node) = map.get(id) else { return Vec::new() };
         if !takes_part(id) || skipped_entity(map, game, id) {
             return Vec::new();
