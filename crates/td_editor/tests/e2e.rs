@@ -1085,6 +1085,15 @@ fn logic_playground_script_replays() {
     let ed = Editor::launch_with("logic_playground", &["--project", project.to_str().unwrap()]);
     let out = artifacts().join("logic_playground");
     std::fs::create_dir_all(&out).unwrap();
+    let path = root.join("examples/mcp/sealed_rooms.json").canonicalize().unwrap();
+    let summary = ed.call("run_script", json!({ "path": path, "vars": { "save_dir": out } }));
+    assert_eq!(summary["errors"], json!([]), "sealed_rooms");
+    assert_eq!(summary["ran"], summary["steps"], "sealed_rooms");
+    ed.call("validate_map", json!({}));
+    let cull = ed.state()["map"]["void_cull"].clone();
+    assert_eq!(cull["state"], "sealed", "sealed_rooms: {cull}");
+    assert!(cull["dropped_faces"].as_u64().unwrap() > 0, "sealed_rooms: {cull}");
+
     replay_logic_playground(&ed, &root, &out);
 }
 

@@ -1,0 +1,32 @@
+{
+  "format": "trenchdot-mcp-script",
+  "vars": { "save_dir": "${project}/demo/maps/showcase" },
+  "title": "Sealed Rooms",
+  "description": "Three plastered rooms joined by a corridor and a doorway, with a player start and lights inside. Every hollow box is closed to the outside, so the build drops the faces that only face the void. Built entirely from MCP tool calls.",
+  "steps": [
+    { "tool": "map_file", "args": { "op": "new" } },
+    { "tool": "set_map_properties", "args": { "properties": { "message": "Sealed Rooms", "ambient_color": "70 74 90", "_cull_void_faces": "1" } } },
+
+    { "note": "Room A, the corridor and room B in a row along x, room C behind room B. Each box is hollowed into 16 unit walls and the doorways are cut through both walls they pass." },
+    { "tool": "create_brush", "args": { "min": [0, 0, -192], "max": [384, 160, 192], "material": "showcase/plaster", "hollow": 16,
+      "openings": [ [[360, 16, -40], [392, 120, 40]] ] } },
+    { "tool": "create_brush", "args": { "min": [384, 0, -48], "max": [640, 160, 48], "material": "showcase/plaster", "hollow": 16,
+      "openings": [ [[376, 16, -28], [408, 120, 28]], [[616, 16, -28], [648, 120, 28]] ] } },
+    { "tool": "create_brush", "args": { "min": [640, 0, -192], "max": [1024, 160, 192], "material": "showcase/plaster", "hollow": 16,
+      "openings": [ [[632, 16, -28], [664, 120, 28]], [[800, 16, 168], [864, 120, 200]] ] } },
+    { "tool": "create_brush", "args": { "min": [640, 0, 192], "max": [1024, 160, 512], "material": "showcase/plaster", "hollow": 16,
+      "openings": [ [[800, 16, 184], [864, 120, 216]] ] } },
+
+    { "tool": "create_entity", "args": { "classname": "info_player_start", "origin": [192, 40, 0], "angles": [0, -90, 0] } },
+    { "tool": "create_entity", "args": { "classname": "light", "origin": [192, 130, 0], "properties": { "light_energy": "1.6", "light_color": "255 220 170", "omni_range": "9" } } },
+    { "tool": "create_entity", "args": { "classname": "light", "origin": [512, 130, 0], "properties": { "light_energy": "1.0", "light_color": "255 200 140", "omni_range": "6" } } },
+    { "tool": "create_entity", "args": { "classname": "light", "origin": [832, 130, 0], "properties": { "light_energy": "1.6", "light_color": "200 220 255", "omni_range": "9" } } },
+    { "tool": "create_entity", "args": { "classname": "light", "origin": [832, 130, 352], "properties": { "light_energy": "1.4", "light_color": "255 170 130", "omni_range": "9" } } },
+
+    { "tool": "set_camera", "args": { "view": "3d", "position": [1500, 900, -700], "look_at": [520, 60, 100] } },
+    { "tool": "run_action", "args": { "action": "store_camera", "args": { "slot": 1 } } },
+    { "tool": "run_action", "args": { "action": "select_none" } },
+    { "tool": "validate_map", "args": {} },
+    { "tool": "map_file", "args": { "op": "save", "path": "${save_dir}/sealed_rooms.tdm" } }
+  ]
+}
