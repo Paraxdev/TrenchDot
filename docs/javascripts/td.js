@@ -320,6 +320,18 @@
     }, 100);
   });
 
+  // The shared copy of the light or dark choice that overrides/main.html restores in every language folder.
+  function sharePalette() {
+    try {
+      var palette = localStorage.getItem(__md_scope.pathname + ".__palette");
+      if (palette) localStorage.setItem("td-palette", palette);
+    } catch (e) {}
+  }
+
+  document.addEventListener("change", function (e) {
+    if (e.target.closest && e.target.closest("[data-md-component=palette]")) setTimeout(sharePalette);
+  });
+
   window.addEventListener("hashchange", followOldAnchor);
 
   document$.subscribe(function () {
@@ -329,6 +341,7 @@
     apply();
     followOldAnchor();
     addFacts();
+    sharePalette();
     loadGlossary().then(annotate);
   });
 })();

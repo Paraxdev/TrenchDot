@@ -6,6 +6,9 @@
 {%- endblock %}
 
 {% block extrahead %}
+  {#- The theme keeps the light or dark choice per language folder and reads it before td.js runs. td.js copies it
+      to a key every language shares, this puts it back in this folder first. -#}
+  <script>try{var p=localStorage.getItem("td-palette");p&&localStorage.setItem(__md_scope.pathname+".__palette",p)}catch(e){}</script>
   <meta name="td-mcp-switch" content="{{ config.extra.mcp_switch | e }}">
   {% set image = (config.extra.root_url or config.site_url) ~ "assets/brand/meta-og-1200x630.png" %}
   <meta property="og:type" content="website">
