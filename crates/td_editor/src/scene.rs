@@ -67,6 +67,9 @@ struct Bucket {
     edges: Option<GpuLines>,
     edges_2d: Option<GpuLines>,
     marker_edges: Option<GpuLines>,
+    /// Instanced models of point entities and prefab scatter sets, by pass like `opaque` to `volumes` above.
+    placed: [Vec<GpuMesh>; 4],
+    placed_keys: Vec<PlacedKey>,
     sel_edges: Option<GpuLines>,
     xray: Option<GpuLines>,
     stats: SceneStats,
@@ -99,7 +102,7 @@ struct DragLayer {
 }
 
 /// Builds the batches of the dragged nodes from their pre-drag geometry, drawn un-culled and selected.
-fn build_drag_batches(renderer: &Renderer, game: &GameConfig, base: &Map, nodes: &BTreeSet<NodeId>) -> DragLayer {
+fn build_drag_batches(renderer: &Renderer, game: &GameConfig, base: &Map, nodes: &BTreeSet<NodeId>, placed_models: &PlacedModels) -> DragLayer {
     let mut b = Builder {
         renderer,
         game,
@@ -115,6 +118,8 @@ fn build_drag_batches(renderer: &Renderer, game: &GameConfig, base: &Map, nodes:
         edges: Vec::new(),
         edges_2d: Vec::new(),
         marker_edges: Vec::new(),
+        placed: BTreeMap::new(),
+        placed_models,
         sel_edges: Vec::new(),
         stats: SceneStats::default(),
         instance_bounds: HashMap::new(),
@@ -165,6 +170,7 @@ pub struct SceneCache {
     scatters: HashMap<NodeId, ScatterGpu>,
     scatter_models: ScatterModels,
     unit_box: Option<GpuMesh>,
+    placed_models: PlacedModels,
     links: Option<GpuLines>,
     cordon: Option<GpuLines>,
     /// Dashed boxes of the Godot overlay content on top of the map, see `crate::overlays`.
@@ -341,6 +347,9 @@ struct Builder<'a> {
     edges_2d: Vec<LineVertex>,
     /// Outlines and arrows of unselected point entity boxes, drawn by both the 2D and the 3D views.
     marker_edges: Vec<LineVertex>,
+    /// Records of the models placed so far, by the shared meshes they draw.
+    placed: BTreeMap<PlacedKey, (Arc<PlacedMeshes>, Vec<MeshInstance>)>,
+    placed_models: &'a PlacedModels,
     sel_edges: Vec<LineVertex>,
     stats: SceneStats,
     instance_bounds: HashMap<NodeId, Aabb>,
@@ -489,6 +498,20 @@ impl ScatterModels {
         self.missing.as_ref()
     }
 }
+
+/// A model's address, the override material of the scatter item placing it, and whether it draws as a dark
+/// fixture and as a volume, which pick each part's material and pass.
+type PlacedKey = (usize, Option<String>, bool, bool);
+
+/// A model uploaded once per pass for every point entity and prefab scatter instance placing it alike.
+struct PlacedMeshes {
+    /// Holding the model keeps its address from being reused by a reloaded model while the key is cached.
+    _model: Arc<crate::models::Model>,
+    passes: [Option<GpuMesh>; 4],
+}
+
+/// Shared by the bucket builders, which run across threads.
+type PlacedModels = std::sync::Mutex<HashMap<PlacedKey, Arc<PlacedMeshes>>>;
 
 fn instance_hash(set: &td_doc::Scatter, instances: &[&td_doc::scatter::ScatterInstance], selected: bool) -> u64 {
     use std::hash::{Hash, Hasher};
@@ -660,16 +683,56 @@ impl Builder<'_> {
     /// Batch for a surface: blended materials and see-through tool faces sort as transparent, cull disabled materials skip culling.
     /// Sky faces go with the volumes, so the lit preview shows the sky instead of a box around the map.
     fn batch(&mut self, mat: &str, see_through: bool) -> &mut MeshBatch {
+        match self.pass(mat, see_through) {
+            0 => &mut self.opaque,
+            1 => &mut self.double,
+            2 => &mut self.transparent,
+            _ => &mut self.volumes,
+        }
+    }
+
+    /// Index of the batch `batch` picks: opaque, double sided, transparent or volumes.
+    fn pass(&self, mat: &str, see_through: bool) -> usize {
         let flags = self.renderer.material_flags(mat);
         if self.volume || mat.eq_ignore_ascii_case(&self.game.tool_textures.sky) {
-            &mut self.volumes
+            3
         } else if see_through || flags.transparent {
-            &mut self.transparent
+            2
         } else if flags.double_sided {
-            &mut self.double
+            1
         } else {
-            &mut self.opaque
+            0
         }
+    }
+
+    /// Places `model` with one instance record, uploading it the first time any bucket places it alike.
+    fn place_model(&mut self, model: &Arc<crate::models::Model>, material: Option<&str>, dark: bool, record: MeshInstance) {
+        self.stats.triangles += model.parts.iter().map(|p| p.indices.len() / 3).sum::<usize>();
+        let key = (Arc::as_ptr(model) as usize, material.map(str::to_string), dark, self.volume);
+        if !self.placed.contains_key(&key) {
+            let shared = self.placed_models.lock().unwrap().entry(key.clone()).or_insert_with(|| Arc::new(self.upload_placed(model, material, dark))).clone();
+            self.placed.insert(key.clone(), (shared, Vec::new()));
+        }
+
+        self.placed.get_mut(&key).unwrap().1.push(record);
+    }
+
+    fn upload_placed(&self, model: &Arc<crate::models::Model>, material: Option<&str>, dark: bool) -> PlacedMeshes {
+        let mut batches: [MeshBatch; 4] = Default::default();
+        for part in &model.parts {
+            let key = match material {
+                Some(m) => m.into(),
+                None => fixture_material(dark, &part.material, |k| self.renderer.has_material(k)),
+            };
+            let verts: Vec<MeshVertex> = part
+                .vertices
+                .iter()
+                .map(|v| MeshVertex { pos: v.pos.to_array(), normal: v.normal.to_array(), uv: v.uv, color: [1.0; 4], uv2: td_render::NO_UV2 })
+                .collect();
+            batches[self.pass(&key, false)].add_triangles(&key, &verts, &part.indices);
+        }
+
+        PlacedMeshes { _model: model.clone(), passes: batches.map(|b| self.renderer.upload_mesh(&b)) }
     }
 
     fn uv2(&self, face: usize, p: DVec3) -> [f32; 2] {
@@ -924,7 +987,7 @@ impl Builder<'_> {
         }
     }
 
-    fn point_entity(&mut self, id: Option<NodeId>, e: &Entity, selected: bool, tint: Option<[f32; 4]>, model: Option<&crate::models::Model>) {
+    fn point_entity(&mut self, id: Option<NodeId>, e: &Entity, selected: bool, tint: Option<[f32; 4]>, model: Option<&Arc<crate::models::Model>>) {
         self.stats.entities += 1;
         let def = self.game.entity(&e.classname);
         let c = def_color(def);
@@ -933,24 +996,7 @@ impl Builder<'_> {
             Some(m) => {
                 let xform = DMat4::from_scale_rotation_translation(DVec3::splat(entity_scale(e)), e.rotation(), e.origin);
                 let fill = if selected { SELECTED_TINT } else { tint.unwrap_or([1.0; 4]) };
-                let m32 = xform.as_mat4();
-                let normal_m = glam::Mat3::from_mat4(m32);
-                for part in &m.parts {
-                    let verts: Vec<MeshVertex> = part
-                        .vertices
-                        .iter()
-                        .map(|v| MeshVertex {
-                            pos: m32.transform_point3(v.pos).to_array(),
-                            normal: (normal_m * v.normal).normalize_or_zero().to_array(),
-                            uv: v.uv,
-                            color: fill,
-                            uv2: td_render::NO_UV2,
-                        })
-                        .collect();
-                    self.stats.triangles += part.indices.len() / 3;
-                    let key = self.draw_key(&part.material);
-                    self.batch(&key, false).add_triangles(&key, &verts, &part.indices);
-                }
+                self.place_model(m, None, self.dark, MeshInstance::new(xform.as_mat4(), fill));
 
                 let corners = m.bounds.corners();
                 let b = Aabb::from_points(corners.iter().map(|p| xform.transform_point3(*p)));
@@ -1069,7 +1115,7 @@ impl Builder<'_> {
                     placed.transform_by(xform);
                     let model = crate::models::entity_model_path(self.game, &placed).and_then(|p| cx.models.get(&p, self.game.units_per_meter));
                     bounds.include(&entity_box(self.game, &placed));
-                    self.point_entity(None, &placed, selected, Some([0.6, 0.85, 1.0, 1.0]), model.as_deref());
+                    self.point_entity(None, &placed, selected, Some([0.6, 0.85, 1.0, 1.0]), model.as_ref());
                 }
                 NodeKind::Terrain(t) if t.is_valid() => {
                     // Like the Godot build, instances move terrains but never rotate them.
@@ -1156,26 +1202,7 @@ impl Builder<'_> {
         for inst in &set.instances {
             let xform = inst.transform().as_mat4();
             match item_models.get(inst.item as usize).and_then(|m| m.as_ref()) {
-                Some(model) => {
-                    let normal_m = glam::Mat3::from_mat4(xform);
-                    let material = set.item_material(inst.item as usize);
-                    for part in &model.parts {
-                        let verts: Vec<MeshVertex> = part
-                            .vertices
-                            .iter()
-                            .map(|v| MeshVertex {
-                                pos: xform.transform_point3(v.pos).to_array(),
-                                normal: (normal_m * v.normal).normalize_or_zero().to_array(),
-                                uv: v.uv,
-                                color: tint,
-                                uv2: td_render::NO_UV2,
-                            })
-                            .collect();
-                        let key = material.unwrap_or(&part.material);
-                        self.stats.triangles += part.indices.len() / 3;
-                        self.batch(key, false).add_triangles(key, &verts, &part.indices);
-                    }
-                }
+                Some(model) => self.place_model(model, set.item_material(inst.item as usize), false, MeshInstance::new(xform, tint)),
                 None => {
                     let s = (12.0 * inst.scale) as f32;
                     let p = Vec3::from_array(v3(inst.position));
@@ -1450,6 +1477,7 @@ struct BucketCtx<'a> {
     drag_nodes: &'a BTreeSet<NodeId>,
     fixtures: &'a td_doc::entity::OffFixtures,
     unit_box: Option<&'a GpuMesh>,
+    placed_models: &'a PlacedModels,
 }
 
 /// Builds the batches for one bucket's brush, mesh, entity and terrain nodes. Prefab instances are left to
@@ -1471,6 +1499,8 @@ fn build_bucket<'a>(ctx: &BucketCtx<'a>, ids: &[NodeId]) -> Builder<'a> {
         edges: Vec::new(),
         edges_2d: Vec::new(),
         marker_edges: Vec::new(),
+        placed: BTreeMap::new(),
+        placed_models: ctx.placed_models,
         sel_edges: Vec::new(),
         stats: SceneStats::default(),
         instance_bounds: HashMap::new(),
@@ -1517,7 +1547,7 @@ fn build_bucket<'a>(ctx: &BucketCtx<'a>, ids: &[NodeId]) -> Builder<'a> {
             NodeKind::Mesh(mesh) => builder.mesh(mesh, tint, selected, |fi| ctx.selected_faces.contains(&(id, fi)), edge_2d, is_trigger, ctx.pieces.get(&id)),
             NodeKind::Terrain(_) => builder.stats.terrains += 1,
             NodeKind::Entity(e) if node.children.is_empty() => {
-                builder.point_entity(Some(id), e, is_selected(id), None, ctx.entity_models.get(&id).map(|m| m.as_ref()));
+                builder.point_entity(Some(id), e, is_selected(id), None, ctx.entity_models.get(&id));
             }
             _ => {}
         }
@@ -1530,6 +1560,23 @@ fn build_bucket<'a>(ctx: &BucketCtx<'a>, ids: &[NodeId]) -> Builder<'a> {
 fn upload_bucket(ctx: &BucketCtx, builder: Builder) -> Bucket {
     let renderer = ctx.renderer;
     let markers = ctx.unit_box.zip(renderer.upload_instances(&builder.markers)).map(|(b, records)| b.instanced(&records, 0..builder.markers.len() as u32));
+    let mut records = Vec::new();
+    let mut ranges = Vec::new();
+    for (shared, list) in builder.placed.values() {
+        let start = records.len() as u32;
+        records.extend_from_slice(list);
+        ranges.push((shared, start..records.len() as u32));
+    }
+
+    let mut placed: [Vec<GpuMesh>; 4] = Default::default();
+    if let Some(buffer) = renderer.upload_instances(&records) {
+        for (shared, range) in ranges {
+            for (pass, mesh) in shared.passes.iter().enumerate() {
+                placed[pass].extend(mesh.as_ref().map(|m| m.instanced(&buffer, range.clone())));
+            }
+        }
+    }
+
     let xray: Vec<LineVertex> = builder.sel_edges.iter().map(|v| LineVertex { color: SELECTED_XRAY, ..*v }).collect();
     Bucket {
         opaque: renderer.upload_mesh(&builder.opaque),
@@ -1541,6 +1588,8 @@ fn upload_bucket(ctx: &BucketCtx, builder: Builder) -> Bucket {
         edges: renderer.upload_lines(&builder.edges),
         edges_2d: renderer.upload_lines(&builder.edges_2d),
         marker_edges: renderer.upload_lines(&builder.marker_edges),
+        placed,
+        placed_keys: builder.placed.into_keys().collect(),
         sel_edges: renderer.upload_lines(&builder.sel_edges).map(GpuLines::wide),
         xray: renderer.upload_lines(&xray),
         stats: builder.stats,
@@ -1676,6 +1725,7 @@ impl SceneCache {
                 self.scatters.clear();
                 self.scatter_models = ScatterModels::default();
                 self.unit_box = None;
+                self.placed_models = PlacedModels::default();
                 for b in &mut self.buckets {
                     *b = Bucket::default();
                 }
@@ -1953,6 +2003,7 @@ impl SceneCache {
                     drag_nodes: &drag_nodes,
                     fixtures: &self.fixtures,
                     unit_box: self.unit_box.as_ref(),
+                    placed_models: &self.placed_models,
                 };
                 let has_instance = |b: usize| {
                     per_bucket_ref.get(&b).is_some_and(|ids| ids.iter().any(|id| matches!(map.get(*id).map(|n| &n.kind), Some(NodeKind::Instance(_)))))
@@ -2027,6 +2078,9 @@ impl SceneCache {
             for (b, bucket) in results {
                 self.buckets[b] = bucket;
             }
+
+            let used: std::collections::HashSet<&PlacedKey> = self.buckets.iter().flat_map(|b| &b.placed_keys).collect();
+            self.placed_models.get_mut().unwrap().retain(|k, _| used.contains(k));
         }
 
         // Live drag layer: rebuild its base batches when the dragged set changes, then re-upload a
@@ -2034,7 +2088,7 @@ impl SceneCache {
         match (&drag_req, &drag_base) {
             (Some(req), Some(base)) => {
                 if self.drag.as_ref().map(|d| d.nodes != req.nodes).unwrap_or(true) {
-                    self.drag = Some(build_drag_batches(renderer, &game, base, &req.nodes));
+                    self.drag = Some(build_drag_batches(renderer, &game, base, &req.nodes, &self.placed_models));
                 }
 
                 if let Some(dl) = &mut self.drag {
@@ -2165,6 +2219,7 @@ impl SceneCache {
             let hi = DVec3::new(center.x + half.x, bounds.max.y + 64.0, center.z + half.z);
             let vp = Renderer::sun_view_proj(self.lighting.sun_direction, lo.as_vec3(), hi.as_vec3());
             let mut meshes: Vec<&GpuMesh> = self.buckets.iter().flat_map(|b| [b.opaque.as_ref(), b.double.as_ref()]).flatten().collect();
+            meshes.extend(self.buckets.iter().flat_map(|b| b.placed[0].iter().chain(&b.placed[1])));
             meshes.extend(self.terrains.values().flat_map(|t| t.chunks.iter().flatten()));
             meshes.extend(self.scatters.values().flat_map(|s| s.chunks.values().flat_map(|c| &c.meshes)));
             renderer.render_shadow(&meshes, vp);
@@ -2213,6 +2268,9 @@ impl SceneCache {
                 frame.opaque.extend(b.opaque.as_ref());
                 frame.double_sided.extend(b.double.as_ref());
                 frame.transparent.extend(b.transparent.as_ref());
+                frame.opaque.extend(&b.placed[0]);
+                frame.double_sided.extend(&b.placed[1]);
+                frame.transparent.extend(&b.placed[2]);
                 if !overlays {
                     continue;
                 }
@@ -2222,6 +2280,7 @@ impl SceneCache {
                     frame.lines.extend(b.edges.as_ref());
                     frame.lines.extend(b.marker_edges.as_ref());
                     frame.transparent.extend(b.volumes.as_ref());
+                    frame.transparent.extend(&b.placed[3]);
                 }
 
                 frame.lines.extend(b.sel_edges.as_ref());

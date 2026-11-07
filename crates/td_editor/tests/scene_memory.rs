@@ -148,3 +148,17 @@ fn point_entity_markers_share_one_box() {
     let per_marker = (many - few) / 10_000;
     assert!(per_marker <= 1024, "a point entity marker takes {per_marker} B of GPU memory");
 }
+
+#[test]
+#[ignore = "needs a GPU"]
+fn model_point_entities_upload_their_model_once() {
+    let mut gpu = Gpu::new("entity_models");
+    let (_, one_tris) = gpu.scene_cost(&entities(1, Some(TREE)));
+    let (few, few_tris) = gpu.scene_cost(&entities(1_000, Some(TREE)));
+    let (many, many_tris) = gpu.scene_cost(&entities(11_000, Some(TREE)));
+    assert!(one_tris > 0, "one entity draws its model");
+    assert_eq!((few_tris, many_tris), (one_tris * 1_000, one_tris * 11_000));
+    // A record per entity plus its box in the 2D views, the model itself is uploaded once.
+    let per_entity = (many - few) / 10_000;
+    assert!(per_entity <= 1024, "a model point entity takes {per_entity} B of GPU memory");
+}
