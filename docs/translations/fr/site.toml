@@ -24,6 +24,7 @@ tags_hint = "Utilisez les flèches haut et bas pour passer d'une étiquette à l
 [nav]
 "Introduction" = "Introduction"
 "Getting started" = "Premiers pas"
+"Tips" = "Astuces"
 "Editor" = "Éditeur"
 "Interface and navigation" = "Interface et navigation"
 "Coming from Unity or Blender" = "Venir de Unity ou de Blender"

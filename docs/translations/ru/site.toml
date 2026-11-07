@@ -24,6 +24,7 @@ tags_hint = "Стрелками вверх и вниз переходите ме
 [nav]
 "Introduction" = "Введение"
 "Getting started" = "Первые шаги"
+"Tips" = "Советы"
 "Editor" = "Редактор"
 "Interface and navigation" = "Интерфейс и навигация"
 "Coming from Unity or Blender" = "Если вы пришли из Unity или Blender"

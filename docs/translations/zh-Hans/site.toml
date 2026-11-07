@@ -24,6 +24,7 @@ tags_hint = "用上下方向键在标签之间移动，按空格键或回车键�
 [nav]
 "Introduction" = "简介"
 "Getting started" = "入门"
+"Tips" = "提示"
 "Editor" = "编辑器"
 "Interface and navigation" = "界面与导航"
 "Coming from Unity or Blender" = "从 Unity 或 Blender 转过来"

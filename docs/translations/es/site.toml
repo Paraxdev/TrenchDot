@@ -24,6 +24,7 @@ tags_hint = "Usa las flechas arriba y abajo para moverte entre las etiquetas. Pu
 [nav]
 "Introduction" = "Introducción"
 "Getting started" = "Primeros pasos"
+"Tips" = "Consejos"
 "Editor" = "Editor"
 "Interface and navigation" = "Interfaz y navegación"
 "Coming from Unity or Blender" = "Si vienes de Unity o Blender"

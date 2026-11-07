@@ -2,6 +2,7 @@
 
 * [Introduction](README.md)
 * [Getting started](getting-started.md)
+* [Tips](tips.md)
 * Editor
     * [Interface and navigation](editor/interface.md)
     * [Coming from Unity or Blender](editor/coming-from-unity-blender.md)

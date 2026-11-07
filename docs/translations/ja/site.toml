@@ -24,6 +24,7 @@ tags_hint = "上下の矢印キーでタグを移動し、スペースキーかE
 [nav]
 "Introduction" = "はじめに"
 "Getting started" = "はじめの一歩"
+"Tips" = "ヒント"
 "Editor" = "エディター"
 "Interface and navigation" = "画面構成と操作"
 "Coming from Unity or Blender" = "UnityやBlenderから来た方へ"
