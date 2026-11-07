@@ -230,6 +230,8 @@ def language_config(config, code, strings):
     project["site_description"] = strings.get("description", project.get("site_description"))
     extra["mcp_switch"] = strings.get("mcp_switch", extra.get("mcp_switch"))
     extra["notice"] = strings["notice"]
+    if "search" in strings:
+        extra["search"] = strings["search"]
     theme = project["theme"]
     for palette in theme.get("palette", []):
         name = strings.get(TOGGLES.get(palette.get("scheme")))

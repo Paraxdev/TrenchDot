@@ -332,6 +332,72 @@
     if (e.target.closest && e.target.closest("[data-md-component=palette]")) setTimeout(sharePalette);
   });
 
+  // The search dialog hard codes its texts in English. A language site swaps them for the theme's search strings and
+  // the [search] table of its site.toml. The dialog renders into an open shadow root and re-renders as the reader types.
+  var searchStrings = null;
+  function loadSearchStrings() {
+    if (searchStrings) return searchStrings;
+    var own = document.getElementById("td-search-strings");
+    if (!own) return null;
+    var s = JSON.parse(own.textContent);
+    var t = {};
+    try {
+      t = JSON.parse(document.getElementById("__config").textContent).translations || {};
+    } catch (e) {}
+    searchStrings = {
+      text: {
+        "No results": t["search.result.none"],
+        "Loading search…": s.loading,
+        "Search is unavailable. Reload the page to try again.": s.unavailable,
+        "Filters": s.filters,
+        "Tags": s.tags,
+        "Use Up and Down arrow keys to move between tags. Press Space or Enter to toggle a tag.": s.tags_hint,
+      },
+      label: { "Search": s.search, "Close search": s.close, "Search results": s.results, "Filters": s.filters },
+      placeholder: t["search.result.placeholder"] || s.search,
+      one: t["search.result.one"],
+      other: t["search.result.other"],
+      number: new Intl.NumberFormat(document.documentElement.lang),
+    };
+    return searchStrings;
+  }
+
+  function localiseSearch(root, s) {
+    var walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) {
+      var node = walker.currentNode;
+      var text = node.nodeValue.trim();
+      var count = /^([\d,]+) results?$/.exec(text);
+      var shown = s.text[text];
+      if (count && s.other) {
+        var n = Number(count[1].replace(/,/g, ""));
+        shown = n === 1 && s.one ? s.one : s.other.replace("#", s.number.format(n));
+      }
+      if (shown && shown !== node.nodeValue) node.nodeValue = shown;
+    }
+    root.querySelectorAll("[aria-label]").forEach(function (el) {
+      var shown = s.label[el.getAttribute("aria-label")];
+      if (shown) el.setAttribute("aria-label", shown);
+    });
+    root.querySelectorAll("input[placeholder='Search']").forEach(function (el) {
+      el.placeholder = s.placeholder;
+    });
+  }
+
+  function watchSearch() {
+    var s = loadSearchStrings();
+    if (!s) return;
+    Array.prototype.forEach.call(document.body.children, function (host) {
+      var root = host.shadowRoot;
+      if (!root || host.dataset.tdSearch) return;
+      host.dataset.tdSearch = "1";
+      localiseSearch(root, s);
+      new MutationObserver(function () {
+        localiseSearch(root, s);
+      }).observe(root, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["aria-label", "placeholder"] });
+    });
+  }
+
   window.addEventListener("hashchange", followOldAnchor);
 
   document$.subscribe(function () {
@@ -342,6 +408,7 @@
     followOldAnchor();
     addFacts();
     sharePalette();
+    watchSearch();
     loadGlossary().then(annotate);
   });
 })();

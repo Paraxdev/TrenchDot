@@ -10,6 +10,17 @@ note = "メモ"
 tip = "ヒント"
 warning = "警告"
 
+# The search dialog, whose theme code has these in English only. Its placeholder and result counts come from the theme.
+[search]
+search = "検索"
+close = "検索を閉じる"
+results = "検索結果"
+loading = "検索を読み込み中…"
+unavailable = "検索を利用できません。ページを再読み込みしてもう一度お試しください。"
+filters = "フィルター"
+tags = "タグ"
+tags_hint = "上下の矢印キーでタグを移動し、スペースキーかEnterキーでタグを切り替えます。"
+
 [nav]
 "Introduction" = "はじめに"
 "Getting started" = "はじめの一歩"

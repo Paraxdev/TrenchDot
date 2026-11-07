@@ -10,6 +10,17 @@ note = "Nota"
 tip = "Dica"
 warning = "Aviso"
 
+# The search dialog, whose theme code has these in English only. Its placeholder and result counts come from the theme.
+[search]
+search = "Pesquisar"
+close = "Fechar a pesquisa"
+results = "Resultados da pesquisa"
+loading = "Carregando a pesquisa…"
+unavailable = "A pesquisa não está disponível. Recarregue a página para tentar de novo."
+filters = "Filtros"
+tags = "Tags"
+tags_hint = "Use as setas para cima e para baixo para passar de uma tag a outra. Pressione Espaço ou Enter para ativar ou desativar uma tag."
+
 [nav]
 "Introduction" = "Introdução"
 "Getting started" = "Primeiros passos"

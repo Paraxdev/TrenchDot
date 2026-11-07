@@ -10,6 +10,17 @@ note = "说明"
 tip = "提示"
 warning = "警告"
 
+# The search dialog, whose theme code has these in English only. Its placeholder and result counts come from the theme.
+[search]
+search = "搜索"
+close = "关闭搜索"
+results = "搜索结果"
+loading = "正在加载搜索…"
+unavailable = "搜索不可用。请重新加载页面后再试。"
+filters = "筛选"
+tags = "标签"
+tags_hint = "用上下方向键在标签之间移动，按空格键或回车键切换标签。"
+
 [nav]
 "Introduction" = "简介"
 "Getting started" = "入门"

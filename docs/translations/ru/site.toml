@@ -10,6 +10,17 @@ note = "Примечание"
 tip = "Совет"
 warning = "Предупреждение"
 
+# The search dialog, whose theme code has these in English only. Its placeholder and result counts come from the theme.
+[search]
+search = "Поиск"
+close = "Закрыть поиск"
+results = "Результаты поиска"
+loading = "Загрузка поиска…"
+unavailable = "Поиск недоступен. Перезагрузите страницу и попробуйте снова."
+filters = "Фильтры"
+tags = "Теги"
+tags_hint = "Стрелками вверх и вниз переходите между тегами. Пробел или Enter включает и выключает тег."
+
 [nav]
 "Introduction" = "Введение"
 "Getting started" = "Первые шаги"

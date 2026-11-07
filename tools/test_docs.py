@@ -362,6 +362,10 @@ class LanguageConfigTest(unittest.TestCase):
                         "warning"):
                 self.assertIn(key, tomllib.loads((bs.ROOT / "docs" / "translations" / code / "site.toml")
                                                  .read_text(encoding="utf-8")), f"{code} {key}")
+            self.assertEqual(sorted(strings["search"]), ["close", "filters", "loading", "results", "search", "tags",
+                                                         "tags_hint", "unavailable"], code)
+            for key, value in strings["search"].items():
+                self.assertNotRegex(value, r"[–—―]| - ", f"{code} search.{key}")
 
     def test_site_strings_are_translated_and_follow_the_style(self):
         english = {**bs.DEFAULTS, "description": CONFIG["project"]["site_description"],
@@ -625,9 +629,15 @@ class BuiltSiteTest(unittest.TestCase):
         self.assertIn(f'title="{strings["dark_toggle"]}"', html)
         self.assertIn(f'<p class="admonition-title">{strings["note"]}</p>', html)
 
+    def test_language_pages_carry_their_search_strings(self):
+        html = (self.SITE / "ja" / "editor" / "brushes.html").read_text(encoding="utf-8")
+        found = re.search(r'<script type="application/json" id="td-search-strings">(.*?)</script>', html)
+        self.assertEqual(json.loads(found[1]), bs.load_strings(bs.ROOT / "docs", "ja")["search"])
+
     def test_english_page_has_no_banner_and_the_english_tooltip(self):
         html = (self.SITE / "editor" / "brushes.html").read_text(encoding="utf-8")
         self.assertNotIn("md-banner", html)
+        self.assertNotIn("td-search-strings", html)
         self.assertIn(f'<meta name="td-mcp-switch" content="{CONFIG["project"]["extra"]["mcp_switch"]}">', html)
 
     def test_every_language_page_has_its_own_notice(self):
@@ -1284,6 +1294,7 @@ Nav texts with no [nav] entry (4): Intro, Editor, Brushes, Terrain
         self.assertEqual(problems("note = 3\n"), ["site.toml note has to be a string"])
         self.assertEqual(problems('nav = "x"\n'), ["site.toml nav has to be a table of strings"])
         self.assertEqual(problems('[nav]\n"A" = 1\n'), ["site.toml nav has to be a table of strings"])
+        self.assertEqual(problems('search = "x"\n'), ["site.toml search has to be a table of strings"])
         self.assertEqual(len(problems("nope")), 1)
         self.assertTrue(problems("nope")[0].startswith("site.toml does not parse"))
         self.assertEqual(tr.check_site_strings(self.docs, "pt"), [])

@@ -30,7 +30,7 @@ import build_site as bs  # noqa: E402
 DOCS = bs.ROOT / "docs"
 LOCALES = bs.ROOT / "crates" / "td_editor" / "locales"
 SITE_KEYS = {"theme_language", "description", "light_toggle", "dark_toggle", "mcp_switch", "notice", "fallback",
-             "note", "tip", "warning", "nav"}
+             "note", "tip", "warning", "nav", "search"}
 SOURCE = re.compile(r"[0-9a-f]{40}")
 SENSE = re.compile(r"#[a-z_]+$")
 HEADING = re.compile(r"^(?P<hashes>#{1,6})[ \t]+(?P<text>.*?)[ \t]*$")
@@ -351,9 +351,9 @@ def check_site_strings(docs, code):
         return [f"site.toml does not parse: {error}"]
     problems = [f"site.toml has an unknown key {key!r}" for key in data if key not in SITE_KEYS]
     for key, value in data.items():
-        if key == "nav":
+        if key in ("nav", "search"):
             if not isinstance(value, dict) or not all(isinstance(v, str) for v in value.values()):
-                problems.append("site.toml nav has to be a table of strings")
+                problems.append(f"site.toml {key} has to be a table of strings")
         elif key in SITE_KEYS and not isinstance(value, str):
             problems.append(f"site.toml {key} has to be a string")
     return problems
