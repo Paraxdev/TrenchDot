@@ -180,8 +180,10 @@ pub struct App {
     pub(crate) tool_options_rect: egui::Rect,
 }
 
-const WINDOW_TITLES: [&str; 10] = [
+const WINDOW_TITLES: [&str; 12] = [
     "Shape Generator",
+    "Add Trim",
+    "Random Fill",
     "Create Terrain",
     "Keyboard Shortcuts",
     "Link Entities",
@@ -3480,6 +3482,35 @@ mod tests {
             if let Topic::Menu(label) = topic {
                 assert!(labels.contains(label), "help::PAGES links \"{label}\", which no menu entry is called");
             }
+        }
+    }
+
+    #[test]
+    fn get_state_lists_every_editor_window() {
+        fn scan(dir: &std::path::Path, titles: &mut Vec<String>) {
+            for entry in std::fs::read_dir(dir).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    scan(&path, titles);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    let text = std::fs::read_to_string(&path).unwrap();
+                    for (at, _) in text.match_indices("widgets::window(") {
+                        let rest = &text[at..];
+                        if let Some(title) =
+                            rest.strip_prefix("widgets::window(").and_then(|r| r.split(')').next()).and_then(|r| r.split('"').nth(1)).filter(|t| !t.is_empty())
+                        {
+                            titles.push(title.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut titles = Vec::new();
+        scan(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut titles);
+        assert!(titles.iter().any(|t| t == "Random Fill"), "{titles:?}");
+        for title in titles {
+            assert!(WINDOW_TITLES.contains(&title.as_str()), "\"{title}\" is missing from WINDOW_TITLES, so get_state does not report it");
         }
     }
 
