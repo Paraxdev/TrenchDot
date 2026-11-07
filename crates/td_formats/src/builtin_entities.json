@@ -22,6 +22,7 @@
         { "name": "glow_intensity", "type": "float", "default": "0", "description": "Glow around bright lights and emissive materials, 0 disables it" },
         { "name": "ssr", "type": "bool", "default": "0", "description": "Screen space reflections in Godot, so glossy floors and wet streets mirror lights and signs" },
         { "name": "environment", "type": "choices", "default": "1", "description": "What Godot builds from these keys. A scene with its own WorldEnvironment or DirectionalLight3D keeps it", "options": [["environment and sun", "1"], ["sun only", "sun_only"], ["none", "0"]] },
+        { "name": "_cull_void_faces", "type": "bool", "default": "0", "description": "Set to 1 on a sealed map to drop the faces that only face the void outside it. A brush entity can set it to 0 to keep its own faces" },
         { "name": "chunk_streaming", "type": "bool", "default": "0", "description": "Group the built map into chunks and only draw the ones near the camera" },
         { "name": "chunk_size", "type": "float", "default": "2048", "description": "Size of a streaming chunk in map units" },
         { "name": "load_radius", "type": "float", "default": "8192", "description": "Distance from the camera a chunk stays drawn within, in map units" }

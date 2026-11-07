@@ -191,6 +191,12 @@
           ]
         },
         {
+          "name": "_cull_void_faces",
+          "type": "bool",
+          "default": "0",
+          "description": "Set to 1 on a sealed map to drop the faces that only face the void outside it. A brush entity can set it to 0 to keep its own faces"
+        },
+        {
           "name": "chunk_streaming",
           "type": "bool",
           "default": "0",
