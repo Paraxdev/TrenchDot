@@ -53,6 +53,7 @@ pub struct PanelState {
     issues_revision: u64,
     issues_overlays: u64,
     issues_materials: u64,
+    issues_void: u64,
     issues_godot: Option<crate::live_link::GodotReport>,
     pub uv: crate::uv_editor::UvEditorState,
     pub reference_class: String,
@@ -94,6 +95,7 @@ impl Default for PanelState {
             issues_revision: 0,
             issues_overlays: 0,
             issues_materials: 0,
+            issues_void: 0,
             issues_godot: None,
             uv: Default::default(),
             reference_class: String::new(),
@@ -2836,6 +2838,7 @@ pub fn issues(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actions
     let stale = ps.issues_revision != state.doc.revision
         || ps.issues_overlays != state.overlay_ghosts.generation
         || ps.issues_materials != state.materials.generation
+        || ps.issues_void != state.void_cull.generation
         || ps.issues_godot.as_ref() != godot;
     if stale && !state.doc.in_transaction() {
         ps.issues_godot = godot.cloned();
@@ -2843,6 +2846,7 @@ pub fn issues(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actions
         ps.issues_revision = state.doc.revision;
         ps.issues_overlays = state.overlay_ghosts.generation;
         ps.issues_materials = state.materials.generation;
+        ps.issues_void = state.void_cull.generation;
     }
 
     let errors = ps.issues.iter().filter(|i| i.severity == Severity::Error).count();

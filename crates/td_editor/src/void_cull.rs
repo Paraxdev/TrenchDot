@@ -4,14 +4,24 @@
 //! same rules, so the editor preview matches what the build draws.
 
 use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{self, Receiver, TryRecvError};
+use std::time::{Duration, Instant};
 
+use serde_json::json;
 use td_core::{Aabb, DVec3, EPSILON, NodeId, Plane};
+use td_doc::issues::{Issue, Severity};
 use td_doc::{Map, NodeKind};
+use td_formats::godot_material::{GodotMaterial, Transparency};
 use td_formats::{EntityKind, GameConfig};
 use td_geom::Mesh;
+use td_render::LineVertex;
 
-use crate::face_cull::{CullFace, FaceCull, skipped_entity};
+use crate::face_cull::{CullFace, FaceCull, FacePieces, skipped_entity};
+use crate::i18n::en;
+use crate::materials::MaterialLibrary;
+use crate::state::EditorState;
 
 /// The key that turns the culling on with 1 on worldspawn, and keeps a brush entity's faces with 0.
 pub const SWITCH: &str = "_cull_void_faces";
@@ -437,9 +447,7 @@ pub fn analyze(map: &Map, game: &GameConfig, opaque: &(dyn Fn(&str) -> bool + Sy
     let walls = Walls::collect(map, game, opaque);
     let seeds: Vec<(NodeId, DVec3)> = map
         .entities()
-        .filter(|(id, e)| {
-            map.is_point_entity(*id) && e.classname != "worldspawn" && game.entity(&e.classname).is_none_or(|d| d.kind != EntityKind::Solid)
-        })
+        .filter(|(id, e)| map.is_point_entity(*id) && e.classname != "worldspawn" && game.entity(&e.classname).is_none_or(|d| d.kind != EntityKind::Solid))
         .map(|(id, e)| (id, e.origin))
         .collect();
     if walls.solids.is_empty() || seeds.is_empty() {
@@ -451,9 +459,9 @@ pub fn analyze(map: &Map, game: &GameConfig, opaque: &(dyn Fn(&str) -> bool + Sy
         let b = walls.bounds.expanded(2.0 * s);
         let lo = cell_of(b.min, s);
         let mut hi = cell_of(b.max, s);
-        for k in 0..3 {
-            if (hi[k] as f64) * s < b.max[k] {
-                hi[k] += 1;
+        for (k, h) in hi.iter_mut().enumerate() {
+            if (*h as f64) * s < b.max[k] {
+                *h += 1;
             }
         }
 
@@ -498,7 +506,7 @@ pub fn analyze(map: &Map, game: &GameConfig, opaque: &(dyn Fn(&str) -> bool + Sy
     let mut steps = 0u32;
     while let Some(at) = flood.queue.pop_front() {
         steps += 1;
-        if steps % 4096 == 0 && cancel.load(Ordering::Relaxed) {
+        if steps.is_multiple_of(4096) && cancel.load(Ordering::Relaxed) {
             return finish(&flood, Outcome::Cancelled);
         }
 
@@ -564,9 +572,263 @@ pub fn analyze(map: &Map, game: &GameConfig, opaque: &(dyn Fn(&str) -> bool + Sy
     report
 }
 
+/// The map content as `Document::content_key` gives it, and the material library generation.
+pub type Key = ((u64, u64, u64), u64);
+
+/// Edits must be quiet this long before the cull is computed again.
+const SETTLE: Duration = Duration::from_millis(500);
+const LEAK_COLOR: [f32; 4] = [1.0, 0.3, 0.2, 1.0];
+
+struct Job {
+    key: Key,
+    cancel: Arc<AtomicBool>,
+    rx: Receiver<Report>,
+}
+
+/// The latest cull of the open map, computed off the UI thread once edits settle.
+#[derive(Default)]
+pub struct VoidView {
+    pub report: Option<Arc<Report>>,
+    /// Goes up whenever `report` changes.
+    pub generation: u64,
+    /// Content `report` was computed for.
+    done: Option<Key>,
+    seen: Option<Key>,
+    changed: Option<Instant>,
+    job: Option<Job>,
+}
+
+impl VoidView {
+    fn accept(&mut self, key: Key, report: Report) {
+        self.report = Some(Arc::new(report));
+        self.done = Some(key);
+        self.generation += 1;
+    }
+
+    /// The faces the preview hides: the report with its generation, and any that is not dropped. A report of an
+    /// earlier edit of the same document stays up until the next one arrives, so the preview does not flicker.
+    pub fn preview(&self, document: u64, on: bool) -> Option<(u64, Arc<Report>)> {
+        let report = self.report.as_ref().filter(|r| on && self.done.is_some_and(|d| d.0.0 == document) && !r.dropped.is_empty())?;
+        Some((self.generation, report.clone()))
+    }
+
+    /// The leak as an issue that selects the entity it starts from, from the last report whatever edits came since.
+    pub fn issue(&self, map: &Map) -> Option<Issue> {
+        let leak = self.report.as_deref()?.leak().filter(|l| map.contains(l.seed))?;
+        let class = map.entity(leak.seed).map(|e| e.classname.clone()).unwrap_or_default();
+        let units = |p: DVec3| format!("{} {} {}", p.x.round(), p.y.round(), p.z.round());
+        let end = leak.path.last().copied().unwrap_or(leak.origin);
+        Some(Issue::new(
+            Some(leak.seed),
+            Severity::Info,
+            "void_leak",
+            en!("Map leaks: {class} at {origin} reaches the outside near {point}, void faces are kept"),
+            &[("class", &class), ("origin", &units(leak.origin)), ("point", &units(end))],
+        ))
+    }
+
+    /// For get_state. `pending` says the report does not match the map as it is yet.
+    pub fn summary(&self, key: Key) -> serde_json::Value {
+        let pending = self.done != Some(key);
+        let Some(r) = &self.report else { return json!({ "state": "pending", "pending": true }) };
+        let state = match &r.outcome {
+            Outcome::Off => "off",
+            Outcome::Nothing => "nothing",
+            Outcome::Sealed => "sealed",
+            Outcome::Leak(_) => "leak",
+            Outcome::OverBudget => "over_budget",
+            Outcome::Cancelled => "pending",
+        };
+        let mut v = json!({ "state": state, "pending": pending, "dropped_faces": r.dropped_count(), "candidate_faces": r.candidates, "spacing": r.spacing });
+        if let Some(l) = r.leak() {
+            let p = |p: &DVec3| json!([p.x, p.y, p.z]);
+            v["leak"] = json!({ "entity": l.seed.0, "origin": p(&l.origin), "path": l.path.iter().map(p).collect::<Vec<_>>() });
+        }
+
+        v
+    }
+}
+
+/// `pieces` with the faces of `report` hidden as well.
+pub fn with_dropped(pieces: &HashMap<NodeId, FacePieces>, report: &Report) -> HashMap<NodeId, FacePieces> {
+    let mut out = pieces.clone();
+    for (id, faces) in &report.dropped {
+        let entry = out.entry(*id).or_default();
+        for face in faces {
+            entry.insert(*face, Vec::new());
+        }
+    }
+
+    out
+}
+
+/// The leak path as lines for the views.
+pub fn leak_lines(report: &Report) -> Vec<LineVertex> {
+    let Some(leak) = report.leak() else { return Vec::new() };
+    leak.path.windows(2).flat_map(|w| [w[0], w[1]]).map(|p| LineVertex { pos: crate::scene::v3(p), color: LEAK_COLOR }).collect()
+}
+
+/// Whether a face material is a wall: its Godot material draws opaque and single sided, or there is a texture for it that
+/// Godot builds a plain material from. A material nothing is known about is not, like in trenchdot_void_cull.gd.
+fn draws_opaque(info: Option<&GodotMaterial>, texture_found: bool) -> bool {
+    match info {
+        Some(i) => i.transparency == Transparency::Opaque && !i.double_sided,
+        None => texture_found,
+    }
+}
+
+/// The materials of the map's faces that are walls.
+fn wall_materials(map: &Map, materials: &mut MaterialLibrary) -> HashSet<String> {
+    let used: HashSet<&str> = map
+        .nodes
+        .values()
+        .flat_map(|n| match &n.kind {
+            NodeKind::Brush(b) => b.faces.iter().map(|f| f.data.material.as_str()).collect::<Vec<_>>(),
+            NodeKind::Mesh(m) => m.faces.iter().map(|f| f.data.material.as_str()).collect(),
+            _ => Vec::new(),
+        })
+        .collect();
+    used.into_iter()
+        .filter(|m| {
+            let info = materials.info(m);
+            draws_opaque(info.as_ref(), materials.find(m).is_some())
+        })
+        .map(str::to_string)
+        .collect()
+}
+
+pub fn key(state: &EditorState) -> Key {
+    (state.doc.content_key(), state.materials.generation)
+}
+
+/// Per frame: takes in a finished cull, and once edits settle computes the next one on another thread. Returns whether
+/// the report changed.
+pub fn poll(state: &mut EditorState, ctx: &egui::Context) -> bool {
+    let before = state.void_cull.generation;
+    poll_inner(state, ctx);
+    state.void_cull.generation != before
+}
+
+fn poll_inner(state: &mut EditorState, ctx: &egui::Context) {
+    let key = key(state);
+    let view = &mut state.void_cull;
+    if let Some((job_key, polled)) = view.job.as_ref().map(|j| (j.key, j.rx.try_recv())) {
+        match polled {
+            Ok(report) => {
+                view.job = None;
+                if job_key == key {
+                    view.accept(key, report);
+                }
+            }
+            Err(TryRecvError::Empty) if job_key == key => {
+                ctx.request_repaint_after(Duration::from_millis(100));
+                return;
+            }
+            Err(TryRecvError::Disconnected) => {
+                view.job = None;
+                if job_key == key {
+                    view.accept(key, Report::only(Outcome::Cancelled));
+                }
+            }
+            Err(TryRecvError::Empty) => {
+                if let Some(job) = view.job.take() {
+                    job.cancel.store(true, Ordering::Relaxed);
+                }
+            }
+        }
+    }
+
+    if view.seen.as_ref() != Some(&key) {
+        view.seen = Some(key);
+        view.changed = Some(Instant::now());
+    }
+
+    if view.done.as_ref() == Some(&key) {
+        return;
+    }
+
+    if view.done.as_ref().is_some_and(|d| d.0.0 != key.0.0) && view.report.take().is_some() {
+        view.generation += 1;
+    }
+
+    if !enabled(&state.doc.map) {
+        settle_off(view, key);
+        return;
+    }
+
+    let quiet = view.changed.map(|t| t.elapsed()).unwrap_or_default();
+    if quiet < SETTLE || state.doc.in_transaction() || state.drag_preview.is_some() {
+        ctx.request_repaint_after(SETTLE.saturating_sub(quiet).max(Duration::from_millis(50)));
+        return;
+    }
+
+    spawn_job(state, key, Some(ctx.clone()));
+}
+
+/// Takes the off report in without running anything, dropping any leak shown from before.
+fn settle_off(view: &mut VoidView, key: Key) {
+    if view.report.as_ref().is_some_and(|r| r.outcome == Outcome::Off) {
+        view.done = Some(key);
+    } else {
+        view.accept(key, Report::only(Outcome::Off));
+    }
+}
+
+fn spawn_job(state: &mut EditorState, key: Key, repaint: Option<egui::Context>) {
+    let map = state.doc.map.clone();
+    let game = state.game.clone();
+    let walls = wall_materials(&map, &mut state.materials);
+    let cancel = Arc::new(AtomicBool::new(false));
+    let (tx, rx) = mpsc::channel();
+    let flag = cancel.clone();
+    std::thread::spawn(move || {
+        let _ = tx.send(analyze(&map, &game, &|m| walls.contains(m), &flag));
+        if let Some(ctx) = repaint {
+            ctx.request_repaint();
+        }
+    });
+    state.void_cull.job = Some(Job { key, cancel, rx });
+}
+
+/// Longest validate_map waits for the cull of the open map.
+const WAIT: Duration = Duration::from_secs(5);
+
+/// Has the report match the open map for validate_map, waiting up to [`WAIT`] for the job. Returns false when it is
+/// still running.
+pub fn refresh_now(state: &mut EditorState) -> bool {
+    let key = key(state);
+    if state.void_cull.done == Some(key) {
+        return true;
+    }
+
+    if !enabled(&state.doc.map) {
+        settle_off(&mut state.void_cull, key);
+        return true;
+    }
+
+    if state.void_cull.job.as_ref().is_none_or(|j| j.key != key) {
+        if let Some(job) = state.void_cull.job.take() {
+            job.cancel.store(true, Ordering::Relaxed);
+        }
+
+        spawn_job(state, key, None);
+    }
+
+    let Some(job) = &state.void_cull.job else { return false };
+    let report = match job.rx.recv_timeout(WAIT) {
+        Ok(report) => report,
+        Err(mpsc::RecvTimeoutError::Disconnected) => Report::only(Outcome::Cancelled),
+        Err(mpsc::RecvTimeoutError::Timeout) => return false,
+    };
+    state.void_cull.job = None;
+    state.void_cull.accept(key, report);
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use td_doc::Document;
     use td_geom::Brush;
 
     fn bx(map: &mut Map, parent: NodeId, min: [f64; 3], max: [f64; 3]) -> NodeId {
@@ -690,6 +952,22 @@ mod tests {
     }
 
     #[test]
+    fn without_the_key_nothing_runs_and_no_leak_shows() {
+        let mut st = state();
+        let layer = st.doc.map.default_layer();
+        st.doc.edit("add", |m, _| m.insert(layer, NodeKind::Entity(td_doc::Entity::new("info_player_start"))));
+        bx(&mut st.doc.map, layer, [0.0, 0.0, 0.0], [32.0, 32.0, 32.0]);
+        let mut leak = Report::only(Outcome::Leak(Leak { seed: NodeId(1), origin: DVec3::ZERO, path: vec![DVec3::ZERO] }));
+        leak.reached = 1;
+        st.void_cull.accept(((0, 0, 0), 0), leak);
+        poll_inner(&mut st, &egui::Context::default());
+        assert!(st.void_cull.job.is_none());
+        assert_eq!(st.void_cull.report.as_ref().map(|r| &r.outcome), Some(&Outcome::Off));
+        assert!(st.void_cull.issue(&st.doc.map).is_none());
+        assert_eq!(st.void_cull.summary(key(&st))["state"], "off");
+    }
+
+    #[test]
     fn two_brushes_meeting_in_a_seam_do_not_leak() {
         let mut map = Map::new();
         let layer = map.default_layer();
@@ -779,5 +1057,67 @@ mod tests {
         let r = run_with(&map, &game);
         assert_eq!(r.outcome, Outcome::Sealed);
         assert!(run(&map).leak().is_some(), "an entity the game does not know is a point entity");
+    }
+
+    #[test]
+    fn only_a_material_known_to_be_opaque_is_a_wall() {
+        let transparent = GodotMaterial { transparency: Transparency::Alpha, ..GodotMaterial::default() };
+        let two_sided = GodotMaterial { double_sided: true, ..GodotMaterial::default() };
+        assert!(draws_opaque(Some(&GodotMaterial::default()), false));
+        assert!(!draws_opaque(Some(&transparent), true) && !draws_opaque(Some(&two_sided), true));
+        assert!(draws_opaque(None, true), "a texture without a material file builds a plain material");
+        assert!(!draws_opaque(None, false), "a material nothing is known about seals nothing");
+    }
+
+    fn state() -> EditorState {
+        EditorState::new(Default::default())
+    }
+
+    #[test]
+    fn the_key_follows_the_map_content_and_the_materials() {
+        let mut st = state();
+        let layer = st.doc.map.default_layer();
+        let id = st.doc.edit("add", |m, _| m.insert(layer, NodeKind::Entity(td_doc::Entity::new("info_player_start"))));
+        let before = key(&st);
+        st.doc.select(|_, s| s.select_node(id));
+        assert_eq!(key(&st), before, "a selection change is not a content change");
+        st.doc.edit("move", |m, _| m.entity_mut(id).unwrap().origin.x = 8.0);
+        assert_ne!(key(&st), before);
+        st.materials.generation += 1;
+        assert_ne!(key(&st), before);
+    }
+
+    #[test]
+    fn the_preview_waits_for_the_next_report_but_not_across_documents() {
+        let mut st = state();
+        let mut report = Report::only(Outcome::Sealed);
+        report.dropped.insert(NodeId(1), BTreeSet::from([0]));
+        st.void_cull.accept(key(&st), report);
+        let layer = st.doc.map.default_layer();
+        st.doc.edit("add", |m, _| {
+            m.properties.insert(SWITCH.into(), "1".into());
+            m.insert(layer, NodeKind::Entity(td_doc::Entity::new("info_player_start")))
+        });
+        assert!(st.void_cull.preview(st.doc.content_key().0, true).is_some(), "an edit keeps the last preview up");
+        assert_eq!(st.void_cull.summary(key(&st))["pending"], true);
+
+        let same = Document::from_map(st.doc.map.clone(), None);
+        st.reset_document(same);
+        assert!(st.void_cull.preview(st.doc.content_key().0, true).is_none(), "a reloaded document is another document");
+        poll_inner(&mut st, &egui::Context::default());
+        assert!(st.void_cull.report.is_none());
+    }
+
+    #[test]
+    fn a_job_that_panicked_is_not_started_again() {
+        let mut st = state();
+        let key = key(&st);
+        let (tx, rx) = mpsc::channel::<Report>();
+        drop(tx);
+        st.void_cull.job = Some(Job { key, cancel: Arc::new(AtomicBool::new(false)), rx });
+        poll_inner(&mut st, &egui::Context::default());
+        assert!(st.void_cull.job.is_none());
+        assert_eq!(st.void_cull.done, Some(key));
+        assert_eq!(st.void_cull.report.as_ref().map(|r| &r.outcome), Some(&Outcome::Cancelled));
     }
 }

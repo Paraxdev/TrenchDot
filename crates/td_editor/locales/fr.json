@@ -2148,5 +2148,10 @@
   "Check Again": "Chercher à nouveau",
   "Roll Back": "Revenir en arrière",
   "Puts back the build the last update replaced": "Remet la version que la dernière mise à jour a remplacée",
-  "Rolled back to the previous build. Restart to use it.": "Retour à la version précédente. Redémarrez pour l'utiliser."
+  "Rolled back to the previous build. Restart to use it.": "Retour à la version précédente. Redémarrez pour l'utiliser.",
+  "Preview void culling": "Aperçu du retrait du vide",
+  "Hides the faces the build drops because they face the void": "Masque les faces que le build retire parce qu'elles donnent sur le vide",
+  "Void culling preview on": "Aperçu du retrait du vide activé",
+  "Void culling preview off": "Aperçu du retrait du vide désactivé",
+  "Map leaks: {class} at {origin} reaches the outside near {point}, void faces are kept": "La carte fuit : {class} à {origin} atteint l'extérieur près de {point}, les faces du vide sont conservées"
 }

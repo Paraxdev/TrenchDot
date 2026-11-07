@@ -234,7 +234,10 @@ pub fn open_map_issues(state: &mut EditorState) -> Vec<Issue> {
     let godot = path.as_deref().and_then(|p| state.link_state.report(p)).cloned();
     let godot_stale = path.as_deref().is_some_and(|p| state.link_state.is_stale(p));
     let context = Context { external: state.overlay_ghosts.targetnames(), pack_installed: state.gameplay_pack.installed, godot, godot_stale };
-    map_issues(&state.doc.map, &state.game, &mut state.materials, &mut state.prefabs, path.as_deref(), &context)
+    let mut list = map_issues(&state.doc.map, &state.game, &mut state.materials, &mut state.prefabs, path.as_deref(), &context);
+    list.extend(state.void_cull.issue(&state.doc.map));
+    list.sort_by_key(|i| Reverse(i.severity));
+    list
 }
 
 /// Issues of the map saved at `path`, which does not have to be open. A map open in a tab is checked as it is in the

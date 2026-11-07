@@ -2148,5 +2148,10 @@
   "Check Again": "再次检查",
   "Roll Back": "回退",
   "Puts back the build the last update replaced": "恢复上次更新替换掉的版本",
-  "Rolled back to the previous build. Restart to use it.": "已回退到上一版本。重启后生效。"
+  "Rolled back to the previous build. Restart to use it.": "已回退到上一版本。重启后生效。",
+  "Preview void culling": "预览虚空剔除",
+  "Hides the faces the build drops because they face the void": "隐藏构建时丢弃的朝向虚空的面",
+  "Void culling preview on": "虚空剔除预览已开启",
+  "Void culling preview off": "虚空剔除预览已关闭",
+  "Map leaks: {class} at {origin} reaches the outside near {point}, void faces are kept": "地图有泄漏：{class} 位于 {origin}，在 {point} 附近通向外部，保留虚空面"
 }

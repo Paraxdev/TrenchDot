@@ -181,6 +181,7 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
         entry(en!("File"), en!("Preferences"), Action::ShowPreferences),
         entry(en!("View"), en!("Toggle Transform Gizmo"), Action::ToggleTransformGizmo),
         entry(en!("View"), en!("Toggle Godot Overlays"), Action::ToggleGodotOverlays),
+        entry(en!("View"), en!("Preview void culling"), Action::ToggleVoidPreview),
         entry(en!("View"), en!("Toggle Walkable Area"), Action::ToggleWalkable),
         entry(en!("Edit"), en!("Repeat Last"), Action::RepeatLast),
         entry(en!("Group"), en!("Open Group"), Action::OpenGroup),

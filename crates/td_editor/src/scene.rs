@@ -180,6 +180,12 @@ pub struct SceneCache {
     ghosts: Option<GpuLines>,
     ghost_generation: Option<u64>,
     show_ghosts: bool,
+    /// The leak path of the void culling, see `crate::void_cull`, and the report generation it was drawn for.
+    leak_lines: Option<GpuLines>,
+    leak_generation: Option<u64>,
+    /// Generation of the void cull report the preview was built with, and the nodes it hid faces of.
+    void_generation: Option<u64>,
+    void_nodes: BTreeSet<NodeId>,
     /// Fill and outlines of the walkable area overlay while it is on, see `crate::walkable`.
     walkable: Option<(Option<GpuMesh>, Option<GpuLines>)>,
     walkable_generation: Option<u64>,
@@ -1666,6 +1672,13 @@ impl SceneCache {
             self.walkable_generation = walkable;
         }
 
+        if self.leak_generation != Some(state.void_cull.generation) {
+            self.leak_lines = state.void_cull.report.as_deref().and_then(|r| renderer.upload_lines(&crate::void_cull::leak_lines(r)));
+            self.leak_generation = Some(state.void_cull.generation);
+        }
+
+        let void_preview = state.void_cull.preview(state.doc.content_key().0, state.prefs.preview_void_cull);
+        let void_generation = void_preview.as_ref().map(|p| p.0);
         self.upload_lightmap(renderer, state);
         let prefab_generation = state.prefabs.generation;
         let model_generation = state.models.generation;
@@ -1678,6 +1691,7 @@ impl SceneCache {
             && self.lit == lit
             && self.wireframe == wireframe
             && self.selection_hidden != show_selection
+            && self.void_generation == void_generation
             && self.prev_map.is_some()
         {
             return;
@@ -1907,6 +1921,13 @@ impl SceneCache {
             }
         }
 
+        if self.void_generation != void_generation {
+            dirty.extend(std::mem::take(&mut self.void_nodes));
+            self.void_nodes = void_preview.as_ref().map(|p| p.1.dropped.keys().copied().collect()).unwrap_or_default();
+            dirty.extend(self.void_nodes.iter().copied());
+            self.void_generation = void_generation;
+        }
+
         let opaque = |m: &str| {
             let flags = renderer.material_flags(m);
             !flags.transparent && !flags.double_sided
@@ -2001,6 +2022,7 @@ impl SceneCache {
             }
 
             let per_bucket_ref = &per_bucket;
+            let with_void = void_preview.as_ref().map(|p| crate::void_cull::with_dropped(&self.face_cull.pieces, &p.1));
             let results: Vec<(usize, Bucket)> = {
                 let ctx = BucketCtx {
                     map: &map,
@@ -2009,7 +2031,7 @@ impl SceneCache {
                     selected_brush_like: &selected_brush_like,
                     selection: &selection,
                     selected_faces: &selected_faces,
-                    pieces: &self.face_cull.pieces,
+                    pieces: with_void.as_ref().unwrap_or(&self.face_cull.pieces),
                     entity_models: &entity_models,
                     drag_nodes: &drag_nodes,
                     fixtures: &self.fixtures,
@@ -2318,6 +2340,7 @@ impl SceneCache {
 
         if overlays {
             frame.overlay_lines.extend(self.links.as_ref());
+            frame.overlay_lines.extend(self.leak_lines.as_ref());
             frame.lines.extend(self.cordon.as_ref());
             if self.show_ghosts {
                 if is_2d {

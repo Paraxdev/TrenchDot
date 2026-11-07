@@ -2148,5 +2148,10 @@
   "Check Again": "Erneut suchen",
   "Roll Back": "Zurücksetzen",
   "Puts back the build the last update replaced": "Setzt den Build zurück, den das letzte Update ersetzt hat",
-  "Rolled back to the previous build. Restart to use it.": "Auf den vorherigen Build zurückgesetzt. Starte neu, um ihn zu nutzen."
+  "Rolled back to the previous build. Restart to use it.": "Auf den vorherigen Build zurückgesetzt. Starte neu, um ihn zu nutzen.",
+  "Preview void culling": "Void-Culling Vorschau",
+  "Hides the faces the build drops because they face the void": "Blendet die Flächen aus, die der Build verwirft, weil sie zum Void zeigen",
+  "Void culling preview on": "Void-Culling Vorschau an",
+  "Void culling preview off": "Void-Culling Vorschau aus",
+  "Map leaks: {class} at {origin} reaches the outside near {point}, void faces are kept": "Karte ist undicht: {class} bei {origin} erreicht das Außen nahe {point}, Void-Flächen bleiben erhalten"
 }

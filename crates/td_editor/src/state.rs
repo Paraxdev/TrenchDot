@@ -358,6 +358,8 @@ pub struct Prefs {
     pub transform_gizmo: bool,
     /// Ghost boxes of the Godot overlays built on top of the map, read from its overlay sidecar.
     pub godot_overlays: bool,
+    /// Hide the faces the build drops because they only face the void of a sealed map.
+    pub preview_void_cull: bool,
     /// Agent the walkable area overlay is baked for.
     pub walk_agent: crate::walkable::Agent,
     /// Show first steps in the views while the map is empty.
@@ -466,6 +468,7 @@ impl Default for Prefs {
             help_text: true,
             transform_gizmo: true,
             godot_overlays: true,
+            preview_void_cull: false,
             walk_agent: Default::default(),
             start_hints: true,
             content_asked: Default::default(),
@@ -562,6 +565,7 @@ pub struct EditorState {
     /// Godot overlay content of the open map, from its `.overlay.json` sidecar.
     pub overlay_ghosts: crate::overlays::OverlayGhosts,
     pub walkable: crate::walkable::WalkableView,
+    pub void_cull: crate::void_cull::VoidView,
     pub models: crate::models::ModelCache,
     pub model_thumbs: crate::model_thumbs::ModelThumbnails,
     /// World bounds of point entities drawn with a model.
@@ -733,6 +737,7 @@ impl EditorState {
             instance_bounds: Default::default(),
             overlay_ghosts: Default::default(),
             walkable: Default::default(),
+            void_cull: Default::default(),
             models: Default::default(),
             model_thumbs: Default::default(),
             model_bounds: Default::default(),

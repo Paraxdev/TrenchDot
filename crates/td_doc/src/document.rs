@@ -122,6 +122,13 @@ impl Document {
         }
     }
 
+    /// Identifies the map content for caches that a selection change must not clear: the document, its content state
+    /// and, while the map changes outside a recorded edit (a drag or a direct write), the revision as well.
+    pub fn content_key(&self) -> (u64, u64, u64) {
+        let loose = self.transaction.is_some() || self.revision != self.accounted_revision;
+        (self.uid, self.state, if loose { self.revision } else { 0 })
+    }
+
     pub fn is_modified(&self) -> bool {
         self.revision != self.accounted_revision || self.saved_state != Some(self.state)
     }
@@ -424,6 +431,27 @@ impl Document {
 mod tests {
     use super::*;
     use crate::{Entity, NodeKind};
+
+    #[test]
+    fn the_content_key_ignores_selection_and_tells_documents_apart() {
+        let mut doc = Document::new();
+        let layer = doc.map.default_layer();
+        let id = doc.edit("add", |m, _| m.insert(layer, NodeKind::Entity(Entity::new("light"))));
+        let key = doc.content_key();
+        doc.select(|_, s| s.select_node(id));
+        assert_eq!(doc.content_key(), key);
+        doc.edit("move", |m, _| m.entity_mut(id).unwrap().origin.x = 8.0);
+        assert_ne!(doc.content_key(), key);
+        doc.undo();
+        assert_eq!(doc.content_key(), key, "undo returns to the content it came from");
+        doc.begin("drag");
+        doc.map.entity_mut(id).unwrap().origin.x = 4.0;
+        doc.revision += 1;
+        assert_ne!(doc.content_key(), key, "a change under way is not the content it started from");
+        doc.cancel();
+        assert_eq!(doc.content_key(), key);
+        assert_ne!(Document::new().content_key(), Document::new().content_key(), "fresh documents start at the same revision");
+    }
 
     #[test]
     fn undo_redo_restores_state() {

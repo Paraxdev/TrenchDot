@@ -944,17 +944,24 @@ impl App {
                 }
 
                 let path = args["path"].as_str().map(|p| project_path(&self.state.game, p));
+                let mut pending = false;
                 let (map, found) = match path {
                     Some(p) => match crate::validate::file_issues(&mut self.state, &p) {
                         Ok(checked) => checked,
                         Err(e) => return err(e),
                     },
                     None => {
+                        pending = !crate::void_cull::refresh_now(&mut self.state);
                         let found = crate::validate::open_map_issues(&mut self.state);
                         (self.state.doc.map.clone(), found)
                     }
                 };
-                ok(json!({ "count": found.len(), "issues": issues_json(&map, &found) }))
+                let mut result = json!({ "count": found.len(), "issues": issues_json(&map, &found) });
+                if pending {
+                    result["void_cull"] = json!("pending");
+                }
+
+                ok(result)
             }
             "get_game_config" => match args["classname"].as_str() {
                 Some(c) => match self.state.game.entity(c) {
@@ -999,6 +1006,7 @@ impl App {
                 "meshes": map.meshes().count(), "terrains": map.terrains().count(),
                 "cordon": map.editor.cordon.map(|c| bounds_json(&c)), "cordon_enabled": map.editor.cordon_enabled,
                 "cameras": map.editor.cameras.keys().collect::<Vec<_>>(),
+                "void_cull": s.void_cull.summary(crate::void_cull::key(s)),
             },
             "tabs": { "titles": s.tab_titles().0, "active": s.tab_titles().1 },
             "selection": {
@@ -1406,6 +1414,7 @@ impl App {
             "build_in_godot" => Action::BuildInGodot,
             "toggle_live_mode" => Action::ToggleLiveMode,
             "toggle_walkable" => Action::ToggleWalkable,
+            "toggle_void_preview" => Action::ToggleVoidPreview,
             "insert_prefab" => {
                 let Some(path) = a["path"].as_str() else { return err("path required") };
                 let parent = match resolve_parent(&self.state, &a["parent"], Child::Other) {

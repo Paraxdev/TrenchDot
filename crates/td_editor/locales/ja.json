@@ -2148,5 +2148,10 @@
   "Check Again": "再確認",
   "Roll Back": "元に戻す",
   "Puts back the build the last update replaced": "前回の更新で置き換えたビルドに戻します",
-  "Rolled back to the previous build. Restart to use it.": "前のビルドに戻しました。再起動で使えます。"
+  "Rolled back to the previous build. Restart to use it.": "前のビルドに戻しました。再起動で使えます。",
+  "Preview void culling": "ボイドカリングのプレビュー",
+  "Hides the faces the build drops because they face the void": "ビルドが破棄するボイド向きの面を隠します",
+  "Void culling preview on": "ボイドカリングのプレビューをオン",
+  "Void culling preview off": "ボイドカリングのプレビューをオフ",
+  "Map leaks: {class} at {origin} reaches the outside near {point}, void faces are kept": "マップが漏れています: {class} ({origin}) が {point} 付近で外部に達しています。ボイドの面は残します"
 }

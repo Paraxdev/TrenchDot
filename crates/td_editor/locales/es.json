@@ -2148,5 +2148,10 @@
   "Check Again": "Buscar de nuevo",
   "Roll Back": "Volver atrás",
   "Puts back the build the last update replaced": "Restaura la versión que reemplazó la última actualización",
-  "Rolled back to the previous build. Restart to use it.": "Se volvió a la versión anterior. Reinicia para usarla."
+  "Rolled back to the previous build. Restart to use it.": "Se volvió a la versión anterior. Reinicia para usarla.",
+  "Preview void culling": "Vista previa del recorte del vacío",
+  "Hides the faces the build drops because they face the void": "Oculta las caras que la compilación descarta porque dan al vacío",
+  "Void culling preview on": "Vista previa del recorte del vacío activada",
+  "Void culling preview off": "Vista previa del recorte del vacío desactivada",
+  "Map leaks: {class} at {origin} reaches the outside near {point}, void faces are kept": "El mapa tiene una fuga: {class} en {origin} llega al exterior cerca de {point}, se conservan las caras del vacío"
 }

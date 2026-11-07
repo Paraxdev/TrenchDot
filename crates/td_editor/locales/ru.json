@@ -2148,5 +2148,10 @@
   "Check Again": "Проверить снова",
   "Roll Back": "Откатить",
   "Puts back the build the last update replaced": "Возвращает сборку, которую заменило последнее обновление",
-  "Rolled back to the previous build. Restart to use it.": "Возвращена предыдущая сборка. Перезапустите, чтобы её использовать."
+  "Rolled back to the previous build. Restart to use it.": "Возвращена предыдущая сборка. Перезапустите, чтобы её использовать.",
+  "Preview void culling": "Предпросмотр отсечения пустоты",
+  "Hides the faces the build drops because they face the void": "Скрывает грани, которые сборка отбрасывает, потому что они смотрят в пустоту",
+  "Void culling preview on": "Предпросмотр отсечения пустоты включён",
+  "Void culling preview off": "Предпросмотр отсечения пустоты выключен",
+  "Map leaks: {class} at {origin} reaches the outside near {point}, void faces are kept": "Карта протекает: {class} в {origin} выходит наружу рядом с {point}, грани у пустоты сохраняются"
 }

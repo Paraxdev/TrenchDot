@@ -54,6 +54,8 @@ pub enum Action {
     ToggleUvLock,
     ToggleTransformGizmo,
     ToggleGodotOverlays,
+    /// Hides the faces the build drops because they face the void.
+    ToggleVoidPreview,
     /// Shows where an agent can walk, baked by the connected Godot editor.
     ToggleWalkable,
     ToggleTextured,
@@ -282,6 +284,7 @@ impl Action {
             Action::ToggleUvLock => en!("Toggle UV Lock"),
             Action::ToggleTransformGizmo => en!("Toggle Transform Gizmo"),
             Action::ToggleGodotOverlays => en!("Toggle Godot Overlays"),
+            Action::ToggleVoidPreview => en!("Preview void culling"),
             Action::ToggleWalkable => en!("Toggle Walkable Area"),
             Action::ToggleTextured => en!("Cycle Shading"),
             Action::SetShade(s) => return trf!("Shading: {shade}", shade = tr(s.title())),
@@ -457,6 +460,7 @@ impl Action {
             Action::MakePlatform => en!("Turns the selected brushes into a func_platform, a lift that moves up and down"),
             Action::ToggleLiveMode => en!("Sends every edit to the scene open in the Godot editor before you save"),
             Action::ToggleWalkable => en!("Shades the floors a player can walk on, baked by Godot"),
+            Action::ToggleVoidPreview => en!("Hides the faces the build drops because they face the void"),
             Action::BakeLighting => en!("Traces sun, light and sky into light maps stored in the map"),
             Action::ToggleGodotOverlays => en!("Shows the nodes added on top of the built map in Godot as ghost boxes"),
             Action::RepeatLast => en!("Runs the last rotate, flip, nudge or duplicate again"),
@@ -735,6 +739,7 @@ pub fn bindable_actions() -> Vec<Action> {
         Action::ViewLayout(4),
         Action::ToggleTransformGizmo,
         Action::ToggleGodotOverlays,
+        Action::ToggleVoidPreview,
         Action::ToggleWalkable,
         Action::BakeLighting,
         Action::SetShade(Shade::Baked),
@@ -1133,6 +1138,10 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         Action::ToggleGodotOverlays => {
             state.prefs.godot_overlays = !state.prefs.godot_overlays;
             state.set_status(if state.prefs.godot_overlays { msg!("Godot overlays shown") } else { msg!("Godot overlays hidden") });
+        }
+        Action::ToggleVoidPreview => {
+            state.prefs.preview_void_cull = !state.prefs.preview_void_cull;
+            state.set_status(if state.prefs.preview_void_cull { msg!("Void culling preview on") } else { msg!("Void culling preview off") });
         }
         Action::ToggleWalkable => toggle_walkable(state),
         Action::ToggleTextured => {

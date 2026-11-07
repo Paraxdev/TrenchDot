@@ -1604,6 +1604,7 @@ impl App {
                 m.item(ui, Some(icons::FOCUS), en!("Focus Selection"), Action::FocusSelection);
                 m.toggle(ui, en!("Transform Gizmo"), self.state.prefs.transform_gizmo, Action::ToggleTransformGizmo);
                 m.toggle(ui, en!("Godot Overlays"), self.state.prefs.godot_overlays, Action::ToggleGodotOverlays);
+                m.toggle(ui, en!("Preview void culling"), self.state.prefs.preview_void_cull, Action::ToggleVoidPreview);
                 sub_menu(ui, None, en!("Walkable Area"), |ui| {
                     m.toggle(ui, en!("Show Walkable Area"), self.state.walkable.on, Action::ToggleWalkable);
                     ui.separator();
@@ -2937,6 +2938,7 @@ impl eframe::App for App {
         self.fit_window_to_monitor(&ctx);
         self.tools.sync(&self.state);
         self.state.tick_godot(&ctx);
+        crate::void_cull::poll(&mut self.state, &ctx);
         if crate::walkable::poll(&mut self.state, &ctx) {
             // An MCP call below may render a view offscreen before the scene updates at the end of the frame.
             self.scene.update(&mut self.renderer, &mut self.state, self.project_generation);
