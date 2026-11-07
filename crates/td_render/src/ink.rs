@@ -4,6 +4,9 @@
 /// Lightness scale of the flip. Below 1, so bright accents land on a mid tone instead of near black.
 pub const FLIP_K: f32 = 0.8;
 
+/// Exponent of [`paper_alpha`].
+pub const PAPER_ALPHA_POW: f32 = 3.0;
+
 const CHROMA_STEPS: usize = 8;
 
 type Mat3 = [[f32; 3]; 3];
@@ -46,6 +49,13 @@ pub fn flip_linear(c: [f32; 4], pivot: f32) -> [f32; 4] {
     [rgb[0], rgb[1], rgb[2], c[3]]
 }
 
+/// Alpha for a flipped line on paper. Lines blend in linear light, where a dark ink over light paper keeps far less
+/// of its contrast at partial alpha than the bright ink it mirrors keeps over the dark ground, so the same alpha
+/// reads faint and gray. This raises it, and leaves 0 and 1 alone.
+pub fn paper_alpha(a: f32) -> f32 {
+    1.0 - (1.0 - a).powf(PAPER_ALPHA_POW)
+}
+
 /// `ink.wgsl` with the constants it shares with this module in front. The matrices go in as rows, so the shader
 /// multiplies vectors from the left.
 pub(crate) fn wgsl() -> String {
@@ -54,7 +64,7 @@ pub(crate) fn wgsl() -> String {
         format!("const {name} = mat3x3<f32>({rows});\n")
     };
     format!(
-        "const FLIP_K: f32 = {FLIP_K:?};\nconst CHROMA_STEPS: i32 = {CHROMA_STEPS};\n{}{}{}{}\n{}",
+        "const FLIP_K: f32 = {FLIP_K:?};\nconst PAPER_ALPHA_POW: f32 = {PAPER_ALPHA_POW:?};\nconst CHROMA_STEPS: i32 = {CHROMA_STEPS};\n{}{}{}{}\n{}",
         mat("LMS_FROM_RGB", LMS_FROM_RGB),
         mat("LAB_FROM_LMS", LAB_FROM_LMS),
         mat("LMS_FROM_LAB", LMS_FROM_LAB),
@@ -118,6 +128,35 @@ mod tests {
         assert!((flip_pivot(hex(0x111215), hex(0xeef0f3)) - 1.100_41).abs() < 1e-4);
         assert!((flip_pivot([0.0; 3], [1.0; 3]) - 1.0).abs() < 1e-5, "black on white paper");
         assert!((flip_pivot([1.0; 3], [0.0; 3]) - FLIP_K).abs() < 1e-5, "white on black paper");
+    }
+
+    fn over(ink: [f32; 3], a: f32, ground: [f32; 3]) -> [f32; 3] {
+        [0, 1, 2].map(|i| ink[i] * a + ground[i] * (1.0 - a))
+    }
+
+    #[test]
+    fn paper_alpha_keeps_the_dark_contrast_share() {
+        let (dark, paper) = (hex(0x111215), hex(0xeef0f3));
+        let (l_dark, l_paper) = (oklab(dark)[0], oklab(paper)[0]);
+        let inks = [[1.0, 0.62, 0.2], [0.35, 0.95, 0.45], [0.85; 3], [0.9, 0.6, 0.1]];
+        for ink in inks {
+            let flipped = rgb(flip_linear(rgba(ink, 1.0), pivot()));
+            for a in [0.44, 0.48, 0.6, 0.75, 0.9] {
+                let on_dark = (oklab(over(ink, a, dark))[0] - l_dark) / (oklab(ink)[0] - l_dark);
+                let on_paper = (l_paper - oklab(over(flipped, paper_alpha(a), paper))[0]) / (l_paper - oklab(flipped)[0]);
+                assert!((on_dark - on_paper).abs() < 0.08, "{ink:?} at {a}: dark keeps {on_dark}, paper keeps {on_paper}");
+            }
+        }
+    }
+
+    #[test]
+    fn paper_alpha_is_a_monotonic_boost_between_0_and_1() {
+        assert_eq!(paper_alpha(0.0), 0.0);
+        assert_eq!(paper_alpha(1.0), 1.0);
+        let steps: Vec<f32> = (0..=20).map(|i| paper_alpha(i as f32 / 20.0)).collect();
+        assert!(steps.windows(2).all(|w| w[0] < w[1]), "{steps:?}");
+        assert!((1..20).all(|i| steps[i] > i as f32 / 20.0), "{steps:?}");
+        assert!((paper_alpha(0.48) - 0.859).abs() < 1e-3);
     }
 
     #[test]

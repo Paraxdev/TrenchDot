@@ -1,4 +1,4 @@
-// ink::wgsl() puts FLIP_K, CHROMA_STEPS and the OKLab matrices in front of this file.
+// ink::wgsl() puts FLIP_K, PAPER_ALPHA_POW, CHROMA_STEPS and the OKLab matrices in front of this file.
 
 fn oklab(c: vec3<f32>) -> vec3<f32> {
     return pow(max(c * LMS_FROM_RGB, vec3<f32>(0.0)), vec3<f32>(1.0 / 3.0)) * LAB_FROM_LMS;
@@ -11,6 +11,10 @@ fn linear_from_oklab(lab: vec3<f32>) -> vec3<f32> {
 
 fn fits(c: vec3<f32>) -> bool {
     return all(c >= vec3<f32>(0.0)) && all(c <= vec3<f32>(1.0));
+}
+
+fn paper_alpha(a: f32) -> f32 {
+    return 1.0 - pow(1.0 - a, PAPER_ALPHA_POW);
 }
 
 fn flip(c: vec3<f32>, pivot: f32) -> vec3<f32> {

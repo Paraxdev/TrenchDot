@@ -66,5 +66,5 @@ fn fs_main(f: VOut) -> @location(0) vec4<f32> {
     if (cam.viewport.w <= 0.0) {
         return f.color;
     }
-    return vec4<f32>(flip(f.color.rgb, cam.viewport.w), f.color.a);
+    return vec4<f32>(flip(f.color.rgb, cam.viewport.w), paper_alpha(f.color.a));
 }

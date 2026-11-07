@@ -3237,6 +3237,48 @@ fn selected_entity_outline_reads_on_paper() {
     assert_eq!(count_near(&shot(&ed, args, "dark_again"), half), 1300, "switching back restores the dark outline");
 }
 
+/// An unselected I/O link is a translucent line, which washed out to gray on paper. It keeps its contrast there now,
+/// and the dark view blends it as before.
+#[test]
+#[ignore]
+fn io_links_read_on_paper() {
+    let ed = Editor::launch("io_links_paper");
+    ed.call("create_entity", json!({ "classname": "info_player_start", "origin": [170, 0, 60], "properties": { "targetname": "dst" } }));
+    ed.call(
+        "create_entity",
+        json!({ "classname": "info_player_start", "origin": [-180, 0, -40], "outputs": [{ "output": "OnTrigger", "target": "dst", "input": "Trigger" }] }),
+    );
+    ed.call("run_action", json!({ "action": "select_none" }));
+    ed.call("set_camera", json!({ "view": "top", "center": [0, 0, 0], "zoom": 1 }));
+    let args = json!({ "target": "top", "width": 400, "height": 300, "overlays": true });
+    let lum = |c: [u8; 3]| {
+        let l = |v: u8| egui::Rgba::from(egui::Color32::from_rgb(v, v, v)).r();
+        0.2126 * l(c[0]) + 0.7152 * l(c[1]) + 0.0722 * l(c[2])
+    };
+    let ratio = |a: [u8; 3], b: egui::Color32| {
+        let (a, b) = (lum(a) + 0.05, lum([b.r(), b.g(), b.b()]) + 0.05);
+        a.max(b) / a.min(b)
+    };
+    // Pixels the slanted line covers fully, away from the grid lines that cross it.
+    let count_near = |img: &image::RgbaImage, want: [u8; 3]| img.pixels().filter(|p| (0..3).all(|i| p.0[i].abs_diff(want[i]) <= 3)).count();
+
+    let (dark, light) = (td_editor::theme::DARK, td_editor::theme::LIGHT);
+    let io = td_editor::scene::IO_LINK;
+    let unselected = [io[0], io[1], io[2], io[3] * 0.5 * 1.6];
+    let twin = over(unselected, dark.view_2d, 1);
+    let on_dark = count_near(&shot(&ed, args.clone(), "dark"), twin);
+    assert!(on_dark >= 10, "only {on_dark} pixels of the dark link color {twin:?}");
+
+    ed.call("set_editor", json!({ "theme": "light" }));
+    theme_active(&ed, "light");
+    let c = td_render::ink::flip_linear(unselected, light.flip_pivot().unwrap());
+    let ink = over([c[0], c[1], c[2], td_render::ink::paper_alpha(unselected[3])], light.view_2d, 1);
+    assert!(ratio(ink, light.view_2d) >= 3.0, "the link color {ink:?} is too faint on paper");
+    assert!(ink.iter().max().unwrap() - ink.iter().min().unwrap() >= 20, "the link color {ink:?} is gray");
+    let on_paper = count_near(&shot(&ed, args, "light"), ink);
+    assert!(on_paper >= 10, "only {on_paper} pixels of the paper link color {ink:?}");
+}
+
 /// Answers the GitHub release API with a rolling beta that holds `asset`, and serves its download. Returns the API url.
 fn fake_release(asset: &'static str, bytes: Vec<u8>) -> String {
     use std::io::BufRead;
@@ -4264,7 +4306,7 @@ fn two_d_views_turn_to_paper() {
     let edge = td_editor::scene::EDGE_COLOR_2D;
     let c = td_render::ink::flip_linear(edge, light.flip_pivot().unwrap());
     // The 2D outline sits in both the wire and the overlay line list, so it blends in twice.
-    let twin = over([c[0], c[1], c[2], edge[3]], light.view_2d, 2);
+    let twin = over([c[0], c[1], c[2], td_render::ink::paper_alpha(edge[3])], light.view_2d, 2);
     let unflipped = over(edge, light.view_2d, 2);
     let at = top.get_pixel(32, 100).0;
     assert!((0..3).all(|i| at[i].abs_diff(twin[i]) <= 6), "edge pixel {at:?}, the CPU twin says {twin:?}");
