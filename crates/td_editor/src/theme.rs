@@ -1168,6 +1168,40 @@ mod tests {
     }
 
     #[test]
+    fn link_lines_stay_distinguishable_from_other_lines() {
+        use crate::scene::{EDGE_COLOR_2D, INSTANCE_EDGE, IO_LINK, SELECTED_COLOR, TARGET_LINK, TERRAIN_EDGE};
+        const MIN: f32 = 60.0;
+        let on = |c: [f32; 4], ground: Color32, light: bool| {
+            let (c, a) = if light {
+                let f = td_render::ink::flip_linear(c, LIGHT.flip_pivot().unwrap());
+                (f, td_render::ink::paper_alpha(c[3]))
+            } else {
+                (c, c[3])
+            };
+            let g = egui::Rgba::from(ground);
+            let mix = |i: usize, gv: f32| c[i] * a + gv * (1.0 - a);
+            Color32::from(egui::Rgba::from_rgb(mix(0, g.r()), mix(1, g.g()), mix(2, g.b())))
+        };
+        let others = [
+            (TARGET_LINK, "target link"),
+            (INSTANCE_EDGE, "instance edge"),
+            (SELECTED_COLOR, "selection"),
+            (TERRAIN_EDGE, "terrain edge"),
+            (EDGE_COLOR_2D, "brush edge"),
+        ];
+        for (ground, light) in [(DARK.view_2d, false), (LIGHT.view_2d, true)] {
+            let link = on(IO_LINK, ground, light);
+            for (c, what) in others {
+                let other = on(c, ground, light);
+                for kind in 0..3 {
+                    let d = distance(simulate(link, kind), simulate(other, kind));
+                    assert!(d >= MIN, "light {light} cvd {kind}: I/O link vs {what} too close ({d:.0} < {MIN})");
+                }
+            }
+        }
+    }
+
+    #[test]
     fn flipped_axes_handles_and_dims_read_on_paper() {
         let [axes, handles] = painted_2d();
         let dims = [(Color32::from_rgb(255, 120, 100), "size dims"), (Color32::from_rgb(200, 200, 210), "view label")];

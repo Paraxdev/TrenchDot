@@ -19,10 +19,10 @@ pub const SELECTED_XRAY: [f32; 4] = [1.0, 0.2, 0.1, 0.35];
 const SELECTED_TINT: [f32; 4] = [1.0, 0.72, 0.68, 1.0];
 const LOCKED_TINT: [f32; 4] = [0.7, 0.75, 0.9, 1.0];
 const INSTANCE_TINT: [f32; 4] = [0.8, 0.92, 1.0, 1.0];
-const INSTANCE_EDGE: [f32; 4] = [0.45, 0.85, 1.0, 0.8];
-const TARGET_LINK: [f32; 4] = [0.35, 0.95, 0.45, 0.55];
-pub const IO_LINK: [f32; 4] = [1.0, 0.62, 0.2, 0.6];
-const TERRAIN_EDGE: [f32; 4] = [0.55, 0.8, 0.45, 0.7];
+pub(crate) const INSTANCE_EDGE: [f32; 4] = [0.45, 0.85, 1.0, 0.8];
+pub(crate) const TARGET_LINK: [f32; 4] = [0.35, 0.95, 0.45, 0.55];
+pub const IO_LINK: [f32; 4] = [1.0, 0.35, 0.9, 0.6];
+pub(crate) const TERRAIN_EDGE: [f32; 4] = [0.55, 0.8, 0.45, 0.7];
 const BUCKETS: u64 = 64;
 /// Above this many faces in the moving selection, face culling is deferred to drag release. Ordinary
 /// brush drags stay well under it and keep live culling.

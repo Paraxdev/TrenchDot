@@ -138,7 +138,7 @@ mod tests {
     fn paper_alpha_keeps_the_dark_contrast_share() {
         let (dark, paper) = (hex(0x111215), hex(0xeef0f3));
         let (l_dark, l_paper) = (oklab(dark)[0], oklab(paper)[0]);
-        let inks = [[1.0, 0.62, 0.2], [0.35, 0.95, 0.45], [0.85; 3], [0.9, 0.6, 0.1]];
+        let inks = [[1.0, 0.35, 0.9], [0.35, 0.95, 0.45], [0.85; 3], [0.9, 0.6, 0.1]];
         for ink in inks {
             let flipped = rgb(flip_linear(rgba(ink, 1.0), pivot()));
             for a in [0.44, 0.48, 0.6, 0.75, 0.9] {
