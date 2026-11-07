@@ -66,6 +66,7 @@ struct Bucket {
     overlay: Option<GpuMesh>,
     edges: Option<GpuLines>,
     edges_2d: Option<GpuLines>,
+    marker_edges: Option<GpuLines>,
     sel_edges: Option<GpuLines>,
     xray: Option<GpuLines>,
     stats: SceneStats,
@@ -107,12 +108,13 @@ fn build_drag_batches(renderer: &Renderer, game: &GameConfig, base: &Map, nodes:
         double: MeshBatch::default(),
         transparent: MeshBatch::default(),
         volumes: MeshBatch::default(),
-        markers: MeshBatch::default(),
+        markers: Vec::new(),
         volume: false,
         dark: false,
         face_overlay: MeshBatch::default(),
         edges: Vec::new(),
         edges_2d: Vec::new(),
+        marker_edges: Vec::new(),
         sel_edges: Vec::new(),
         stats: SceneStats::default(),
         instance_bounds: HashMap::new(),
@@ -162,6 +164,7 @@ pub struct SceneCache {
     terrains: HashMap<NodeId, TerrainGpu>,
     scatters: HashMap<NodeId, ScatterGpu>,
     scatter_models: ScatterModels,
+    unit_box: Option<GpuMesh>,
     links: Option<GpuLines>,
     cordon: Option<GpuLines>,
     /// Dashed boxes of the Godot overlay content on top of the map, see `crate::overlays`.
@@ -331,11 +334,13 @@ struct Builder<'a> {
     volume: bool,
     /// Set while building a fixture of a light that starts off with `fixture_off dark`.
     dark: bool,
-    /// Editor stand-ins like point entity boxes, left out of beauty shots and the sun shadow.
-    markers: MeshBatch,
+    /// Point entity boxes as placements of [`unit_box`], left out of beauty shots and the sun shadow.
+    markers: Vec<MeshInstance>,
     face_overlay: MeshBatch,
     edges: Vec<LineVertex>,
     edges_2d: Vec<LineVertex>,
+    /// Outlines and arrows of unselected point entity boxes, drawn by both the 2D and the 3D views.
+    marker_edges: Vec<LineVertex>,
     sel_edges: Vec<LineVertex>,
     stats: SceneStats,
     instance_bounds: HashMap<NodeId, Aabb>,
@@ -958,7 +963,10 @@ impl Builder<'_> {
             None => {
                 let bounds = entity_box(self.game, e);
                 let fill = if selected { [1.0, 0.45, 0.4, 1.0] } else { tint.unwrap_or([c.r, c.g, c.b, 1.0]) };
-                self.markers.add_box(Vec3::from_array(v3(bounds.min)), Vec3::from_array(v3(bounds.max)), fill);
+                // The shader turns normals by the placement's scale, a flat box would leave its large faces with none.
+                let size = Vec3::from_array(v3(bounds.size())).max(Vec3::splat(0.01));
+                let placement = glam::Mat4::from_scale_rotation_translation(size, glam::Quat::IDENTITY, Vec3::from_array(v3(bounds.min)));
+                self.markers.push(MeshInstance::new(placement, fill));
                 bounds
             }
         };
@@ -966,11 +974,9 @@ impl Builder<'_> {
         for (a, b) in Aabb::EDGES {
             if selected {
                 push_line(&mut self.sel_edges, corners[a], corners[b], line_color);
+            } else if model.is_none() {
+                push_line(&mut self.marker_edges, corners[a], corners[b], [c.r, c.g, c.b, 1.0]);
             } else {
-                if model.is_none() {
-                    push_line(&mut self.edges, corners[a], corners[b], line_color);
-                }
-
                 push_line(&mut self.edges_2d, corners[a], corners[b], [c.r, c.g, c.b, 1.0]);
             }
         }
@@ -984,8 +990,12 @@ impl Builder<'_> {
             let fwd = e.rotation() * DVec3::NEG_Z;
             let start = bounds.center();
             let end = start + fwd * (bounds.size().max_element() * 0.75);
-            push_line(&mut self.edges_2d, start, end, line_color);
-            push_line(if selected { &mut self.sel_edges } else { &mut self.edges }, start, end, line_color);
+            if selected {
+                push_line(&mut self.edges_2d, start, end, line_color);
+                push_line(&mut self.sel_edges, start, end, line_color);
+            } else {
+                push_line(&mut self.marker_edges, start, end, line_color);
+            }
         }
     }
 
@@ -1420,6 +1430,13 @@ pub fn compute_lighting(map: &Map, game: &GameConfig) -> Lighting {
     lighting
 }
 
+/// White box from 0 to 1 on every axis, the shape every point entity marker places.
+fn unit_box(renderer: &Renderer) -> Option<GpuMesh> {
+    let mut batch = MeshBatch::default();
+    batch.add_box(Vec3::ZERO, Vec3::ONE, [1.0; 4]);
+    renderer.upload_mesh(&batch)
+}
+
 /// Read-only context shared by the per-bucket builders, so buckets can build across threads.
 struct BucketCtx<'a> {
     map: &'a Map,
@@ -1432,6 +1449,7 @@ struct BucketCtx<'a> {
     entity_models: &'a HashMap<NodeId, std::sync::Arc<crate::models::Model>>,
     drag_nodes: &'a BTreeSet<NodeId>,
     fixtures: &'a td_doc::entity::OffFixtures,
+    unit_box: Option<&'a GpuMesh>,
 }
 
 /// Builds the batches for one bucket's brush, mesh, entity and terrain nodes. Prefab instances are left to
@@ -1446,12 +1464,13 @@ fn build_bucket<'a>(ctx: &BucketCtx<'a>, ids: &[NodeId]) -> Builder<'a> {
         double: MeshBatch::default(),
         transparent: MeshBatch::default(),
         volumes: MeshBatch::default(),
-        markers: MeshBatch::default(),
+        markers: Vec::new(),
         volume: false,
         dark: false,
         face_overlay: MeshBatch::default(),
         edges: Vec::new(),
         edges_2d: Vec::new(),
+        marker_edges: Vec::new(),
         sel_edges: Vec::new(),
         stats: SceneStats::default(),
         instance_bounds: HashMap::new(),
@@ -1508,17 +1527,20 @@ fn build_bucket<'a>(ctx: &BucketCtx<'a>, ids: &[NodeId]) -> Builder<'a> {
     builder
 }
 
-fn upload_bucket(renderer: &Renderer, builder: Builder) -> Bucket {
+fn upload_bucket(ctx: &BucketCtx, builder: Builder) -> Bucket {
+    let renderer = ctx.renderer;
+    let markers = ctx.unit_box.zip(renderer.upload_instances(&builder.markers)).map(|(b, records)| b.instanced(&records, 0..builder.markers.len() as u32));
     let xray: Vec<LineVertex> = builder.sel_edges.iter().map(|v| LineVertex { color: SELECTED_XRAY, ..*v }).collect();
     Bucket {
         opaque: renderer.upload_mesh(&builder.opaque),
         double: renderer.upload_mesh(&builder.double),
         transparent: renderer.upload_mesh(&builder.transparent),
         volumes: renderer.upload_mesh(&builder.volumes),
-        markers: renderer.upload_mesh(&builder.markers),
+        markers,
         overlay: renderer.upload_mesh(&builder.face_overlay),
         edges: renderer.upload_lines(&builder.edges),
         edges_2d: renderer.upload_lines(&builder.edges_2d),
+        marker_edges: renderer.upload_lines(&builder.marker_edges),
         sel_edges: renderer.upload_lines(&builder.sel_edges).map(GpuLines::wide),
         xray: renderer.upload_lines(&xray),
         stats: builder.stats,
@@ -1653,6 +1675,7 @@ impl SceneCache {
                 self.terrains.clear();
                 self.scatters.clear();
                 self.scatter_models = ScatterModels::default();
+                self.unit_box = None;
                 for b in &mut self.buckets {
                     *b = Bucket::default();
                 }
@@ -1912,6 +1935,10 @@ impl SceneCache {
                 }
             }
 
+            if self.unit_box.is_none() {
+                self.unit_box = unit_box(renderer);
+            }
+
             let per_bucket_ref = &per_bucket;
             let results: Vec<(usize, Bucket)> = {
                 let ctx = BucketCtx {
@@ -1925,6 +1952,7 @@ impl SceneCache {
                     entity_models: &entity_models,
                     drag_nodes: &drag_nodes,
                     fixtures: &self.fixtures,
+                    unit_box: self.unit_box.as_ref(),
                 };
                 let has_instance = |b: usize| {
                     per_bucket_ref.get(&b).is_some_and(|ids| ids.iter().any(|id| matches!(map.get(*id).map(|n| &n.kind), Some(NodeKind::Instance(_)))))
@@ -1938,7 +1966,7 @@ impl SceneCache {
                 let mut results: Vec<(usize, Bucket)> = if threads <= 1 || parallel.len() <= 1 {
                     parallel
                         .iter()
-                        .map(|&b| (b, upload_bucket(ctx.renderer, build_bucket(&ctx, per_bucket_ref.get(&b).map(|v| v.as_slice()).unwrap_or(&[])))))
+                        .map(|&b| (b, upload_bucket(&ctx, build_bucket(&ctx, per_bucket_ref.get(&b).map(|v| v.as_slice()).unwrap_or(&[])))))
                         .collect()
                 } else {
                     let chunk = parallel.len().div_ceil(threads);
@@ -1950,7 +1978,7 @@ impl SceneCache {
                                     c.iter()
                                         .map(|&b| {
                                             let ids = per_bucket_ref.get(&b).map(|v| v.as_slice()).unwrap_or(&[]);
-                                            (b, upload_bucket(ctx_ref.renderer, build_bucket(ctx_ref, ids)))
+                                            (b, upload_bucket(ctx_ref, build_bucket(ctx_ref, ids)))
                                         })
                                         .collect::<Vec<_>>()
                                 })
@@ -1990,7 +2018,7 @@ impl SceneCache {
                             builder.instance_bounds.insert(id, bounds);
                         }
 
-                        results.push((b, upload_bucket(ctx.renderer, builder)));
+                        results.push((b, upload_bucket(&ctx, builder)));
                     }
                 }
 
@@ -2177,9 +2205,11 @@ impl SceneCache {
         for b in &self.buckets {
             if is_2d {
                 frame.overlay_lines.extend(b.edges_2d.as_ref());
+                frame.overlay_lines.extend(b.marker_edges.as_ref());
                 frame.overlay_lines.extend(b.sel_edges.as_ref());
             } else {
                 frame.wire_lines.extend(b.edges_2d.as_ref());
+                frame.wire_lines.extend(b.marker_edges.as_ref());
                 frame.opaque.extend(b.opaque.as_ref());
                 frame.double_sided.extend(b.double.as_ref());
                 frame.transparent.extend(b.transparent.as_ref());
@@ -2190,6 +2220,7 @@ impl SceneCache {
                 frame.opaque.extend(b.markers.as_ref());
                 if !lit {
                     frame.lines.extend(b.edges.as_ref());
+                    frame.lines.extend(b.marker_edges.as_ref());
                     frame.transparent.extend(b.volumes.as_ref());
                 }
 

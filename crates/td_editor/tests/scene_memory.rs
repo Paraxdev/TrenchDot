@@ -115,3 +115,36 @@ fn scatter_instances_upload_their_model_once() {
     let per_set = (sets - one) / 100;
     assert!(per_set <= 2048, "a scatter set of one tree takes {per_set} B of GPU memory");
 }
+
+fn entities(n: usize, model: Option<&str>) -> Map {
+    let mut m = Map::new();
+    let layer = m.default_layer();
+    for i in 0..n {
+        let (x, z) = ((i % 97) as f64, (i / 97) as f64);
+        let mut e = td_doc::Entity::new("info_null");
+        e.origin = DVec3::new(-1500.5 + x * 70.0 + z * 9.0, 24.0 + x * 1.25 - z * 0.5, 800.75 + z * 55.0);
+        e.angles = DVec3::new(0.0, (i * 37 % 360) as f64, 0.0);
+        if let Some(path) = model {
+            e.properties.insert("model".into(), path.into());
+        }
+
+        m.insert(layer, NodeKind::Entity(e));
+    }
+
+    m
+}
+
+#[test]
+#[ignore = "needs a GPU"]
+fn point_entity_markers_share_one_box() {
+    let mut gpu = Gpu::new("markers");
+    let (empty, empty_tris) = gpu.scene_cost(&entities(0, None));
+    let (one, one_tris) = gpu.scene_cost(&entities(1, None));
+    let (few, few_tris) = gpu.scene_cost(&entities(1_000, None));
+    let (many, many_tris) = gpu.scene_cost(&entities(11_000, None));
+    assert_eq!((empty_tris, one_tris, few_tris, many_tris), (0, 0, 0, 0), "markers are editor stand-ins, not scene triangles");
+    assert!(one > empty, "one entity uploads its marker");
+    // An instance record plus one copy of the outline and arrow, the box itself is uploaded once.
+    let per_marker = (many - few) / 10_000;
+    assert!(per_marker <= 1024, "a point entity marker takes {per_marker} B of GPU memory");
+}
