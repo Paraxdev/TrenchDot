@@ -2114,5 +2114,7 @@
   "Godot built {class} as a plain node without script or collision, there is no definition for it in {settings}. Add {fgd} to the Base Fgd Files of its Entity Fgd": "Godotは{class}をスクリプトも衝突もない通常のノードとしてビルドしました。{settings}にその定義がありません。{fgd}をそのEntity FgdのBase Fgd Filesに追加してください",
   "Godot built {class} as a plain node without script or collision, there is no definition for it in the FGD Godot builds with. Add {fgd} to the Base Fgd Files of its Entity Fgd": "Godotは{class}をスクリプトも衝突もない通常のノードとしてビルドしました。Godotがビルドに使うFGDにその定義がありません。{fgd}をそのEntity FgdのBase Fgd Filesに追加してください",
   "Godot built {class} as a plain node without script or collision, there is no definition for it in {settings}. Add the definition to its Entity Fgd": "Godotは{class}をスクリプトも衝突もない通常のノードとしてビルドしました。{settings}にその定義がありません。その定義をEntity Fgdに追加してください",
-  "Godot built {class} as a plain node without script or collision, there is no definition for it in the FGD Godot builds with. Add the definition to its Entity Fgd": "Godotは{class}をスクリプトも衝突もない通常のノードとしてビルドしました。Godotがビルドに使うFGDにその定義がありません。その定義をEntity Fgdに追加してください"
+  "Godot built {class} as a plain node without script or collision, there is no definition for it in the FGD Godot builds with. Add the definition to its Entity Fgd": "Godotは{class}をスクリプトも衝突もない通常のノードとしてビルドしました。Godotがビルドに使うFGDにその定義がありません。その定義をEntity Fgdに追加してください",
+  "Graphics device lost": "グラフィックデバイスが失われました",
+  "The graphics driver stopped or was reset, so TrenchDot has to close. Unsaved changes were autosaved, and TrenchDot offers them back when you open the map or start it again. {reason}": "グラフィックドライバーが停止またはリセットされたため、TrenchDot を閉じる必要があります。未保存の変更は自動保存されており、マップを開くか TrenchDot を再起動すると復元を案内します。{reason}"
 }

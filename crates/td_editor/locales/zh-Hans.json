@@ -2114,5 +2114,7 @@
   "Godot built {class} as a plain node without script or collision, there is no definition for it in {settings}. Add {fgd} to the Base Fgd Files of its Entity Fgd": "Godot 把 {class} 构建成了没有脚本和碰撞的普通节点，{settings} 中没有它的定义。请把 {fgd} 加到它的 Entity Fgd 的 Base Fgd Files 中",
   "Godot built {class} as a plain node without script or collision, there is no definition for it in the FGD Godot builds with. Add {fgd} to the Base Fgd Files of its Entity Fgd": "Godot 把 {class} 构建成了没有脚本和碰撞的普通节点，Godot 构建所用的 FGD 中没有它的定义。请把 {fgd} 加到它的 Entity Fgd 的 Base Fgd Files 中",
   "Godot built {class} as a plain node without script or collision, there is no definition for it in {settings}. Add the definition to its Entity Fgd": "Godot 把 {class} 构建成了没有脚本和碰撞的普通节点，{settings} 中没有它的定义。请把该定义添加到它的 Entity Fgd",
-  "Godot built {class} as a plain node without script or collision, there is no definition for it in the FGD Godot builds with. Add the definition to its Entity Fgd": "Godot 把 {class} 构建成了没有脚本和碰撞的普通节点，Godot 构建所用的 FGD 中没有它的定义。请把该定义添加到它的 Entity Fgd"
+  "Godot built {class} as a plain node without script or collision, there is no definition for it in the FGD Godot builds with. Add the definition to its Entity Fgd": "Godot 把 {class} 构建成了没有脚本和碰撞的普通节点，Godot 构建所用的 FGD 中没有它的定义。请把该定义添加到它的 Entity Fgd",
+  "Graphics device lost": "图形设备丢失",
+  "The graphics driver stopped or was reset, so TrenchDot has to close. Unsaved changes were autosaved, and TrenchDot offers them back when you open the map or start it again. {reason}": "图形驱动程序已停止或被重置，因此 TrenchDot 必须关闭。未保存的更改已自动保存，下次打开该地图或启动 TrenchDot 时会提示恢复。{reason}"
 }

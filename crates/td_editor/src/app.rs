@@ -104,6 +104,7 @@ pub struct App {
     actions: Vec<Action>,
     pub(crate) project_generation: u64,
     confirm_close: bool,
+    offscreen: bool,
     /// Asking whether to save the active map before its tab closes.
     confirm_tab_close: bool,
     allow_close: bool,
@@ -901,6 +902,7 @@ impl App {
             actions: Vec::new(),
             project_generation: 1,
             confirm_close: false,
+            offscreen: args.offscreen,
             confirm_tab_close: false,
             allow_close: false,
             show_prefs: false,
@@ -2640,6 +2642,26 @@ impl App {
         }
     }
 
+    /// A lost GPU device cannot be recovered, since egui-wgpu draws with the device it started with. Keeps the
+    /// unsaved work as autosaves and closes with a message instead of a panic in the next upload.
+    fn quit_if_gpu_lost(&mut self) {
+        let Some(reason) = self.renderer.lost() else { return };
+        let saved = self.state.autosave_before_exit();
+        eprintln!("TrenchDot: the graphics device was lost ({reason}), autosaved {saved:?}");
+        if !self.offscreen {
+            rfd::MessageDialog::new()
+                .set_level(rfd::MessageLevel::Error)
+                .set_title(tr("Graphics device lost"))
+                .set_description(trf!(
+                    "The graphics driver stopped or was reset, so TrenchDot has to close. Unsaved changes were autosaved, and TrenchDot offers them back when you open the map or start it again. {reason}",
+                    reason
+                ))
+                .show();
+        }
+
+        std::process::exit(1)
+    }
+
     fn close_dialog(&mut self, ctx: &egui::Context) {
         let any_modified = self.state.doc.is_modified() || self.state.tabs.iter().any(|t| t.doc.is_modified());
         if ctx.input(|i| i.viewport().close_requested()) && !self.allow_close && any_modified {
@@ -2886,6 +2908,7 @@ impl eframe::App for App {
 
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        self.quit_if_gpu_lost();
         self.apply_ui_scale(&ctx);
         self.apply_theme(&ctx);
         sync_language(&ctx, self.state.prefs.lang(), &mut self.japanese_first);
@@ -3119,6 +3142,10 @@ impl eframe::App for App {
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
             self.title = title;
         }
+
+        // eframe paints after this returns, and egui-wgpu panics on a lost device, so a loss found by this frame's own
+        // renders has to end the session here.
+        self.quit_if_gpu_lost();
     }
 
     fn persist_egui_memory(&self) -> bool {

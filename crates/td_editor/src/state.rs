@@ -1619,13 +1619,23 @@ impl EditorState {
             return;
         }
 
+        self.write_autosaves();
+    }
+
+    /// Autosaves every open map with unsaved changes even with autosave turned off, for an exit that cannot ask the
+    /// user to save. Returns the files written.
+    pub fn autosave_before_exit(&mut self) -> Vec<PathBuf> {
+        self.write_autosaves()
+    }
+
+    fn write_autosaves(&mut self) -> Vec<PathBuf> {
         self.last_autosave = Instant::now();
         let tabs = self.tabs.iter_mut().map(|t| (&t.doc, &mut t.autosave));
         let (saved, failed): (Vec<_>, Vec<_>) =
             std::iter::once((&self.doc, &mut self.autosave)).chain(tabs).filter_map(|(doc, autosave)| autosave_doc(doc, autosave)).partition(Result::is_ok);
         if let Some(Err(e)) = failed.into_iter().next() {
             self.fail_status(e);
-            return;
+            return saved.into_iter().flatten().collect();
         }
 
         match saved.as_slice() {
@@ -1633,6 +1643,8 @@ impl EditorState {
             [Ok(one)] => self.set_status(msg!("Autosaved to {path}", path = one.display())),
             many => self.set_status(msg_n!(many.len(), "Autosaved {n} map", "Autosaved {n} maps")),
         }
+
+        saved.into_iter().flatten().collect()
     }
 
     /// Untitled map autosaves in the temp folder that no open tab is writing, newest first.
@@ -1923,6 +1935,34 @@ mod tests {
         for f in files {
             let _ = std::fs::remove_file(f);
         }
+    }
+
+    #[test]
+    fn autosave_before_exit_writes_every_modified_map_with_autosave_off() {
+        let dir = std::env::temp_dir().join(format!("td_exit_autosave_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let titled = dir.join("church.tdm");
+        let mut state = EditorState::new(Prefs { autosave_minutes: 0.0, ..Prefs::default() });
+        let layer = state.doc.map.default_layer();
+        state.doc.edit("add", |m, _| td_doc::ops::create_point_entity(m, layer, "light", DVec3::new(3.0, -2.0, 7.5)));
+        state.doc.path = Some(titled.clone());
+        state.open_tab(Document::new());
+        let layer = state.doc.map.default_layer();
+        state.doc.edit("add", |m, _| td_doc::ops::create_point_entity(m, layer, "light", DVec3::new(-9.0, 4.0, 1.25)));
+        state.open_tab(Document::new());
+
+        state.autosave_now();
+        assert!(!autosave_path(&titled).exists(), "the pref turns the timed autosave off");
+
+        let written = state.autosave_before_exit();
+        assert_eq!(written.len(), 2, "the untitled tab, and the titled one that is switched out, {written:?}");
+        assert!(written.contains(&autosave_path(&titled)) && written.iter().all(|f| f.exists()));
+        assert!(state.autosave_before_exit().is_empty(), "unchanged maps are not written again");
+        for f in written {
+            let _ = std::fs::remove_file(f);
+        }
+
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
