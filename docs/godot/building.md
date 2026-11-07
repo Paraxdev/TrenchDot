@@ -84,6 +84,30 @@ the addon and [export the game config](project-setup.md#the-game-config) again.
 If the scene already has a `WorldEnvironment` or `DirectionalLight3D` of its own, the map keeps it and adds none, so a
 game with its own look always wins. When several maps share one scene, the first one built lights it.
 
+## Faces that face the void
+
+A sealed map has outer walls whose outside faces nobody can ever see, and the build can leave them out of the mesh.
+This is off by default. Turn it on for a sealed indoor map, such as a set of rooms or a building, by setting
+`_cull_void_faces` to `1` on worldspawn. An open outdoor map has nothing to gain from it. The build then
+floods the empty space from every point entity (the player start, lights and so on) and drops each face that no part
+of that space can see. This is the same idea as the leak check of Quake map compilers, so a map has to be sealed for it
+to work. Sky brushes count as walls, and so do closed meshes. Doors, lifts, triggers and other moving or volume
+entities do not.
+
+If the flood escapes through a gap, the map leaks. The build then keeps every face and warns in Godot's Output which
+entity reached the outside. TrenchDot shows the same leak in its Issues panel. Click the issue to select that entity,
+a line in the 2D and 3D views marks the way from it to the outside. A glass pane is not a wall either, so a window in an
+outer wall also counts as a gap. A fully open outdoor map always leaks and simply keeps all its faces.
+
+To see what the build will draw, open **View > Preview void culling**. The views hide the dropped faces while it is on.
+It is off by default so you can still click an outer wall from outside. Without `_cull_void_faces` on worldspawn the
+editor does not look for leaks either.
+
+| Key | Where | What it does |
+| --- | --- | --- |
+| `_cull_void_faces` | worldspawn | Set to `1` to drop the faces that face the void. Default off. |
+| `_cull_void_faces` | A brush entity | Set to `0` to keep that entity's faces even when worldspawn has it on. It does nothing while worldspawn has it off. |
+
 ## Build report
 
 `build()` returns a Dictionary, also kept in `build_report`. It tells you how long each step took, how many entities of
