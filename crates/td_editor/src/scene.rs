@@ -619,9 +619,13 @@ fn build_scatter(
         }
     }
 
-    lines.extend(outline.iter().copied());
+    if selected {
+        out.sel_lines = renderer.upload_lines(&outline).map(GpuLines::wide);
+    } else {
+        lines.extend(outline.iter().copied());
+    }
+
     out.lines_2d = renderer.upload_lines(&lines);
-    out.sel_lines = if selected { renderer.upload_lines(&outline) } else { None };
     out
 }
 
@@ -1313,9 +1317,13 @@ fn build_terrain(
         push_line(&mut lines, corners[i], corners[j], color);
     }
 
+    out.sel_lines = if selected { renderer.upload_lines(&lines).map(GpuLines::wide) } else { None };
+    if selected {
+        lines.clear();
+    }
+
     chunk_lines(t, b.max.y - t.origin.y, [color[0], color[1], color[2], 0.35], &mut lines);
     out.lines_2d = renderer.upload_lines(&lines);
-    out.sel_lines = if selected { renderer.upload_lines(&lines[..24]) } else { None };
     out
 }
 
@@ -2237,6 +2245,7 @@ impl SceneCache {
         for t in self.terrains.values() {
             if is_2d {
                 frame.overlay_lines.extend(t.lines_2d.as_ref());
+                frame.overlay_lines.extend(t.sel_lines.as_ref());
             } else {
                 frame.terrain.extend(t.chunks.iter().flatten());
                 frame.wire_lines.extend(t.wire.as_ref());
@@ -2249,6 +2258,7 @@ impl SceneCache {
         for s in self.scatters.values() {
             if is_2d {
                 frame.overlay_lines.extend(s.lines_2d.as_ref());
+                frame.overlay_lines.extend(s.sel_lines.as_ref());
             } else {
                 frame.opaque.extend(s.chunks.values().flat_map(|c| &c.meshes));
                 if overlays {

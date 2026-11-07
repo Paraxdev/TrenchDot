@@ -3237,6 +3237,25 @@ fn selected_entity_outline_reads_on_paper() {
     assert_eq!(count_near(&shot(&ed, args, "dark_again"), half), 1300, "switching back restores the dark outline");
 }
 
+/// A selected terrain is outlined two pixels thick on paper like a selected entity, its chunk lines stay thin.
+#[test]
+#[ignore]
+fn selected_terrain_outline_reads_on_paper() {
+    let ed = Editor::launch("terrain_outline");
+    let id = ed.call("create_terrain", json!({ "origin": [-9, 0, -11], "resolution": 3, "cell_size": 16, "shape": "flat" }))["id"].clone();
+    ed.call("select", json!({ "ids": [id] }));
+    ed.call("set_camera", json!({ "view": "top", "center": [0, 0, 0], "zoom": 4 }));
+    ed.call("set_editor", json!({ "theme": "light" }));
+    theme_active(&ed, "light");
+    let paper = shot(&ed, json!({ "target": "top", "width": 400, "height": 300, "overlays": true }), "light");
+    let count_near = |want: [u8; 3]| paper.pixels().filter(|p| (0..3).all(|i| p.0[i].abs_diff(want[i]) <= 3)).count();
+    let light = td_editor::theme::LIGHT;
+    let ink = over(td_render::ink::flip_linear(td_editor::scene::SELECTED_COLOR, light.flip_pivot().unwrap()), light.view_2d, 1);
+    let full = count_near(ink);
+    assert!(full >= 4 * 120, "only {full} pixels of the full outline color on paper");
+    assert_eq!(count_near([217, 179, 180]), 0, "no half covered pink outline is left");
+}
+
 /// An unselected I/O link is a translucent line, which washed out to gray on paper. It keeps its contrast there now,
 /// and the dark view blends it as before.
 #[test]
