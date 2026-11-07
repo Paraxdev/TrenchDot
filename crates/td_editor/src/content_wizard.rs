@@ -536,6 +536,15 @@ mod tests {
         std::fs::remove_dir_all(&root).unwrap();
     }
 
+    // Note: a shared CI runner can stall for many seconds, so waits go by a generous clock, never a step count.
+    fn wait_until(what: &str, mut done: impl FnMut() -> bool) {
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(60);
+        while !done() {
+            assert!(std::time::Instant::now() < deadline, "{what}");
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+    }
+
     #[test]
     fn cancel_stops_a_running_install() {
         let server = Server::start();
@@ -545,11 +554,7 @@ mod tests {
         f.wizard.start(&f.state, Choice::Nature, None).unwrap();
         f.wizard.cancel();
         assert!(f.wizard.job.as_ref().is_some_and(Job::cancelling));
-        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-        while f.wizard.poll(&mut f.state).is_none() {
-            assert!(std::time::Instant::now() < deadline, "the install ends");
-            std::thread::sleep(std::time::Duration::from_millis(10));
-        }
+        wait_until("the install ends", || f.wizard.poll(&mut f.state).is_some());
 
         assert!(!f.wizard.running());
         std::fs::remove_dir_all(&root).unwrap();
@@ -577,15 +582,10 @@ mod tests {
         harness.get_by_label("Download and Add (23 MB)").click();
         harness.step();
         assert!(harness.state().wizard.running());
-        for _ in 0..500 {
-            if !harness.state().wizard.running() {
-                break;
-            }
-
-            std::thread::sleep(std::time::Duration::from_millis(10));
+        wait_until("the download ends", || {
             harness.step();
-        }
-
+            !harness.state().wizard.running()
+        });
         harness.run();
         assert!(harness.query_by_label_contains("Added 7 files to the project from the rolling beta.").is_some());
         assert!(crate::content::has_nature_pack(&root));

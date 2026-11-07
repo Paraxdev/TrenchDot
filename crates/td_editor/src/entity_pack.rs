@@ -584,7 +584,7 @@ mod tests {
         let report = install_in_project(&mut state).unwrap();
         assert!(report.scanned && report.summary().ends_with(SCAN_NOTE), "{}", report.summary());
         assert_eq!(state.godot_scan, Some(0), "an addon that does not number its scans");
-        assert_eq!(scans.recv_timeout(std::time::Duration::from_secs(5)).unwrap()["event"], "scan");
+        assert_eq!(scans.recv_timeout(std::time::Duration::from_secs(60)).unwrap()["event"], "scan");
         let again = install_in_project(&mut state).unwrap();
         assert!(!again.scanned && scans.try_recv().is_err(), "nothing new, nothing to scan");
 

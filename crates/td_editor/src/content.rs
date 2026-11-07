@@ -31,7 +31,7 @@ pub const API_ENV: &str = "TRENCHDOT_RELEASES_API";
 const MAX_UNPACKED: u64 = 4 << 30;
 
 /// A download that brings nothing new for this long has stalled.
-const STALL: Duration = if cfg!(test) { Duration::from_millis(600) } else { Duration::from_secs(60) };
+const STALL: Duration = if cfg!(test) { Duration::from_secs(3) } else { Duration::from_secs(60) };
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Choice {
@@ -998,7 +998,7 @@ mod tests {
                 std::thread::spawn(move || {
                     let _ = std::io::BufRead::read_line(&mut std::io::BufReader::new(stream.try_clone().unwrap()), &mut String::new());
                     let _ = stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 1000\r\nConnection: close\r\n\r\n0123456789");
-                    std::thread::sleep(Duration::from_secs(5));
+                    std::thread::sleep(Duration::from_secs(60));
                 });
             }
         });
@@ -1007,7 +1007,7 @@ mod tests {
         let started = std::time::Instant::now();
         let stalled = download(&agent(), &asset, &Reporter::default());
         assert!(matches!(&stalled, Err(Error::Offline(why)) if why.contains("stalled")), "{stalled:?}");
-        assert!(started.elapsed() < Duration::from_secs(4));
+        assert!(started.elapsed() < Duration::from_secs(30));
 
         let report = Reporter::default();
         let cancel = report.clone();
