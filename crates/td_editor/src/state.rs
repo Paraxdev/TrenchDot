@@ -368,6 +368,10 @@ pub struct Prefs {
     /// Projects whose missing or mismatched addon a person let be, with the editor version and the addon they had then
     /// ([`crate::addon_install::Status::dismiss_key`]). The addon part of the wizard opens again once either changes.
     pub addon_dismissed: std::collections::BTreeMap<PathBuf, String>,
+    /// Look for a newer editor build at startup, see [`crate::updater`].
+    pub update_check: bool,
+    /// When the editor last looked, in seconds since 1970.
+    pub update_checked: u64,
     /// Roots of the Godot projects the person trusts, as canonical paths. A project unpacked inside one of them has its
     /// own project.godot and is asked about, Godot treats it as a project of its own.
     pub trusted_projects: std::collections::BTreeSet<PathBuf>,
@@ -466,6 +470,8 @@ impl Default for Prefs {
             start_hints: true,
             content_asked: Default::default(),
             addon_dismissed: Default::default(),
+            update_check: true,
+            update_checked: 0,
             trusted_projects: Default::default(),
             trusted_folders: Default::default(),
             trust_seeded: true,

@@ -218,6 +218,7 @@ jobs:
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
+          TRENCHDOT_BUILD: ${{ needs.stamp.outputs.build }}
         run: |
           if ls dist | grep -qiE '\.(png|jpe?g|gif|webp)$'; then
             echo "images belong in the release notes, not in the downloads"
@@ -251,7 +252,8 @@ jobs:
           # TrenchDot ships only as the rolling beta, so any other release, like the old v0.1.0, goes with its tag.
           gh release list --json tagName --jq '.[].tagName' | grep -vx beta | xargs -r -I{} gh release delete {} --yes --cleanup-tag
           gh release delete beta --yes --cleanup-tag || true
-          gh release create beta dist/* --prerelease --target "$GITHUB_SHA" --title "TrenchDot rolling beta" --notes "$notes"
+          # The editor's updater reads the build stamp from the title, see crates/td_editor/src/updater.rs.
+          gh release create beta dist/* --prerelease --target "$GITHUB_SHA" --title "TrenchDot ${TRENCHDOT_BUILD}" --notes "$notes"
 
   itch:
     name: Push to itch.io

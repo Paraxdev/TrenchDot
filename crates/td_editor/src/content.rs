@@ -225,25 +225,39 @@ pub fn release_tags() -> [String; 2] {
 pub fn find_asset(agent: &ureq::Agent, api: &str, name: &'static str) -> Result<Asset, Error> {
     let mut found_release = false;
     for tag in release_tags() {
-        let response = get(agent, &format!("{api}/releases/tags/{tag}"), "application/vnd.github+json")?;
-        match response.status().as_u16() {
-            200 => found_release = true,
-            404 => continue,
-            code => return Err(Error::Status(code)),
+        let Some(release) = release(agent, api, &tag)? else { continue };
+        found_release = true;
+        if let Some(asset) = release_asset(&release, api, name, &tag)? {
+            return Ok(asset);
         }
-
-        let release: serde_json::Value = serde_json::from_reader(response.into_body().into_with_config().limit(8 << 20).reader())
-            .map_err(|e| Error::Damaged(format!("the release description: {e}")))?;
-        let Some(asset) = release["assets"].as_array().and_then(|a| a.iter().find(|a| a["name"] == name)) else { continue };
-        let (Some(url), Some(size)) = (asset["browser_download_url"].as_str(), asset["size"].as_u64()) else {
-            return Err(Error::Damaged(format!("the release lists {name} without a link or size")));
-        };
-        let sha256 = asset["digest"].as_str().and_then(|d| d.strip_prefix("sha256:")).map(str::to_ascii_lowercase);
-        trusted(api, name, url, sha256.is_some())?;
-        return Ok(Asset { url: url.to_string(), size, sha256, tag });
     }
 
     Err(if found_release { Error::NotPublished(name) } else { Error::NoRelease })
+}
+
+/// The description of the release `tag`, None when there is no such release.
+pub(crate) fn release(agent: &ureq::Agent, api: &str, tag: &str) -> Result<Option<serde_json::Value>, Error> {
+    let response = get(agent, &format!("{api}/releases/tags/{tag}"), "application/vnd.github+json")?;
+    match response.status().as_u16() {
+        200 => {}
+        404 => return Ok(None),
+        code => return Err(Error::Status(code)),
+    }
+
+    serde_json::from_reader(response.into_body().into_with_config().limit(8 << 20).reader())
+        .map(Some)
+        .map_err(|e| Error::Damaged(format!("the release description: {e}")))
+}
+
+/// The asset `name` of the `release` tagged `tag`, None when it does not list one.
+pub(crate) fn release_asset(release: &serde_json::Value, api: &str, name: &str, tag: &str) -> Result<Option<Asset>, Error> {
+    let Some(asset) = release["assets"].as_array().and_then(|a| a.iter().find(|a| a["name"] == name)) else { return Ok(None) };
+    let (Some(url), Some(size)) = (asset["browser_download_url"].as_str(), asset["size"].as_u64()) else {
+        return Err(Error::Damaged(format!("the release lists {name} without a link or size")));
+    };
+    let sha256 = asset["digest"].as_str().and_then(|d| d.strip_prefix("sha256:")).map(str::to_ascii_lowercase);
+    trusted(api, name, url, sha256.is_some())?;
+    Ok(Some(Asset { url: url.to_string(), size, sha256, tag: tag.to_string() }))
 }
 
 /// Refuses a download the release links without https while the API itself is https, or lists without its checksum on
@@ -752,6 +766,11 @@ pub(crate) mod test_server {
         /// A release `tag` with `assets` as (name, bytes), each downloadable from this server, with its digest when
         /// `digest` is set.
         pub fn release(&self, tag: &str, assets: &[(&str, &[u8])], digest: bool) {
+            self.titled_release(tag, tag, assets, digest);
+        }
+
+        /// [`Server::release`] with the title GitHub shows above it.
+        pub fn titled_release(&self, tag: &str, title: &str, assets: &[(&str, &[u8])], digest: bool) {
             let listed: Vec<serde_json::Value> = assets
                 .iter()
                 .map(|(name, bytes)| {
@@ -764,7 +783,7 @@ pub(crate) mod test_server {
                     serde_json::json!({ "name": name, "size": bytes.len(), "digest": digest, "browser_download_url": format!("{}{path}", self.url) })
                 })
                 .collect();
-            self.route(&format!("/releases/tags/{tag}"), 200, serde_json::json!({ "tag_name": tag, "assets": listed }).to_string());
+            self.route(&format!("/releases/tags/{tag}"), 200, serde_json::json!({ "tag_name": tag, "name": title, "assets": listed }).to_string());
         }
     }
 

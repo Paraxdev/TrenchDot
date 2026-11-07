@@ -53,6 +53,7 @@ pub mod toolset;
 pub mod transform_gizmo;
 pub mod trim;
 pub mod trust;
+pub mod updater;
 pub mod uv_editor;
 pub mod validate;
 pub mod viewport;
@@ -242,6 +243,7 @@ pub fn convert(c: &Convert) -> Result<(), String> {
 
 pub fn run(args: CliArgs) -> eframe::Result {
     legacy::migrate_settings(args.default_prefs);
+    updater::exe();
     let mut viewport =
         egui::ViewportBuilder::default().with_title("TrenchDot").with_icon(brand::icon()).with_inner_size([1600.0, 960.0]).with_min_inner_size([800.0, 500.0]);
     if args.offscreen {
@@ -258,7 +260,9 @@ pub fn run(args: CliArgs) -> eframe::Result {
         persistence_path: args.default_prefs.then(default_prefs_store),
         ..Default::default()
     };
-    eframe::run_native(APP_ID, options, Box::new(move |cc| Ok(Box::new(app::App::new(cc, args)))))
+    let result = eframe::run_native(APP_ID, options, Box::new(move |cc| Ok(Box::new(app::App::new(cc, args)))));
+    updater::restart_if_asked();
+    result
 }
 
 /// What a `--default-prefs` run keeps instead of the user's own settings.

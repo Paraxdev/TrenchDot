@@ -226,6 +226,7 @@ pub enum Action {
     VolumeAroundSelection(String),
     ShowReference,
     ShowPreferences,
+    CheckForUpdates,
     /// Fills the view area with the view under the pointer, or brings the other views back.
     ToggleMaximizeView,
     /// Shows 1, 2 or 4 views.
@@ -403,6 +404,7 @@ impl Action {
             Action::VolumeAroundSelection(class) => return trf!("{class} Around Selection", class),
             Action::ShowReference => en!("Entity and Code Reference"),
             Action::ShowPreferences => en!("Preferences"),
+            Action::CheckForUpdates => en!("Check for Updates"),
             Action::ToggleMaximizeView => en!("Maximize View"),
             Action::ViewLayout(1) => en!("Single View"),
             Action::ViewLayout(2) => en!("Two Views"),
@@ -727,6 +729,7 @@ pub fn bindable_actions() -> Vec<Action> {
         Action::ShowLogicGraph,
         Action::ShowReference,
         Action::ShowPreferences,
+        Action::CheckForUpdates,
         Action::ViewLayout(1),
         Action::ViewLayout(2),
         Action::ViewLayout(4),
@@ -1679,6 +1682,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         | Action::ShowLogicGraph
         | Action::ShowReference
         | Action::ShowPreferences
+        | Action::CheckForUpdates
         | Action::ToggleMaximizeView
         | Action::ViewLayout(_)
         | Action::ToggleView(_) => {}

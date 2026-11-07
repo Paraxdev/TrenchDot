@@ -27,6 +27,7 @@
     * [Converting textures](editor/importing-textures.md)
     * [Exporting to Blender and other 3D tools](editor/exporting.md)
     * [Shortcuts](editor/shortcuts.md)
+    * [Updating the editor](editor/updating.md)
 * Godot
     * [Building maps](godot/building.md)
     * [Entities that do nothing](godot/entities-troubleshooting.md)

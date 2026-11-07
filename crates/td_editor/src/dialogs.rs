@@ -177,6 +177,7 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
         entry(en!("Gameplay"), en!("Link Selected Entities"), Action::ShowLinkDialog),
         entry(en!("Gameplay"), en!("Logic Graph"), Action::ShowLogicGraph),
         entry(en!("Help"), en!("Entity and Code Reference"), Action::ShowReference),
+        entry(en!("Help"), en!("Check for Updates"), Action::CheckForUpdates),
         entry(en!("File"), en!("Preferences"), Action::ShowPreferences),
         entry(en!("View"), en!("Toggle Transform Gizmo"), Action::ToggleTransformGizmo),
         entry(en!("View"), en!("Toggle Godot Overlays"), Action::ToggleGodotOverlays),

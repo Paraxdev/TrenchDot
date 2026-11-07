@@ -42,6 +42,7 @@ zstd = { version = "0.13", default-features = false }
 # Content downloads: HTTPS with the operating system's certificates, so proxies that re-sign TLS keep working.
 ureq = { version = "3.4", default-features = false, features = ["rustls", "platform-verifier"] }
 zip = { version = "9.0", default-features = false, features = ["deflate-flate2"] }
+flate2 = "1.1"
 # Already compiled in for rustls, used for the SHA-256 of downloads.
 ring = "0.17"
 # Already compiled in for gltf, decodes model URIs the way it does so they can be checked first.

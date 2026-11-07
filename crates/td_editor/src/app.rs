@@ -170,6 +170,7 @@ pub struct App {
     /// The manual page of what the pointer was over at the end of the last frame, for F1.
     manual_under_pointer: Option<String>,
     pub(crate) content_wizard: crate::content_wizard::ContentWizard,
+    pub(crate) updater: crate::updater::Updater,
     pub(crate) trust: crate::trust::TrustPrompt,
     /// Where the Restricted Mode chip is in the status bar, reported by get_state like `open_windows`.
     pub(crate) trust_chip: Option<egui::Rect>,
@@ -804,6 +805,10 @@ impl App {
         }
 
         state.code_scans.set_repaint(cc.egui_ctx.clone());
+        let mut updater = crate::updater::Updater::default();
+        let automated =
+            args.default_prefs || args.offscreen || args.mcp_stdio || args.mcp_http.is_some() || std::env::var_os("CI").is_some_and(|v| !v.is_empty());
+        updater.startup(&mut state.prefs, automated, cc.egui_ctx.clone());
         if let Some(root) = root {
             state.load_project(&root);
         }
@@ -948,6 +953,7 @@ impl App {
             tool_buttons: Vec::new(),
             manual_under_pointer: None,
             content_wizard: Default::default(),
+            updater,
             trust: Default::default(),
             trust_chip: None,
             content_replies: Vec::new(),
@@ -1049,6 +1055,7 @@ impl App {
             }
             Action::ShowReference => show_tab(&mut self.dock, Tab::Reference),
             Action::ShowPreferences => self.show_prefs = true,
+            Action::CheckForUpdates => self.updater.check_from_menu(),
             Action::ShowProjectContent => self.content_wizard.open_from_menu(&mut self.state, None),
             Action::ShowAddonSetup => self.content_wizard.open_addon_from_menu(&mut self.state),
             Action::InstallNatureModels => self.content_wizard.open_from_menu(&mut self.state, Some(crate::content::Choice::Nature)),
@@ -1775,6 +1782,7 @@ impl App {
                 m.item(ui, Some(icons::COMMAND), en!("Command Palette"), Action::ShowCommandPalette);
                 m.item(ui, Some(icons::KEYBOARD), en!("Keyboard Shortcuts…"), Action::ShowKeymap);
                 m.item(ui, None, en!("Entity and Code Reference"), Action::ShowReference);
+                m.item(ui, None, en!("Check for Updates…"), Action::CheckForUpdates);
                 help_menu_links(ui);
                 ui.separator();
                 ui.label(RichText::new(tr("TrenchDot, a level editor for Godot")).weak());
@@ -2277,6 +2285,14 @@ impl App {
                     ui.label(RichText::new(tr_n!(s.open_groups.len(), "{n} open group", "{n} open groups")).color(crate::theme::colors().cyan));
                 }
 
+                if let Some(version) = self.updater.available() {
+                    ui.separator();
+                    let chip = egui::Button::new(RichText::new(tr("Update available")).color(crate::theme::colors().cyan)).frame(false);
+                    if ui.add(chip).on_hover_text(trf!("TrenchDot {version} is out. Click to update.", version)).clicked() {
+                        self.updater.open = true;
+                    }
+                }
+
                 if let Some((text, tip)) = crate::addon_wizard::status_warning(s) {
                     ui.separator();
                     let chip = egui::Button::new(RichText::new(text).color(crate::theme::colors().yellow)).frame(false);
@@ -2462,6 +2478,9 @@ impl App {
                 ui.end_row();
                 ui.label(tr("Autosave (minutes, 0 = off)"));
                 ui.add(egui::DragValue::new(&mut p.autosave_minutes).range(0.0..=60.0));
+                ui.end_row();
+                ui.label(tr("Editor updates"));
+                ui.checkbox(&mut p.update_check, tr("Look for a newer build once a day"));
                 ui.end_row();
                 ui.label(tr("Godot live link"));
                 ui.horizontal(|ui| {
@@ -2695,6 +2714,7 @@ impl App {
                         self.allow_close = true;
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     } else {
+                        crate::updater::cancel_restart();
                         self.state.set_status(msg!("Not every map was saved, quitting was cancelled"));
                     }
 
@@ -2710,11 +2730,13 @@ impl App {
                 }
 
                 if ui.button(tr("Cancel")).clicked() {
+                    crate::updater::cancel_restart();
                     self.confirm_close = false;
                 }
             });
         });
         if modal.should_close() {
+            crate::updater::cancel_restart();
             self.confirm_close = false;
         }
     }
@@ -3081,6 +3103,10 @@ impl eframe::App for App {
         let (wizard, finished) = self.content_wizard.show(&ctx, &mut self.state);
         if let Some(rect) = wizard {
             self.open_windows.push((crate::content_wizard::TITLE, rect));
+        }
+
+        if let Some(rect) = self.updater.show(&ctx, &mut self.state) {
+            self.open_windows.push((crate::updater::HEADING, rect));
         }
 
         if let Some(outcome) = finished {
