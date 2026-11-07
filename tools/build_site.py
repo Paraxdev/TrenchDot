@@ -276,6 +276,35 @@ def render_pages(docs, code, strings):
     return pages, translated
 
 
+def page_html(page):
+    """The built file of a page, README.md being the index of its folder."""
+    path = pathlib.PurePosixPath(page)
+    return (path.with_name("index.html") if path.name == "README.md" else path.with_suffix(".html")).as_posix()
+
+
+def mark_english(site, pages, lang):
+    """Tags the text of the pages shown in English as `lang="en"`, so screen readers and browsers do not read it as the
+    language of the site. The note that says so stays in the site's language. Returns how many pages changed."""
+    changed = 0
+    article = '<article class="md-content__inner md-typeset">'
+    note = '<div class="admonition note">'
+    for page in pages:
+        path = site / page_html(page)
+        if not path.is_file():
+            continue
+        html = path.read_text(encoding="utf-8")
+        at = html.find(article)
+        if at < 0:
+            continue
+        new = html[:at] + article.replace("<article ", '<article lang="en" ') + html[at + len(article):]
+        at = new.find(note, at)
+        if at >= 0:
+            new = new[:at] + note.replace("<div ", f'<div lang="{lang}" ') + new[at + len(note):]
+        path.write_bytes(new.encode("utf-8"))
+        changed += 1
+    return changed
+
+
 def image_folders(docs):
     """The folders of docs/ that hold page images, as paths relative to it. The images of `assets/` itself (the logo)
     stay in every language, and nested folders are covered by the folder that holds them."""
@@ -394,6 +423,8 @@ def build_language(config, docs, code, out):
     shutil.rmtree(target, ignore_errors=True)
     shutil.copytree(work / "site", target)
     rewrite_images(target, image_folders(docs), base_path(config) + code + "/")
+    lang = next(hreflang for found, _, hreflang in languages(config) if found == code)
+    mark_english(target, [p for p in english_pages(docs) if page_state(docs, code, p) != "current"], lang)
     size = compressed_size(target)
     print(f"{code}: {translated} of {len(pages) - 1} pages translated, {size / 1e6:.1f} MB compressed")
     if size > LANGUAGE_SIZE_LIMIT:

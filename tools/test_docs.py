@@ -150,6 +150,12 @@ class PageStateTest(unittest.TestCase):
         self.assertEqual(pages["SUMMARY.md"], "# Summary\n\n* [Ä](a.md)\n")
 
 
+class PageHtmlTest(unittest.TestCase):
+    def test_readme_is_the_folder_index(self):
+        self.assertEqual([bs.page_html(p) for p in ("README.md", "format/README.md", "editor/brushes.md")],
+                         ["index.html", "format/index.html", "editor/brushes.html"])
+
+
 class NoteTest(unittest.TestCase):
     def test_note_after_the_h1(self):
         text = "# Title { #t }\n\nFirst.\n\n## Next\n"
@@ -701,6 +707,8 @@ class FallbackBuildTest(unittest.TestCase):
             self.assertIn(english, html, name)
             self.assertIn(heading, html, name)
             self.assertNotIn("Umformen", html, name)
+            self.assertIn('<article lang="en" class="md-content__inner md-typeset">', html, name)
+            self.assertIn('<div lang="de" class="admonition note">', html, name)
 
     def test_a_language_site_over_the_limit_stops_the_build(self):
         def build(size):
@@ -722,6 +730,7 @@ class FallbackBuildTest(unittest.TestCase):
         html = self.page("index.html")
         self.assertIn("Hallo.", html)
         self.assertNotIn(self.strings["fallback"], html)
+        self.assertNotIn('<article lang="en"', html)
         self.assertNotIn("Hello.", html)
 
 
