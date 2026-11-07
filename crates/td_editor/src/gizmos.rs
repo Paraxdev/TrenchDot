@@ -86,7 +86,8 @@ impl Target {
     fn box_frame(&self, state: &EditorState, property: &str, half: bool) -> (DVec3, DQuat) {
         if property == "size" && crate::scene::is_decal(state.game.entity(&self.entity.classname)) {
             let material = self.entity.property("material").map(str::trim).unwrap_or_default();
-            let footprint = state.materials.world_size(material);
+            // A preview not built yet, or left out while dragged, is not on record.
+            let footprint = state.decal_footprints.get(&self.id).copied().unwrap_or_else(|| state.materials.world_size(material));
             return (crate::scene::decal_size(&self.entity, footprint), self.entity.rotation());
         }
 
@@ -558,6 +559,13 @@ metadata/texture_size = Vector2(96, 160)
         let local = rot.inverse() * (target - center);
         assert!((written.x - local.x.abs() * 2.0).abs() < 0.01, "width follows the pointer in the decal's own axes: {written:?}");
         assert_eq!((written.y, written.z), (32.0, 160.0), "the other axes keep what the preview draws");
+
+        state.doc.edit("size", |m, _| m.entity_mut(id).unwrap().properties.remove("size"));
+        state.decal_footprints.insert(id, None);
+        let hs = handles(&state);
+        assert_eq!(hs[0].2, fmt_num(64.0), "a preview drawn before its material loaded has the default size, and so has the box");
+        state.decal_footprints.insert(id, Some([48.0, 80.0]));
+        assert_eq!(handles(&state)[2].2, fmt_num(80.0));
         let _ = std::fs::remove_dir_all(&dir);
     }
 

@@ -71,6 +71,7 @@ struct Bucket {
     stats: SceneStats,
     instance_bounds: HashMap<NodeId, Aabb>,
     model_bounds: HashMap<NodeId, Aabb>,
+    decal_footprints: HashMap<NodeId, Option<[f64; 2]>>,
 }
 
 struct TerrainGpu {
@@ -116,6 +117,7 @@ fn build_drag_batches(renderer: &Renderer, game: &GameConfig, base: &Map, nodes:
         stats: SceneStats::default(),
         instance_bounds: HashMap::new(),
         model_bounds: HashMap::new(),
+        decal_footprints: HashMap::new(),
         charts: HashMap::new(),
         textures: &base.textures,
     };
@@ -338,6 +340,7 @@ struct Builder<'a> {
     stats: SceneStats,
     instance_bounds: HashMap<NodeId, Aabb>,
     model_bounds: HashMap<NodeId, Aabb>,
+    decal_footprints: HashMap<NodeId, Option<[f64; 2]>>,
     /// Light map coordinates of the faces of the node being built, empty when it is not baked.
     charts: HashMap<u32, [[f32; 4]; 2]>,
     textures: &'a std::collections::BTreeMap<String, td_doc::textures::TextureSettings>,
@@ -973,7 +976,7 @@ impl Builder<'_> {
         }
 
         if is_decal(def) {
-            self.decal_preview(e, selected);
+            self.decal_preview(id, e, selected);
         }
 
         // Models already show their orientation, arrows on hundreds of scattered props only add noise.
@@ -987,10 +990,15 @@ impl Builder<'_> {
     }
 
     /// Textured quad on the decal's local XZ plane plus its projector box.
-    fn decal_preview(&mut self, e: &Entity, selected: bool) {
+    fn decal_preview(&mut self, id: Option<NodeId>, e: &Entity, selected: bool) {
         let source = decal_sources(e).into_iter().find(|k| self.renderer.has_material(k));
-        let footprint = source.as_deref().filter(|k| k.starts_with(DECAL_PREFIX)).and_then(|k| self.renderer.material_world_size(k));
-        let size = decal_size(e, footprint.map(|[w, h]| [w as f64, h as f64]));
+        let footprint =
+            source.as_deref().filter(|k| k.starts_with(DECAL_PREFIX)).and_then(|k| self.renderer.material_world_size(k)).map(|[w, h]| [w as f64, h as f64]);
+        if let Some(id) = id {
+            self.decal_footprints.insert(id, footprint);
+        }
+
+        let size = decal_size(e, footprint);
         let rot = e.rotation();
         let (x, y, z) = (rot * DVec3::X * size.x * 0.5, rot * DVec3::Y, rot * DVec3::Z * size.z * 0.5);
         let center = e.origin + y * 0.5;
@@ -1448,6 +1456,7 @@ fn build_bucket<'a>(ctx: &BucketCtx<'a>, ids: &[NodeId]) -> Builder<'a> {
         stats: SceneStats::default(),
         instance_bounds: HashMap::new(),
         model_bounds: HashMap::new(),
+        decal_footprints: HashMap::new(),
         charts: HashMap::new(),
         textures: &map.textures,
     };
@@ -1515,6 +1524,7 @@ fn upload_bucket(renderer: &Renderer, builder: Builder) -> Bucket {
         stats: builder.stats,
         instance_bounds: builder.instance_bounds,
         model_bounds: builder.model_bounds,
+        decal_footprints: builder.decal_footprints,
     }
 }
 
@@ -2065,10 +2075,12 @@ impl SceneCache {
         let mut stats = SceneStats::default();
         let mut instance_bounds = HashMap::new();
         let mut model_bounds = HashMap::new();
+        let mut decal_footprints = HashMap::new();
         for b in &self.buckets {
             stats += b.stats;
             instance_bounds.extend(b.instance_bounds.iter().map(|(k, v)| (*k, *v)));
             model_bounds.extend(b.model_bounds.iter().map(|(k, v)| (*k, *v)));
+            decal_footprints.extend(b.decal_footprints.iter().map(|(k, v)| (*k, *v)));
         }
 
         for t in self.terrains.values() {
@@ -2082,6 +2094,7 @@ impl SceneCache {
         self.stats = stats;
         state.instance_bounds = instance_bounds;
         state.model_bounds = model_bounds;
+        state.decal_footprints = decal_footprints;
 
         let properties_changed = self.prev_map.as_ref().is_none_or(|p| p.properties != map.properties);
         if entities_changed || full || lit_changed || properties_changed {

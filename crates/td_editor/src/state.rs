@@ -560,6 +560,8 @@ pub struct EditorState {
     pub model_thumbs: crate::model_thumbs::ModelThumbnails,
     /// World bounds of point entities drawn with a model.
     pub model_bounds: std::collections::HashMap<NodeId, Aabb>,
+    /// Material footprints the scene drew decal previews with, so a decal's size gizmo matches its preview.
+    pub decal_footprints: std::collections::HashMap<NodeId, Option<[f64; 2]>>,
     /// Maps open in other tabs. The active map lives in `doc`.
     pub tabs: Vec<MapTab>,
     pub active_tab: usize,
@@ -728,6 +730,7 @@ impl EditorState {
             models: Default::default(),
             model_thumbs: Default::default(),
             model_bounds: Default::default(),
+            decal_footprints: Default::default(),
             tabs: Vec::new(),
             active_tab: 0,
             scene_reset: false,
