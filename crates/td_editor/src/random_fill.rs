@@ -222,8 +222,9 @@ impl RandomFillDialog {
 
             egui::ComboBox::from_id_salt("fill_add").selected_text(tr("Add piece…")).show_ui(ui, |ui| {
                 for e in &state.prefab_library.entries {
-                    if ui.selectable_label(false, e.shown_key()).clicked() {
-                        self.opts.pieces.push(FillPiece { name: e.key(), weight: 1.0, rotate: true });
+                    let name = e.key();
+                    if !self.opts.pieces.iter().any(|p| p.name == name) && ui.selectable_label(false, e.shown_key()).clicked() {
+                        self.opts.pieces.push(FillPiece { name, weight: 1.0, rotate: true });
                     }
                 }
             });
@@ -412,5 +413,23 @@ mod tests {
         assert_eq!(state.status, "Filled 6 of 6 cells", "MCP reads English");
         assert_eq!(state.status_shown(), "6 von 6 Zellen gefüllt");
         assert!(h.state().dialog.last.is_some());
+    }
+
+    #[test]
+    fn add_piece_lists_only_pieces_not_added_yet() {
+        use egui_kittest::kittest::Queryable;
+        let _reset = crate::i18n::scope(crate::i18n::Lang::En);
+        let opts = FillOptions { pieces: vec![FillPiece { name: "Doorways/Window".into(), weight: 1.0, rotate: false }], ..Default::default() };
+        let fixture =
+            Fixture { dialog: RandomFillDialog { open: true, opts, last: None }, state: crate::state::EditorState::new(crate::state::Prefs::default()) };
+        let other = fixture.state.prefab_library.entries.iter().map(|e| e.shown_key()).find(|k| k != "Doorways/Window").expect("more bundled prefabs");
+        let mut h = egui_kittest::Harness::builder()
+            .with_size(egui::vec2(700.0, 900.0))
+            .build_ui_state(|ui, f: &mut Fixture| f.dialog.show(ui.ctx(), &mut f.state), fixture);
+        h.run();
+        h.get_by_value("Add piece…").click();
+        h.run();
+        assert!(h.query_by_label(&other).is_some(), "the list is open");
+        assert_eq!(h.query_all_by_label("Doorways/Window").count(), 1, "only its row, not again in the list");
     }
 }
