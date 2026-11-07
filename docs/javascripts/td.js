@@ -309,6 +309,17 @@
     true
   );
 
+  // The theme re-reads where the main area starts only when main resizes, so after the
+  // translation notice is dismissed the nav stays one banner too tall and runs over the footer.
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest || !e.target.closest(".md-banner__button")) return;
+    var main = document.querySelector(".md-main");
+    main.style.minHeight = main.offsetHeight + 1 + "px";
+    setTimeout(function () {
+      main.style.minHeight = "";
+    }, 100);
+  });
+
   window.addEventListener("hashchange", followOldAnchor);
 
   document$.subscribe(function () {
