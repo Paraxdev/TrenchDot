@@ -369,6 +369,7 @@ pub fn tool_definitions() -> Vec<Value> {
                 "ui_scale": { "type": "number", "description": "Interface scale, 1 is 100%" },
                 "follow_display_scaling": { "type": "boolean" },
                 "live_mode": { "type": "boolean", "description": "Send edits to a Godot editor that has the map open before saving" },
+                "draw_depth_from_selection": { "type": "boolean", "description": "Brushes drawn in a 2D view take the selection's extent along the view axis instead of the last drawn brush's, like Hammer" },
                 "live_link_port": { "type": "integer", "description": "Port of the Godot live link, 7842 unless the Godot project changed trenchdot/live_link_port" },
                 "mcp": { "type": "boolean", "description": "false turns MCP off like the switch in Preferences: this answer is the last, the servers close right after it and only a person can turn MCP back on" }
             } }

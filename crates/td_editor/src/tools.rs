@@ -104,6 +104,8 @@ pub enum Drag {
     },
     CreateBrush2d {
         start: DVec3,
+        /// The selection's extent along the view axis when the brush started, for draw_depth_from_selection.
+        depth: Option<(f64, f64)>,
     },
     FaceResize {
         faces: Vec<(NodeId, usize)>,

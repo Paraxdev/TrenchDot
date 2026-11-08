@@ -2155,5 +2155,7 @@
   "Hides the faces the build drops because they face the void": "Oculta las caras que la compilación descarta porque dan al vacío",
   "Void culling preview on": "Vista previa del recorte del vacío activada",
   "Void culling preview off": "Vista previa del recorte del vacío desactivada",
-  "Map leaks: {class} at {origin} reaches the outside near {point}, void faces are kept": "El mapa tiene una fuga: {class} en {origin} llega al exterior cerca de {point}, se conservan las caras del vacío"
+  "Map leaks: {class} at {origin} reaches the outside near {point}, void faces are kept": "El mapa tiene una fuga: {class} en {origin} llega al exterior cerca de {point}, se conservan las caras del vacío",
+  "New brush depth from selection": "Profundidad de brush nuevo desde la selección",
+  "A brush drawn in a 2D view takes the depth of the selection, like in Hammer": "Un brush dibujado en una vista 2D toma la profundidad de la selección, como en Hammer"
 }

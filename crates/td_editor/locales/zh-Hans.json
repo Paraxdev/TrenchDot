@@ -2155,5 +2155,7 @@
   "Hides the faces the build drops because they face the void": "隐藏构建时丢弃的朝向虚空的面",
   "Void culling preview on": "虚空剔除预览已开启",
   "Void culling preview off": "虚空剔除预览已关闭",
-  "Map leaks: {class} at {origin} reaches the outside near {point}, void faces are kept": "地图有泄漏：{class} 位于 {origin}，在 {point} 附近通向外部，保留虚空面"
+  "Map leaks: {class} at {origin} reaches the outside near {point}, void faces are kept": "地图有泄漏：{class} 位于 {origin}，在 {point} 附近通向外部，保留虚空面",
+  "New brush depth from selection": "新笔刷深度取自选择",
+  "A brush drawn in a 2D view takes the depth of the selection, like in Hammer": "在 2D 视图中绘制的笔刷采用所选对象的深度，与 Hammer 相同"
 }

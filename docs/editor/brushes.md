@@ -9,6 +9,12 @@ Drag anywhere off the selection, in any view, and a box follows the mouse. The 2
 the 3D view it starts on the surface under the cursor and is one grid step thick. In a 2D view it takes the depth of
 the last brush you drew, 128 units for the very first one.
 
+Coming from Hammer? Tick *New brush depth from selection* in *File > Preferences*. A brush drawn in a 2D view then
+takes the depth of what is selected, so with a floor selected you can draw more floors of the same height from the Top
+view alone.
+
+![The New brush depth from selection checkbox ticked in Preferences, below Keymap preset](../assets/brushes/preferences-depth-from-selection.png)
+
 ![The four views while a box is drawn in 3D, the new box is 144 by 144 units and one grid step, 16 units, thick](../assets/brushes/draw-box-3d.png)
 
 Once a brush is selected you can move it around:

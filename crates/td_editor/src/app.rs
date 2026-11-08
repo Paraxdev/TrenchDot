@@ -2508,6 +2508,10 @@ impl App {
                     }
                 });
                 ui.end_row();
+                ui.label(tr("New brush depth from selection"));
+                ui.checkbox(&mut p.draw_depth_from_selection, "")
+                    .on_hover_text(tr("A brush drawn in a 2D view takes the depth of the selection, like in Hammer"));
+                ui.end_row();
             });
             ui.separator();
             let advanced = crate::widgets::collapsing(tr("Advanced")).id_salt("Advanced").default_open(false).show(ui, |ui| {

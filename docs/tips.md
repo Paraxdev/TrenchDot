@@ -17,6 +17,12 @@ Click again at the same spot within about a second and a half, or Alt+click in a
 under the cursor, such as a wall under its ceiling in the Top view. The Outliner is the other way to reach something
 hidden. See [Mouse in the views](editor/shortcuts.md#mouse-in-the-views).
 
+### Draw matching floors from the Top view
+
+Tick *New brush depth from selection* in *File > Preferences*, select a floor and draw in the Top view. Each new brush
+takes the floor's height, so a row of floors or walls needs no trip to the other views. See
+[Draw and move](editor/brushes.md#draw-and-move).
+
 ### Jump between camera spots
 
 Ctrl+Shift+1 to 9 stores the 3D camera as a bookmark in the map, Ctrl+1 to 9 jumps back to it. Shift+Space maximizes

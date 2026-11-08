@@ -305,6 +305,8 @@ pub struct Prefs {
     /// Which baked map the Baked shading shows.
     pub bake_view: crate::bake::View,
     pub invert_y: bool,
+    /// Brushes drawn in a 2D view take the selection's extent along the view axis, like Hammer.
+    pub draw_depth_from_selection: bool,
     /// Agents and scripts may drive the editor over MCP. Off, no MCP server runs. Saved as
     /// [`crate::mcp::switch::OFF_FILE`].
     #[serde(skip)]
@@ -439,6 +441,7 @@ impl Default for Prefs {
             shade: Shade::Textured,
             bake_view: crate::bake::View::Lit,
             invert_y: false,
+            draw_depth_from_selection: false,
             mcp_enabled: true,
             mcp_http: false,
             mcp_port: crate::DEFAULT_MCP_PORT,

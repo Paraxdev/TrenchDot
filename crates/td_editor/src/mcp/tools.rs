@@ -1929,6 +1929,10 @@ impl App {
             self.state.prefs.live_mode = live;
         }
 
+        if let Some(b) = args["draw_depth_from_selection"].as_bool() {
+            self.state.prefs.draw_depth_from_selection = b;
+        }
+
         if let Some(port) = args["live_link_port"].as_u64() {
             self.state.prefs.live_link_port = port.clamp(1024, 65535) as u16;
         }

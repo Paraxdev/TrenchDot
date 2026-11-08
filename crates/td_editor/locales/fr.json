@@ -2155,5 +2155,7 @@
   "Hides the faces the build drops because they face the void": "Masque les faces que le build retire parce qu'elles donnent sur le vide",
   "Void culling preview on": "Aperçu du retrait du vide activé",
   "Void culling preview off": "Aperçu du retrait du vide désactivé",
-  "Map leaks: {class} at {origin} reaches the outside near {point}, void faces are kept": "La carte fuit : {class} à {origin} atteint l'extérieur près de {point}, les faces du vide sont conservées"
+  "Map leaks: {class} at {origin} reaches the outside near {point}, void faces are kept": "La carte fuit : {class} à {origin} atteint l'extérieur près de {point}, les faces du vide sont conservées",
+  "New brush depth from selection": "Profondeur des nouvelles brushes selon la sélection",
+  "A brush drawn in a 2D view takes the depth of the selection, like in Hammer": "Une brush dessinée dans une vue 2D prend la profondeur de la sélection, comme dans Hammer"
 }

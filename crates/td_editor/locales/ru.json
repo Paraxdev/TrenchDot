@@ -2155,5 +2155,7 @@
   "Hides the faces the build drops because they face the void": "Скрывает грани, которые сборка отбрасывает, потому что они смотрят в пустоту",
   "Void culling preview on": "Предпросмотр отсечения пустоты включён",
   "Void culling preview off": "Предпросмотр отсечения пустоты выключен",
-  "Map leaks: {class} at {origin} reaches the outside near {point}, void faces are kept": "Карта протекает: {class} в {origin} выходит наружу рядом с {point}, грани у пустоты сохраняются"
+  "Map leaks: {class} at {origin} reaches the outside near {point}, void faces are kept": "Карта протекает: {class} в {origin} выходит наружу рядом с {point}, грани у пустоты сохраняются",
+  "New brush depth from selection": "Глубина нового браша по выделению",
+  "A brush drawn in a 2D view takes the depth of the selection, like in Hammer": "Браш, нарисованный в 2D виде, получает глубину выделения, как в Hammer"
 }

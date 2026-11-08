@@ -2155,5 +2155,7 @@
   "Hides the faces the build drops because they face the void": "Blendet die Flächen aus, die der Build verwirft, weil sie zum Void zeigen",
   "Void culling preview on": "Void-Culling Vorschau an",
   "Void culling preview off": "Void-Culling Vorschau aus",
-  "Map leaks: {class} at {origin} reaches the outside near {point}, void faces are kept": "Karte ist undicht: {class} bei {origin} erreicht das Außen nahe {point}, Void-Flächen bleiben erhalten"
+  "Map leaks: {class} at {origin} reaches the outside near {point}, void faces are kept": "Karte ist undicht: {class} bei {origin} erreicht das Außen nahe {point}, Void-Flächen bleiben erhalten",
+  "New brush depth from selection": "Tiefe neuer Brushes aus Auswahl",
+  "A brush drawn in a 2D view takes the depth of the selection, like in Hammer": "Ein in einer 2D-Ansicht gezeichneter Brush übernimmt die Tiefe der Auswahl, wie in Hammer"
 }
