@@ -19,8 +19,8 @@ hidden. See [Mouse in the views](editor/shortcuts.md#mouse-in-the-views).
 
 ### Draw matching floors from the Top view
 
-Tick *New brush depth from selection* in *File > Preferences*, select a floor and draw in the Top view. Each new brush
-takes the floor's height, so a row of floors or walls needs no trip to the other views. See
+Select a floor and draw in the Top view. Each new brush takes the floor's height and ends up selected, so a row of
+floors or walls needs no trip to the other views. See
 [Draw and move](editor/brushes.md#draw-and-move).
 
 ### Jump between camera spots

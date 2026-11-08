@@ -441,7 +441,7 @@ impl Default for Prefs {
             shade: Shade::Textured,
             bake_view: crate::bake::View::Lit,
             invert_y: false,
-            draw_depth_from_selection: false,
+            draw_depth_from_selection: true,
             mcp_enabled: true,
             mcp_http: false,
             mcp_port: crate::DEFAULT_MCP_PORT,

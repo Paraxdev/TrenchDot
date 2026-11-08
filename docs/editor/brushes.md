@@ -7,11 +7,9 @@ with matching collision in Godot. Everything here uses the **Select** tool (Q), 
 
 Drag anywhere off the selection, in any view, and a box follows the mouse. The 2D views print its size next to it. In
 the 3D view it starts on the surface under the cursor and is one grid step thick. In a 2D view it takes the depth of
-the last brush you drew, 128 units for the very first one.
-
-Coming from Hammer? Tick *New brush depth from selection* in *File > Preferences*. A brush drawn in a 2D view then
-takes the depth of what is selected, so with a floor selected you can draw more floors of the same height from the Top
-view alone.
+what is selected, like in Hammer and TrenchBroom. With a floor selected you can draw more floors of the same height
+from the Top view alone. With nothing selected it takes the depth of the last brush you drew, 128 units for the very
+first one. Untick *New brush depth from selection* in *File > Preferences* to always use the last brush's depth.
 
 ![The New brush depth from selection checkbox ticked in Preferences, below Keymap preset](../assets/brushes/preferences-depth-from-selection.png)
 
