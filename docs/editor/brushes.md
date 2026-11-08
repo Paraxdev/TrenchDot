@@ -46,6 +46,9 @@ You can reshape a selected brush without leaving the Select tool:
 | Ctrl+Shift+drag a selected face (3D) | Extrude a new brush out of it |
 | Drag a selection edge (2D) | Resize. The edge lights up yellow and the cursor changes where a drag resizes |
 
+While snapping is on, a face you drag lands on a grid line, even when the brush was off the grid before. Slanted faces
+move in grid steps instead.
+
 ![Shift+dragging the side face of a selected box in the 3D view, the box stretches in grid steps](../assets/brushes/push-face.gif)
 
 For slopes, ramps and angled walls, press C for the **Clip** tool:

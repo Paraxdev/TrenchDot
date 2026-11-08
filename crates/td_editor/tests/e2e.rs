@@ -454,6 +454,34 @@ fn draw_select_move_delete_undo() {
 
 #[test]
 #[ignore]
+fn resizing_puts_an_off_grid_face_on_the_grid() {
+    let ed = Editor::launch("resize_onto_grid");
+    ed.box_brush([-30.0, 0.0, -32.0], [30.0, 64.0, 32.0]);
+    ed.call("set_camera", json!({ "view": "top", "center": [0, 0, 0], "zoom": 1.5 }));
+    ed.input("top", json!([{ "type": "drag", "world": [30, 0, 0], "to_world": [70, 0, 0] }]));
+    let (min, max) = ed.selection_bounds();
+    assert!(approx(&[min[0], max[0]], &[-30.0, 64.0]), "the dragged face lands on the grid line, the other keeps its offset {min:?} {max:?}");
+}
+
+#[test]
+#[ignore]
+fn a_new_2d_brush_can_take_the_depth_of_the_selection() {
+    let ed = Editor::launch("draw_depth_from_selection");
+    ed.call("set_camera", json!({ "view": "top", "center": [96, 0, 32], "zoom": 1.0 }));
+    ed.box_brush([0.0, 16.0, 0.0], [64.0, 32.0, 64.0]);
+    ed.input("top", json!([{ "type": "drag", "world": [128, 0, 0], "to_world": [184, 0, 56] }]));
+    let (min, max) = ed.selection_bounds();
+    assert!(approx(&[min[1], max[1]], &[0.0, 128.0]), "off by default, the first drawn brush is 128 deep {min:?} {max:?}");
+
+    ed.call("set_editor", json!({ "draw_depth_from_selection": true }));
+    ed.box_brush([0.0, 16.0, 0.0], [64.0, 32.0, 64.0]);
+    ed.input("top", json!([{ "type": "drag", "world": [128, 0, 80], "to_world": [184, 0, 136] }]));
+    let (min, max) = ed.selection_bounds();
+    assert!(approx(&min, &[128.0, 16.0, 80.0]) && approx(&max, &[192.0, 32.0, 144.0]), "the new brush spans the floor's height {min:?} {max:?}");
+}
+
+#[test]
+#[ignore]
 fn resize_edges_and_faces() {
     let ed = Editor::launch("resize");
     ed.box_brush([-32.0, 0.0, -32.0], [32.0, 64.0, 32.0]);

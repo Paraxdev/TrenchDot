@@ -621,8 +621,12 @@ impl Viewport {
             }
             _ => {
                 let start = self.camera.screen_to_plane(self.rect, origin);
+                let axis = self.camera.kind.depth_axis();
+                let selected = map.bounds_of(state.doc.selection.nodes.iter().copied());
+                let depth = (state.prefs.draw_depth_from_selection && !selected.is_empty() && selected.size()[axis] > 1e-6)
+                    .then(|| (selected.min[axis], selected.max[axis]));
                 state.doc.begin(en!("Create Brush"));
-                Some(Drag::CreateBrush2d { start })
+                Some(Drag::CreateBrush2d { start, depth })
             }
         }
     }
@@ -705,7 +709,7 @@ impl Viewport {
 
                 self.replace_created_brush(Aabb::new(a, b), state);
             }
-            Drag::CreateBrush2d { start } => {
+            Drag::CreateBrush2d { start, depth } => {
                 let current = self.camera.screen_to_plane(rect, pos);
                 let depth_axis = self.camera.kind.depth_axis();
                 let grid = state.grid;
@@ -713,6 +717,11 @@ impl Viewport {
                 let mut b = DVec3::ZERO;
                 for i in 0..3 {
                     if i == depth_axis {
+                        if let Some(depth) = depth {
+                            (a[i], b[i]) = *depth;
+                            continue;
+                        }
+
                         // The depth of the last brush drawn, not of whatever was clicked last.
                         let lb = cx.tools.last_brush.unwrap_or(Aabb::new(DVec3::ZERO, DVec3::splat(FIRST_BRUSH_DEPTH)));
                         (a[i], b[i]) = if lb.is_empty() || lb.size()[i] < 1e-6 { (0.0, grid) } else { (lb.min[i], lb.max[i]) };
@@ -729,8 +738,8 @@ impl Viewport {
                     _ => Some((self.camera.screen_to_plane(rect, pos) - *origin).dot(*normal)),
                 };
                 let Some(dist) = dist else { return };
-                let dist = state.snap_scalar(dist);
                 state.doc.reset_transaction();
+                let dist = snap_face_move(state, faces, *normal, dist);
                 if dist.abs() < 1e-9 {
                     return;
                 }
@@ -1177,6 +1186,20 @@ pub fn wheel_notches(input: &egui::InputState, keep: impl Fn(egui::Modifiers) ->
             _ => 0.0,
         })
         .sum()
+}
+
+/// The distance to move `faces` along `normal` so that an axis aligned face lands on the grid, not just a grid step
+/// away from where it was. Slanted faces still move in grid steps.
+fn snap_face_move(state: &EditorState, faces: &[(NodeId, usize)], normal: DVec3, dist: f64) -> f64 {
+    let plane = faces.first().and_then(|&(id, face)| state.doc.map.brush(id)?.faces.get(face).map(|f| f.plane));
+    let Some(plane) = plane.filter(|_| state.snap && normal.abs().max_element() > 1.0 - 1e-9) else { return state.snap_scalar(dist) };
+    let facing = plane.normal.dot(normal);
+    if facing.abs() < 1.0 - 1e-9 {
+        return state.snap_scalar(dist);
+    }
+
+    let at = plane.dist * facing;
+    state.snap_scalar(at + dist) - at
 }
 
 /// A grid aligned span covering `a` to `b` and the cells under both ends, at least one cell wide. An end a hair
