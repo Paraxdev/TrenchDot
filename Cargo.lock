@@ -3049,7 +3049,6 @@ dependencies = [
  "egui_dock",
  "egui_extras",
  "egui_kittest",
- "flate2",
  "glam",
  "gltf",
  "image",

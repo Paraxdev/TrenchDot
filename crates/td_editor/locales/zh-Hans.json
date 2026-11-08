@@ -2130,7 +2130,6 @@
   "This editor was built from source, so it does not update itself. Pull and build it again instead.": "此编辑器由源码构建，不会自动更新。请拉取代码后重新构建。",
   "This editor came from a package manager, which keeps it up to date.": "此编辑器来自包管理器，由包管理器负责更新。",
   "The editor cannot write to {dir}, so it cannot update itself. Download the new build yourself.": "编辑器无法写入 {dir}，因此无法自动更新。请手动下载新版本。",
-  "Unpacking TrenchDot {version}": "正在解压 TrenchDot {version}",
   "Could not remove {path}, the build kept from the last update: {e}": "无法删除上次更新保留的版本 {path}：{e}",
   "Could not move the running editor aside: {e}": "无法移开正在运行的编辑器：{e}",
   "Could not put the new build in place ({e}), the editor is as it was.": "无法放入新版本（{e}），编辑器保持原样。",

@@ -2130,7 +2130,6 @@
   "This editor was built from source, so it does not update itself. Pull and build it again instead.": "Dieser Editor wurde aus dem Quellcode gebaut und aktualisiert sich nicht selbst. Hole die Änderungen und baue ihn neu.",
   "This editor came from a package manager, which keeps it up to date.": "Dieser Editor stammt aus einer Paketverwaltung, die ihn aktuell hält.",
   "The editor cannot write to {dir}, so it cannot update itself. Download the new build yourself.": "Der Editor kann nicht in {dir} schreiben und sich daher nicht selbst aktualisieren. Lade den neuen Build selbst herunter.",
-  "Unpacking TrenchDot {version}": "TrenchDot {version} wird entpackt",
   "Could not remove {path}, the build kept from the last update: {e}": "{path}, der Build vom letzten Update, konnte nicht entfernt werden: {e}",
   "Could not move the running editor aside: {e}": "Der laufende Editor konnte nicht beiseitegelegt werden: {e}",
   "Could not put the new build in place ({e}), the editor is as it was.": "Der neue Build konnte nicht eingesetzt werden ({e}), der Editor ist unverändert.",

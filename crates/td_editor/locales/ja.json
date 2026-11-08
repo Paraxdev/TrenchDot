@@ -2130,7 +2130,6 @@
   "This editor was built from source, so it does not update itself. Pull and build it again instead.": "このエディターはソースからビルドされたため自動更新しません。取得して再ビルドしてください。",
   "This editor came from a package manager, which keeps it up to date.": "このエディターはパッケージマネージャーから入れたもので、そちらが更新します。",
   "The editor cannot write to {dir}, so it cannot update itself. Download the new build yourself.": "{dir} に書き込めないため自動更新できません。新しいビルドを手動でダウンロードしてください。",
-  "Unpacking TrenchDot {version}": "TrenchDot {version} を展開中",
   "Could not remove {path}, the build kept from the last update: {e}": "前回の更新で残したビルド {path} を削除できません: {e}",
   "Could not move the running editor aside: {e}": "実行中のエディターを退避できません: {e}",
   "Could not put the new build in place ({e}), the editor is as it was.": "新しいビルドを配置できません ({e})。エディターは元のままです。",

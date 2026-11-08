@@ -1,8 +1,8 @@
 //! Updates the editor from the rolling beta release. It looks for a newer build at most once a day, downloads the
-//! archive for this platform when asked, and swaps the executable, keeping the replaced one beside it to roll back to.
+//! executable for this platform when asked, and swaps the executable, keeping the replaced one beside it to roll back to.
 
 use std::cmp::Ordering;
-use std::io::{BufReader, Read};
+use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::{OnceLock, mpsc};
@@ -10,29 +10,35 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use egui::{RichText, Ui};
 
-use crate::content::{self, Asset, Error, Progress, Reporter, io_error, megabytes};
+use crate::content::{self, Asset, Error, Reporter, io_error, megabytes};
 use crate::i18n::{self, Msg, en, msg, tr, trf};
 use crate::state::{EditorState, Prefs};
 use crate::theme;
 
 pub const HEADING: &str = en!("Editor Update");
 
-/// The archive CI builds for this platform, see the package job in ci.yml.
+/// The executable CI builds for this platform, see the package job in ci.yml.
 pub const ASSET: Option<&str> = if cfg!(all(windows, target_arch = "x86_64")) {
-    Some("trenchdot-windows-x86_64.zip")
+    Some("trenchdot-windows-x86_64.exe")
 } else if cfg!(all(target_os = "linux", target_arch = "x86_64")) {
-    Some("trenchdot-linux-x86_64.tar.gz")
+    Some("trenchdot-linux-x86_64")
 } else if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
-    Some("trenchdot-macos-arm64.tar.gz")
+    Some("trenchdot-macos-arm64")
 } else {
     None
 };
 
-/// The executable's name inside the archive, whatever the running one is called.
-const EXE: &str = if cfg!(windows) { "trenchdot.exe" } else { "trenchdot" };
+/// How an executable for this platform starts, PE, ELF or 64 bit Mach-O.
+const MAGIC: &[u8] = if cfg!(windows) {
+    b"MZ"
+} else if cfg!(target_os = "macos") {
+    &[0xcf, 0xfa, 0xed, 0xfe]
+} else {
+    b"ELF"
+};
 const TAG: &str = "beta";
 const DAY: u64 = 24 * 3600;
-/// An entry this big is not the editor.
+/// A download this big is not the editor.
 const MAX_EXE: u64 = 1 << 30;
 
 static RESTART: AtomicBool = AtomicBool::new(false);
@@ -134,17 +140,10 @@ pub fn previous(exe: &Path) -> PathBuf {
 pub fn install(release: &Release, exe: &Path, report: &Reporter) -> Result<PathBuf, Error> {
     let dir = exe.parent().unwrap_or(Path::new("."));
     let agent = content::agent();
-    let archive = content::download(&agent, &release.asset, report)?;
-    report.set(|p| *p = Progress { stage: msg!("Unpacking TrenchDot {version}", version = release.version), ..Default::default() });
+    let download = content::download(&agent, &release.asset, report)?;
     // Beside the executable, so it moves into place with a rename.
     let mut new = tempfile::Builder::new().prefix(".trenchdot-update-").tempfile_in(dir).map_err(|e| io_error(e, dir))?;
-    let name = release.asset.url.rsplit('/').next().unwrap_or_default();
-    if name.ends_with(".zip") {
-        zip_exe(archive, new.as_file_mut(), dir)?;
-    } else {
-        tar_exe(flate2::read::GzDecoder::new(BufReader::new(archive)), new.as_file_mut(), dir)?;
-    }
-
+    copy(download, new.as_file_mut(), dir)?;
     report.check()?;
     #[cfg(unix)]
     {
@@ -156,67 +155,21 @@ pub fn install(release: &Release, exe: &Path, report: &Reporter) -> Result<PathB
     replace(exe, new)
 }
 
-fn is_exe(name: &str) -> bool {
-    let parts: Vec<&str> = name.split(['/', '\\']).filter(|p| !p.is_empty() && *p != ".").collect();
-    parts.len() <= 2 && parts.last() == Some(&EXE)
-}
-
-fn missing() -> Error {
-    Error::Damaged(format!("the archive holds no {EXE}"))
-}
-
-fn copy(reader: impl Read, out: &mut std::fs::File, dir: &Path) -> Result<u64, Error> {
-    let n = std::io::copy(&mut reader.take(MAX_EXE + 1), out).map_err(|e| io_error(e, dir))?;
-    if n == 0 || n > MAX_EXE {
-        return Err(Error::Damaged(format!("its {EXE} has {}", megabytes(n))));
+fn copy(mut download: std::fs::File, out: &mut std::fs::File, dir: &Path) -> Result<(), Error> {
+    let rewind = |f: &mut std::fs::File| std::io::Seek::rewind(f).map_err(|e| io_error(e, dir));
+    rewind(&mut download)?;
+    let mut head = vec![0u8; MAGIC.len()];
+    if download.read_exact(&mut head).is_err() || head != MAGIC {
+        return Err(Error::Damaged("it is not an executable for this platform".into()));
     }
 
-    Ok(n)
-}
-
-fn zip_exe(archive: std::fs::File, out: &mut std::fs::File, dir: &Path) -> Result<(), Error> {
-    let damaged = |e: zip::result::ZipError| Error::Damaged(e.to_string());
-    let mut zip = zip::ZipArchive::new(BufReader::new(archive)).map_err(damaged)?;
-    let mut found = None;
-    for i in 0..zip.len() {
-        let entry = zip.by_index_raw(i).map_err(damaged)?;
-        if entry.is_file() && entry.name().is_ok_and(|n| is_exe(&n)) {
-            found = Some(i);
-            break;
-        }
+    rewind(&mut download)?;
+    let n = std::io::copy(&mut download.take(MAX_EXE + 1), out).map_err(|e| io_error(e, dir))?;
+    if n > MAX_EXE {
+        return Err(Error::Damaged(format!("it has {}", megabytes(n))));
     }
 
-    let entry = zip.by_index(found.ok_or_else(missing)?).map_err(damaged)?;
-    copy(entry, out, dir).map(|_| ())
-}
-
-/// Reads the executable out of a tar by hand, the archive holds a handful of plain files.
-fn tar_exe(mut tar: impl Read, out: &mut std::fs::File, dir: &Path) -> Result<(), Error> {
-    let damaged = |e: std::io::Error| Error::Damaged(format!("the archive: {e}"));
-    let mut header = [0u8; 512];
-    loop {
-        tar.read_exact(&mut header).map_err(damaged)?;
-        if header.iter().all(|&b| b == 0) {
-            return Err(missing());
-        }
-
-        let text = |range: std::ops::Range<usize>| {
-            let field = &header[range];
-            String::from_utf8_lossy(&field[..field.iter().position(|&b| b == 0).unwrap_or(field.len())]).into_owned()
-        };
-        let size = u64::from_str_radix(text(124..136).trim(), 8).map_err(|_| Error::Damaged("the archive has a broken entry".into()))?;
-        let prefix = if &header[257..263] == b"ustar " { text(345..500) } else { String::new() };
-        let name = if prefix.is_empty() { text(0..100) } else { format!("{prefix}/{}", text(0..100)) };
-        if matches!(header[156], b'0' | 0) && is_exe(&name) {
-            if copy((&mut tar).take(size), out, dir)? != size {
-                return Err(Error::Damaged(format!("its {EXE} is cut short")));
-            }
-
-            return Ok(());
-        }
-
-        std::io::copy(&mut (&mut tar).take(size.div_ceil(512) * 512), &mut std::io::sink()).map_err(damaged)?;
-    }
+    Ok(())
 }
 
 fn replace(exe: &Path, new: tempfile::NamedTempFile) -> Result<PathBuf, Error> {
@@ -537,7 +490,6 @@ fn download_links(ui: &mut Ui) {
 
 #[cfg(test)]
 mod tests {
-    use std::io::Write;
     use std::time::Duration;
 
     use egui_kittest::kittest::Queryable;
@@ -547,6 +499,7 @@ mod tests {
 
     const OLD: &str = "0.2.0-beta.202611010000.aaaaaaa";
     const NEW: &str = "0.2.0-beta.202611071200.bbbbbbb";
+    const EXE: &str = if cfg!(windows) { "trenchdot.exe" } else { "trenchdot" };
 
     fn folder(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("td_updater_{name}_{}", std::process::id()));
@@ -555,40 +508,14 @@ mod tests {
         dir
     }
 
-    fn tar(files: &[(&str, &[u8])]) -> Vec<u8> {
-        let mut out = Vec::new();
-        for (name, bytes) in files {
-            let mut header = [0u8; 512];
-            let (prefix, name) = name.rsplit_once('/').filter(|(p, _)| p.len() > 20).unwrap_or(("", name));
-            header[..name.len()].copy_from_slice(name.as_bytes());
-            header[100..107].copy_from_slice(b"0000755");
-            header[124..135].copy_from_slice(format!("{:011o}", bytes.len()).as_bytes());
-            header[156] = b'0';
-            header[257..262].copy_from_slice(b"ustar");
-            header[345..345 + prefix.len()].copy_from_slice(prefix.as_bytes());
-            out.extend(header);
-            out.extend(*bytes);
-            out.resize(out.len().div_ceil(512) * 512, 0);
-        }
-
-        out.extend([0u8; 1024]);
-        out
-    }
-
-    /// The archive CI would publish for this platform.
-    fn archive(files: &[(&str, &[u8])]) -> Vec<u8> {
-        if ASSET.unwrap().ends_with(".zip") {
-            return zip(files);
-        }
-
-        let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
-        gz.write_all(&tar(files)).unwrap();
-        gz.finish().unwrap()
+    /// A file that passes for an executable of this platform.
+    fn exe_bytes(tail: &[u8]) -> Vec<u8> {
+        [MAGIC, tail].concat()
     }
 
     fn publish(server: &Server, title: &str, exe: &[u8]) {
-        let files = archive(&[("trenchdot-x/README.md", b"readme"), (&format!("trenchdot-x/{EXE}"), exe)]);
-        server.titled_release(TAG, title, &[(ASSET.unwrap(), &files), ("func_godot-trenchdot-addon.zip", b"addon")], true);
+        let exe = exe_bytes(exe);
+        server.titled_release(TAG, title, &[(ASSET.unwrap(), &exe), ("func_godot-trenchdot-addon.zip", b"addon")], true);
     }
 
     fn release_of(server: &Server) -> Release {
@@ -643,7 +570,7 @@ mod tests {
         publish(&server, &format!("TrenchDot {NEW}"), b"new");
         let kept = install(&release_of(&server), &exe, &Reporter::default()).unwrap();
         assert_eq!(kept, previous(&exe));
-        assert_eq!((std::fs::read(&exe).unwrap(), std::fs::read(&kept).unwrap()), (b"new".to_vec(), b"old".to_vec()));
+        assert_eq!((std::fs::read(&exe).unwrap(), std::fs::read(&kept).unwrap()), (exe_bytes(b"new"), b"old".to_vec()));
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
@@ -651,50 +578,32 @@ mod tests {
         }
 
         roll_back(&exe).unwrap();
-        assert_eq!((std::fs::read(&exe).unwrap(), std::fs::read(&kept).unwrap()), (b"old".to_vec(), b"new".to_vec()));
+        assert_eq!((std::fs::read(&exe).unwrap(), std::fs::read(&kept).unwrap()), (b"old".to_vec(), exe_bytes(b"new")));
 
         publish(&server, &format!("TrenchDot {NEW}"), b"newer");
         install(&release_of(&server), &exe, &Reporter::default()).unwrap();
-        assert_eq!((std::fs::read(&exe).unwrap(), std::fs::read(&kept).unwrap()), (b"newer".to_vec(), b"old".to_vec()), "only one old build is kept");
+        assert_eq!((std::fs::read(&exe).unwrap(), std::fs::read(&kept).unwrap()), (exe_bytes(b"newer"), b"old".to_vec()), "only one old build is kept");
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2, "nothing else is left beside it");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
-    fn an_archive_without_the_editor_changes_nothing() {
+    fn a_download_that_is_not_the_editor_changes_nothing() {
         if ASSET.is_none() {
             return;
         }
 
         let server = Server::start();
-        let dir = folder("missing");
+        let dir = folder("not_exe");
         let exe = dir.join(EXE);
         std::fs::write(&exe, "old").unwrap();
-        let deep = format!("trenchdot-x/sub/{EXE}");
-        let files = archive(&[("trenchdot-x/README.md", b"readme"), (&deep, b"deep"), ("trenchdot-x/trenchdot.txt", b"no")]);
-        server.titled_release(TAG, &format!("TrenchDot {NEW}"), &[(ASSET.unwrap(), &files)], true);
-        assert_eq!(install(&release_of(&server), &exe, &Reporter::default()), Err(missing()));
+        for body in [&b"<html>rate limited</html>"[..], &zip(&[(EXE, &exe_bytes(b"zipped"))])] {
+            server.titled_release(TAG, &format!("TrenchDot {NEW}"), &[(ASSET.unwrap(), body)], true);
+            assert!(matches!(install(&release_of(&server), &exe, &Reporter::default()), Err(Error::Damaged(_))));
+        }
+
         assert_eq!(std::fs::read(&exe).unwrap(), b"old");
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
-        std::fs::remove_dir_all(&dir).unwrap();
-    }
-
-    #[test]
-    fn the_tar_reader_finds_the_executable_behind_other_entries() {
-        let dir = folder("tar");
-        let mut out = tempfile::tempfile_in(&dir).unwrap();
-        let long = format!("trenchdot-a-folder-name-longer-than-twenty/{EXE}");
-        let files = tar(&[("trenchdot-x/README.md", &[7u8; 700][..]), (&long, b"editor")]);
-        tar_exe(std::io::Cursor::new(&files), &mut out, &dir).unwrap();
-        let mut read = Vec::new();
-        std::io::Seek::rewind(&mut out).unwrap();
-        out.read_to_end(&mut read).unwrap();
-        assert_eq!(read, b"editor");
-
-        let none = tar(&[("trenchdot-x/README.md", b"readme")]);
-        assert_eq!(tar_exe(std::io::Cursor::new(&none), &mut out, &dir), Err(missing()));
-        assert!(matches!(tar_exe(std::io::Cursor::new(&files[..900]), &mut out, &dir), Err(Error::Damaged(_))));
-        drop(out);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -749,7 +658,7 @@ mod tests {
         assert!(harness.query_by_label_contains(&format!("Installed TrenchDot {NEW}")).is_some());
         assert!(harness.query_by_label("Restart Now").is_some());
         assert_eq!(harness.state().updater.available(), None, "the status bar stops offering it");
-        assert_eq!(std::fs::read(&exe).unwrap(), b"new");
+        assert_eq!(std::fs::read(&exe).unwrap(), exe_bytes(b"new"));
 
         harness.state_mut().updater = Updater { api: Some(server.url.clone()), running: Some((NEW.into(), exe.clone())), ..Default::default() };
         harness.state_mut().updater.check_from_menu();

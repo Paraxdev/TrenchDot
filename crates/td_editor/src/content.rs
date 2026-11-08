@@ -894,7 +894,7 @@ mod tests {
             ("trenchdot/nature/trees/oak.glb", b"glTF oak"),
             ("trenchdot/nature/rock.bbmodel", b"from the archive"),
         ]);
-        server.release(&format!("v{}", crate::VERSION), &[("trenchdot-linux-x86_64.tar.gz", b"editor")], true);
+        server.release(&format!("v{}", crate::VERSION), &[("trenchdot-linux-x86_64", b"editor")], true);
         server.release("beta", &[(NATURE_PACK.asset, &pack)], true);
         let root = project("beta");
         std::fs::create_dir_all(root.join("trenchdot/nature/trees")).unwrap();
