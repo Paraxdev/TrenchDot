@@ -7,9 +7,9 @@ Steps 4 and 5: Creating the first room in TrenchDot and seeing it in Godot.
 ## What you need
 
 * Godot 4.7 or newer, the .NET build if you want to write entities in C#
-* The newest [TrenchDot release](https://github.com/Paraxdev/TrenchDot/releases/tag/beta). Download the file for
-  your system, `trenchdot-windows-x86_64.exe`, `trenchdot-linux-x86_64` or `trenchdot-macos-arm64`. On Linux and
-  macOS, make it executable with `chmod +x`.
+* The newest [TrenchDot release](https://github.com/Paraxdev/TrenchDot/releases/tag/beta). On Windows, run
+  `trenchdot-windows-x86_64-setup.exe` and start TrenchDot from the Start menu. On Linux and macOS, download
+  `trenchdot-linux-x86_64` or `trenchdot-macos-arm64` and make it executable with `chmod +x`.
 
 ## Ensure TrenchDot can see the Godot executable
 

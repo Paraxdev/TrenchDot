@@ -167,6 +167,20 @@ jobs:
           ext=""
           if [ "$RUNNER_OS" = "Windows" ]; then ext=".exe"; fi
           cp "target/release/${{ matrix.exe }}" "dist/trenchdot-${{ matrix.name }}${ext}"
+      - name: Windows installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          TRENCHDOT_BUILD: ${{ needs.stamp.outputs.build }}
+        run: |
+          $iscc = Get-ChildItem "C:\Program Files*\Inno Setup*\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $iscc) {
+            choco install innosetup -y --no-progress | Out-Null
+            $iscc = Get-ChildItem "C:\Program Files*\Inno Setup*\ISCC.exe" | Select-Object -First 1
+          }
+          & $iscc.FullName /Q "/DVersion=$env:TRENCHDOT_BUILD" "/DSource=$PWD\target\release" "/DOutput=$PWD\dist" tools\installer\trenchdot.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path dist\trenchdot-windows-x86_64-setup.exe)) { exit 1 }
       - uses: actions/upload-artifact@v4
         with:
           name: editor-${{ matrix.name }}
@@ -223,7 +237,8 @@ jobs:
             exit 1
           fi
           shots="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/docs/screenshots"
-          downloads="* trenchdot-windows-x86_64.exe, trenchdot-linux-x86_64 and trenchdot-macos-arm64: the editor on its own, run it from any folder you can write to. On Linux and macOS make it executable first with chmod +x.
+          downloads="* trenchdot-windows-x86_64-setup.exe: the Windows installer. It puts the editor in your user folder with a Start menu entry, and the editor keeps itself up to date from there.
+          * trenchdot-windows-x86_64.exe, trenchdot-linux-x86_64 and trenchdot-macos-arm64: the editor on its own, run it from any folder you can write to. On Linux and macOS make it executable first with chmod +x.
           * func_godot-trenchdot-addon.zip: the Godot addon. The editor installs it into a project from its setup window, or extract it into your Godot project so it becomes res://addons/func_godot.
           * trenchdot-demo-project.zip: the demo Godot project with the showcase maps.
           * trenchdot-nature-pack.zip and trenchdot-demo-content.zip: the nature models and the demo content that the editor's Godot > Add Content to Project adds to a project, no need to download them by hand.
@@ -302,6 +317,7 @@ jobs:
           push dist/trenchdot-linux-x86_64 linux trenchdot
           push dist/trenchdot-windows-x86_64.exe windows trenchdot.exe
           push dist/trenchdot-macos-arm64 mac trenchdot
+          push dist/trenchdot-windows-x86_64-setup.exe windows-installer trenchdot-windows-x86_64-setup.exe
           # The addon, demo project and content ship as their own zips so their folder layout (addons/func_godot, the
           # project, trenchdot/nature, demo and models) survives.
           "$butler" push dist/func_godot-trenchdot-addon.zip "paraxdev/trenchdot:addon" --userversion "$version"

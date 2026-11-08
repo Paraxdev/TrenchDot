@@ -40,7 +40,7 @@ work in live mode to instantly see changes before saving
 
 ## Download
 
-grab the [rolling beta](https://github.com/Paraxdev/TrenchDot/releases/tag/beta), rebuilt from `main` whenever every test passes: the editor on its own for Linux, Windows and macOS (on Linux and macOS run `chmod +x` on it first), the Godot addon (the editor installs
+grab the [rolling beta](https://github.com/Paraxdev/TrenchDot/releases/tag/beta), rebuilt from `main` whenever every test passes: a Windows installer, the editor on its own for Linux, Windows and macOS (on Linux and macOS run `chmod +x` on it first), the Godot addon (the editor installs
 it into your Godot project, or unzip it there yourself) and a demo project. [itch.io](https://paraxdev.itch.io/trenchdot) has the same files. or build it yourself: clone with
 `git clone --recursive` so the addon submodule comes along, then `cargo run -p td_editor --release`.
 

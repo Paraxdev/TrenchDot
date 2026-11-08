@@ -15,7 +15,8 @@ When a newer build is out, a cyan **Update available** chip shows in the status 
 3. When it says the new build is installed, click **Restart Now**. If a map has unsaved changes, the editor asks
    about them first, and cancelling that question keeps the editor open on the old build.
 
-The new build replaces the editor's executable in its folder. The old one stays beside it as
+The new build replaces the editor's executable in its folder. The Windows installer puts the editor in your user
+folder for this reason, so it can update itself without asking for administrator rights. The old one stays beside it as
 `trenchdot-previous.exe` on Windows or `trenchdot-previous` on Linux and macOS.
 
 > [!TIP]
