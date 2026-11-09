@@ -235,7 +235,6 @@ fn screen_dist(cam: &Camera, rect: Rect, world: DVec3, pos: Pos2) -> f32 {
 
 /// Outline of the object under the pointer in the outliner, so a row can be matched to what it is in the views.
 fn outliner_hover_lines(state: &EditorState, id: NodeId, out: &mut Vec<LineVertex>) {
-    const COLOR: [f32; 4] = [0.39, 0.76, 0.93, 1.0];
     let map = &state.doc.map;
     if map.layers.contains(&id) {
         return;
@@ -245,7 +244,7 @@ fn outliner_hover_lines(state: &EditorState, id: NodeId, out: &mut Vec<LineVerte
     for n in std::iter::once(id).chain(map.descendants(id)) {
         if let Some(b) = map.brush(n) {
             for (a, c) in b.edges() {
-                line(out, b.vertices[a as usize], b.vertices[c as usize], COLOR);
+                line(out, b.vertices[a as usize], b.vertices[c as usize], HOVER_COLOR);
             }
 
             drew = true;
@@ -256,10 +255,13 @@ fn outliner_hover_lines(state: &EditorState, id: NodeId, out: &mut Vec<LineVerte
     if !drew && !bounds.is_empty() {
         let c = bounds.corners();
         for (i, j) in Aabb::EDGES {
-            line(out, c[i], c[j], COLOR);
+            line(out, c[i], c[j], HOVER_COLOR);
         }
     }
 }
+
+pub(crate) const HOVER_COLOR: [f32; 4] = [0.39, 0.76, 0.93, 1.0];
+pub(crate) const PREVIEW_COLOR: [f32; 4] = [0.3, 1.0, 1.0, 0.9];
 
 fn line(out: &mut Vec<LineVertex>, a: DVec3, b: DVec3, color: [f32; 4]) {
     out.push(LineVertex { pos: v3(a), color });
@@ -1278,17 +1280,19 @@ impl ToolSet {
         crate::gizmos::lines(state, &mut out);
         for b in &state.sweep_preview {
             for (a, c) in b.edges() {
-                line(&mut out, b.vertices[a as usize], b.vertices[c as usize], [0.3, 1.0, 1.0, 0.9]);
+                line(&mut out, b.vertices[a as usize], b.vertices[c as usize], PREVIEW_COLOR);
             }
         }
 
         for &(a, b) in state.shape_preview.iter().chain(&state.spline_preview) {
-            line(&mut out, a, b, [0.3, 1.0, 1.0, 0.9]);
+            line(&mut out, a, b, PREVIEW_COLOR);
         }
 
         for (a, c) in &state.array_preview {
-            line(&mut out, *a, *c, [0.3, 1.0, 1.0, 0.9]);
+            line(&mut out, *a, *c, PREVIEW_COLOR);
         }
+
+        crate::shape_bounds::lines(state, &mut out);
 
         if let Some(id) = state.outliner_hover {
             outliner_hover_lines(state, id, &mut out);
@@ -1710,6 +1714,29 @@ mod tests {
 
     fn top_normal() -> DVec3 {
         DVec3::new(0.4, 1.0, 0.0).normalize()
+    }
+
+    #[test]
+    fn the_shape_box_is_drawn_in_every_view() {
+        let b = Aabb::new(DVec3::new(-40.0, 8.0, 24.0), DVec3::new(88.0, 72.0, 120.0));
+        let corners = b.corners();
+        let mut state = EditorState::new(Default::default());
+        let tools = ToolSet::default();
+        let cams = [perspective(), view_2d(ViewKind::Top), view_2d(ViewKind::Front), view_2d(ViewKind::Side)];
+        let of_color = |lines: &[LineVertex], c: [f32; 4]| lines.iter().filter(|v| v.color == c).map(|v| v.pos).collect::<Vec<_>>();
+
+        for cam in &cams {
+            assert!(of_color(&tools.lines(cam, view_rect(), &state), crate::shape_bounds::color()).is_empty(), "no box without bounds");
+        }
+
+        state.shape_bounds = Some(b);
+        state.shape_preview = vec![(DVec3::new(0.0, 8.0, 24.0), DVec3::new(10.0, 20.0, 30.0))];
+        let expected: Vec<[f32; 3]> = Aabb::EDGES.iter().flat_map(|&(i, j)| [crate::scene::v3(corners[i]), crate::scene::v3(corners[j])]).collect();
+        for cam in &cams {
+            let lines = tools.lines(cam, view_rect(), &state);
+            assert_eq!(of_color(&lines, crate::shape_bounds::color()), expected, "{:?}", cam.kind);
+            assert_eq!(of_color(&lines, PREVIEW_COLOR).len(), 2, "the preview keeps its own color in {:?}", cam.kind);
+        }
     }
 
     #[test]

@@ -1092,19 +1092,14 @@ impl Viewport {
             _ => None,
         };
         crate::transform_gizmo::paint(ui, &self.camera, self.rect, state, transforming);
-        if self.camera.kind.is_2d() && !state.doc.selection.nodes.is_empty() {
-            let b = state.doc.map.bounds_of(state.doc.selection.nodes.iter().copied());
-            if !b.is_empty() {
-                let (r, u, _) = self.camera.kind.axes();
-                let size = b.size();
-                let w = (size * r.abs()).element_sum();
-                let h = (size * u.abs()).element_sum();
-                if let (Some(p0), Some(p1)) = (self.camera.project(self.rect, b.min), self.camera.project(self.rect, b.max)) {
-                    let sr = Rect::from_two_pos(p0, p1);
-                    let color = Color32::from_rgb(255, 120, 100);
-                    painter.text(Pos2::new(sr.center().x, sr.min.y - 4.0), Align2::CENTER_BOTTOM, fmt_num(w), FontId::monospace(11.0), color);
-                    painter.text(Pos2::new(sr.max.x + 6.0, sr.center().y), Align2::LEFT_CENTER, fmt_num(h), FontId::monospace(11.0), color);
-                }
+        if self.camera.kind.is_2d() {
+            if !state.doc.selection.nodes.is_empty() {
+                let b = state.doc.map.bounds_of(state.doc.selection.nodes.iter().copied());
+                size_labels(&painter, &self.camera, self.rect, b, Color32::from_rgb(255, 120, 100));
+            }
+
+            if let Some(b) = state.shape_bounds {
+                size_labels(&painter, &self.camera, self.rect, b, crate::theme::VIEW.shape_bounds());
             }
         }
 
@@ -1211,8 +1206,21 @@ fn cell_span(a: f64, b: f64, grid: f64, snap: bool) -> (f64, f64) {
     if (hi - lo).abs() < 1e-6 { (lo, lo + grid) } else { (lo, hi) }
 }
 
-fn fmt_num(v: f64) -> String {
-    if (v - v.round()).abs() < 1e-6 { format!("{}", v.round() as i64) } else { format!("{v:.3}") }
+/// Width and height of `b` beside it in a 2D view.
+fn size_labels(painter: &egui::Painter, camera: &Camera, rect: Rect, b: Aabb, color: Color32) {
+    if b.is_empty() {
+        return;
+    }
+
+    let (r, u, _) = camera.kind.axes();
+    let size = b.size();
+    let w = (size * r.abs()).element_sum();
+    let h = (size * u.abs()).element_sum();
+    if let (Some(p0), Some(p1)) = (camera.project(rect, b.min), camera.project(rect, b.max)) {
+        let sr = Rect::from_two_pos(p0, p1);
+        painter.text(Pos2::new(sr.center().x, sr.min.y - 4.0), Align2::CENTER_BOTTOM, crate::gizmos::fmt_num(w), FontId::monospace(11.0), color);
+        painter.text(Pos2::new(sr.max.x + 6.0, sr.center().y), Align2::LEFT_CENTER, crate::gizmos::fmt_num(h), FontId::monospace(11.0), color);
+    }
 }
 
 fn coplanar_selected_faces(state: &EditorState, plane: &Plane) -> Vec<(NodeId, usize)> {
@@ -1490,6 +1498,21 @@ mod tests {
 
         assert_eq!(t.layers.len(), 4, "never more than four layers");
         assert_eq!(t.layers[3].material, "c", "a drop past four replaces the last layer");
+    }
+
+    #[test]
+    fn size_labels_drop_trailing_zeros() {
+        let ctx = egui::Context::default();
+        ctx.begin_pass(egui::RawInput::default());
+        let painter = ctx.layer_painter(egui::LayerId::background());
+        let rect = Rect::from_min_size(Pos2::new(20.0, 30.0), Vec2::new(600.0, 400.0));
+        let b = Aabb::new(DVec3::new(-21.5, 3.0, 7.0), DVec3::new(15.8, 51.0, 19.25));
+        size_labels(&painter, &Camera::new(ViewKind::Front), rect, b, Color32::WHITE);
+        let out = ctx.end_pass();
+        let texts: Vec<String> =
+            out.shapes.iter().filter_map(|c| if let egui::Shape::Text(t) = &c.shape { Some(t.galley.text().to_owned()) } else { None }).collect();
+        out.drop_without_applying_deltas();
+        assert_eq!(texts, ["37.3", "48"], "like the Shape Generator's fields");
     }
 
     #[test]

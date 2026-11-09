@@ -22,6 +22,7 @@ const INSTANCE_TINT: [f32; 4] = [0.8, 0.92, 1.0, 1.0];
 pub(crate) const INSTANCE_EDGE: [f32; 4] = [0.45, 0.85, 1.0, 0.8];
 pub(crate) const TARGET_LINK: [f32; 4] = [0.35, 0.95, 0.45, 0.55];
 pub const IO_LINK: [f32; 4] = [1.0, 0.35, 0.9, 0.6];
+pub(crate) const CORDON_COLOR: [f32; 4] = [1.0, 0.85, 0.2, 0.9];
 pub(crate) const TERRAIN_EDGE: [f32; 4] = [0.55, 0.8, 0.45, 0.7];
 const BUCKETS: u64 = 64;
 /// Above this many faces in the moving selection, face culling is deferred to drag release. Ordinary
@@ -2175,7 +2176,7 @@ impl SceneCache {
         self.links = renderer.upload_lines(&links);
         self.cordon = match map.editor.cordon {
             Some(c) => {
-                let color = if map.editor.cordon_enabled { [1.0, 0.85, 0.2, 0.9] } else { [1.0, 0.85, 0.2, 0.3] };
+                let color = if map.editor.cordon_enabled { CORDON_COLOR } else { [CORDON_COLOR[0], CORDON_COLOR[1], CORDON_COLOR[2], 0.3] };
                 let corners = c.corners();
                 let mut lines = Vec::new();
                 for (i, j) in Aabb::EDGES {
