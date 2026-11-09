@@ -210,6 +210,83 @@ impl App {
         }
     }
 
+    pub(crate) fn tool_sweep_faces(&mut self, args: &Value) -> ToolResult {
+        use td_geom::sweep::{Bend, SweepPath};
+        let mut sweep = td_geom::sweep::Sweep::default();
+        if let Some(name) = args["path"].as_str() {
+            sweep.path = match name {
+                "straight" => SweepPath::Straight,
+                "arc" => SweepPath::Arc,
+                "s_bend" => SweepPath::SBend,
+                _ => return err(format!("unknown path {name}, use straight, arc or s_bend")),
+            };
+        }
+
+        if let Some(name) = args["bend"].as_str() {
+            sweep.bend = match name {
+                "up" => Bend::Up,
+                "down" => Bend::Down,
+                "left" => Bend::Left,
+                "right" => Bend::Right,
+                _ => return err(format!("unknown bend {name}, use up, down, left or right")),
+            };
+        }
+
+        let length_key = if args["radius"].is_null() { "length" } else { "radius" };
+        let s = &mut sweep;
+        for (key, slot) in [
+            (length_key, &mut s.length),
+            ("angle", &mut s.angle),
+            ("offset", &mut s.offset),
+            ("rise", &mut s.rise),
+            ("twist", &mut s.twist),
+            ("end_scale", &mut s.end_scale),
+        ] {
+            match &args[key] {
+                Value::Null => {}
+                v => match v.as_f64() {
+                    Some(x) => *slot = x,
+                    None => return err(format!("{key} must be a number, got {v}")),
+                },
+            }
+        }
+
+        match &args["segments"] {
+            Value::Null => {}
+            v => match v.as_u64().and_then(|n| u32::try_from(n).ok()) {
+                Some(n) => sweep.segments = n,
+                None => return err(format!("segments must be a whole number, got {v}")),
+            },
+        }
+
+        let mut sel = td_doc::Selection::default();
+        if args["faces"].is_array() {
+            match face_list(args, "faces") {
+                Ok(f) => sel.faces.extend(f),
+                Err(e) => return err(e),
+            }
+        } else {
+            sel.faces = self.state.doc.selection.faces.clone();
+        }
+
+        if let Err(e) = editable_ids(&self.state, &sel.faces.iter().map(|(id, _)| *id).collect::<Vec<_>>()) {
+            return err(e);
+        }
+
+        let picked = crate::sweep_dialog::selected_faces(&self.state.doc.map, &sel);
+        if picked.len() != sel.faces.len() {
+            return err("every face must be [brush id, face index] of an existing brush face");
+        }
+
+        match crate::sweep_dialog::apply(&mut self.state, &picked, &sweep) {
+            Ok(ids) => {
+                let b = self.state.doc.map.bounds_of(ids.iter().copied());
+                ok(json!({ "ok": true, "ids": ids.iter().map(|id| id.0).collect::<Vec<_>>(), "bounds": bounds_json(&b) }))
+            }
+            Err(e) => err(e.to_string()),
+        }
+    }
+
     /// Trim strips along face edges: baseboards, crown molding, borders.
     pub(crate) fn tool_trim(&mut self, args: &Value) -> ToolResult {
         let mut opts = crate::trim::TrimOptions { material: self.state.current_material.clone(), ..Default::default() };

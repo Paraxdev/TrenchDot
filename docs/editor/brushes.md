@@ -114,6 +114,36 @@ as editable mesh** it keeps its dents and overhangs, and **Detail** sets how fin
 
 ![Five orange rocks on a grey floor, three lumpy meshes in front and two faceted brush rocks behind them](../assets/brushes/shape-generator-rocks.png)
 
+## Sweep Faces
+
+To carry a corridor, pipe or trim on round a corner, sweep the faces at its end. Each face is pushed along a path
+and leaves a run of brushes behind it, with the materials of the brush it came from.
+
+1. Shift+click a face at the end of the run in the 3D view, then Ctrl+Shift+click the others, for example the floor
+   and both walls of a corridor.
+2. Open *Brush > Sweep Faces…*. A cyan outline shows the brushes it would make.
+3. Pick **Straight**, **Arc** or **S-bend** and set the path. **Radius** is measured from the center of the turn to the
+   middle of the faces, and **Direction** is seen looking at the faces.
+4. Click **Create**. The new brushes are selected, and they join the group or entity of the brush they came from, so
+   sweeping the end of a `func_door` makes the door longer.
+
+![The Sweep Faces dialog set to Arc with Radius 128, Angle 90, Direction Right and 8 segments, making 32 brushes](../assets/brushes/sweep-faces-dialog.png)
+
+![A corridor of a dark floor and two orange walls, swept straight, round a 90 degree arc and straight again](../assets/brushes/sweep-faces-corridor.png)
+
+More **Segments** make a smoother curve. **Rise** lifts the end, so an arc with rise becomes a spiral ramp, **Twist**
+turns the faces about themselves and **End scale** grows or shrinks them on the way. An arc tighter than the faces are
+wide would fold over on its inner side, the dialog says the smallest radius that works instead. All picked faces
+travel the same way, along their average direction, so pick faces that point the same way, like the end of a corridor.
+Faces at an angle to each other would go out on a slant.
+
+<div class="td-mcp" markdown>
+
+The MCP tool `sweep_faces` takes the same settings, with the faces as `[brush id, face index]` pairs or the selected
+faces when none are given.
+
+</div>
+
 ## CSG
 
 The CSG operations are under *Brush > CSG*, which also holds their two settings.

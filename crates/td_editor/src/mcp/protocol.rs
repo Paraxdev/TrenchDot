@@ -478,6 +478,16 @@ pub fn tool_definitions() -> Vec<Value> {
             } }
         }),
         json!({
+            "name": "sweep_faces",
+            "description": "Sweeps brush faces along a path into a run of convex brushes, one per segment and face, as one undo step, like TrenchBroom's sweep tool. Works on faces [[brush, face], ...] or the selected faces. All faces share one frame, so faces picked side by side (a corridor's end faces) bend around one pivot. They all travel along their summed normal, so faces at an angle to each other go out on a slant, and faces pointing opposite ways are refused. path: straight (default), arc or s_bend. length: distance along the face normal for straight and s_bend (128), radius (or length) of the arc's center line. angle: degrees an arc turns, more than 0 up to 720 (90), bend picks the side. offset: sideways shift of an s_bend (64). bend: up, down, left or right (default), seen looking at the faces, on a floor or ceiling up is -Z. segments 1 to 128 (8). rise: height gained along +Y (0), an arc with rise is a spiral. twist: degrees around the normal (0). end_scale: size at the end (1). New faces take the material and alignment of the source brush's faces that point the same way. The source brushes stay as they are, and the new brushes are selected.",
+            "inputSchema": { "type": "object", "properties": {
+                "faces": { "type": "array", "items": { "type": "array", "items": { "type": "integer" } } },
+                "path": { "type": "string", "enum": ["straight", "arc", "s_bend"] }, "bend": { "type": "string", "enum": ["up", "down", "left", "right"] },
+                "length": { "type": "number" }, "radius": { "type": "number" }, "angle": { "type": "number" }, "offset": { "type": "number" },
+                "segments": { "type": "integer" }, "rise": { "type": "number" }, "twist": { "type": "number" }, "end_scale": { "type": "number" }
+            } }
+        }),
+        json!({
             "name": "prefab_library",
             "description": "The prefab library of the Prefabs panel: ready made pieces (stairs, doorways, pillars, rooms, details) that come with the editor on dev materials, and the project's own .tdm files in res://prefab_library, one folder per category. ops: list {query} (name is category/name, size in map units, source builtin or project), paste {name, origin (centers it there), offset, parent} (plain copies, no link back), copy {name} (the clipboard text), add {name, category, ids (default the selection), keep_position} (saves them as a new project entry, moved so their bottom center sits on the origin, or where they are with keep_position, for kit pieces built around the origin). run_action paste also takes TrenchBroom clipboard text.",
             "inputSchema": { "type": "object", "properties": {

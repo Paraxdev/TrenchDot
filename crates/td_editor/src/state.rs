@@ -567,6 +567,8 @@ pub struct EditorState {
     pub instance_bounds: std::collections::HashMap<NodeId, Aabb>,
     /// Godot overlay content of the open map, from its `.overlay.json` sidecar.
     pub overlay_ghosts: crate::overlays::OverlayGhosts,
+    /// Brushes the open Sweep Faces dialog would create, drawn as lines.
+    pub sweep_preview: Vec<td_geom::Brush>,
     pub walkable: crate::walkable::WalkableView,
     pub void_cull: crate::void_cull::VoidView,
     pub models: crate::models::ModelCache,
@@ -739,6 +741,7 @@ impl EditorState {
             prefabs: Default::default(),
             instance_bounds: Default::default(),
             overlay_ghosts: Default::default(),
+            sweep_preview: Vec::new(),
             walkable: Default::default(),
             void_cull: Default::default(),
             models: Default::default(),

@@ -10,6 +10,7 @@ pub mod mesh_uv;
 pub mod polygon;
 pub mod rock;
 pub mod shapes;
+pub mod sweep;
 pub mod uv;
 
 pub use brush::{Brush, BrushError, Face, FaceData, RayHit, Triangle};

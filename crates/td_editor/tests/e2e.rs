@@ -1856,6 +1856,31 @@ fn rocks_from_create_brush_and_create_mesh() {
     assert!(ed.call_err("create_mesh", json!({ "shape": "rock", "min": [0, 0, 0], "max": [64, 64, 64], "roughness": 2 })).contains("roughness must be"));
 }
 
+#[test]
+#[ignore]
+fn sweep_faces_runs_a_corridor_round_a_bend() {
+    let ed = Editor::launch("sweep");
+    let floor = ed.call("create_brush", json!({ "min": [0, 0, 0], "max": [64, 16, 128], "material": "dev/floor" }))["ids"][0].as_u64().unwrap();
+    let faces = ed.call("texture", json!({ "op": "get", "faces": (0..6).map(|f| json!([floor, f])).collect::<Vec<_>>() }));
+    let end = faces["faces"].as_array().unwrap().iter().find(|f| f["normal"][0].as_f64().unwrap() > 0.99).unwrap()["face"][1].as_u64().unwrap();
+
+    let straight = ed.call("sweep_faces", json!({ "faces": [[floor, end]], "length": 96, "segments": 3 }));
+    assert_eq!(straight["ids"].as_array().unwrap().len(), 3);
+    assert_eq!(straight["bounds"]["min"][0].as_f64(), Some(64.0));
+    assert_eq!(straight["bounds"]["max"][0].as_f64(), Some(160.0));
+
+    ed.call("select", json!({ "faces": [[floor, end]] }));
+    let arc = ed.call("sweep_faces", json!({ "path": "arc", "radius": 128, "angle": 90, "bend": "left", "segments": 6, "rise": 32 }));
+    assert_eq!(arc["ids"].as_array().unwrap().len(), 6, "the selected face is used: {arc}");
+    assert_eq!(selected(&ed).len(), 6, "the new brushes are selected");
+    assert!(ed.call_err("sweep_faces", json!({ "faces": [[floor, end]], "path": "arc", "radius": 10 })).contains("radius must be more than"));
+    assert!(ed.call_err("sweep_faces", json!({ "faces": [[floor, end]], "path": "spiral" })).contains("unknown path"));
+    assert!(ed.call_err("sweep_faces", json!({ "faces": [[floor, 99]] })).contains("existing brush face"));
+    assert!(ed.call_err("sweep_faces", json!({ "faces": [[floor, end]], "path": "arc", "angle": -90 })).contains("angle must be more than 0"));
+    let back = faces["faces"].as_array().unwrap().iter().find(|f| f["normal"][0].as_f64().unwrap() < -0.99).unwrap()["face"][1].as_u64().unwrap();
+    assert!(ed.call_err("sweep_faces", json!({ "faces": [[floor, end], [floor, back]] })).contains("opposite directions"));
+}
+
 /// Scripted building blocks the withered city showcase needs: block letters, window grids, plane clips, vertex moves and
 /// named wizard entities, all without mouse input.
 #[test]

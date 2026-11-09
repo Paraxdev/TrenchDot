@@ -1067,6 +1067,12 @@ impl ToolSet {
         }
 
         crate::gizmos::lines(state, &mut out);
+        for b in &state.sweep_preview {
+            for (a, c) in b.edges() {
+                line(&mut out, b.vertices[a as usize], b.vertices[c as usize], [0.3, 1.0, 1.0, 0.9]);
+            }
+        }
+
         if let Some(id) = state.outliner_hover {
             outliner_hover_lines(state, id, &mut out);
         }

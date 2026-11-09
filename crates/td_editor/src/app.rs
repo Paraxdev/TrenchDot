@@ -131,6 +131,7 @@ pub struct App {
     palette: CommandPalette,
     shape_dialog: ShapeDialog,
     trim_dialog: crate::trim::TrimDialog,
+    sweep_dialog: crate::sweep_dialog::SweepDialog,
     fill_dialog: crate::random_fill::RandomFillDialog,
     terrain_dialog: TerrainDialog,
     keymap: KeymapWindow,
@@ -182,9 +183,10 @@ pub struct App {
     pub(crate) tool_options_rect: egui::Rect,
 }
 
-const WINDOW_TITLES: [&str; 12] = [
+const WINDOW_TITLES: [&str; 13] = [
     "Shape Generator",
     "Add Trim",
+    "Sweep Faces",
     "Random Fill",
     "Create Terrain",
     "Keyboard Shortcuts",
@@ -928,6 +930,7 @@ impl App {
             palette: CommandPalette::default(),
             shape_dialog: ShapeDialog::default(),
             trim_dialog: Default::default(),
+            sweep_dialog: Default::default(),
             fill_dialog: Default::default(),
             terrain_dialog: TerrainDialog::default(),
             keymap: KeymapWindow::default(),
@@ -1034,6 +1037,7 @@ impl App {
             Action::ShowCommandPalette => self.palette.toggle(),
             Action::ShowShapeDialog => self.shape_dialog.open = true,
             Action::ShowTrimDialog => self.trim_dialog.open = true,
+            Action::ShowSweepDialog => self.sweep_dialog.open = true,
             Action::ShowRandomFillDialog => self.fill_dialog.open = true,
             Action::ShowTerrainDialog => self.terrain_dialog.open = true,
             Action::ExportGlb => self.export_dialog.open_for(crate::export3d::Format::Glb, &mut self.state),
@@ -1335,6 +1339,7 @@ impl App {
                 ui.set_min_width(MENU_WIDTH);
                 m.item(ui, Some(icons::SHAPES), en!("Shape Generator…"), Action::ShowShapeDialog);
                 m.item(ui, None, en!("Add Trim…"), Action::ShowTrimDialog);
+                m.item(ui, None, en!("Sweep Faces…"), Action::ShowSweepDialog);
                 m.item(ui, None, en!("Random Fill…"), Action::ShowRandomFillDialog);
                 m.item(ui, Some(icons::BRUSH), en!("Box from Last Bounds"), Action::CreateBrushFromBounds);
                 ui.separator();
@@ -3078,6 +3083,7 @@ impl eframe::App for App {
         self.palette.show(&ctx, &self.state, &mut self.actions);
         self.shape_dialog.show(&ctx, &mut self.state);
         self.trim_dialog.show(&ctx, &mut self.state);
+        self.sweep_dialog.show(&ctx, &mut self.state);
         self.fill_dialog.show(&ctx, &mut self.state);
         self.terrain_dialog.show(&ctx, &mut self.state);
         self.keymap.show(&ctx, &mut self.state);
