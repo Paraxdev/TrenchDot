@@ -1128,6 +1128,12 @@ impl App {
                     if self.state.doc.map.layers.contains(id) {
                         return err(format!("{id} is a layer, layers have no parent"));
                     }
+
+                    if td_doc::linked::crosses_copies(&self.state.doc.map, *id, parent) {
+                        return err(format!(
+                            "cannot move {id} into {parent}: it would put a linked group inside its own copy or move an object between copies of one linked set"
+                        ));
+                    }
                 }
 
                 if self.state.doc.map.is_locked(parent) {

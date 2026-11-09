@@ -60,6 +60,15 @@ groups under *Edit > Groups*.
 | Click | Select the object inside the group |
 | Double click | Select the whole group |
 
+You can also group in the Outliner by dragging. Drag a row onto another brush and let go, and the two end up in a new
+group. A tip next to the pointer says what the drop does before you let go, and the target row gets an outline.
+
+![Dragging the brush4 row onto brush2 in the Outliner, brush2 has a cyan outline and a tip says Group with brush2](../assets/organizing/outliner-drag-group.png)
+
+Drop a row onto a group or a layer to move it in. Dropping onto an object that already sits in a group moves it into
+that group, and brushes dropped onto a brush entity such as a door join that entity. Drag a row onto its layer to take
+it out of a group again. When you drag a selected row, the whole selection moves with it.
+
 **Duplicate Linked** (Ctrl+Shift+D) makes a copy that stays in sync with its original, so fixing one window frame fixes
 all of them. Linked copies show *(linked)* in the Outliner, and a click on one selects the whole group, since its copies
 are edited as one. *Edit > Groups > Unlink Groups* breaks the link when one copy has to differ.

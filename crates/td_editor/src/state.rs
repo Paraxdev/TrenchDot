@@ -843,6 +843,15 @@ impl EditorState {
         self.valid_layer()
     }
 
+    /// An entity that holds geometry or whose definition says it is a brush entity, so brushes may go into it.
+    pub fn is_brush_entity(&self, id: NodeId) -> bool {
+        let map = &self.doc.map;
+        let Some(n) = map.get(id) else { return false };
+        let Some(e) = n.entity() else { return false };
+        n.children.iter().any(|c| map.get(*c).is_some_and(|c| c.kind.is_geometry()))
+            || self.game.entity(&e.classname).is_some_and(|d| d.kind == td_formats::game::EntityKind::Solid)
+    }
+
     /// The current layer, or the default layer when the current one is gone.
     pub fn valid_layer(&self) -> NodeId {
         if self.doc.map.layers.contains(&self.current_layer) { self.current_layer } else { self.doc.map.default_layer() }

@@ -123,6 +123,30 @@ fn subtree_changed(before: &Map, after: &Map, group: NodeId) -> bool {
     })
 }
 
+fn link_of(map: &Map, id: NodeId) -> Option<u64> {
+    match map.get(id).map(|n| &n.kind) {
+        Some(NodeKind::Group(g)) => g.link_id,
+        _ => None,
+    }
+}
+
+/// Whether moving `id` under `dest` would put a linked group inside a copy of itself, or carry an object from one copy
+/// of a set into another. [`sync`] cannot settle either: the first nests deeper on every edit, the second loses the
+/// object in every copy.
+pub fn crosses_copies(map: &Map, id: NodeId, dest: NodeId) -> bool {
+    let dest_links: Vec<(NodeId, u64)> = std::iter::once(dest).chain(map.ancestors(dest)).filter_map(|g| link_of(map, g).map(|l| (g, l))).collect();
+    if dest_links.is_empty() {
+        return false;
+    }
+
+    let inside = std::iter::once(id).chain(map.descendants(id)).filter_map(|n| link_of(map, n));
+    if inside.into_iter().any(|l| dest_links.iter().any(|(_, d)| *d == l)) {
+        return true;
+    }
+
+    map.ancestors(id).into_iter().any(|a| link_of(map, a).is_some_and(|l| dest_links.iter().any(|(g, d)| *d == l && *g != a)))
+}
+
 /// Copies the contents of edited linked groups into the other members of their sets. Returns how many groups were rewritten.
 pub fn sync(before: &Map, after: &mut Map) -> usize {
     let mut updated = 0;
@@ -223,6 +247,42 @@ mod tests {
         let group = doc.edit("group", |m, s| ops::group_selection(m, s, "window", layer)).unwrap();
         let copy = doc.edit("link", |m, s| ops::duplicate_linked(m, s, DVec3::new(100.0, 0.0, 0.0), EditOptions::default()))[0];
         (brush, group, copy)
+    }
+
+    #[test]
+    fn drops_never_cross_copies_of_a_linked_set() {
+        let mut doc = Document::new();
+        let (brush, group, copy) = linked_pair(&mut doc);
+        let layer = doc.map.default_layer();
+        assert_eq!(ops::drop_plan(&doc.map, &[group], copy, |_| true), None, "a linked group into its own copy");
+        assert_eq!(ops::drop_plan(&doc.map, &[brush], copy, |_| true), None, "the only object of a copy would empty it");
+
+        let extra =
+            doc.edit("add", |m, _| m.insert(layer, NodeKind::Brush(Brush::from_aabb(&Aabb::new(DVec3::splat(200.0), DVec3::splat(216.0)), "b").unwrap())));
+        let plan = ops::drop_plan(&doc.map, &[extra], brush, |_| true).unwrap();
+        doc.edit("drop", |m, s| ops::drop_nodes(m, s, &[extra], plan));
+        assert_eq!(doc.map.get(copy).unwrap().children.len(), 2, "the copy got the object too");
+        assert_eq!(ops::drop_plan(&doc.map, &[extra], copy, |_| true), None, "an object from one copy into another");
+        assert!(crosses_copies(&doc.map, group, copy));
+        assert!(!crosses_copies(&doc.map, extra, group), "staying inside its own copy is fine");
+
+        let inner = doc.edit("inner", |m, _| m.insert(group, NodeKind::Group(crate::map::Group::new("inner"))));
+        assert!(ops::drop_plan(&doc.map, &[extra], inner, |_| true).is_some(), "a move inside one copy still works");
+        assert_eq!(ops::drop_plan(&doc.map, &[extra], layer, |_| true), Some(ops::DropPlan::Into(layer)), "out of a copy that keeps an object");
+    }
+
+    #[test]
+    fn a_drop_never_empties_a_linked_copy_through_a_nested_group() {
+        let mut doc = Document::new();
+        let (brush, group, _) = linked_pair(&mut doc);
+        let layer = doc.map.default_layer();
+        let inner = doc.edit("nest", |m, _| {
+            let inner = m.insert(group, NodeKind::Group(crate::map::Group::new("inner")));
+            m.reparent(brush, inner);
+            inner
+        });
+        assert_eq!(doc.map.get(group).unwrap().children, vec![inner]);
+        assert_eq!(ops::drop_plan(&doc.map, &[brush], layer, |_| true), None);
     }
 
     #[test]

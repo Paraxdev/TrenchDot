@@ -572,6 +572,101 @@ pub fn move_to_layer(map: &mut Map, sel: &Selection, layer: NodeId) {
     }
 }
 
+/// Where objects dropped on an Outliner row go.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DropPlan {
+    /// Into this layer, group or brush entity.
+    Into(NodeId),
+    /// Into a new group made where this loose object is, which goes into the group as well.
+    GroupWith(NodeId),
+}
+
+/// What dropping `dragged` on `target` does, or None when it cannot or would change nothing. A layer, group or brush
+/// entity takes them in, an object inside one sends them to it, and a loose object groups with them. `brush_entity`
+/// says whether an entity may hold geometry, which needs the game's entity definitions.
+pub fn drop_plan(map: &Map, dragged: &[NodeId], target: NodeId, brush_entity: impl Fn(NodeId) -> bool) -> Option<DropPlan> {
+    let node = map.get(target)?;
+    if dragged.is_empty() || map.is_locked(target) {
+        return None;
+    }
+
+    if dragged.iter().any(|id| *id == target || map.is_ancestor(*id, target) || map.layers.contains(id) || !map.contains(*id) || map.is_locked(*id)) {
+        return None;
+    }
+
+    let geometry = dragged.iter().all(|id| map.get(*id).is_some_and(|n| n.kind.is_geometry()));
+    let holds = |id: NodeId| match map.get(id).map(|n| &n.kind) {
+        Some(NodeKind::Layer(_) | NodeKind::Group(_)) => true,
+        Some(NodeKind::Entity(_)) => geometry && brush_entity(id),
+        _ => false,
+    };
+    let plan = if holds(target) {
+        DropPlan::Into(target)
+    } else {
+        let parent = node.parent?;
+        match map.get(parent)?.kind {
+            NodeKind::Layer(_) => DropPlan::GroupWith(target),
+            _ if holds(parent) => DropPlan::Into(parent),
+            _ => return None,
+        }
+    };
+    let dest = match plan {
+        DropPlan::Into(p) => p,
+        DropPlan::GroupWith(_) => node.parent?,
+    };
+    if dragged.iter().any(|id| crate::linked::crosses_copies(map, *id, dest)) {
+        return None;
+    }
+
+    // Emptying a linked copy removes it from its set, which would then stop syncing the object to the other copies.
+    // Groups and entities left empty go too, so emptiness cascades up from the dragged objects.
+    fn empties(map: &Map, id: NodeId, dragged: &[NodeId]) -> bool {
+        map.get(id).is_some_and(|n| {
+            matches!(n.kind, NodeKind::Group(_) | NodeKind::Entity(_))
+                && n.children.iter().all(|c| dragged.contains(c) || (map.get(*c).is_some_and(|c| !c.children.is_empty()) && empties(map, *c, dragged)))
+        })
+    }
+
+    let kept = |a: &NodeId| *a == dest || map.is_ancestor(*a, dest);
+    let linked = |a: &NodeId| matches!(map.get(*a).map(|n| &n.kind), Some(NodeKind::Group(Group { link_id: Some(_), .. })));
+    if dragged.iter().flat_map(|id| map.ancestors(*id)).any(|a| !kept(&a) && linked(&a) && empties(map, a, dragged)) {
+        return None;
+    }
+
+    let unchanged = |p: NodeId| dragged.iter().all(|id| map.get(*id).and_then(|n| n.parent) == Some(p));
+    match plan {
+        DropPlan::Into(p) if unchanged(p) => None,
+        plan => Some(plan),
+    }
+}
+
+/// Carries out a [`drop_plan`] and selects the result, the new group or the moved objects. Groups and entities left
+/// empty go away.
+pub fn drop_nodes(map: &mut Map, sel: &mut Selection, dragged: &[NodeId], plan: DropPlan) {
+    let old_parents: BTreeSet<NodeId> = dragged.iter().filter_map(|id| map.get(*id).and_then(|n| n.parent)).collect();
+    let (parent, group) = match plan {
+        DropPlan::Into(p) => (p, None),
+        DropPlan::GroupWith(target) => {
+            let Some(at) = map.get(target).and_then(|n| n.parent) else { return };
+            let group = map.insert(at, NodeKind::Group(Group::new("Group")));
+            map.reparent(target, group);
+            (group, Some(group))
+        }
+    };
+    for id in dragged {
+        map.reparent(*id, parent);
+    }
+
+    remove_empty_containers(map, old_parents);
+    sel.clear();
+    match group {
+        Some(g) => {
+            sel.nodes.insert(g);
+        }
+        None => sel.nodes.extend(dragged.iter().copied()),
+    }
+}
+
 pub fn snap_vertices(map: &mut Map, sel: &Selection, grid: f64) {
     for id in sel.brushes(map) {
         let Some(b) = map.brush(id).cloned() else { continue };
@@ -943,5 +1038,44 @@ mod tests {
         ungroup_selection(&mut m, &mut sel);
         assert!(!m.contains(g));
         assert_eq!(sel.nodes.len(), 2);
+    }
+
+    #[test]
+    fn dropping_a_brush_on_a_loose_brush_groups_them() {
+        let (mut m, ids) = world_with_boxes();
+        let layer = m.default_layer();
+        let plan = drop_plan(&m, &[ids[1]], ids[0], |_| true);
+        assert_eq!(plan, Some(DropPlan::GroupWith(ids[0])));
+        let mut sel = Selection::default();
+        drop_nodes(&mut m, &mut sel, &[ids[1]], plan.unwrap());
+        let group = *sel.nodes.iter().next().unwrap();
+        assert!(matches!(m.get(group).map(|n| &n.kind), Some(NodeKind::Group(_))));
+        assert_eq!(m.get(group).unwrap().parent, Some(layer));
+        assert_eq!(m.get(group).unwrap().children, vec![ids[0], ids[1]]);
+
+        assert_eq!(drop_plan(&m, &[ids[2]], ids[1], |_| true), Some(DropPlan::Into(group)), "a brush in a group sends drops to the group");
+        assert_eq!(drop_plan(&m, &[ids[1]], ids[0], |_| true), None, "already in that group");
+        assert_eq!(drop_plan(&m, &[group], ids[0], |_| true), None, "a group cannot go inside itself");
+        assert_eq!(drop_plan(&m, &[layer], group, |_| true), None, "layers have no parent");
+    }
+
+    #[test]
+    fn dropping_into_layers_groups_and_brush_entities() {
+        let (mut m, ids) = world_with_boxes();
+        let layer = m.default_layer();
+        let door = in_entity(&mut m, ids[0], "func_door");
+        let light = m.insert(layer, NodeKind::Entity(Entity::new("light")));
+        assert_eq!(drop_plan(&m, &[ids[1]], door, |_| true), Some(DropPlan::Into(door)));
+        assert_eq!(drop_plan(&m, &[ids[1]], ids[0], |_| true), Some(DropPlan::Into(door)), "a brush of the entity sends it to the entity");
+        assert_eq!(drop_plan(&m, &[ids[1]], door, |_| false), Some(DropPlan::GroupWith(door)), "a point entity takes no brushes");
+        assert_eq!(drop_plan(&m, &[light], ids[0], |_| true), None, "an entity takes only geometry");
+
+        let mut sel = Selection::default();
+        drop_nodes(&mut m, &mut sel, &[ids[0]], DropPlan::Into(layer));
+        assert!(!m.contains(door), "the emptied entity goes away");
+        assert_eq!(m.get(ids[0]).unwrap().parent, Some(layer));
+
+        m.get_mut(layer).unwrap().locked = true;
+        assert_eq!(drop_plan(&m, &[ids[1]], ids[2], |_| true), None, "nothing goes into a locked layer");
     }
 }

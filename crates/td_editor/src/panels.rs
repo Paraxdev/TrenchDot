@@ -22,6 +22,10 @@ pub enum DndPayload {
     Model(std::path::PathBuf),
 }
 
+/// Outliner rows being dragged onto another row, kept apart from [`DndPayload`] so the views ignore it.
+#[derive(Clone, Debug)]
+pub struct OutlinerDrag(pub Vec<NodeId>);
+
 pub struct PanelState {
     expanded: HashSet<NodeId>,
     material_filter: String,
@@ -167,6 +171,8 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
     let mut set_layer: Option<NodeId> = None;
     let mut renamed: Option<(NodeId, Option<String>)> = None;
     let mut hovered: Option<NodeId> = None;
+    let mut drop_hint: Option<String> = None;
+    let mut dropped: Option<(Vec<NodeId>, NodeId)> = None;
     let mut scroll = ScrollArea::vertical().auto_shrink([false, false]);
     if let Some(index) = reveal.and_then(|id| rows.iter().position(|(_, r)| *r == id)) {
         let step = row_h + ui.spacing().item_spacing.y;
@@ -251,12 +257,44 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
                     return;
                 }
 
-                let resp = ui.selectable_label(selected, label);
+                let resp = ui.selectable_label(selected, label).interact(Sense::drag());
                 if resp.hovered() {
                     hovered = Some(*id);
                 }
 
-                let resp = if matches!(node.kind, NodeKind::Layer(_)) { resp } else { resp.on_hover_ui(|ui| outliner_tooltip(ui, map, *id, node)) };
+                if resp.drag_started() && !matches!(node.kind, NodeKind::Layer(_)) {
+                    let ids = if selected {
+                        td_doc::ops::selection_roots(map, &state.doc.selection).into_iter().filter(|n| !map.layers.contains(n)).collect()
+                    } else {
+                        clicked = Some((*id, egui::Modifiers::NONE));
+                        vec![*id]
+                    };
+                    resp.dnd_set_drag_payload(OutlinerDrag(ids));
+                }
+
+                if let Some(drag) = resp.dnd_hover_payload::<OutlinerDrag>() {
+                    match td_doc::ops::drop_plan(map, &drag.0, *id, |e| state.is_brush_entity(e)) {
+                        Some(plan) => {
+                            ui.painter().rect_stroke(resp.rect, 2.0, egui::Stroke::new(1.5, theme::colors().cyan), egui::StrokeKind::Inside);
+                            ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+                            drop_hint = Some(match plan {
+                                td_doc::ops::DropPlan::Into(p) => trf!("Move into {name}", name = map.get(p).map(|n| n.name()).unwrap_or_default()),
+                                td_doc::ops::DropPlan::GroupWith(_) => trf!("Group with {name}", name = node.name()),
+                            });
+                        }
+                        None => ui.ctx().set_cursor_icon(egui::CursorIcon::NoDrop),
+                    }
+                }
+
+                if let Some(drag) = resp.dnd_release_payload::<OutlinerDrag>() {
+                    dropped = Some((drag.0.clone(), *id));
+                }
+
+                let resp = if matches!(node.kind, NodeKind::Layer(_)) || resp.dragged() || egui::DragAndDrop::has_any_payload(ui.ctx()) {
+                    resp
+                } else {
+                    resp.on_hover_ui(|ui| outliner_tooltip(ui, map, *id, node))
+                };
                 if resp.clicked() {
                     // A layer click also makes it current; selecting it as well lets Delete and the other node ops act on it.
                     if matches!(node.kind, NodeKind::Layer(_)) {
@@ -331,6 +369,7 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
                         }
 
                         item(ui, tr("Focus"), Action::FocusSelection);
+                        item(ui, tr("Group"), Action::Group);
                         if ui.button(if node.hidden { tr("Show") } else { tr("Hide") }).clicked() {
                             if selected {
                                 selection_flag = Some((true, !node.hidden));
@@ -367,6 +406,30 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
         }
     });
     ps.outliner_offset = output.state.offset.y;
+    if let Some(hint) = drop_hint
+        && let Some(pointer) = ui.ctx().pointer_latest_pos()
+    {
+        egui::Area::new(egui::Id::new("outliner_drop_hint")).order(egui::Order::Tooltip).interactable(false).fixed_pos(pointer + Vec2::new(18.0, 14.0)).show(
+            ui.ctx(),
+            |ui| {
+                egui::Frame::popup(ui.style()).show(ui, |ui| ui.label(hint));
+            },
+        );
+    }
+
+    if let Some((ids, target)) = dropped
+        && let Some(plan) = td_doc::ops::drop_plan(&state.doc.map, &ids, target, |e| state.is_brush_entity(e))
+    {
+        let label = if matches!(plan, td_doc::ops::DropPlan::GroupWith(_)) { en!("Group") } else { en!("Move Into") };
+        state.doc.edit(label, |m, s| td_doc::ops::drop_nodes(m, s, &ids, plan));
+        if label == "Group" {
+            ps.expanded.extend(state.doc.selection.nodes.iter().copied());
+        }
+
+        state.outliner_reveal = state.doc.selection.nodes.iter().next().copied();
+        clicked = None;
+    }
+
     if let Some((hide, value)) = selection_flag {
         let label = match (hide, value) {
             (true, true) => "Hide",

@@ -329,20 +329,12 @@ pub(super) enum Child {
     Other,
 }
 
-fn is_brush_entity(state: &EditorState, id: NodeId) -> bool {
-    let map = &state.doc.map;
-    let Some(n) = map.get(id) else { return false };
-    let Some(e) = n.entity() else { return false };
-    n.children.iter().any(|c| map.get(*c).is_some_and(|c| c.kind.is_geometry()))
-        || state.game.entity(&e.classname).is_some_and(|d| d.kind == td_formats::game::EntityKind::Solid)
-}
-
 /// Checks that `id` can hold a child of that kind: layers and groups, and brush entities for geometry.
 pub(super) fn check_container(state: &EditorState, id: NodeId, child: Child) -> Result<(), String> {
     let Some(n) = state.doc.map.get(id) else { return Err(format!("no node {id}")) };
     match &n.kind {
         NodeKind::Layer(_) | NodeKind::Group(_) => Ok(()),
-        NodeKind::Entity(_) if child == Child::Geometry && is_brush_entity(state, id) => Ok(()),
+        NodeKind::Entity(_) if child == Child::Geometry && state.is_brush_entity(id) => Ok(()),
         kind => Err(format!(
             "{id} is a {}{}, a parent must be a layer or group{}",
             if matches!(kind, NodeKind::Entity(_)) { "point " } else { "" },

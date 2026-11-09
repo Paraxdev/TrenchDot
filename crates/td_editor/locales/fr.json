@@ -2156,5 +2156,8 @@
   "Void culling preview off": "Aperçu du retrait du vide désactivé",
   "Map leaks: {class} at {origin} reaches the outside near {point}, void faces are kept": "La carte fuit : {class} à {origin} atteint l'extérieur près de {point}, les faces du vide sont conservées",
   "New brush depth from selection": "Profondeur des nouvelles brushes selon la sélection",
-  "A brush drawn in a 2D view takes the depth of the selection, like in Hammer": "Une brush dessinée dans une vue 2D prend la profondeur de la sélection, comme dans Hammer"
+  "A brush drawn in a 2D view takes the depth of the selection, like in Hammer": "Une brush dessinée dans une vue 2D prend la profondeur de la sélection, comme dans Hammer",
+  "Move Into": "Déplacer dedans",
+  "Move into {name}": "Déplacer dans {name}",
+  "Group with {name}": "Grouper avec {name}"
 }

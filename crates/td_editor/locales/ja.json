@@ -2156,5 +2156,8 @@
   "Void culling preview off": "ボイドカリングのプレビューをオフ",
   "Map leaks: {class} at {origin} reaches the outside near {point}, void faces are kept": "マップが漏れています: {class} ({origin}) が {point} 付近で外部に達しています。ボイドの面は残します",
   "New brush depth from selection": "新しいブラシの奥行きを選択から取る",
-  "A brush drawn in a 2D view takes the depth of the selection, like in Hammer": "2D ビューで描いたブラシは Hammer と同じく選択範囲の奥行きになります"
+  "A brush drawn in a 2D view takes the depth of the selection, like in Hammer": "2D ビューで描いたブラシは Hammer と同じく選択範囲の奥行きになります",
+  "Move Into": "中へ移動",
+  "Move into {name}": "{name} の中へ移動",
+  "Group with {name}": "{name} とグループ化"
 }
