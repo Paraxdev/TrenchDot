@@ -94,18 +94,18 @@ Zylinder und Kegel stehen standardmäßig aufrecht. Wähl unter **Achse** **X** 
 
 ![Fünf orangefarbene Felsen auf einem grauen Boden, vorn drei klumpige Meshes und dahinter zwei facettierte Brush-Felsen](../assets/brushes/shape-generator-rocks.png)
 
-## Flächen ziehen { #sweep-faces }
+## Flächen austragen { #sweep-faces }
 
 Um einen Gang, ein Rohr oder eine Leiste um eine Ecke weiterzuführen, ziehst du die Flächen an seinem Ende. Jede Fläche wird entlang eines Pfads geschoben und hinterlässt eine Reihe von Brushes, mit den Materialien des Brushes, aus dem sie stammt.
 
 1. Klick in der 3D-Ansicht mit Shift eine Fläche am Ende des Verlaufs an, dann mit Ctrl+Shift+Klick die anderen, zum Beispiel den Boden und beide Wände eines Gangs.
-2. Öffne *Brush > Flächen ziehen…*. Ein cyanfarbener Umriss zeigt die Brushes, die dabei entstehen würden.
+2. Öffne *Brush > Flächen austragen…*. Ein cyanfarbener Umriss zeigt die Brushes, die dabei entstehen würden.
 3. Wähl **Gerade**, **Bogen** oder **S-Kurve** und stell den Pfad ein. **Radius** wird vom Mittelpunkt der Kurve bis zur Mitte der Flächen gemessen, und **Richtung** gilt mit Blick auf die Flächen.
 4. Klick auf **Erstellen**. Die neuen Brushes sind markiert und kommen in die Gruppe oder Entität des Brushes, aus dem sie stammen, wenn du also das Ende einer `func_door` ziehst, wird die Tür länger.
 
-![Der Dialog Flächen ziehen mit Bogen, Radius 128, Winkel 90, Richtung Rechts und 8 Segmenten, der 32 Brushes erzeugt](../assets/brushes/sweep-faces-dialog.png)
+![Der Dialog Flächen austragen mit Bogen, Radius 128, Winkel 90, Richtung Rechts und 8 Segmenten, der 32 Brushes erzeugt](../assets/brushes/sweep-faces-dialog.png)
 
-![Ein Gang aus einem dunklen Boden und zwei orangefarbenen Wänden, gerade gezogen, um einen Bogen von 90 Grad und wieder gerade](../assets/brushes/sweep-faces-corridor.png)
+![Ein Gang aus einem dunklen Boden und zwei orangefarbenen Wänden, gerade ausgetragen, um einen Bogen von 90 Grad und wieder gerade](../assets/brushes/sweep-faces-corridor.png)
 
 Mehr **Segmente** machen die Kurve glatter. **Anstieg** hebt das Ende an, sodass ein Bogen mit Anstieg zu einer Wendelrampe wird, **Drehung** dreht die Flächen um sich selbst und **Endgröße** vergrößert oder verkleinert sie unterwegs. Ein Bogen, der enger ist, als die Flächen breit sind, würde sich an seiner Innenseite überfalten, der Dialog nennt stattdessen den kleinsten Radius, der funktioniert. Alle markierten Flächen laufen in dieselbe Richtung, entlang ihrer durchschnittlichen Richtung, markier also Flächen, die in dieselbe Richtung zeigen, wie das Ende eines Gangs. Flächen, die schräg zueinander stehen, würden schief hinauslaufen.
 
