@@ -511,7 +511,6 @@
   "Orientation": "方向",
   "standing": "直立",
   "lying": "平放",
-  "last brush": "上一个笔刷",
   "replaces selection": "替换所选",
   "Starts at {x} {y} {z} ({source})": "起点 {x} {y} {z} ({source})",
   "Bounds {x} x {y} x {z} ({source})": "范围 {x} x {y} x {z} ({source})",

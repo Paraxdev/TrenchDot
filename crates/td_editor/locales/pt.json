@@ -511,7 +511,6 @@
   "Orientation": "Orientação",
   "standing": "em pé",
   "lying": "deitado",
-  "last brush": "último brush",
   "replaces selection": "substitui a seleção",
   "Starts at {x} {y} {z} ({source})": "Começa em {x} {y} {z} ({source})",
   "Bounds {x} x {y} x {z} ({source})": "Limites {x} x {y} x {z} ({source})",

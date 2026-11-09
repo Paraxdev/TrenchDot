@@ -511,7 +511,6 @@
   "Orientation": "向き",
   "standing": "直立",
   "lying": "横置き",
-  "last brush": "直前のブラシ",
   "replaces selection": "選択を置換",
   "Starts at {x} {y} {z} ({source})": "開始位置 {x} {y} {z} ({source})",
   "Bounds {x} x {y} x {z} ({source})": "範囲 {x} x {y} x {z} ({source})",

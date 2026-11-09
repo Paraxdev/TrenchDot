@@ -511,7 +511,6 @@
   "Orientation": "Ориентация",
   "standing": "стоя",
   "lying": "лёжа",
-  "last brush": "последний браш",
   "replaces selection": "заменяет выделение",
   "Starts at {x} {y} {z} ({source})": "Начало в {x} {y} {z} ({source})",
   "Bounds {x} x {y} x {z} ({source})": "Габариты {x} x {y} x {z} ({source})",

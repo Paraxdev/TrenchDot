@@ -555,6 +555,34 @@ fn bounds_label(kind: ShapeKind, bounds: &Aabb, source: &str) -> String {
     }
 }
 
+/// The Corner and Size rows of the box the shape fills. A size is at least 1 and grows from the corner, and the
+/// Text shape only uses the corner. True when the box changed.
+fn box_fields(ui: &mut egui::Ui, bounds: &mut Aabb, size: bool, grid: f64) -> bool {
+    let mut min = bounds.min.to_array();
+    let mut extent = bounds.size().to_array();
+    let (mut moved, mut resized) = (false, false);
+    egui::Grid::new("shape_box").num_columns(2).show(ui, |ui| {
+        ui.label(tr("Corner")).on_hover_text(tr("Lowest corner of the bounds in map units, 32 per meter"));
+        moved = widgets::vector_input_snapped(ui, &mut min, 220.0, 1.0, grid);
+        ui.end_row();
+        if size {
+            ui.label(tr("Size")).on_hover_text(tr("Width, height and depth of the bounds. A new size scales from the lowest corner"));
+            resized = widgets::vector_input_snapped(ui, &mut extent, 220.0, 1.0, grid);
+            ui.end_row();
+        }
+    });
+    if !moved && !resized {
+        return false;
+    }
+
+    let min = DVec3::from_array(min);
+    let extent = if resized { DVec3::from_array(extent.map(|v| v.max(1.0))) } else { bounds.size() };
+    let next = Aabb::new(min, min + extent);
+    let changed = next != *bounds;
+    *bounds = next;
+    changed
+}
+
 fn preview_lines(kinds: &[NodeKind]) -> Vec<(DVec3, DVec3)> {
     let mut out = Vec::new();
     for kind in kinds {
@@ -670,7 +698,7 @@ impl ShapeDialog {
         }
 
         let mut open = self.open;
-        let (sources, bounds) = self.sources_and_bounds(state);
+        let (sources, mut bounds) = self.sources_and_bounds(state);
         widgets::window(en!("Shape Generator")).open(&mut open).resizable(false).show(ctx, |ui| {
             egui::ComboBox::new("shape_kind", tr("Shape")).selected_text(tr(self.kind.label())).show_ui(ui, |ui| {
                 for k in ShapeKind::ALL {
@@ -773,8 +801,14 @@ impl ShapeDialog {
                 }
             }
 
-            let source = tr(if sources.is_empty() { en!("last brush") } else { en!("replaces selection") });
-            ui.label(bounds_label(self.kind, &bounds, source));
+            if sources.is_empty() {
+                if box_fields(ui, &mut bounds, self.kind != ShapeKind::Text, state.effective_grid()) {
+                    state.shape_bounds = Some(bounds);
+                    self.bounds = Some(bounds);
+                }
+            } else {
+                ui.label(bounds_label(self.kind, &bounds, tr(en!("replaces selection"))));
+            }
 
             let key = self.key(&bounds, &state.current_material);
             if self.preview.as_ref().is_none_or(|(k, ..)| *k != key) {
@@ -1261,6 +1295,94 @@ mod tests {
 
         let tiny = Aabb::new(DVec3::new(-0.0004, -0.0, 1.0004), DVec3::new(10.0, 10.0, 10.0));
         assert_eq!(bounds_label(ShapeKind::Text, &tiny, "x"), "Starts at 0 0 1 (x)");
+    }
+
+    struct BoxFixture {
+        bounds: Aabb,
+        size: bool,
+        changes: usize,
+    }
+
+    fn box_harness(size: bool) -> egui_kittest::Harness<'static, BoxFixture> {
+        let fixture = BoxFixture { bounds: Aabb::new(DVec3::new(-40.0, 8.0, 24.0), DVec3::new(88.0, 72.0, 120.0)), size, changes: 0 };
+        let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(420.0, 160.0)).build_ui_state(
+            |ui, f: &mut BoxFixture| {
+                if box_fields(ui, &mut f.bounds, f.size, 0.0) {
+                    f.changes += 1;
+                }
+            },
+            fixture,
+        );
+        harness.run();
+        harness
+    }
+
+    fn spin_buttons(harness: &egui_kittest::Harness<'static, BoxFixture>) -> usize {
+        use egui_kittest::kittest::Queryable;
+        harness.get_all_by_role(egui::accesskit::Role::SpinButton).count()
+    }
+
+    // Digit by digit like a person types, nothing may change before Enter.
+    fn type_into(harness: &mut egui_kittest::Harness<'static, BoxFixture>, field: usize, text: &str) {
+        use egui_kittest::kittest::Queryable;
+        harness.get_all_by_role(egui::accesskit::Role::SpinButton).nth(field).unwrap().click();
+        harness.run();
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+        harness.run();
+        let before = harness.state().bounds;
+        for c in text.chars() {
+            harness.get_all_by_role(egui::accesskit::Role::SpinButton).nth(field).unwrap().type_text(&c.to_string());
+            harness.run();
+            assert_eq!(harness.state().bounds, before, "typing {text} applied early");
+        }
+    }
+
+    fn enter(harness: &mut egui_kittest::Harness<'static, BoxFixture>) {
+        harness.key_press(egui::Key::Enter);
+        harness.run();
+    }
+
+    #[test]
+    fn the_box_fields_type_the_corner_and_size() {
+        let mut harness = box_harness(true);
+        assert_eq!(spin_buttons(&harness), 6);
+
+        type_into(&mut harness, 3, "100");
+        enter(&mut harness);
+        assert_eq!(harness.state().bounds, Aabb::new(DVec3::new(-40.0, 8.0, 24.0), DVec3::new(60.0, 72.0, 120.0)), "the size grows from the corner");
+        assert_eq!(harness.state().changes, 1);
+
+        type_into(&mut harness, 1, "-40");
+        enter(&mut harness);
+        assert_eq!(harness.state().bounds, Aabb::new(DVec3::new(-40.0, -40.0, 24.0), DVec3::new(60.0, 24.0, 120.0)), "moving the corner keeps the size");
+
+        type_into(&mut harness, 5, "0");
+        enter(&mut harness);
+        assert_eq!(harness.state().bounds.size(), DVec3::new(100.0, 64.0, 1.0), "a size of 0 clamps to 1");
+
+        type_into(&mut harness, 5, "2");
+        enter(&mut harness);
+        assert_eq!(harness.state().bounds.size().z, 2.0);
+        type_into(&mut harness, 5, "1");
+        enter(&mut harness);
+        assert_eq!(harness.state().bounds.size().z, 1.0, "a size of 1 is allowed");
+
+        let before = harness.state().bounds;
+        let changes = harness.state().changes;
+        type_into(&mut harness, 4, "55");
+        harness.key_press(egui::Key::Escape);
+        harness.run();
+        assert_eq!(harness.state().bounds, before, "Escape keeps the old size");
+        assert_eq!(harness.state().changes, changes);
+    }
+
+    #[test]
+    fn the_box_fields_of_the_text_shape_have_only_the_corner() {
+        let mut harness = box_harness(false);
+        assert_eq!(spin_buttons(&harness), 3);
+        type_into(&mut harness, 2, "-8");
+        enter(&mut harness);
+        assert_eq!(harness.state().bounds, Aabb::new(DVec3::new(-40.0, 8.0, -8.0), DVec3::new(88.0, 72.0, 88.0)));
     }
 
     fn palette_frame(ctx: &egui::Context, palette: &mut CommandPalette, state: &EditorState, time: &mut f64, events: Vec<egui::Event>) -> Vec<Action> {
