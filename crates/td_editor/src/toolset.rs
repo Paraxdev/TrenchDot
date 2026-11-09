@@ -206,6 +206,7 @@ pub fn timed_sculpt_brush(mut brush: td_doc::terrain::SculptBrush, seconds: f64)
 #[derive(Default)]
 pub struct ToolSet {
     pub clip: ClipTool,
+    pub polygon: crate::polygon_tool::PolygonTool,
     pub vertex: VertexTool,
     pub rotate: RotateTool,
     pub scale: ScaleTool,
@@ -271,6 +272,7 @@ impl ToolSet {
         if self.active != Some(state.tool) {
             self.orphaned |= self.holds_transaction();
             self.clip = ClipTool::default();
+            self.polygon.reset();
             self.end_drags();
             self.vertex.gizmo = None;
             if self.rotate.snap_degrees == 0.0 {
@@ -336,6 +338,7 @@ impl ToolSet {
     pub fn reset(&mut self) {
         self.orphaned = false;
         self.clip = ClipTool::default();
+        self.polygon.reset();
         self.end_drags();
         self.vertex.selected.clear();
         self.vertex.gizmo = None;
@@ -397,6 +400,25 @@ impl ToolSet {
                     return true;
                 }
             }
+            ToolKind::Polygon => {
+                if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Enter)) {
+                    self.polygon.close(state);
+                    return true;
+                }
+
+                if !self.polygon.points.is_empty() {
+                    if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Backspace)) {
+                        self.polygon.pop();
+                        return true;
+                    }
+
+                    if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
+                        self.polygon.reset();
+                        state.set_status(msg!("Cancelled"));
+                        return true;
+                    }
+                }
+            }
             ToolKind::Vertex if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Delete)) && !self.vertex.selected.is_empty() => {
                 self.delete_vertices(state);
                 return true;
@@ -420,6 +442,7 @@ impl ToolSet {
     pub fn viewport_input(&mut self, ui: &Ui, response: &Response, cam: &Camera, rect: Rect, hover: Option<Pos2>, state: &mut EditorState) {
         match state.tool {
             ToolKind::Clip => self.clip_input(ui, response, cam, rect, state),
+            ToolKind::Polygon => self.polygon.input(response, cam, rect, hover, state, self.last_brush),
             ToolKind::Vertex => self.vertex_input(ui, response, cam, rect, state),
             ToolKind::Rotate => self.rotate_input(ui, response, cam, rect, hover, state),
             ToolKind::Scale => self.scale_input(ui, response, cam, rect, hover, state),
@@ -1177,6 +1200,7 @@ impl ToolSet {
                     }
                 }
             }
+            ToolKind::Polygon => self.polygon.lines(&mut out),
             ToolKind::Rotate => {
                 if let Some(center) = Self::rotate_center(state) {
                     let radius = Self::ring_radius(cam, center);
@@ -1299,6 +1323,7 @@ impl ToolSet {
                 };
                 corner_hint(&painter, rect, trf!("Clip: click to place points, keep {side} (Tab), Enter to apply", side), Color32::from_rgb(120, 240, 240));
             }
+            ToolKind::Polygon => self.polygon.paint_overlay(ui, cam, rect),
             ToolKind::Vertex => {
                 let (verts, dots) = Self::vertex_handles(state);
                 let hot = hover.and_then(|p| handle_at(cam, rect, &verts, &dots, p));
@@ -2024,11 +2049,7 @@ mod tests {
         let before = state.doc.map.brush(id).unwrap().clone();
         let mut tools = ToolSet::default();
         rotate_mid_drag(&mut tools, &mut state);
-        let ctx = egui::Context::default();
-        let mut input = egui::RawInput::default();
-        input.events.push(egui::Event::Key { key: Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE });
-        ctx.begin_pass(input);
-        assert!(tools.keys(&ctx, &mut state), "Escape is taken by the drag");
+        assert!(press(&mut tools, &mut state, Key::Escape), "Escape is taken by the drag");
         assert!(!state.doc.in_transaction());
         assert_eq!(state.doc.map.brush(id), Some(&before), "the brush is back where it was");
         assert_eq!(state.tool, ToolKind::Rotate, "the tool stays, only the drag ends");
@@ -2059,12 +2080,16 @@ mod tests {
         (state, id, cam)
     }
 
-    /// Runs one frame of the viewport tools over a 400 by 400 view with the pointer at its center.
-    fn view_frame(ctx: &egui::Context, tools: &mut ToolSet, state: &mut EditorState, cam: &Camera, pressed: Option<bool>) {
-        let rect = Rect::from_min_size(Pos2::ZERO, Vec2::splat(400.0));
-        let mut events = vec![egui::Event::PointerMoved(rect.center())];
+    fn input_rect() -> Rect {
+        Rect::from_min_size(Pos2::ZERO, Vec2::splat(400.0))
+    }
+
+    /// Runs one frame of the viewport tools over a 400 by 400 view with the pointer at `pos`.
+    fn view_frame(ctx: &egui::Context, tools: &mut ToolSet, state: &mut EditorState, cam: &Camera, pos: Pos2, pressed: Option<bool>) {
+        let rect = input_rect();
+        let mut events = vec![egui::Event::PointerMoved(pos)];
         if let Some(pressed) = pressed {
-            events.push(egui::Event::PointerButton { pos: rect.center(), button: PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE });
+            events.push(egui::Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE });
         }
 
         let raw = egui::RawInput { screen_rect: Some(rect), events, ..Default::default() };
@@ -2076,11 +2101,138 @@ mod tests {
         output.textures_delta.clear();
     }
 
-    fn click(tools: &mut ToolSet, state: &mut EditorState, cam: &Camera) {
+    fn click_at(tools: &mut ToolSet, state: &mut EditorState, cam: &Camera, pos: Pos2) {
         let ctx = egui::Context::default();
         for pressed in [None, Some(true), Some(false), None] {
-            view_frame(&ctx, tools, state, cam, pressed);
+            view_frame(&ctx, tools, state, cam, pos, pressed);
         }
+    }
+
+    fn click(tools: &mut ToolSet, state: &mut EditorState, cam: &Camera) {
+        click_at(tools, state, cam, input_rect().center());
+    }
+
+    fn press(tools: &mut ToolSet, state: &mut EditorState, key: Key) -> bool {
+        let ctx = egui::Context::default();
+        let mut input = egui::RawInput::default();
+        input.events.push(egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE });
+        ctx.begin_pass(input);
+        tools.keys(&ctx, state)
+    }
+
+    fn polygon_tools(state: &mut EditorState) -> ToolSet {
+        let mut tools = ToolSet::default();
+        state.tool = ToolKind::Polygon;
+        tools.sync(state);
+        tools
+    }
+
+    fn centered_view(kind: ViewKind) -> Camera {
+        let mut cam = Camera::new(kind);
+        cam.center = DVec3::ZERO;
+        cam.zoom = 1.0;
+        cam
+    }
+
+    fn corner(tools: &mut ToolSet, state: &mut EditorState, cam: &Camera, world: [f64; 3]) {
+        let pos = cam.project(input_rect(), DVec3::from(world)).expect("the corner is in view");
+        click_at(tools, state, cam, pos);
+    }
+
+    #[test]
+    fn a_concave_polygon_drawn_in_the_top_view_is_one_undo_step() {
+        let mut state = EditorState::new(Default::default());
+        let mut tools = polygon_tools(&mut state);
+        let top = centered_view(ViewKind::Top);
+        let undo_before = state.doc.history.undo_labels().count();
+        corner(&mut tools, &mut state, &top, [-64.0, 0.0, -64.0]);
+        corner(&mut tools, &mut state, &top, [64.0, 0.0, -64.0]);
+        corner(&mut tools, &mut state, &top, [32.0, 0.0, 32.0]);
+        assert!(press(&mut tools, &mut state, Key::Backspace), "Backspace is taken with corners placed");
+        assert_eq!(tools.polygon.points.len(), 2, "Backspace removes the last corner");
+        for c in [[64.0, 0.0, 0.0], [0.0, 0.0, 0.0], [0.0, 0.0, 64.0], [-64.0, 0.0, 64.0]] {
+            corner(&mut tools, &mut state, &top, c);
+        }
+
+        assert!(press(&mut tools, &mut state, Key::Enter));
+
+        let made: Vec<NodeId> = state.doc.selection.nodes.iter().copied().collect();
+        assert_eq!(made.len(), 2, "the L is cut into two brushes, both selected");
+        let b = state.doc.map.bounds_of(made.iter().copied());
+        assert_eq!((b.min, b.max), (DVec3::new(-64.0, 0.0, -64.0), DVec3::new(64.0, crate::viewport::FIRST_BRUSH_DEPTH, 64.0)));
+        assert_eq!(state.doc.history.undo_labels().count(), undo_before + 1);
+        assert_eq!(state.doc.history.undo_labels().next(), Some("Create Polygon Brush"));
+        assert!(tools.polygon.points.is_empty(), "the tool is ready for the next outline");
+    }
+
+    #[test]
+    fn the_first_corner_closes_a_polygon_and_escape_drops_it() {
+        let mut state = EditorState::new(Default::default());
+        let mut tools = polygon_tools(&mut state);
+        let top = centered_view(ViewKind::Top);
+        for c in [[0.0, 0.0, 0.0], [64.0, 0.0, 0.0], [0.0, 0.0, 64.0], [0.0, 0.0, 0.0]] {
+            corner(&mut tools, &mut state, &top, c);
+        }
+
+        assert_eq!(state.doc.selection.nodes.len(), 1, "clicking the first corner again closes the triangle");
+        assert!(tools.polygon.points.is_empty());
+
+        let brushes = state.doc.map.brush_count();
+        corner(&mut tools, &mut state, &top, [128.0, 0.0, 0.0]);
+        corner(&mut tools, &mut state, &top, [160.0, 0.0, 0.0]);
+        assert!(press(&mut tools, &mut state, Key::Escape));
+        assert!(tools.polygon.points.is_empty());
+        assert_eq!(state.status, "Cancelled");
+        assert!(!press(&mut tools, &mut state, Key::Escape), "with nothing placed Escape is left to the rest of the editor");
+        assert!(press(&mut tools, &mut state, Key::Enter));
+        assert_eq!(state.status, "Place at least three corners first");
+        assert_eq!(state.doc.map.brush_count(), brushes);
+    }
+
+    #[test]
+    fn a_polygon_stays_in_the_view_it_was_started_in() {
+        let mut state = EditorState::new(Default::default());
+        let mut tools = polygon_tools(&mut state);
+        let (top, front) = (centered_view(ViewKind::Top), centered_view(ViewKind::Front));
+        corner(&mut tools, &mut state, &top, [0.0, 0.0, 0.0]);
+        corner(&mut tools, &mut state, &front, [64.0, 64.0, 0.0]);
+        assert_eq!(tools.polygon.points.len(), 1);
+        assert_eq!(state.status, "Finish the outline in the view where you started it");
+
+        assert!(press(&mut tools, &mut state, Key::Backspace));
+        corner(&mut tools, &mut state, &front, [64.0, 64.0, 0.0]);
+        assert_eq!(tools.polygon.points.len(), 1, "removing the last corner frees the outline to start in another view");
+    }
+
+    #[test]
+    fn a_3d_polygon_starts_on_the_surface_under_the_pointer() {
+        let (mut state, block) = state_with_brush();
+        let mut tools = polygon_tools(&mut state);
+        let mut cam = Camera::new(ViewKind::Perspective);
+        cam.position = DVec3::new(32.0, 600.0, 32.0);
+        cam.pitch = (-89.0f64).to_radians();
+        for c in [[16.0, 64.0, 16.0], [48.0, 64.0, 16.0], [48.0, 64.0, 48.0]] {
+            corner(&mut tools, &mut state, &cam, c);
+        }
+
+        assert!(press(&mut tools, &mut state, Key::Enter));
+
+        let made: Vec<NodeId> = state.doc.selection.nodes.iter().copied().collect();
+        assert!(made.len() == 1 && made[0] != block);
+        let b = state.doc.map.bounds_of(made.iter().copied());
+        assert_eq!((b.min, b.max), (DVec3::new(16.0, 64.0, 16.0), DVec3::new(48.0, 64.0 + state.grid, 48.0)), "it stands on the block's top");
+    }
+
+    #[test]
+    fn a_3d_polygon_click_on_nothing_says_so() {
+        let mut state = EditorState::new(Default::default());
+        let mut tools = polygon_tools(&mut state);
+        let mut cam = Camera::new(ViewKind::Perspective);
+        cam.position = DVec3::new(0.0, 256.0, 0.0);
+        cam.pitch = 80.0f64.to_radians();
+        click(&mut tools, &mut state, &cam);
+        assert!(tools.polygon.points.is_empty());
+        assert_eq!(state.status, "Click a surface or the ground to start the outline");
     }
 
     #[test]

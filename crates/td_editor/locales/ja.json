@@ -2237,5 +2237,22 @@
   "Drag a side, the opposite side stays put": "辺をドラッグ、反対側は固定",
   "Drag a side of the selection's bounds to slide it sideways.": "選択範囲の辺をドラッグして横にずらす。",
   "Shear: drag a side of the box, Shift moves freely in 3D": "せん断：ボックスの辺をドラッグ、Shiftで3Dの自由移動",
-  "Shear by {offset}": "せん断 {offset}"
+  "Shear by {offset}": "せん断 {offset}",
+  "Polygon": "ポリゴン",
+  "Click the corners of an outline, Enter or the first corner closes it": "輪郭の角をクリック、Enter か最初の角で閉じます",
+  "Click the corners of an outline in a view, close it to extrude it into a brush.": "ビューで輪郭の角をクリックし、閉じると押し出してブラシになります。",
+  "Create Polygon Brush": "ポリゴンブラシを作成",
+  "Place at least three corners first": "先に角を3つ以上置いてください",
+  "The outline has too many corners": "輪郭の角が多すぎます",
+  "The outline has no area": "輪郭に面積がありません",
+  "The outline crosses itself, press Backspace to remove corners": "輪郭が交差しています。Backspace で角を削除できます",
+  "That outline does not make a valid brush": "この輪郭では有効なブラシになりません",
+  "Finish the outline in the view where you started it": "輪郭は描き始めたビューで完成させてください",
+  "The corners do not lie on one plane": "角が同じ平面上にありません",
+  "The extrusion has no height": "押し出しの高さがありません",
+  "Click on the outline's plane": "輪郭の平面上をクリックしてください",
+  "Click a surface or the ground to start the outline": "輪郭を始めるには面か地面をクリックしてください",
+  "Created {n} polygon brush": { "other": "ポリゴンブラシを{n}個作成しました" },
+  "Polygon: click to place the first corner": "ポリゴン：クリックで最初の角を置く",
+  "Polygon: click corners, the first one or Enter closes, Backspace undoes": "ポリゴン：クリックで角を置く、最初の角か Enter で閉じる、Backspace で戻す"
 }

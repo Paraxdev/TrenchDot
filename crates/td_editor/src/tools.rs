@@ -7,6 +7,8 @@ pub enum ToolKind {
     /// Selection, moving, brush drawing, face dragging and entity gizmo handles (TrenchBroom default tool).
     Select,
     Clip,
+    /// Draws an outline of corners and extrudes it into a brush, or several for a concave one.
+    Polygon,
     Vertex,
     Rotate,
     Scale,
@@ -37,6 +39,7 @@ impl ToolKind {
         match self {
             ToolKind::Select => en!("Select"),
             ToolKind::Clip => en!("Clip"),
+            ToolKind::Polygon => en!("Polygon"),
             ToolKind::Vertex => en!("Vertex"),
             ToolKind::Rotate => en!("Rotate"),
             ToolKind::Scale => en!("Scale"),
@@ -53,9 +56,10 @@ impl ToolKind {
         }
     }
 
-    pub fn all() -> [ToolKind; 15] {
+    pub fn all() -> [ToolKind; 16] {
         [
             ToolKind::Select,
+            ToolKind::Polygon,
             ToolKind::Clip,
             ToolKind::Vertex,
             ToolKind::Rotate,
@@ -75,7 +79,7 @@ impl ToolKind {
 
     /// Tools grouped the way the toolbar and the Tools menu show them: brush editing, meshes, surfaces, terrain, gameplay.
     pub const GROUPS: [&'static [ToolKind]; 5] = [
-        &[ToolKind::Select, ToolKind::Clip, ToolKind::Vertex, ToolKind::Rotate, ToolKind::Scale, ToolKind::Shear],
+        &[ToolKind::Select, ToolKind::Polygon, ToolKind::Clip, ToolKind::Vertex, ToolKind::Rotate, ToolKind::Scale, ToolKind::Shear],
         &[ToolKind::Mesh],
         &[ToolKind::Texture, ToolKind::Paint],
         &[ToolKind::Sculpt, ToolKind::Blend, ToolKind::Scatter],

@@ -75,6 +75,33 @@ to add a corner there. Delete removes the selected vertices.
 > line in the status bar. Pull the dot outward instead, or convert the brush to a [mesh](meshes.md) for dents and
 > overhangs.
 
+## Polygon brush
+
+For a floor plan, a pillar with five sides or any outline a box cannot make, press the **Polygon** tool in the toolbar,
+the pentagon next to Select. It has no key, *Tools > Polygon Tool* does the same.
+
+1. Click the corners of the outline in a 2D view. They snap to the grid, and a line follows the mouse to show the next
+   edge. In the 3D view, click a surface first and the outline lies on that surface instead.
+2. Click the first corner again, or press Enter, to close the outline. Backspace removes the last corner and Escape
+   throws the outline away.
+3. The outline is extruded and the new brush is selected, in the current material. In a 2D view it is as deep as a
+   box drawn there would be, see [Draw and move](#draw-and-move). In 3D it is one grid step thick, pointing out of
+   the surface.
+
+![The Polygon tool in the Top view with four corners placed, the line to the next corner follows the mouse](../assets/brushes/polygon-brush.png)
+
+A brush cannot have dents, so an outline with a dent, like an L or a U, is cut into a few convex brushes that sit side
+by side. All of them are selected, and one undo takes them back. Winding does not matter, and corners in a straight
+line are dropped. An outline that crosses itself is refused with a line in the status bar, press Backspace to remove
+the corner that made the crossing.
+
+<div class="td-mcp" markdown>
+
+The MCP tool `create_polygon_brush` takes the corners as `points`, the view direction as `axis` (`x`, `y` or `z`) or an
+arbitrary `normal`, and the thickness as `height`.
+
+</div>
+
 ## Rotate, scale and measure
 
 | Tool | Input | Result |

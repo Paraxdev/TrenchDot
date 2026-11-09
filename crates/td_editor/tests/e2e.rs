@@ -2075,6 +2075,42 @@ fn find_entities_and_replace_material_share_the_dialog_core() {
     assert!(ed.state()["ui"]["windows"].as_array().unwrap().iter().any(|w| w["title"] == "Find and Replace"), "Ctrl+F opens the dialog");
 }
 
+#[test]
+#[ignore]
+fn polygon_brush_extrudes_convex_and_concave_outlines() {
+    let ed = Editor::launch("polygon_brush");
+    let square = ed.call("create_polygon_brush", json!({ "points": [[0, 0, 0], [64, 0, 0], [64, 0, 64], [0, 0, 64]], "axis": "y", "height": 32 }));
+    assert_eq!(square["ids"].as_array().unwrap().len(), 1, "a convex outline is one brush: {square}");
+    assert_eq!(square["bounds"], json!({ "min": [0.0, 0.0, 0.0], "max": [64.0, 32.0, 64.0] }));
+
+    let l = json!([[200, 0, 0], [328, 0, 0], [328, 0, 64], [264, 0, 64], [264, 0, 128], [200, 0, 128]]);
+    let made = ed.call("create_polygon_brush", json!({ "points": l, "height": 16 }));
+    assert_eq!(made["ids"].as_array().unwrap().len(), 2, "an L is split into two convex brushes: {made}");
+    assert_eq!(made["bounds"], json!({ "min": [200.0, 0.0, 0.0], "max": [328.0, 16.0, 128.0] }));
+    assert_eq!(selected(&ed).len(), 2, "the pieces are selected");
+    assert_eq!(ed.state()["undo"][0], "MCP: Create Polygon Brush");
+
+    let mut reversed = l.as_array().unwrap().clone();
+    reversed.reverse();
+    let flipped = ed.call("create_polygon_brush", json!({ "points": reversed, "height": 16 }));
+    assert_eq!(flipped["ids"].as_array().unwrap().len(), 2, "winding does not matter");
+
+    let before = ed.brushes();
+    let bowtie = json!([[0, 0, 300], [64, 0, 364], [64, 0, 300], [0, 0, 364]]);
+    assert!(ed.call_err("create_polygon_brush", json!({ "points": bowtie, "axis": "y" })).contains("crosses itself"));
+    assert!(ed.call_err("create_polygon_brush", json!({ "points": [[0, 0, 0], [64, 0, 0]], "axis": "y" })).contains("at least three"));
+    assert!(ed.call_err("create_polygon_brush", json!({ "points": [[0, 0, 0], [32, 0, 0], [64, 0, 0]], "axis": "y" })).contains("no area"));
+    assert!(ed.call_err("create_polygon_brush", json!({ "points": [[0, 0, 0], [64, 0, 0], [64, 8, 64]], "axis": "y" })).contains("one plane"));
+    let slanted = json!([[0, 0, 0], [64, 0, 0], [0, 64, 64]]);
+    assert!(ed.call_err("create_polygon_brush", json!({ "points": slanted })).contains("do not share exactly one coordinate"));
+    let both = json!({ "points": [[0, 0, 0], [64, 0, 0], [0, 0, 64]], "axis": "y", "normal": [0, 1, 0] });
+    assert!(ed.call_err("create_polygon_brush", both).contains("not both"));
+    assert_eq!(ed.brushes(), before, "refused outlines change nothing");
+
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(ed.brushes(), before - 2, "one undo removes both pieces");
+}
+
 /// Scripted building blocks the withered city showcase needs: block letters, window grids, plane clips, vertex moves and
 /// named wizard entities, all without mouse input.
 #[test]

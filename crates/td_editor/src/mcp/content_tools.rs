@@ -397,6 +397,57 @@ impl App {
         )
     }
 
+    pub(crate) fn tool_create_polygon_brush(&mut self, args: &Value) -> ToolResult {
+        let Some(list) = args["points"].as_array() else { return err("points is required, a list of [x, y, z] corners") };
+        let mut points = Vec::with_capacity(list.len());
+        for p in list {
+            match vec3(p) {
+                Some(p) => points.push(p),
+                None => return err(format!("every point is [x, y, z], got {p}")),
+            }
+        }
+
+        let normal = match (args["normal"].is_null(), args["axis"].as_str()) {
+            (false, Some(_)) => return err("give axis or normal, not both"),
+            (false, None) => match vec3(&args["normal"]).and_then(|n| n.try_normalize()) {
+                Some(n) => n,
+                None => return err("normal is a non-zero [x, y, z]"),
+            },
+            (true, Some(name)) => match td_geom::shapes::Axis::parse(name) {
+                Some(td_geom::shapes::Axis::X) => DVec3::X,
+                Some(td_geom::shapes::Axis::Y) => DVec3::Y,
+                Some(td_geom::shapes::Axis::Z) => DVec3::Z,
+                None => return err("axis is x, y or z"),
+            },
+            (true, None) => {
+                let shared: Vec<usize> = (0..3).filter(|i| points.iter().all(|p| (p[*i] - points[0][*i]).abs() < 1e-3)).collect();
+                match shared.as_slice() {
+                    [i] => DVec3::AXES[*i],
+                    _ => return err("give axis (x, y or z) or normal, the points do not share exactly one coordinate to infer it from"),
+                }
+            }
+        };
+        let height = match &args["height"] {
+            Value::Null => self.state.grid,
+            v => match v.as_f64() {
+                Some(h) => h,
+                None => return err(format!("height must be a number, got {v}")),
+            },
+        };
+        let material = args["material"].as_str().map(str::to_string).unwrap_or_else(|| self.state.current_material.clone());
+        let parent = match resolve_parent(&self.state, &args["parent"], Child::Geometry) {
+            Ok(p) => p,
+            Err(e) => return err(e),
+        };
+        match crate::polygon_tool::create(&mut self.state, parent, &points, normal, height, &material) {
+            Ok(ids) => {
+                let b = self.state.doc.map.bounds_of(ids.iter().copied());
+                ok(json!({ "ok": true, "ids": ids.iter().map(|id| id.0).collect::<Vec<_>>(), "bounds": bounds_json(&b) }))
+            }
+            Err(e) => err(e.to_string()),
+        }
+    }
+
     /// Trim strips along face edges: baseboards, crown molding, borders.
     pub(crate) fn tool_trim(&mut self, args: &Value) -> ToolResult {
         let mut opts = crate::trim::TrimOptions { material: self.state.current_material.clone(), ..Default::default() };

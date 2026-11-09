@@ -46,7 +46,7 @@ pub struct Viewport {
 const BG_LIT: [f64; 4] = [0.18, 0.28, 0.45, 1.0];
 /// Depth of the first brush drawn in a 2D view, 4 m. A box drawn in the Top view and hollowed with 16 unit walls
 /// leaves 3 m of headroom, enough for a player.
-const FIRST_BRUSH_DEPTH: f64 = 128.0;
+pub(crate) const FIRST_BRUSH_DEPTH: f64 = 128.0;
 
 impl Viewport {
     pub fn new(kind: ViewKind) -> Self {

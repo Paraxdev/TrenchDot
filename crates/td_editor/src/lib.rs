@@ -38,6 +38,7 @@ pub mod models;
 pub mod overlays;
 pub mod panels;
 pub mod picking;
+pub mod polygon_tool;
 pub mod prefab_library;
 pub mod prefab_panel;
 pub mod prefabs;

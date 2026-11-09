@@ -2237,5 +2237,22 @@
   "Drag a side, the opposite side stays put": "拖动一侧，对侧保持不动",
   "Drag a side of the selection's bounds to slide it sideways.": "拖选区边界的一侧，使其平行滑动。",
   "Shear: drag a side of the box, Shift moves freely in 3D": "剪切：拖动框的一侧，Shift 在 3D 中自由移动",
-  "Shear by {offset}": "剪切 {offset}"
+  "Shear by {offset}": "剪切 {offset}",
+  "Polygon": "多边形",
+  "Click the corners of an outline, Enter or the first corner closes it": "点击轮廓的角点，Enter 或第一个点闭合",
+  "Click the corners of an outline in a view, close it to extrude it into a brush.": "在视图中点击轮廓的角点，闭合后拉伸成笔刷。",
+  "Create Polygon Brush": "创建多边形笔刷",
+  "Place at least three corners first": "先放置至少三个角点",
+  "The outline has too many corners": "轮廓的角点太多",
+  "The outline has no area": "轮廓没有面积",
+  "The outline crosses itself, press Backspace to remove corners": "轮廓自相交，按 Backspace 删除角点",
+  "That outline does not make a valid brush": "该轮廓无法生成有效的笔刷",
+  "Finish the outline in the view where you started it": "请在开始绘制的视图中完成轮廓",
+  "The corners do not lie on one plane": "角点不在同一平面上",
+  "The extrusion has no height": "挤出高度为零",
+  "Click on the outline's plane": "请点击轮廓所在的平面",
+  "Click a surface or the ground to start the outline": "点击一个表面或地面以开始绘制轮廓",
+  "Created {n} polygon brush": { "other": "已创建 {n} 个多边形笔刷" },
+  "Polygon: click to place the first corner": "多边形：点击放置第一个角点",
+  "Polygon: click corners, the first one or Enter closes, Backspace undoes": "多边形：点击放角点，点第一个点或 Enter 闭合，Backspace 撤销"
 }

@@ -34,6 +34,7 @@ macro_rules! icons {
 icons! {
     SELECT = "mouse-pointer-2",
     CLIP = "scissors",
+    POLYGON = "pentagon",
     VERTEX = "vector-square",
     ROTATE = "rotate-3d",
     SCALE = "scale-3d",
@@ -117,6 +118,7 @@ pub fn tool(tool: ToolKind) -> Icon {
     match tool {
         ToolKind::Select => SELECT,
         ToolKind::Clip => CLIP,
+        ToolKind::Polygon => POLYGON,
         ToolKind::Vertex => VERTEX,
         ToolKind::Rotate => ROTATE,
         ToolKind::Scale => SCALE,

@@ -2948,9 +2948,10 @@ pub fn issues(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actions
 
 /// One short line per tool, shown in the toolbar tooltip, the Tools menu, the tool options and the reference panel.
 /// Modifiers and the rest live in the manual.
-pub const TOOL_HELP: [(&str, &str); 15] = [
+pub const TOOL_HELP: [(&str, &str); 16] = [
     ("Select", en!("Click to select, double click for the whole group. Drag empty space to draw a brush, drag the selection to move it.")),
     ("Clip", en!("Click two or three points, Tab picks the side to keep, Enter clips.")),
+    ("Polygon", en!("Click the corners of an outline in a view, close it to extrude it into a brush.")),
     ("Vertex", en!("Drag brush vertices, drag an edge or face midpoint to split it.")),
     ("Rotate", en!("Drag a ring to rotate the selection.")),
     ("Scale", en!("Drag a handle on the selection's bounds to scale it.")),

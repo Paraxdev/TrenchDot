@@ -7,6 +7,7 @@ pub mod hull;
 pub mod mesh;
 pub mod mesh_shapes;
 pub mod mesh_uv;
+pub mod outline;
 pub mod polygon;
 pub mod rock;
 pub mod shapes;

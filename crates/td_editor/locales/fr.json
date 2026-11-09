@@ -2237,5 +2237,22 @@
   "Drag a side, the opposite side stays put": "Glissez un côté, le côté opposé reste fixe",
   "Drag a side of the selection's bounds to slide it sideways.": "Glissez un côté de la boîte de sélection pour le décaler.",
   "Shear: drag a side of the box, Shift moves freely in 3D": "Cisaillement : glisser un côté de la boîte, Shift déplace librement en 3D",
-  "Shear by {offset}": "Cisaillement {offset}"
+  "Shear by {offset}": "Cisaillement {offset}",
+  "Polygon": "Polygone",
+  "Click the corners of an outline, Enter or the first corner closes it": "Cliquez les coins d'un contour, Enter ou le premier coin le ferme",
+  "Click the corners of an outline in a view, close it to extrude it into a brush.": "Cliquez les coins d'un contour dans une vue, fermez-le pour l'extruder en brush.",
+  "Create Polygon Brush": "Créer un brush polygonal",
+  "Place at least three corners first": "Placer d'abord au moins trois coins",
+  "The outline has too many corners": "Le contour a trop de coins",
+  "The outline has no area": "Le contour n'a pas de surface",
+  "The outline crosses itself, press Backspace to remove corners": "Le contour se croise, Backspace retire des coins",
+  "That outline does not make a valid brush": "Ce contour ne donne pas un brush valide",
+  "Finish the outline in the view where you started it": "Terminer le contour dans la vue où il a été commencé",
+  "The corners do not lie on one plane": "Les coins ne sont pas dans un même plan",
+  "The extrusion has no height": "L'extrusion n'a pas de hauteur",
+  "Click on the outline's plane": "Cliquer sur le plan du contour",
+  "Click a surface or the ground to start the outline": "Cliquer sur une surface ou sur le sol pour commencer le contour",
+  "Created {n} polygon brush": { "one": "{n} brush polygonal créé", "other": "{n} brushes polygonaux créés" },
+  "Polygon: click to place the first corner": "Polygone : cliquer place le premier coin",
+  "Polygon: click corners, the first one or Enter closes, Backspace undoes": "Polygone : cliquer les coins, le premier ou Enter ferme, Backspace annule"
 }
