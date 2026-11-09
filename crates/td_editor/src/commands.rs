@@ -124,6 +124,7 @@ pub enum Action {
     ShowShapeDialog,
     ShowSweepDialog,
     ShowArrayDialog,
+    ShowFindDialog,
     ShowTrimDialog,
     ShowRandomFillDialog,
     ShowTerrainDialog,
@@ -349,6 +350,7 @@ impl Action {
             Action::ShowShapeDialog => en!("Shape Generator"),
             Action::ShowSweepDialog => en!("Sweep Faces"),
             Action::ShowArrayDialog => en!("Array Copies"),
+            Action::ShowFindDialog => en!("Find and Replace"),
             Action::ShowTrimDialog => en!("Add Trim"),
             Action::ShowRandomFillDialog => en!("Random Fill"),
             Action::ShowTerrainDialog => en!("Create Terrain"),
@@ -545,6 +547,7 @@ fn trenchbroom_bindings() -> Vec<(KeyboardShortcut, Action)> {
         (sc(CTRL, Key::D), Action::Duplicate),
         (sc(CTRL_SHIFT, Key::D), Action::DuplicateLinked),
         (sc(CTRL, Key::A), Action::SelectAll),
+        (sc(CTRL, Key::F), Action::ShowFindDialog),
         (sc(NONE, Key::Escape), Action::SelectNone),
         (sc(CTRL, Key::I), Action::SelectInverse),
         (sc(CTRL, Key::T), Action::SelectTouching),
@@ -822,7 +825,7 @@ fn consume_physical_digit(events: &mut Vec<egui::Event>, shortcut: &KeyboardShor
     events.len() != before
 }
 
-fn selection_bounds(state: &EditorState) -> Aabb {
+pub(crate) fn selection_bounds(state: &EditorState) -> Aabb {
     let map = &state.doc.map;
     if state.doc.selection.has_faces() {
         let mut b = Aabb::EMPTY;
@@ -1429,6 +1432,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         | Action::ShowShapeDialog
         | Action::ShowSweepDialog
         | Action::ShowArrayDialog
+        | Action::ShowFindDialog
         | Action::ShowTrimDialog
         | Action::ShowRandomFillDialog
         | Action::ShowTerrainDialog
@@ -2973,6 +2977,14 @@ mod tests {
         }
 
         assert!(preset_bindings("trenchbroom").contains(&(sc(NONE, Key::F4), Action::ToggleTextured)));
+    }
+
+    #[test]
+    fn ctrl_f_finds_in_every_preset() {
+        for preset in PRESETS {
+            let on_ctrl_f: Vec<_> = preset_bindings(preset).into_iter().filter(|(s, _)| *s == sc(CTRL, Key::F)).map(|(_, a)| a).collect();
+            assert_eq!(on_ctrl_f, [Action::ShowFindDialog], "{preset}");
+        }
     }
 
     #[test]

@@ -2216,5 +2216,21 @@
   "Linked": "Связанные",
   "Select the objects to copy": "Выберите объекты для копирования",
   "The scale grows or shrinks the copies too much": "Масштаб слишком сильно увеличивает или уменьшает копии",
-  "{n} copy": { "one": "{n} копия", "few": "{n} копии", "many": "{n} копий" }
+  "{n} copy": { "one": "{n} копия", "few": "{n} копии", "many": "{n} копий" },
+  "Find and Replace…": "Найти и заменить…",
+  "Find and Replace": "Найти и заменить",
+  "Find entities": "Поиск сущностей",
+  "Key": "Ключ",
+  "Value": "Значение",
+  "Exact match": "Точное совпадение",
+  "Off finds part of a text, upper and lower case never matter": "Выключено находит часть текста, регистр не важен",
+  "Type a class, key or value": "Укажите класс, ключ или значение",
+  "Selects every entity found and frames them": "Выделяет все найденные сущности и показывает их",
+  "Replace material": "Заменить материал",
+  "Replace": "Заменить",
+  "In map": "На карте",
+  "With": "На",
+  "{n} face uses it": { "one": "{n} грань использует его", "few": "{n} грани используют его", "many": "{n} граней используют его" },
+  "Keeps each face's offset, scale and rotation": "Сохраняет сдвиг, масштаб и поворот каждой грани",
+  "Selected {n} entity": { "one": "Выделена {n} сущность", "few": "Выделено {n} сущности", "many": "Выделено {n} сущностей" }
 }

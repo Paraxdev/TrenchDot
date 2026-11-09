@@ -2216,5 +2216,21 @@
   "Linked": "链接",
   "Select the objects to copy": "选择要复制的对象",
   "The scale grows or shrinks the copies too much": "缩放使副本过大或过小",
-  "{n} copy": { "other": "{n} 个副本" }
+  "{n} copy": { "other": "{n} 个副本" },
+  "Find and Replace…": "查找和替换…",
+  "Find and Replace": "查找和替换",
+  "Find entities": "查找实体",
+  "Key": "键",
+  "Value": "值",
+  "Exact match": "精确匹配",
+  "Off finds part of a text, upper and lower case never matter": "关闭时匹配部分文本，不区分大小写",
+  "Type a class, key or value": "输入类、键或值",
+  "Selects every entity found and frames them": "选择找到的全部实体并聚焦",
+  "Replace material": "替换材质",
+  "Replace": "替换",
+  "In map": "地图中",
+  "With": "替换为",
+  "{n} face uses it": { "other": "{n} 个面使用它" },
+  "Keeps each face's offset, scale and rotation": "保留每个面的偏移、缩放和旋转",
+  "Selected {n} entity": { "other": "已选择 {n} 个实体" }
 }

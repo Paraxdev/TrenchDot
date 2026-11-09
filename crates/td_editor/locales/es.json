@@ -2216,5 +2216,21 @@
   "Linked": "Enlazado",
   "Select the objects to copy": "Selecciona los objetos que copiar",
   "The scale grows or shrinks the copies too much": "La escala agranda o reduce demasiado las copias",
-  "{n} copy": { "one": "{n} copia", "other": "{n} copias" }
+  "{n} copy": { "one": "{n} copia", "other": "{n} copias" },
+  "Find and Replace…": "Buscar y reemplazar…",
+  "Find and Replace": "Buscar y reemplazar",
+  "Find entities": "Buscar entidades",
+  "Key": "Clave",
+  "Value": "Valor",
+  "Exact match": "Coincidencia exacta",
+  "Off finds part of a text, upper and lower case never matter": "Desactivado encuentra parte del texto, sin distinguir mayúsculas",
+  "Type a class, key or value": "Indicar una clase, clave o valor",
+  "Selects every entity found and frames them": "Selecciona todas las entidades encontradas y las encuadra",
+  "Replace material": "Reemplazar material",
+  "Replace": "Reemplazar",
+  "In map": "En el mapa",
+  "With": "Por",
+  "{n} face uses it": { "one": "{n} cara lo usa", "other": "{n} caras lo usan" },
+  "Keeps each face's offset, scale and rotation": "Conserva el desplazamiento, la escala y la rotación de cada cara",
+  "Selected {n} entity": { "one": "{n} entidad seleccionada", "other": "{n} entidades seleccionadas" }
 }

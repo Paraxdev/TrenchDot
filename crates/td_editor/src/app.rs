@@ -133,6 +133,7 @@ pub struct App {
     trim_dialog: crate::trim::TrimDialog,
     sweep_dialog: crate::sweep_dialog::SweepDialog,
     array_dialog: crate::array_dialog::ArrayDialog,
+    find_dialog: crate::find_dialog::FindDialog,
     fill_dialog: crate::random_fill::RandomFillDialog,
     terrain_dialog: TerrainDialog,
     keymap: KeymapWindow,
@@ -184,11 +185,12 @@ pub struct App {
     pub(crate) tool_options_rect: egui::Rect,
 }
 
-const WINDOW_TITLES: [&str; 14] = [
+const WINDOW_TITLES: [&str; 15] = [
     "Shape Generator",
     "Add Trim",
     "Sweep Faces",
     "Array Copies",
+    "Find and Replace",
     "Random Fill",
     "Create Terrain",
     "Keyboard Shortcuts",
@@ -934,6 +936,7 @@ impl App {
             trim_dialog: Default::default(),
             sweep_dialog: Default::default(),
             array_dialog: Default::default(),
+            find_dialog: Default::default(),
             fill_dialog: Default::default(),
             terrain_dialog: TerrainDialog::default(),
             keymap: KeymapWindow::default(),
@@ -1042,6 +1045,7 @@ impl App {
             Action::ShowTrimDialog => self.trim_dialog.open = true,
             Action::ShowSweepDialog => self.sweep_dialog.open = true,
             Action::ShowArrayDialog => self.array_dialog.open = true,
+            Action::ShowFindDialog => self.find_dialog.open = true,
             Action::ShowRandomFillDialog => self.fill_dialog.open = true,
             Action::ShowTerrainDialog => self.terrain_dialog.open = true,
             Action::ExportGlb => self.export_dialog.open_for(crate::export3d::Format::Glb, &mut self.state),
@@ -1293,6 +1297,7 @@ impl App {
                 m.item(ui, None, en!("Rename"), Action::Rename);
                 m.item(ui, Some(icons::DELETE), en!("Delete"), Action::Delete);
                 ui.separator();
+                m.item_keys(ui, None, en!("Find and Replace…"), "Ctrl+F", Action::ShowFindDialog);
                 sub_menu(ui, Some(icons::SELECT), en!("Select"), |ui| {
                     m.item(ui, None, en!("All"), Action::SelectAll);
                     m.item(ui, None, en!("None"), Action::SelectNone);
@@ -3105,6 +3110,7 @@ impl eframe::App for App {
         self.trim_dialog.show(&ctx, &mut self.state);
         self.sweep_dialog.show(&ctx, &mut self.state);
         self.array_dialog.show(&ctx, &mut self.state);
+        self.find_dialog.show(&ctx, &mut self.state);
         self.fill_dialog.show(&ctx, &mut self.state);
         self.terrain_dialog.show(&ctx, &mut self.state);
         self.keymap.show(&ctx, &mut self.state);

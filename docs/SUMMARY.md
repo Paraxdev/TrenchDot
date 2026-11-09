@@ -22,6 +22,7 @@
     * [Random fill](editor/random-fill.md)
     * [Baking lighting](editor/light-baking.md)
     * [Organizing a map](editor/organizing.md)
+    * [Find and Replace](editor/find-replace.md)
     * [Saving and recovery](editor/saving.md)
     * [Reviewing changes](editor/reviewing.md)
     * [Importing Hammer and TrenchBroom maps](editor/importing.md)

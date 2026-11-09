@@ -313,6 +313,90 @@ impl App {
         }
     }
 
+    pub(crate) fn tool_find_entities(&mut self, args: &Value) -> ToolResult {
+        let mut query = td_doc::find::EntityQuery::default();
+        for (key, slot) in [("classname", &mut query.classname), ("key", &mut query.key), ("value", &mut query.value)] {
+            match &args[key] {
+                Value::Null => {}
+                Value::String(s) => *slot = s.clone(),
+                v => return err(format!("{key} must be text, got {v}")),
+            }
+        }
+
+        if query.is_empty() {
+            return err("give at least one of classname, key and value");
+        }
+
+        match bool_arg(args, "exact") {
+            Ok(exact) => query.exact = exact.unwrap_or(false),
+            Err(e) => return err(e),
+        }
+
+        let select = match bool_arg(args, "select") {
+            Ok(select) => select.unwrap_or(false),
+            Err(e) => return err(e),
+        };
+        let limit = match &args["limit"] {
+            Value::Null => 200,
+            v => match uint(v) {
+                Some(n) => n as usize,
+                None => return err(format!("limit must be a non-negative integer, got {v}")),
+            },
+        };
+        let hits = td_doc::find::find_entities(&self.state.doc.map, &query);
+        let selected = if select { crate::find_dialog::select_entities(&mut self.state, &hits) } else { 0 };
+
+        let map = &self.state.doc.map;
+        let listed: Vec<Value> = hits
+            .iter()
+            .take(limit)
+            .filter_map(|id| {
+                let n = map.get(*id)?;
+                let e = n.entity()?;
+                Some(json!({ "id": id.0, "name": n.name(), "classname": e.classname, "properties": e.properties, "bounds": bounds_json(&map.bounds(*id)) }))
+            })
+            .collect();
+        ok(json!({ "ok": true, "total": hits.len(), "selected": selected, "entities": listed }))
+    }
+
+    pub(crate) fn tool_replace_material(&mut self, args: &Value) -> ToolResult {
+        let text = |key: &str| match &args[key] {
+            Value::String(s) if !s.is_empty() => Ok(s.clone()),
+            Value::Null => Err(format!("{key} is required, a material name")),
+            v => Err(format!("{key} must be a material name, got {v}")),
+        };
+        let (from, to) = match (text("from"), text("to")) {
+            (Ok(from), Ok(to)) => (from, to),
+            (Err(e), _) | (_, Err(e)) => return err(e),
+        };
+        let in_selection = match args["scope"].as_str() {
+            None | Some("map") => false,
+            Some("selection") => true,
+            Some(other) => return err(format!("unknown scope {other}, use map or selection")),
+        };
+        let dry_run = match bool_arg(args, "dry_run") {
+            Ok(d) => d.unwrap_or(false),
+            Err(e) => return err(e),
+        };
+        let changed = if dry_run {
+            if in_selection && self.state.doc.selection.is_empty() {
+                return err("nothing is selected, select brushes or faces, or replace in the whole map");
+            }
+
+            let sel = self.state.doc.selection.clone();
+            let scope = if in_selection { td_doc::find::MaterialScope::Selection(&sel) } else { td_doc::find::MaterialScope::Map };
+            td_doc::find::count_material(&self.state.doc.map, &from, scope)
+        } else {
+            match crate::find_dialog::replace(&mut self.state, &from, &to, in_selection) {
+                Ok(c) => c,
+                Err(e) => return err(e),
+            }
+        };
+        ok(
+            json!({ "ok": true, "dry_run": dry_run, "changed": changed.total(), "faces": changed.faces, "terrain_layers": changed.terrain_layers, "scatter_materials": changed.scatter_materials }),
+        )
+    }
+
     /// Trim strips along face edges: baseboards, crown molding, borders.
     pub(crate) fn tool_trim(&mut self, args: &Value) -> ToolResult {
         let mut opts = crate::trim::TrimOptions { material: self.state.current_material.clone(), ..Default::default() };

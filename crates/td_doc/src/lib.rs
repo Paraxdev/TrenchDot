@@ -3,6 +3,7 @@ pub mod blend;
 pub mod diff;
 pub mod document;
 pub mod entity;
+pub mod find;
 pub mod format;
 pub mod issues;
 mod json_fmt;

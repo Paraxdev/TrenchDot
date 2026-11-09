@@ -980,6 +980,58 @@ fn material_menu_opens_the_hotspot_editor_on_the_clicked_material() {
 }
 
 #[test]
+fn material_menu_replaces_the_current_material_in_the_map() {
+    let mut f = Fixture::new();
+    f.state.prefs.recent_materials = vec!["bricks/red".into()];
+    let layer = f.state.doc.map.default_layer();
+    let (wall, floor) = f.state.doc.edit("add", |m, _| {
+        let mut wall = Brush::from_aabb(&Aabb::new(DVec3::ZERO, DVec3::splat(64.0)), "dev/grey").unwrap();
+        wall.faces[0].data.uv.offset = td_core::DVec2::new(12.0, -3.0);
+        wall.faces[0].data.uv.rotation = 30.0;
+        let mut floor = Brush::from_aabb(&Aabb::new(DVec3::new(128.0, 0.0, 0.0), DVec3::splat(192.0)), "dirt").unwrap();
+        floor.faces[0].data.props.insert(td_doc::blend::BLEND_MATERIAL.into(), "dev/grey".into());
+        (m.insert(layer, NodeKind::Brush(wall)), m.insert(layer, NodeKind::Brush(floor)))
+    });
+    let uv = f.state.doc.map.brush(wall).unwrap().faces[0].data.uv.clone();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(700.0, 400.0))
+        .build_ui_state(|ui, f: &mut Fixture| panels::material_browser(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+    let open_menu = |harness: &mut Harness<'_, Fixture>| {
+        harness.run_steps(2);
+        let label = harness.get_by_label("recent").rect();
+        let cell = egui::pos2(label.max.x + 22.0, label.center().y);
+        harness.hover_at(cell);
+        harness.run_steps(1);
+        for pressed in [true, false] {
+            harness.event(egui::Event::PointerButton { pos: cell, button: egui::PointerButton::Secondary, pressed, modifiers: Default::default() });
+            harness.run_steps(1);
+        }
+
+        harness.run_steps(2);
+    };
+    open_menu(&mut harness);
+    let steps = harness.state().state.doc.history.undo_labels().count();
+    harness.get_by_label("Replace dev/grey with it in the map").click();
+    harness.run_steps(2);
+    let state = &harness.state().state;
+    assert_eq!(state.status, "Replaced dev/grey on 7 faces", "six wall faces and the floor's blend material");
+    assert!(state.doc.map.brush(wall).unwrap().faces.iter().all(|f| f.data.material == "bricks/red"));
+    assert_eq!(state.doc.map.brush(wall).unwrap().faces[0].data.uv, uv, "the alignment stays");
+    assert_eq!(state.doc.map.brush(floor).unwrap().faces[0].data.props[td_doc::blend::BLEND_MATERIAL], "bricks/red");
+    assert_eq!(state.doc.history.undo_labels().count(), steps + 1);
+
+    open_menu(&mut harness);
+    harness.get_by_label("Replace dev/grey with it in the map").click();
+    harness.run_steps(2);
+    assert_eq!(harness.state().state.status, "Replaced dev/grey on 0 faces");
+    assert_eq!(harness.state().state.doc.history.undo_labels().count(), steps + 1, "nothing to replace adds no undo step");
+
+    harness.state_mut().state.current_material.clear();
+    open_menu(&mut harness);
+    assert!(harness.query_by_label_contains("with it in the map").is_none(), "no current material offers no replacement");
+}
+
+#[test]
 fn the_material_grid_stays_put_when_the_first_material_is_applied() {
     let mut f = Fixture::new();
     f.state.materials.entries = vec![td_editor::materials::MaterialEntry {

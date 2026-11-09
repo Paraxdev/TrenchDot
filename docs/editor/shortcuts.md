@@ -62,6 +62,7 @@ Select it clears the selection.
 | Ctrl+R | Repeat the last rotate, flip, nudge or duplicate. In mesh editing it makes a loop cut |
 | Delete or Backspace | Delete |
 | Ctrl+A, Esc, Ctrl+I | Select all, none, inverse |
+| Ctrl+F | Find entities and replace a material, see [Find and Replace](find-replace.md) |
 | Ctrl+T, Ctrl+Shift+T | Use the selected brushes as a stencil and select what they touch, or what lies inside them. The stencil brushes are deleted |
 | Ctrl+G, Ctrl+Shift+G | Group, ungroup |
 | Ctrl+H, Ctrl+J, Ctrl+Shift+H | Hide the selection, isolate it by hiding everything else, show all |

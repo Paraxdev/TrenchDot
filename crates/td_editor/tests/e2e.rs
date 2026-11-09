@@ -1951,6 +1951,69 @@ fn array_copies_turn_scale_and_undo_in_one_step() {
     assert_eq!(ed.call("list_nodes", json!({ "type": "group" }))["nodes"], json!([]), "the same undo takes the wrapping group back");
 }
 
+#[test]
+#[ignore]
+fn find_entities_and_replace_material_share_the_dialog_core() {
+    let ed = Editor::launch("find_replace");
+    let a = ed.box_brush([0.0, 0.0, 0.0], [64.0, 64.0, 64.0]);
+    let b = ed.box_brush([128.0, 0.0, 0.0], [192.0, 64.0, 64.0]);
+    for id in [a, b] {
+        ed.call("texture", json!({ "op": "apply", "material": "dev/orange", "faces": (0..6).map(|f| json!([id, f])).collect::<Vec<_>>() }));
+    }
+
+    ed.call("texture", json!({ "op": "shift", "texels": [5, 3], "faces": [[a, 0]] }));
+    let before = ed.call("texture", json!({ "op": "get", "faces": [[a, 0]] }));
+    let door = ed.call("create_entity", json!({ "classname": "func_door", "origin": [0, 0, 200], "properties": { "targetname": "Hall_Door" } }))["id"]
+        .as_u64()
+        .unwrap();
+    let light = ed
+        .call("create_entity", json!({ "classname": "light", "origin": [64, 96, 200], "properties": { "targetname": "lamp", "target": "hall_door" } }))["id"]
+        .as_u64()
+        .unwrap();
+
+    let found = ed.call("find_entities", json!({ "classname": "FUNC_" }));
+    assert_eq!(found["total"], 1);
+    assert_eq!(found["entities"][0]["id"].as_u64(), Some(door));
+    let by_value = ed.call("find_entities", json!({ "value": "hall_door", "select": true }));
+    assert_eq!(by_value["total"], 2, "the value matches targetname and target: {by_value}");
+    let mut picked = selected(&ed);
+    picked.sort_unstable();
+    assert_eq!(picked, vec![door, light]);
+    let none = ed.call("find_entities", json!({ "classname": "typo", "select": true }));
+    assert_eq!((none["total"].as_u64(), none["selected"].as_u64()), (Some(0), Some(0)));
+    assert_eq!(selected(&ed).len(), 2, "a search that finds nothing keeps the selection");
+    assert_eq!(ed.call("find_entities", json!({ "key": "target", "value": "hall", "exact": true }))["total"], 0);
+    assert_eq!(ed.call("find_entities", json!({ "key": "target", "value": "hall_door", "exact": true }))["total"], 1);
+    assert!(ed.call_err("find_entities", json!({})).contains("at least one"));
+    assert!(ed.call_err("find_entities", json!({ "key": 3 })).contains("must be text"));
+
+    ed.call("select", json!({ "ids": [] }));
+    let selection_only = ed.call_err("replace_material", json!({ "from": "dev/orange", "to": "dev/dark", "scope": "selection" }));
+    assert!(selection_only.contains("nothing is selected"), "{selection_only}");
+    ed.call("select", json!({ "ids": [a] }));
+    let dry = ed.call("replace_material", json!({ "from": "dev/orange", "to": "dev/dark", "scope": "selection", "dry_run": true }));
+    assert_eq!(dry["changed"], 6);
+    let done = ed.call("replace_material", json!({ "from": "dev/orange", "to": "dev/dark", "scope": "selection" }));
+    assert_eq!((done["faces"].as_u64(), done["changed"].as_u64()), (Some(6), Some(6)));
+    let after = ed.call("texture", json!({ "op": "get", "faces": [[a, 0]] }));
+    assert_eq!(after["faces"][0]["material"], "dev/dark");
+    assert_eq!(after["faces"][0]["uv"], before["faces"][0]["uv"], "the alignment stays: {after}");
+    assert_eq!(ed.call("list_nodes", json!({ "material": "dev/orange" }))["total"], 1, "the other brush keeps its material");
+
+    let rest = ed.call("replace_material", json!({ "from": "dev/orange", "to": "dev/dark" }));
+    assert_eq!(rest["changed"], 6);
+    assert_eq!(ed.call("replace_material", json!({ "from": "dev/orange", "to": "dev/dark" }))["changed"], 0);
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(ed.call("list_nodes", json!({ "material": "dev/orange" }))["total"], 1, "one undo step brings the whole replacement back");
+    assert!(ed.call_err("replace_material", json!({ "from": "dev/orange", "to": "dev/orange" })).contains("the same"));
+    assert!(ed.call_err("replace_material", json!({ "from": "dev/orange" })).contains("to is required"));
+    assert!(ed.call_err("replace_material", json!({ "from": "a", "to": "b", "scope": "room" })).contains("unknown scope"));
+
+    ed.input("top", json!([{ "type": "move" }, { "type": "key", "key": "F", "modifiers": ["ctrl"] }]));
+    ed.input("top", json!([{ "type": "move" }]));
+    assert!(ed.state()["ui"]["windows"].as_array().unwrap().iter().any(|w| w["title"] == "Find and Replace"), "Ctrl+F opens the dialog");
+}
+
 /// Scripted building blocks the withered city showcase needs: block letters, window grids, plane clips, vertex moves and
 /// named wizard entities, all without mouse input.
 #[test]

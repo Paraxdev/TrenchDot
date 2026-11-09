@@ -1928,33 +1928,6 @@ pub fn select_faces_with_material(state: &mut EditorState, material: &str) -> us
     n
 }
 
-/// Replaces `from` with `to` on every face and terrain layer of the map.
-pub fn replace_material(state: &mut EditorState, from: &str, to: &str) -> usize {
-    state.doc.edit("Replace Material", |m, _| {
-        let mut n = 0;
-        let ids: Vec<NodeId> = m.nodes.keys().copied().collect();
-        for id in ids {
-            match m.get_mut(id).map(|node| &mut node.kind) {
-                Some(NodeKind::Brush(b)) => b.faces.iter_mut().filter(|f| f.data.material == from).for_each(|f| {
-                    f.data.material = to.to_string();
-                    n += 1;
-                }),
-                Some(NodeKind::Mesh(mesh)) => mesh.faces.iter_mut().filter(|f| f.data.material == from).for_each(|f| {
-                    f.data.material = to.to_string();
-                    n += 1;
-                }),
-                Some(NodeKind::Terrain(t)) => t.layers.iter_mut().filter(|l| l.material == from).for_each(|l| {
-                    l.material = to.to_string();
-                    n += 1;
-                }),
-                _ => {}
-            }
-        }
-
-        n
-    })
-}
-
 fn badge(painter: &egui::Painter, pos: egui::Pos2, text: &str, color: Color32) {
     let font = egui::FontId::proportional(9.0);
     let galley = painter.layout_no_wrap(text.to_string(), font, Color32::BLACK);
@@ -2081,8 +2054,8 @@ fn material_interactions(resp: egui::Response, state: &mut EditorState, name: &s
         }
 
         let current = state.current_material.clone();
-        if current != name && ui.button(trf!("Replace {current} with it in the map", current)).clicked() {
-            let n = replace_material(state, &current, name);
+        if !current.is_empty() && current != name && ui.button(trf!("Replace {current} with it in the map", current)).clicked() {
+            let n = crate::find_dialog::replace(state, &current, name, false).map_or(0, |c| c.total());
             state.set_status(msg_n!(n, "Replaced {current} on {n} face", "Replaced {current} on {n} faces", current));
             ui.close();
         }

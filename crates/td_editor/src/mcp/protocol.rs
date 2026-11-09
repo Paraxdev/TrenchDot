@@ -478,6 +478,22 @@ pub fn tool_definitions() -> Vec<Value> {
             } }
         }),
         json!({
+            "name": "find_entities",
+            "description": "Finds entities by part of their classname, key and value, like the Find and Replace dialog. Case never matters and empty fields are ignored, but at least one is needed. A key and a value together have to match on the same property. exact true wants the whole text to match instead of a part of it. Hidden and locked entities are left out. select true selects every hit and frames it in the views, no hits leave the selection as it was. Returns total and the first limit (200) hits with id, name, classname, properties and bounds.",
+            "inputSchema": { "type": "object", "properties": {
+                "classname": { "type": "string" }, "key": { "type": "string" }, "value": { "type": "string" },
+                "exact": { "type": "boolean" }, "select": { "type": "boolean" }, "limit": { "type": "integer", "default": 200 }
+            } }
+        }),
+        json!({
+            "name": "replace_material",
+            "description": "Replaces one material with another on brush and mesh faces (their blend material too), terrain layers and the material overrides of scatter sets and their palette entries, as one undo step, like the Find and Replace dialog. Only the material name changes, so every face keeps its offset, scale and rotation. scope: map (default) or selection, which is the selected faces, else the geometry and scatter sets of the selected nodes. dry_run true only counts. Returns changed (the sum), faces, terrain_layers and scatter_materials. A material that is not used is not an error, changed is 0.",
+            "inputSchema": { "type": "object", "properties": {
+                "from": { "type": "string" }, "to": { "type": "string" },
+                "scope": { "type": "string", "enum": ["map", "selection"] }, "dry_run": { "type": "boolean" }
+            }, "required": ["from", "to"] }
+        }),
+        json!({
             "name": "sweep_faces",
             "description": "Sweeps brush faces along a path into a run of convex brushes, one per segment and face, as one undo step, like TrenchBroom's sweep tool. Works on faces [[brush, face], ...] or the selected faces. All faces share one frame, so faces picked side by side (a corridor's end faces) bend around one pivot. They all travel along their summed normal, so faces at an angle to each other go out on a slant, and faces pointing opposite ways are refused. path: straight (default), arc, s_bend or curve. A curve leaves the faces along their normal and runs smoothly through points [[x, y, z], ...] in order, or through a chain of point entities linked by target (the Path tool's path_corner chains) named by chain, the targetname or id of its first point, by default the chain that starts nearest the faces; a bend tighter than the faces reach is refused, and the faces never roll around the curve on their own. length: distance along the face normal for straight and s_bend (128), radius (or length) of the arc's center line. angle: degrees an arc turns, more than 0 up to 720 (90), bend picks the side. offset: sideways shift of an s_bend (64). bend: up, down, left or right (default), seen looking at the faces, on a floor or ceiling up is -Z. segments 1 to 128 (8). rise: height gained along +Y (0), an arc with rise is a spiral. twist: degrees around the normal (0). end_scale: size at the end (1). New faces take the material and alignment of the source brush's faces that point the same way. The source brushes stay as they are, and the new brushes are selected.",
             "inputSchema": { "type": "object", "properties": {

@@ -2216,5 +2216,21 @@
   "Linked": "Verknüpft",
   "Select the objects to copy": "Wähle die zu kopierenden Objekte",
   "The scale grows or shrinks the copies too much": "Die Skalierung vergrößert oder verkleinert die Kopien zu stark",
-  "{n} copy": { "one": "{n} Kopie", "other": "{n} Kopien" }
+  "{n} copy": { "one": "{n} Kopie", "other": "{n} Kopien" },
+  "Find and Replace…": "Suchen und Ersetzen…",
+  "Find and Replace": "Suchen und Ersetzen",
+  "Find entities": "Entitäten suchen",
+  "Key": "Schlüssel",
+  "Value": "Wert",
+  "Exact match": "Genaue Übereinstimmung",
+  "Off finds part of a text, upper and lower case never matter": "Aus findet auch Teile eines Texts, Groß- und Kleinschreibung ist egal",
+  "Type a class, key or value": "Klasse, Schlüssel oder Wert eingeben",
+  "Selects every entity found and frames them": "Wählt alle gefundenen Entitäten aus und zeigt sie an",
+  "Replace material": "Material ersetzen",
+  "Replace": "Ersetzen",
+  "In map": "In der Karte",
+  "With": "Durch",
+  "{n} face uses it": { "one": "{n} Fläche verwendet es", "other": "{n} Flächen verwenden es" },
+  "Keeps each face's offset, scale and rotation": "Behält Versatz, Skalierung und Drehung jeder Fläche",
+  "Selected {n} entity": { "one": "{n} Entität ausgewählt", "other": "{n} Entitäten ausgewählt" }
 }

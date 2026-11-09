@@ -2216,5 +2216,21 @@
   "Linked": "リンク",
   "Select the objects to copy": "コピーするオブジェクトを選択",
   "The scale grows or shrinks the copies too much": "スケールでコピーが大きく、または小さくなりすぎます",
-  "{n} copy": { "other": "{n}個のコピー" }
+  "{n} copy": { "other": "{n}個のコピー" },
+  "Find and Replace…": "検索と置換…",
+  "Find and Replace": "検索と置換",
+  "Find entities": "エンティティを検索",
+  "Key": "キー",
+  "Value": "値",
+  "Exact match": "完全一致",
+  "Off finds part of a text, upper and lower case never matter": "オフでは一部だけの一致も探し、大文字小文字は区別しません",
+  "Type a class, key or value": "クラス、キー、値を入力",
+  "Selects every entity found and frames them": "見つかったエンティティをすべて選択して表示します",
+  "Replace material": "マテリアルを置換",
+  "Replace": "置換",
+  "In map": "マップ内",
+  "With": "置換後",
+  "{n} face uses it": { "other": "{n} 個の面で使用中" },
+  "Keeps each face's offset, scale and rotation": "各面のオフセット、スケール、回転を保ちます",
+  "Selected {n} entity": { "other": "{n} 個のエンティティを選択しました" }
 }

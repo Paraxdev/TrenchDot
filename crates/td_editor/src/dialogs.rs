@@ -83,6 +83,7 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
         entry(en!("Godot"), en!("Run Project"), Action::RunGodotProject),
         entry(en!("Godot"), en!("Build in Godot"), Action::BuildInGodot),
         entry(en!("Godot"), en!("Toggle Live Mode"), Action::ToggleLiveMode),
+        entry(en!("Edit"), en!("Find and Replace"), Action::ShowFindDialog),
         entry(en!("Edit"), en!("Undo"), Action::Undo),
         entry(en!("Edit"), en!("Redo"), Action::Redo),
         entry(en!("Edit"), en!("Duplicate"), Action::Duplicate),
