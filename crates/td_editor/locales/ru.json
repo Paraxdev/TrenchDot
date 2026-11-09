@@ -2197,5 +2197,14 @@
   "Points": "Точки",
   "{n} point": { "one": "{n} точка", "few": "{n} точки", "many": "{n} точек" },
   "Place points with the Path tool, the curve runs through them in order": "Расставьте точки инструментом «Путь», кривая пройдёт через них по порядку",
-  "A bend is tighter than the faces are wide, move the points further apart": "Изгиб круче, чем ширина граней, разнесите точки дальше"
+  "A bend is tighter than the faces are wide, move the points further apart": "Изгиб круче, чем ширина граней, разнесите точки дальше",
+  "Distribute": "Распределить",
+  "Align {axis} Min": "Выровнять {axis} по мин.",
+  "Align {axis} Center": "Выровнять {axis} по центру",
+  "Align {axis} Max": "Выровнять {axis} по макс.",
+  "Distribute {axis}": "Распределить {axis}",
+  "Select at least two objects to align": "Выберите хотя бы два объекта для выравнивания",
+  "Nothing to align, the objects already line up": "Выравнивать нечего, объекты уже на одной линии",
+  "Select at least three objects to distribute": "Выберите хотя бы три объекта для распределения",
+  "Nothing to distribute, the gaps are already equal": "Распределять нечего, промежутки уже равны"
 }

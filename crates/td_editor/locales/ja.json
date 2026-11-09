@@ -2197,5 +2197,14 @@
   "Points": "点",
   "{n} point": { "other": "{n} 点" },
   "Place points with the Path tool, the curve runs through them in order": "パスツールで点を置くと、曲線がその順に通ります",
-  "A bend is tighter than the faces are wide, move the points further apart": "曲がりが面の幅よりきついので、点の間隔を広げてください"
+  "A bend is tighter than the faces are wide, move the points further apart": "曲がりが面の幅よりきついので、点の間隔を広げてください",
+  "Distribute": "等間隔配置",
+  "Align {axis} Min": "{axis}を最小に整列",
+  "Align {axis} Center": "{axis}を中央に整列",
+  "Align {axis} Max": "{axis}を最大に整列",
+  "Distribute {axis}": "{axis}を等間隔に配置",
+  "Select at least two objects to align": "整列するオブジェクトを2つ以上選択してください",
+  "Nothing to align, the objects already line up": "整列済みのため、移動するものがありません",
+  "Select at least three objects to distribute": "等間隔に配置するオブジェクトを3つ以上選択してください",
+  "Nothing to distribute, the gaps are already equal": "間隔がすでに等しいため、移動するものがありません"
 }

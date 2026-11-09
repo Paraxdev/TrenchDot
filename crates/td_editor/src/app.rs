@@ -1379,6 +1379,21 @@ impl App {
                     }
 
                     ui.separator();
+                    sub_menu(ui, None, en!("Align"), |ui| {
+                        for axis in 0..3 {
+                            let a = commands::axis_name(axis);
+                            m.item(ui, None, &msg!("Align {axis} Min", axis = a), Action::Align { axis, to: td_doc::ops::AlignTo::Min });
+                            m.item(ui, None, &msg!("Align {axis} Center", axis = a), Action::Align { axis, to: td_doc::ops::AlignTo::Center });
+                            m.item(ui, None, &msg!("Align {axis} Max", axis = a), Action::Align { axis, to: td_doc::ops::AlignTo::Max });
+                        }
+                    });
+                    sub_menu(ui, None, en!("Distribute"), |ui| {
+                        for axis in 0..3 {
+                            m.item(ui, None, &msg!("Distribute {axis}", axis = commands::axis_name(axis)), Action::Distribute { axis });
+                        }
+                    });
+
+                    ui.separator();
                     sub_menu(ui, None, en!("Nudge by Grid"), |ui| {
                         for axis in 0..3 {
                             for sign in [1.0, -1.0] {

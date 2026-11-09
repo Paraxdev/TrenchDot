@@ -2197,5 +2197,14 @@
   "Points": "点",
   "{n} point": { "other": "{n} 个点" },
   "Place points with the Path tool, the curve runs through them in order": "用路径工具放置点，曲线会按顺序穿过它们",
-  "A bend is tighter than the faces are wide, move the points further apart": "有一处弯道比面的宽度还急，请把点拉开一些"
+  "A bend is tighter than the faces are wide, move the points further apart": "有一处弯道比面的宽度还急，请把点拉开一些",
+  "Distribute": "分布",
+  "Align {axis} Min": "对齐 {axis} 最小",
+  "Align {axis} Center": "对齐 {axis} 居中",
+  "Align {axis} Max": "对齐 {axis} 最大",
+  "Distribute {axis}": "分布 {axis}",
+  "Select at least two objects to align": "请至少选择两个对象来对齐",
+  "Nothing to align, the objects already line up": "无需对齐，对象已经对齐",
+  "Select at least three objects to distribute": "请至少选择三个对象来分布",
+  "Nothing to distribute, the gaps are already equal": "无需分布，间距已经相等"
 }

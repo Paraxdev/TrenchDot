@@ -1236,6 +1236,19 @@ impl App {
                     Action::Rotate { axis, degrees }
                 }
             }
+            "align" | "distribute" => {
+                let Some(axis) = axis_index(&a["axis"]) else {
+                    return err(format!("{name} needs args.axis, x, y or z, got {}", a["axis"]));
+                };
+                if name == "distribute" {
+                    Action::Distribute { axis }
+                } else {
+                    let Some(to) = a["to"].as_str().and_then(ops::AlignTo::from_name) else {
+                        return err(format!("align needs args.to, min, center or max, got {}", a["to"]));
+                    };
+                    Action::Align { axis, to }
+                }
+            }
             "focus_selection" => Action::FocusSelection,
             "create_brush_entity" => Action::CreateBrushEntity(a["classname"].as_str().unwrap_or("func_detail").to_string()),
             "place_entities" => {

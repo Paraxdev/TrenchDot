@@ -4432,3 +4432,49 @@ fn two_d_views_turn_to_paper() {
     let (again, _) = view_pixels(&ed, &shot(&ed, json!({ "target": "window" }), "dark_window_again"), "top");
     assert_eq!(image_difference(&dark_crop, &again), 0.0, "Dark draws the Top view as before");
 }
+
+#[test]
+#[ignore]
+fn align_and_distribute_over_mcp() {
+    let ed = Editor::launch("align_distribute");
+    let a = ed.box_brush([0.0, 0.0, 0.0], [32.0, 32.0, 32.0]);
+    let b = ed.box_brush([100.0, 10.0, 0.0], [116.0, 26.0, 16.0]);
+    let c = ed.box_brush([300.0, 40.0, 0.0], [364.0, 104.0, 64.0]);
+    let bounds_of = |id: u64| {
+        ed.call("select", json!({ "ids": [id] }));
+        ed.selection_bounds()
+    };
+    ed.call("select", json!({ "ids": [a, b, c] }));
+
+    assert!(ed.call_err("run_action", json!({ "action": "align", "args": { "to": "min" } })).contains("axis"));
+    assert!(ed.call_err("run_action", json!({ "action": "align", "args": { "axis": "y", "to": "top" } })).contains("min, center or max"));
+    assert!(ed.call_err("run_action", json!({ "action": "distribute", "args": { "axis": "w" } })).contains("axis"));
+
+    ed.call("run_action", json!({ "action": "align", "args": { "axis": "y", "to": "min" } }));
+    for id in [a, b, c] {
+        assert_eq!(bounds_of(id).0[1], 0.0, "every bottom is on the lowest one");
+    }
+
+    assert!(approx(&bounds_of(c).1, &[364.0, 64.0, 64.0]), "sizes are kept");
+
+    ed.call("select", json!({ "ids": [a, b, c] }));
+    assert!(ed.call_err("run_action", json!({ "action": "align", "args": { "axis": "y", "to": "min" } })).contains("already line up"));
+    ed.call("run_action", json!({ "action": "align", "args": { "axis": "z", "to": "center" } }));
+    for (id, size) in [(a, 32.0), (b, 16.0), (c, 64.0)] {
+        let (min, max) = bounds_of(id);
+        assert!(((min[2] + max[2]) / 2.0 - 32.0).abs() < 1e-6 && (max[2] - min[2] - size).abs() < 1e-6);
+    }
+
+    ed.call("select", json!({ "ids": [a, b] }));
+    assert!(ed.call_err("run_action", json!({ "action": "distribute", "args": { "axis": "x" } })).contains("at least three"));
+
+    ed.call("select", json!({ "ids": [a, b, c] }));
+    ed.call("run_action", json!({ "action": "distribute", "args": { "axis": "x" } }));
+    assert_eq!(bounds_of(a).0[0], 0.0);
+    assert_eq!(bounds_of(c).1[0], 364.0);
+    let (b_min, b_max) = bounds_of(b);
+    assert!((b_min[0] - 32.0 - (300.0 - b_max[0])).abs() < 1e-6, "equal gaps, b is at {b_min:?}");
+
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(bounds_of(b).0[0], 100.0, "one undo step brings the distribute back");
+}

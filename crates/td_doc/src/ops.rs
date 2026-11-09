@@ -170,6 +170,103 @@ pub fn selection_center(map: &Map, sel: &Selection, grid: f64) -> DVec3 {
     td_core::snap_vec_to_grid(b.center(), grid.max(1.0))
 }
 
+/// Which edge of the combined bounds [`align_selection`] lines the objects up with.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AlignTo {
+    Min,
+    Center,
+    Max,
+}
+
+impl AlignTo {
+    pub fn from_name(name: &str) -> Option<Self> {
+        match name {
+            "min" => Some(Self::Min),
+            "center" => Some(Self::Center),
+            "max" => Some(Self::Max),
+            _ => None,
+        }
+    }
+}
+
+/// The selected objects an align or distribute treats as one unit each: the top level nodes that have bounds.
+pub fn selection_units(map: &Map, sel: &Selection) -> Vec<(NodeId, Aabb)> {
+    selection_roots(map, sel).into_iter().map(|id| (id, map.bounds(id))).filter(|(_, b)| !b.is_empty()).collect()
+}
+
+/// How far each box moves along `axis` to share the min, center or max of their combined bounds.
+pub fn align_offsets(boxes: &[Aabb], axis: usize, to: AlignTo) -> Vec<f64> {
+    let mut all = Aabb::EMPTY;
+    for b in boxes {
+        all.include(b);
+    }
+
+    boxes
+        .iter()
+        .map(|b| match to {
+            AlignTo::Min => all.min[axis] - b.min[axis],
+            AlignTo::Center => all.center()[axis] - b.center()[axis],
+            AlignTo::Max => all.max[axis] - b.max[axis],
+        })
+        .collect()
+}
+
+/// How far each box moves along `axis` so the gaps between neighbours are equal. The boxes with the lowest and highest
+/// center stay where they are. Overlapping boxes get a negative gap, equal all the same.
+pub fn distribute_offsets(boxes: &[Aabb], axis: usize) -> Vec<f64> {
+    let mut offsets = vec![0.0; boxes.len()];
+    if boxes.len() < 3 {
+        return offsets;
+    }
+
+    let mut order: Vec<usize> = (0..boxes.len()).collect();
+    order.sort_by(|a, b| boxes[*a].center()[axis].total_cmp(&boxes[*b].center()[axis]));
+    let start = boxes[order[0]].min[axis];
+    let span = boxes[order[order.len() - 1]].max[axis] - start;
+    let sizes: f64 = boxes.iter().map(|b| b.size()[axis]).sum();
+    let gap = (span - sizes) / (boxes.len() - 1) as f64;
+    let mut at = start;
+    for i in order {
+        offsets[i] = at - boxes[i].min[axis];
+        at += boxes[i].size()[axis] + gap;
+    }
+
+    offsets
+}
+
+/// Moves each unit along `axis` by its offset and returns how many actually moved.
+fn move_units(map: &mut Map, units: &[(NodeId, Aabb)], offsets: &[f64], axis: usize, opts: EditOptions) -> usize {
+    let mut moved = 0;
+    for ((id, _), delta) in units.iter().zip(offsets) {
+        if delta.abs() < 1e-6 {
+            continue;
+        }
+
+        let mut offset = DVec3::ZERO;
+        offset[axis] = *delta;
+        let mut one = Selection::default();
+        one.nodes.insert(*id);
+        translate_selection(map, &one, offset, opts);
+        moved += 1;
+    }
+
+    moved
+}
+
+/// Aligns the selected objects on `axis` to `to` of their combined bounds, returns how many moved.
+pub fn align_selection(map: &mut Map, sel: &Selection, axis: usize, to: AlignTo, opts: EditOptions) -> usize {
+    let units = selection_units(map, sel);
+    let boxes: Vec<Aabb> = units.iter().map(|(_, b)| *b).collect();
+    move_units(map, &units, &align_offsets(&boxes, axis, to), axis, opts)
+}
+
+/// Spaces three or more selected objects evenly along `axis`, returns how many moved.
+pub fn distribute_selection(map: &mut Map, sel: &Selection, axis: usize, opts: EditOptions) -> usize {
+    let units = selection_units(map, sel);
+    let boxes: Vec<Aabb> = units.iter().map(|(_, b)| *b).collect();
+    move_units(map, &units, &distribute_offsets(&boxes, axis), axis, opts)
+}
+
 pub fn duplicate_selection(map: &mut Map, sel: &mut Selection, offset: DVec3, opts: EditOptions) -> Vec<NodeId> {
     let roots = selection_roots(map, sel);
     let mut new_ids = Vec::new();
@@ -847,6 +944,98 @@ mod tests {
         let b = create_brush(&mut m, l, Brush::from_aabb(&Aabb::new(DVec3::new(-8.0, -64.0, -8.0), DVec3::new(8.0, 64.0, 8.0)), "b").unwrap());
         let c = create_brush(&mut m, l, Brush::from_aabb(&Aabb::new(DVec3::splat(100.0), DVec3::splat(120.0)), "c").unwrap());
         (m, vec![a, b, c])
+    }
+
+    fn boxes() -> Vec<Aabb> {
+        vec![
+            Aabb::new(DVec3::new(0.0, 0.0, 0.0), DVec3::new(10.0, 4.0, 4.0)),
+            Aabb::new(DVec3::new(12.0, 2.0, 0.0), DVec3::new(16.0, 8.0, 4.0)),
+            Aabb::new(DVec3::new(40.0, 0.0, 0.0), DVec3::new(60.0, 10.0, 4.0)),
+        ]
+    }
+
+    #[test]
+    fn align_offsets_meet_the_combined_bounds() {
+        let b = boxes();
+        assert_eq!(align_offsets(&b, 0, AlignTo::Min), [0.0, -12.0, -40.0]);
+        assert_eq!(align_offsets(&b, 0, AlignTo::Max), [50.0, 44.0, 0.0]);
+        assert_eq!(align_offsets(&b, 0, AlignTo::Center), [25.0, 16.0, -20.0]);
+        assert_eq!(align_offsets(&b, 1, AlignTo::Min), [0.0, -2.0, 0.0]);
+        assert_eq!(align_offsets(&b, 1, AlignTo::Max), [6.0, 2.0, 0.0]);
+        assert_eq!(align_offsets(&b, 2, AlignTo::Center), [0.0, 0.0, 0.0]);
+    }
+
+    fn gaps_after(boxes: &[Aabb], offsets: &[f64]) -> Vec<f64> {
+        let mut spans: Vec<(f64, f64)> = boxes.iter().zip(offsets).map(|(b, d)| (b.min.x + d, b.max.x + d)).collect();
+        spans.sort_by(|a, b| a.0.total_cmp(&b.0));
+        spans.windows(2).map(|w| w[1].0 - w[0].1).collect()
+    }
+
+    #[test]
+    fn distribute_offsets_equalize_gaps_and_pin_the_ends() {
+        let b = boxes();
+        let offsets = distribute_offsets(&b, 0);
+        assert_eq!((offsets[0], offsets[2]), (0.0, 0.0));
+        assert_eq!(gaps_after(&b, &offsets), [13.0, 13.0]);
+    }
+
+    #[test]
+    fn distribute_orders_by_position_not_by_selection_order() {
+        let mut b = boxes();
+        b.swap(0, 2);
+        let offsets = distribute_offsets(&b, 0);
+        assert_eq!((offsets[0], offsets[2]), (0.0, 0.0));
+        assert_eq!(gaps_after(&b, &offsets), [13.0, 13.0]);
+    }
+
+    #[test]
+    fn distribute_needs_three_boxes() {
+        assert_eq!(distribute_offsets(&boxes()[..2], 0), [0.0, 0.0]);
+    }
+
+    #[test]
+    fn distribute_overlapping_boxes_keeps_the_gaps_equal() {
+        let b = vec![
+            Aabb::new(DVec3::ZERO, DVec3::splat(10.0)),
+            Aabb::new(DVec3::new(2.0, 0.0, 0.0), DVec3::new(12.0, 10.0, 10.0)),
+            Aabb::new(DVec3::new(5.0, 0.0, 0.0), DVec3::new(15.0, 10.0, 10.0)),
+        ];
+        let gaps = gaps_after(&b, &distribute_offsets(&b, 0));
+        assert!((gaps[0] - gaps[1]).abs() < 1e-9 && gaps[0] < 0.0, "{gaps:?}");
+    }
+
+    #[test]
+    fn align_and_distribute_move_whole_units() {
+        let (mut m, ids) = world_with_boxes();
+        let wall = in_entity(&mut m, ids[1], "func_wall");
+        let mut sel = Selection::default();
+        sel.nodes.extend([ids[0], wall, ids[2]]);
+        assert_eq!(selection_units(&m, &sel).len(), 3);
+
+        let moved = align_selection(&mut m, &sel, 1, AlignTo::Min, EditOptions::default());
+        assert_eq!(moved, 2, "the brush entity moved as one, the lowest unit stayed");
+        assert_eq!(m.bounds(wall).min.y, -64.0);
+        assert_eq!(m.bounds(ids[0]).min.y, -64.0);
+        assert_eq!(m.bounds(ids[2]).min.y, -64.0);
+        assert_eq!(m.bounds(wall).size().y, 128.0, "sizes are kept");
+        assert_eq!(align_selection(&mut m, &sel, 1, AlignTo::Min, EditOptions::default()), 0, "already aligned");
+
+        let moved = distribute_selection(&mut m, &sel, 0, EditOptions::default());
+        assert_eq!(moved, 1);
+        let (a, w, c) = (m.bounds(ids[0]), m.bounds(wall), m.bounds(ids[2]));
+        assert_eq!((a.min.x, c.max.x), (-32.0, 120.0), "the outer two stay");
+        assert!(((w.min.x - a.max.x) - (c.min.x - w.max.x)).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_selected_child_of_a_selected_group_is_not_a_second_unit() {
+        let (mut m, ids) = world_with_boxes();
+        let mut sel = Selection::default();
+        sel.nodes.extend([ids[0], ids[1]]);
+        let layer = m.default_layer();
+        let group = group_selection(&mut m, &mut sel, "g", layer).unwrap();
+        sel.nodes.extend([ids[0], group, ids[2]]);
+        assert_eq!(selection_units(&m, &sel).len(), 2);
     }
 
     #[test]

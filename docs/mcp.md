@@ -148,6 +148,7 @@ See [Reviewing changes](editor/reviewing.md) for keeping maps in git.
 | Tool | Note |
 | --- | --- |
 | `run_action` `copy`, `cut`, `paste` | Copy and cut return the clipboard text, paste takes it as `args.text` with an optional `offset` or `origin` |
+| `run_action` `align`, `distribute` | `align` takes `args.axis` and `args.to` (`min`, `center` or `max`), `distribute` takes `args.axis`. Both treat each selected group, brush entity or object as one unit and do not snap |
 | `run_action` `clip_apply` | Takes a plane (`point` and `normal`, or three `points`) and `keep`: `front`, `back` or `both` |
 | `run_action` `create_decal` | Places a [decal](editor/decals.md), use it instead of thin brushes |
 | `create_brush` | `openings` carves doors and windows, `{min, max, count, step, rows, row_step}` repeats one as a grid |

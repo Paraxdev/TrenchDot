@@ -85,6 +85,24 @@ to add a corner there. Delete removes the selected vertices.
 
 ![The Measure tool in the 3D view, a line labelled 230.76 u (7.21 m) and the X, Y and Z parts at the bottom](../assets/brushes/measure.png)
 
+## Align and distribute
+
+To line up several objects, select them and open *Brush > Transform*. Each brush, mesh, entity and group counts as one
+object, and a group or brush entity moves as a whole.
+
+1. Select two or more objects.
+2. Open *Brush > Transform > Align* and pick an axis and an edge, for example **Align Y Min** to put every bottom on the
+   lowest one. **Min**, **Center** and **Max** refer to the combined bounds of the selection, and Y is up.
+3. To space objects evenly, select three or more and pick *Brush > Transform > Distribute* and an axis. The objects
+   with the lowest and highest center on that axis stay where they are, and the ones between them move so every gap is
+   the same.
+
+![The Align submenu open under Brush > Transform, listing Min, Center and Max for X, Y and Z](../assets/brushes/align-menu.png)
+
+Each command is one undo step and moves by exact amounts, so the results are not snapped to the grid. If the objects
+already line up, the status bar says so and nothing changes. Objects that overlap along the axis end up with the same
+overlap between each pair.
+
 ## Shape Generator
 
 For cylinders, arches, stairs, roofs and other shapes that would take a lot of hand drawn brushes, use the Shape

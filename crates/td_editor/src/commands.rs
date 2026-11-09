@@ -77,6 +77,15 @@ pub enum Action {
     Flip {
         axis: usize,
     },
+    /// Lines the selected objects up on one axis, each object counting as one unit.
+    Align {
+        axis: usize,
+        to: ops::AlignTo,
+    },
+    /// Spaces three or more selected objects evenly along one axis.
+    Distribute {
+        axis: usize,
+    },
     SetTool(ToolKind),
     FocusSelection,
     CreateBrushEntity(String),
@@ -299,6 +308,15 @@ impl Action {
             Action::CsgHollow => en!("Hollow"),
             Action::Rotate { axis, degrees } => return trf!("Rotate {axis} {degrees}°", axis = axis_name(*axis), degrees),
             Action::Flip { axis } => return trf!("Flip {axis}", axis = axis_name(*axis)),
+            Action::Align { axis, to } => {
+                let axis = axis_name(*axis);
+                return match to {
+                    ops::AlignTo::Min => trf!("Align {axis} Min", axis),
+                    ops::AlignTo::Center => trf!("Align {axis} Center", axis),
+                    ops::AlignTo::Max => trf!("Align {axis} Max", axis),
+                };
+            }
+            Action::Distribute { axis } => return trf!("Distribute {axis}", axis = axis_name(*axis)),
             Action::SetTool(t) => return trf!("{tool} Tool", tool = tr(t.label())),
             Action::FocusSelection => en!("Focus Selection"),
             Action::CreateBrushEntity(class) => return trf!("Create {class}", class),
@@ -938,7 +956,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         return;
     }
 
-    if matches!(action, Action::Rotate { .. } | Action::Flip { .. } | Action::Nudge(_) | Action::Duplicate) {
+    if matches!(action, Action::Rotate { .. } | Action::Flip { .. } | Action::Align { .. } | Action::Distribute { .. } | Action::Nudge(_) | Action::Duplicate) {
         state.last_repeatable = Some(action.clone());
     }
 
@@ -1236,6 +1254,28 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             let center = ops::selection_center(&state.doc.map, &state.doc.selection, opts.grid);
             let m = ops::flip_about(center, axis);
             state.doc.edit("Flip", |map, s| ops::transform_selection(map, s, &m, opts));
+        }
+        Action::Align { axis, to } => {
+            if ops::selection_units(&state.doc.map, &state.doc.selection).len() < 2 {
+                state.fail_status(msg!("Select at least two objects to align"));
+                return;
+            }
+
+            let result = state.doc.try_edit("Align", |m, s| Some(ops::align_selection(m, s, axis, to, opts)).filter(|n| *n > 0).ok_or(()));
+            if result.is_err() {
+                state.fail_status(msg!("Nothing to align, the objects already line up"));
+            }
+        }
+        Action::Distribute { axis } => {
+            if ops::selection_units(&state.doc.map, &state.doc.selection).len() < 3 {
+                state.fail_status(msg!("Select at least three objects to distribute"));
+                return;
+            }
+
+            let result = state.doc.try_edit("Distribute", |m, s| Some(ops::distribute_selection(m, s, axis, opts)).filter(|n| *n > 0).ok_or(()));
+            if result.is_err() {
+                state.fail_status(msg!("Nothing to distribute, the gaps are already equal"));
+            }
         }
         Action::Nudge(offset) => {
             if !state.doc.selection.nodes.is_empty() {
@@ -3055,6 +3095,25 @@ mod tests {
             assert_eq!(state.doc.history.undo_labels().count(), steps, "{action:?} added an undo step");
             assert!(state.doc.history.can_redo(), "{action:?} dropped the redo step");
         }
+    }
+
+    #[test]
+    fn align_and_distribute_that_move_nothing_record_nothing() {
+        let mut state = EditorState::new(Default::default());
+        let ctx = egui::Context::default();
+        let ids = [0.0, 64.0, 128.0].map(|x| brush_at(&mut state, x));
+        state.doc.select(|_, s| s.nodes.extend(ids));
+        state.doc.mark_saved();
+        let steps = state.doc.history.undo_labels().count();
+        for action in [Action::Align { axis: 1, to: ops::AlignTo::Min }, Action::Distribute { axis: 0 }] {
+            execute(&mut state, action.clone(), &ctx);
+            assert!(state.status_failed(), "{action:?}: {}", state.status);
+            assert!(!state.doc.is_modified(), "{action:?} marked the map modified");
+            assert_eq!(state.doc.history.undo_labels().count(), steps, "{action:?} added an undo step");
+        }
+
+        execute(&mut state, Action::Align { axis: 0, to: ops::AlignTo::Max }, &ctx);
+        assert_eq!(state.doc.history.undo_labels().count(), steps + 1, "an align that moves two objects is one step");
     }
 
     #[test]

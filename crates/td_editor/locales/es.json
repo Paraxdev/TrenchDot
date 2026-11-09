@@ -2197,5 +2197,14 @@
   "Points": "Puntos",
   "{n} point": { "one": "{n} punto", "other": "{n} puntos" },
   "Place points with the Path tool, the curve runs through them in order": "Coloca puntos con la herramienta Ruta, la curva pasa por ellos en orden",
-  "A bend is tighter than the faces are wide, move the points further apart": "Una curva es más cerrada que el ancho de las caras, separa más los puntos"
+  "A bend is tighter than the faces are wide, move the points further apart": "Una curva es más cerrada que el ancho de las caras, separa más los puntos",
+  "Distribute": "Distribuir",
+  "Align {axis} Min": "Alinear {axis} al mín.",
+  "Align {axis} Center": "Alinear {axis} al centro",
+  "Align {axis} Max": "Alinear {axis} al máx.",
+  "Distribute {axis}": "Distribuir {axis}",
+  "Select at least two objects to align": "Seleccione al menos dos objetos para alinear",
+  "Nothing to align, the objects already line up": "Nada que alinear, los objetos ya están alineados",
+  "Select at least three objects to distribute": "Seleccione al menos tres objetos para distribuir",
+  "Nothing to distribute, the gaps are already equal": "Nada que distribuir, los espacios ya son iguales"
 }
