@@ -2254,5 +2254,6 @@
   "Click a surface or the ground to start the outline": "Eine Oberfläche oder den Boden anklicken, um die Kontur zu beginnen",
   "Created {n} polygon brush": { "one": "{n} Polygon-Brush erstellt", "other": "{n} Polygon-Brushes erstellt" },
   "Polygon: click to place the first corner": "Polygon: Klicken setzt den ersten Eckpunkt",
-  "Polygon: click corners, the first one or Enter closes, Backspace undoes": "Polygon: Ecken anklicken, erster Punkt oder Enter schließt, Backspace macht rückgängig"
+  "Polygon: click corners, the first one or Enter closes, Backspace undoes": "Polygon: Ecken anklicken, erster Punkt oder Enter schließt, Backspace macht rückgängig",
+  "A shape this heavy can slow the editor down": "Eine so schwere Form kann den Editor verlangsamen"
 }

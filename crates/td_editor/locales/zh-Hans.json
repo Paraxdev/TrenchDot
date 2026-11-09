@@ -2254,5 +2254,6 @@
   "Click a surface or the ground to start the outline": "点击一个表面或地面以开始绘制轮廓",
   "Created {n} polygon brush": { "other": "已创建 {n} 个多边形笔刷" },
   "Polygon: click to place the first corner": "多边形：点击放置第一个角点",
-  "Polygon: click corners, the first one or Enter closes, Backspace undoes": "多边形：点击放角点，点第一个点或 Enter 闭合，Backspace 撤销"
+  "Polygon: click corners, the first one or Enter closes, Backspace undoes": "多边形：点击放角点，点第一个点或 Enter 闭合，Backspace 撤销",
+  "A shape this heavy can slow the editor down": "这么重的形状可能会让编辑器变慢"
 }

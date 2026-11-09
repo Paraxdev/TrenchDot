@@ -168,7 +168,8 @@ Generator.
 4. Click **Create**.
 
 The new shape stays selected, so you can change an option and click **Create** again to swap it for the next try,
-for example to go through a few rock seeds.
+for example to go through a few rock seeds. Under the options the dialog counts the objects and triangles it would
+make. The triangle count turns yellow past 10,000, since a shape that heavy can slow the editor down.
 
 ![The Shape Generator dialog set to Cylinder with 16 sides and the Y axis, filling a 128 x 192 x 128 selection](../assets/brushes/shape-generator.png)
 

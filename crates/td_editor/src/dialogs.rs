@@ -487,8 +487,12 @@ pub struct ShapeDialog {
     axis: shapes::Axis,
     text: TextShape,
     rock: Rock,
-    preview: Option<(ShapeKey, Vec<NodeKind>)>,
+    /// The generated shape and its triangle count.
+    preview: Option<(ShapeKey, Vec<NodeKind>, usize)>,
 }
+
+/// A shape past this many triangles gets its count shown as a warning.
+const HEAVY_TRIANGLES: usize = 10_000;
 
 /// Every setting the generated shape depends on, so it is only rebuilt when one of them changes.
 type ShapeKey = (ShapeKind, usize, f64, usize, bool, bool, shapes::Axis, TextShape, Rock, Aabb, String);
@@ -548,6 +552,18 @@ fn preview_lines(kinds: &[NodeKind]) -> Vec<(DVec3, DVec3)> {
     }
 
     out
+}
+
+fn triangles(kinds: &[NodeKind]) -> usize {
+    let fan = |n: usize| n.saturating_sub(2);
+    kinds
+        .iter()
+        .map(|kind| match kind {
+            NodeKind::Brush(b) => b.faces.iter().map(|f| fan(f.indices.len())).sum(),
+            NodeKind::Mesh(m) => m.faces.iter().map(|f| fan(f.indices.len())).sum(),
+            _ => 0,
+        })
+        .sum()
 }
 
 /// The selected brushes and meshes, which the shape takes its bounds from and replaces.
@@ -736,16 +752,25 @@ impl ShapeDialog {
             }
 
             let key = self.key(&bounds, &state.current_material);
-            if self.preview.as_ref().is_none_or(|(k, _)| *k != key) {
+            if self.preview.as_ref().is_none_or(|(k, ..)| *k != key) {
                 let kinds = self.generate(&bounds, &state.current_material);
                 state.shape_preview = preview_lines(&kinds);
-                self.preview = Some((key, kinds));
+                let tris = triangles(&kinds);
+                self.preview = Some((key, kinds, tris));
             }
 
-            let count = self.preview.as_ref().map_or(0, |(_, p)| p.len());
-            ui.label(RichText::new(tr_n!(count, "{n} object", "{n} objects")).weak());
+            let (count, tris) = self.preview.as_ref().map_or((0, 0), |(_, p, t)| (p.len(), *t));
+            ui.horizontal(|ui| {
+                ui.label(RichText::new(tr_n!(count, "{n} object", "{n} objects")).weak());
+                let tris_text = tr_n!(tris, "{n} triangle", "{n} triangles");
+                if tris > HEAVY_TRIANGLES {
+                    ui.colored_label(ui.visuals().warn_fg_color, tris_text).on_hover_text(tr("A shape this heavy can slow the editor down"));
+                } else {
+                    ui.label(RichText::new(tris_text).weak());
+                }
+            });
             if ui.add_enabled(count > 0, egui::Button::new(tr("Create"))).clicked() {
-                let kinds = self.preview.as_ref().map(|(_, p)| p.clone()).unwrap_or_default();
+                let kinds = self.preview.as_ref().map(|(_, p, _)| p.clone()).unwrap_or_default();
                 create_shape(state, &sources, kinds);
             }
         });
@@ -1340,6 +1365,36 @@ mod tests {
 
         assert!(state.doc.map.brush(block).is_none());
         assert_eq!(state.doc.map.meshes().count(), 1, "Create on the selected rock swaps it rather than stacking another");
+    }
+
+    #[test]
+    fn heavy_shapes_are_flagged_by_their_triangles() {
+        let bounds = Aabb::new(DVec3::ZERO, DVec3::splat(256.0));
+        assert_eq!(triangles(&[NodeKind::Brush(Brush::from_aabb(&bounds, "m").unwrap())]), 12);
+        let mut dialog = ShapeDialog { kind: ShapeKind::Rock, as_mesh: true, ..Default::default() };
+        dialog.rock.detail = rock::MAX_DETAIL;
+        assert!(triangles(&dialog.generate(&bounds, "m")) <= HEAVY_TRIANGLES, "the most detailed rock is fine on its own");
+        let grid = ShapeDialog { kind: ShapeKind::Grid, steps: 128, ..Default::default() };
+        assert!(triangles(&grid.generate(&bounds, "m")) > HEAVY_TRIANGLES);
+    }
+
+    #[test]
+    fn the_dialog_shows_a_heavy_shapes_triangles_in_the_warning_color() {
+        let (ctx, mut state, mut time) = (egui::Context::default(), EditorState::new(crate::state::Prefs::default()), 0.0);
+        state.last_bounds = Aabb::new(DVec3::ZERO, DVec3::splat(256.0));
+        let warn = ctx.global_style().visuals.warn_fg_color;
+        for (steps, heavy) in [(8, false), (128, true)] {
+            let mut dialog = ShapeDialog { open: true, kind: ShapeKind::Grid, steps, ..Default::default() };
+            let tris = triangles(&dialog.generate(&state.last_bounds, &state.current_material));
+            assert_eq!(tris > HEAVY_TRIANGLES, heavy);
+            let mut texts = Vec::new();
+            for _ in 0..3 {
+                texts = shape_frame(&ctx, &mut dialog, &mut state, &mut time, vec![]);
+            }
+
+            let (_, _, color) = texts.iter().find(|(text, ..)| *text == format!("{tris} triangles")).expect("the dialog shows the shape's triangle count");
+            assert_eq!(*color == warn, heavy, "{tris} triangles drawn in {color:?}");
+        }
     }
 
     #[test]

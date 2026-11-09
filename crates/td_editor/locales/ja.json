@@ -2254,5 +2254,6 @@
   "Click a surface or the ground to start the outline": "輪郭を始めるには面か地面をクリックしてください",
   "Created {n} polygon brush": { "other": "ポリゴンブラシを{n}個作成しました" },
   "Polygon: click to place the first corner": "ポリゴン：クリックで最初の角を置く",
-  "Polygon: click corners, the first one or Enter closes, Backspace undoes": "ポリゴン：クリックで角を置く、最初の角か Enter で閉じる、Backspace で戻す"
+  "Polygon: click corners, the first one or Enter closes, Backspace undoes": "ポリゴン：クリックで角を置く、最初の角か Enter で閉じる、Backspace で戻す",
+  "A shape this heavy can slow the editor down": "これほど重い形状はエディターを遅くすることがあります"
 }

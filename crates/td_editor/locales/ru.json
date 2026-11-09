@@ -2254,5 +2254,6 @@
   "Click a surface or the ground to start the outline": "Щёлкните по поверхности или по земле, чтобы начать контур",
   "Created {n} polygon brush": { "one": "Создан {n} полигональный браш", "few": "Создано {n} полигональных браша", "many": "Создано {n} полигональных брашей" },
   "Polygon: click to place the first corner": "Многоугольник: щелчок ставит первый угол",
-  "Polygon: click corners, the first one or Enter closes, Backspace undoes": "Многоугольник: щелчки ставят углы, первый угол или Enter замыкает, Backspace отменяет"
+  "Polygon: click corners, the first one or Enter closes, Backspace undoes": "Многоугольник: щелчки ставят углы, первый угол или Enter замыкает, Backspace отменяет",
+  "A shape this heavy can slow the editor down": "Такая тяжёлая фигура может замедлить редактор"
 }

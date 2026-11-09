@@ -2254,5 +2254,6 @@
   "Click a surface or the ground to start the outline": "Cliquer sur une surface ou sur le sol pour commencer le contour",
   "Created {n} polygon brush": { "one": "{n} brush polygonal créé", "other": "{n} brushes polygonaux créés" },
   "Polygon: click to place the first corner": "Polygone : cliquer place le premier coin",
-  "Polygon: click corners, the first one or Enter closes, Backspace undoes": "Polygone : cliquer les coins, le premier ou Enter ferme, Backspace annule"
+  "Polygon: click corners, the first one or Enter closes, Backspace undoes": "Polygone : cliquer les coins, le premier ou Enter ferme, Backspace annule",
+  "A shape this heavy can slow the editor down": "Une forme aussi lourde peut ralentir l'éditeur"
 }
