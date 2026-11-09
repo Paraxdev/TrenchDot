@@ -134,6 +134,7 @@ pub struct App {
     sweep_dialog: crate::sweep_dialog::SweepDialog,
     array_dialog: crate::array_dialog::ArrayDialog,
     find_dialog: crate::find_dialog::FindDialog,
+    spline_dialog: crate::spline_dialog::SplineDialog,
     fill_dialog: crate::random_fill::RandomFillDialog,
     terrain_dialog: TerrainDialog,
     keymap: KeymapWindow,
@@ -185,12 +186,13 @@ pub struct App {
     pub(crate) tool_options_rect: egui::Rect,
 }
 
-const WINDOW_TITLES: [&str; 15] = [
+const WINDOW_TITLES: [&str; 16] = [
     "Shape Generator",
     "Add Trim",
     "Sweep Faces",
     "Array Copies",
     "Find and Replace",
+    "Place Along Path",
     "Random Fill",
     "Create Terrain",
     "Keyboard Shortcuts",
@@ -937,6 +939,7 @@ impl App {
             sweep_dialog: Default::default(),
             array_dialog: Default::default(),
             find_dialog: Default::default(),
+            spline_dialog: Default::default(),
             fill_dialog: Default::default(),
             terrain_dialog: TerrainDialog::default(),
             keymap: KeymapWindow::default(),
@@ -1046,6 +1049,7 @@ impl App {
             Action::ShowSweepDialog => self.sweep_dialog.open = true,
             Action::ShowArrayDialog => self.array_dialog.open = true,
             Action::ShowFindDialog => self.find_dialog.open = true,
+            Action::ShowSplineDialog => self.spline_dialog.open = true,
             Action::ShowRandomFillDialog => self.fill_dialog.open = true,
             Action::ShowTerrainDialog => self.terrain_dialog.open = true,
             Action::ExportGlb => self.export_dialog.open_for(crate::export3d::Format::Glb, &mut self.state),
@@ -1350,6 +1354,7 @@ impl App {
                 m.item(ui, Some(icons::SHAPES), en!("Shape Generator…"), Action::ShowShapeDialog);
                 m.item(ui, None, en!("Add Trim…"), Action::ShowTrimDialog);
                 m.item(ui, None, en!("Sweep Faces…"), Action::ShowSweepDialog);
+                m.item(ui, None, en!("Place Along Path…"), Action::ShowSplineDialog);
                 m.item(ui, None, en!("Random Fill…"), Action::ShowRandomFillDialog);
                 m.item(ui, Some(icons::BRUSH), en!("Box from Last Bounds"), Action::CreateBrushFromBounds);
                 ui.separator();
@@ -3111,6 +3116,7 @@ impl eframe::App for App {
         self.sweep_dialog.show(&ctx, &mut self.state);
         self.array_dialog.show(&ctx, &mut self.state);
         self.find_dialog.show(&ctx, &mut self.state);
+        self.spline_dialog.show(&ctx, &mut self.state);
         self.fill_dialog.show(&ctx, &mut self.state);
         self.terrain_dialog.show(&ctx, &mut self.state);
         self.keymap.show(&ctx, &mut self.state);

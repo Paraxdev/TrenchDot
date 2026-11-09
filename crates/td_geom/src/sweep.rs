@@ -127,21 +127,33 @@ impl Frame {
 
 const CURVE_STEPS: usize = 32;
 
-/// A smooth curve that leaves the faces along their normal and passes through each point in turn, as cubic Hermite
-/// spans whose tangents bisect the neighbouring chords. Each span scales its tangents to its own length, which keeps
-/// the curve from overshooting where the points are spaced unevenly.
+/// A smooth curve that leaves its first point along a start direction and passes through each point in turn, as cubic
+/// Hermite spans whose tangents bisect the neighbouring chords. Each span scales its tangents to its own length, which
+/// keeps the curve from overshooting where the points are spaced unevenly.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Curve {
-    /// Position, rotation from the faces' frame and share of the curve's length at each sample.
+    /// Position, rotation from the start direction and share of the curve's length at each sample.
     samples: Vec<(DVec3, DQuat, f64)>,
+    start: DVec3,
+    length: f64,
 }
 
 impl Curve {
+    /// Leaves the faces' center along their normal.
     pub fn new(frame: &Frame, points: &[DVec3]) -> Option<Curve> {
-        let mut pts = vec![frame.center];
+        Self::build(std::iter::once(frame.center).chain(points.iter().copied()), Some(frame.normal))
+    }
+
+    /// Starts at the first point, heading for the second.
+    pub fn through(points: &[DVec3]) -> Option<Curve> {
+        Self::build(points.iter().copied(), None)
+    }
+
+    fn build(points: impl Iterator<Item = DVec3>, start: Option<DVec3>) -> Option<Curve> {
+        let mut pts: Vec<DVec3> = Vec::new();
         for p in points {
-            if p.distance(*pts.last()?) > 1e-6 {
-                pts.push(*p);
+            if pts.last().is_none_or(|l| p.distance(*l) > 1e-6) {
+                pts.push(p);
             }
         }
 
@@ -149,17 +161,18 @@ impl Curve {
             return None;
         }
 
+        let start = start.unwrap_or((pts[1] - pts[0]).normalize());
         let last = pts.len() - 1;
         let direction = |i: usize| -> DVec3 {
             if i == 0 {
-                frame.normal
+                start
             } else if i == last {
                 (pts[i] - pts[i - 1]).normalize()
             } else {
                 ((pts[i] - pts[i - 1]).normalize() + (pts[i + 1] - pts[i]).normalize()).try_normalize().unwrap_or((pts[i + 1] - pts[i]).normalize())
             }
         };
-        let mut samples: Vec<(DVec3, DVec3)> = vec![(pts[0], frame.normal)];
+        let mut samples: Vec<(DVec3, DVec3)> = vec![(pts[0], start)];
         for i in 0..last {
             let (a, b) = (pts[i], pts[i + 1]);
             let len = a.distance(b);
@@ -195,7 +208,17 @@ impl Curve {
             s.2 /= length;
         }
 
-        Some(Curve { samples: out })
+        Some(Curve { samples: out, start, length })
+    }
+
+    pub fn length(&self) -> f64 {
+        self.length
+    }
+
+    /// Position and unit tangent at `t` from 0 to 1 of the curve's length.
+    pub fn point(&self, t: f64) -> (DVec3, DVec3) {
+        let (pos, rot) = self.at(t);
+        (pos, (rot * self.start).normalize())
     }
 
     /// Position and rotation at `t` from 0 to 1, spaced evenly along the curve's length.

@@ -1282,7 +1282,7 @@ impl ToolSet {
             }
         }
 
-        for &(a, b) in &state.shape_preview {
+        for &(a, b) in state.shape_preview.iter().chain(&state.spline_preview) {
             line(&mut out, a, b, [0.3, 1.0, 1.0, 0.9]);
         }
 

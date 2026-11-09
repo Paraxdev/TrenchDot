@@ -132,6 +132,7 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
         entry(en!("Brush"), en!("Shape Generator"), Action::ShowShapeDialog),
         entry(en!("Brush"), en!("Add Trim (baseboards, molding)"), Action::ShowTrimDialog),
         entry(en!("Brush"), en!("Sweep Faces along a line, arc, S-bend or curve"), Action::ShowSweepDialog),
+        entry(en!("Brush"), en!("Place Along Path (fences, roads, cables)"), Action::ShowSplineDialog),
         entry(en!("Brush"), en!("Random Fill from the prefab library"), Action::ShowRandomFillDialog),
         entry(en!("Displacement"), en!("Create (power 2)"), Action::CreateDisplacement(2)),
         entry(en!("Displacement"), en!("Create (power 3)"), Action::CreateDisplacement(3)),

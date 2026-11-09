@@ -11,6 +11,7 @@ pub mod outline;
 pub mod polygon;
 pub mod rock;
 pub mod shapes;
+pub mod spline;
 pub mod sweep;
 pub mod uv;
 

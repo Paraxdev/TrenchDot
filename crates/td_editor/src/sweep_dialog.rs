@@ -29,6 +29,7 @@ pub struct PointChain {
     pub start: NodeId,
     pub name: String,
     pub points: Vec<DVec3>,
+    pub ids: Vec<NodeId>,
 }
 
 /// Every chain in the map. A chain is entities of one classname where each targets the next. It starts at one no
@@ -57,16 +58,17 @@ pub fn point_chains(map: &Map) -> Vec<PointChain> {
             continue;
         }
 
-        let mut points = Vec::new();
+        let (mut points, mut ids) = (Vec::new(), Vec::new());
         let mut at = Some(start);
         while let Some(id) = at.filter(|id| seen.insert(*id)) {
             points.push(entities[&id].origin);
+            ids.push(id);
             at = next(id);
         }
 
         let e = entities[&start];
         let name = e.targetname().map_or_else(|| format!("{} {}", e.classname, start.0), str::to_string);
-        chains.push(PointChain { start, name, points });
+        chains.push(PointChain { start, name, points, ids });
     }
 
     chains

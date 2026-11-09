@@ -19,6 +19,31 @@ fn vec3(v: &Value) -> Option<DVec3> {
     Some(DVec3::new(a.first()?.as_f64()?, a.get(1)?.as_f64()?, a.get(2)?.as_f64()?))
 }
 
+/// The `points` argument, else the points of the chain `chain` names, else of the one `nearest` picks.
+fn curve_points(
+    map: &td_doc::Map,
+    args: &Value,
+    nearest: impl FnOnce(&td_doc::Map, Option<NodeId>) -> Option<crate::sweep_dialog::PointChain>,
+) -> Result<Vec<DVec3>, String> {
+    if let Some(list) = args["points"].as_array() {
+        return list.iter().map(vec3).collect::<Option<Vec<_>>>().ok_or_else(|| "points must be [[x, y, z], ...]".to_string());
+    }
+
+    let chains = crate::sweep_dialog::point_chains(map);
+    let start = match &args["chain"] {
+        Value::Null => None,
+        Value::String(name) => match chains.iter().find(|c| c.name == *name) {
+            Some(c) => Some(c.start),
+            None => return Err(format!("no chain of points starts at {name}")),
+        },
+        v => match v.as_u64().map(NodeId).filter(|id| chains.iter().any(|c| c.start == *id)) {
+            Some(id) => Some(id),
+            None => return Err(format!("chain must be the targetname or id of a chain's first point, got {v}")),
+        },
+    };
+    Ok(nearest(map, start).map(|c| c.points).unwrap_or_default())
+}
+
 /// [x, z] or [x, y, z] as a world point with y from the second form only.
 fn point(v: &Value) -> Option<DVec3> {
     let a = v.as_array()?;
@@ -281,27 +306,13 @@ impl App {
 
         let mut points = Vec::new();
         if sweep.path == SweepPath::Curve {
-            if let Some(list) = args["points"].as_array() {
-                points = match list.iter().map(vec3).collect::<Option<Vec<_>>>() {
-                    Some(p) => p,
-                    None => return err("points must be [[x, y, z], ...]"),
-                };
-            } else {
-                let chains = crate::sweep_dialog::point_chains(&self.state.doc.map);
-                let start = match &args["chain"] {
-                    Value::Null => None,
-                    Value::String(name) => match chains.iter().find(|c| c.name == *name) {
-                        Some(c) => Some(c.start),
-                        None => return err(format!("no chain of points starts at {name}")),
-                    },
-                    v => match v.as_u64().map(NodeId).filter(|id| chains.iter().any(|c| c.start == *id)) {
-                        Some(id) => Some(id),
-                        None => return err(format!("chain must be the targetname or id of a chain's first point, got {v}")),
-                    },
-                };
+            points = match curve_points(&self.state.doc.map, args, |map, start| {
                 let faces: Vec<_> = picked.iter().map(|(_, f)| f.clone()).collect();
-                points = crate::sweep_dialog::pick_chain(&self.state.doc.map, &faces, start).map(|c| c.points).unwrap_or_default();
-            }
+                crate::sweep_dialog::pick_chain(map, &faces, start)
+            }) {
+                Ok(p) => p,
+                Err(e) => return err(e),
+            };
         }
 
         match crate::sweep_dialog::apply(&mut self.state, &picked, &sweep, &points) {
@@ -445,6 +456,69 @@ impl App {
                 ok(json!({ "ok": true, "ids": ids.iter().map(|id| id.0).collect::<Vec<_>>(), "bounds": bounds_json(&b) }))
             }
             Err(e) => err(e.to_string()),
+        }
+    }
+
+    /// Copies of a piece, the piece bent, or a cable along a curve through points.
+    pub(crate) fn tool_place_along_path(&mut self, args: &Value) -> ToolResult {
+        use crate::spline_dialog::{SplineMode, SplineSpec};
+        let mut spec = SplineSpec::default();
+        if let Some(name) = args["mode"].as_str() {
+            spec.mode = match name {
+                "repeat" => SplineMode::Repeat,
+                "bend" => SplineMode::Bend,
+                "cable" => SplineMode::Cable,
+                _ => return err(format!("unknown mode {name}, use repeat, bend or cable")),
+            };
+        }
+
+        let s = &mut spec;
+        for (key, slot) in [("spacing", &mut s.spacing), ("sag", &mut s.sag), ("radius", &mut s.radius)] {
+            match &args[key] {
+                Value::Null => {}
+                v => match v.as_f64() {
+                    Some(x) => *slot = x,
+                    None => return err(format!("{key} must be a number, got {v}")),
+                },
+            }
+        }
+
+        if spec.spacing <= 0.0 || spec.radius <= 0.0 {
+            return err("spacing and radius must be more than 0");
+        }
+
+        match &args["sides"] {
+            Value::Null => {}
+            v => match v.as_u64().filter(|n| (3..=64).contains(n)) {
+                Some(n) => spec.sides = n as u32,
+                None => return err(format!("sides must be a whole number from 3 to 64, got {v}")),
+            },
+        }
+
+        spec.upright = args["upright"].as_bool().unwrap_or(spec.upright);
+        let material = args["material"].as_str().map_or_else(|| self.state.current_material.clone(), str::to_string);
+        let piece = if args["ids"].is_array() {
+            let ids = match id_list(args, "ids").and_then(|ids| editable_ids(&self.state, &ids)) {
+                Ok(ids) => ids,
+                Err(e) => return err(e),
+            };
+            let mut sel = td_doc::Selection::default();
+            sel.nodes.extend(ids);
+            crate::spline_dialog::piece_of(&self.state.doc.map, &sel)
+        } else {
+            crate::spline_dialog::piece_of(&self.state.doc.map, &self.state.doc.selection)
+        };
+
+        let points = match curve_points(&self.state.doc.map, args, |map, start| crate::spline_dialog::pick_chain(map, &piece, start)) {
+            Ok(p) => p,
+            Err(e) => return err(e),
+        };
+        match crate::spline_dialog::apply(&mut self.state, &spec, &piece, &points, &material) {
+            Ok(ids) => {
+                let b = self.state.doc.map.bounds_of(ids.iter().copied());
+                ok(json!({ "ok": true, "ids": ids.iter().map(|id| id.0).collect::<Vec<_>>(), "bounds": bounds_json(&b) }))
+            }
+            Err(e) => err(e.message()),
         }
     }
 

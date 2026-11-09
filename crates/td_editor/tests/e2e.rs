@@ -1942,6 +1942,37 @@ fn sweep_faces_runs_a_corridor_round_a_bend() {
     assert!(ed.call_err("sweep_faces", json!({ "faces": [[floor, end], [floor, back]] })).contains("opposite directions"));
 }
 
+#[test]
+#[ignore]
+fn place_along_path_repeats_bends_and_hangs_a_cable() {
+    let ed = Editor::launch("spline");
+    let post = ed.call("create_brush", json!({ "min": [-4, 0, -4], "max": [4, 48, 4], "material": "dev/grey" }))["ids"][0].as_u64().unwrap();
+    for (name, target, x) in [("fence1", "fence2", 0), ("fence2", "fence3", 256), ("fence3", "", 512)] {
+        let mut props = json!({ "targetname": name });
+        if !target.is_empty() {
+            props["target"] = json!(target);
+        }
+
+        ed.call("create_entity", json!({ "classname": "path_corner", "origin": [x, 0, 300], "properties": props }));
+    }
+
+    let fence = ed.call("place_along_path", json!({ "ids": [post], "spacing": 64 }));
+    assert_eq!(fence["ids"].as_array().unwrap().len(), 9, "{fence}");
+    let x = |v: &Value| v.as_f64().unwrap();
+    assert!((x(&fence["bounds"]["min"][0]) + 4.0).abs() < 0.01 && (x(&fence["bounds"]["max"][0]) - 516.0).abs() < 0.01, "{fence}");
+    assert_eq!(selected(&ed).len(), 9, "the copies are selected");
+
+    let rail = ed.call("create_brush", json!({ "min": [0, 40, -2], "max": [128, 44, 2], "material": "dev/grey" }))["ids"][0].as_u64().unwrap();
+    let bent = ed.call("place_along_path", json!({ "mode": "bend", "ids": [rail], "chain": "fence1" }));
+    assert_eq!(bent["ids"].as_array().unwrap().len(), 1, "{bent}");
+
+    let cable = ed.call("place_along_path", json!({ "mode": "cable", "points": [[0, 200, 0], [256, 200, 0]], "sag": 40, "radius": 1 }));
+    assert!((cable["bounds"]["min"][1].as_f64().unwrap() - 159.0).abs() < 0.5, "{cable}");
+    assert!(ed.call_err("place_along_path", json!({ "mode": "wave" })).contains("unknown mode"));
+    assert!(ed.call_err("place_along_path", json!({ "ids": [post], "points": [[0, 0, 0]] })).contains("at least two points"));
+    assert!(ed.call_err("place_along_path", json!({ "ids": [post], "chain": "nope" })).contains("no chain"));
+}
+
 /// The Array Copies dialog and the duplicate tool share one core: copies turn and scale step by step, and the whole run
 /// is a single undo step.
 #[test]

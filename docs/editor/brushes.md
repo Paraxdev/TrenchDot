@@ -227,6 +227,39 @@ point entity of a chain.
 
 </div>
 
+## Place Along Path
+
+To run a fence, a rail, a road or a cable along a curve, lay out the curve with points and let the editor place the
+pieces along it.
+
+1. Place a few points with the **Path** tool (Shift+P, see [Placing and wiring](../gameplay/placing.md#placing-entities)).
+   The curve runs smoothly through them in order.
+2. Build one piece, such as a fence post or a short slab of road, and select it.
+3. Open *Brush > Place Along Path…*. The dialog takes the selection as its piece, and a cyan outline shows what it
+   would make. **Points** picks which chain to follow, by default the one that starts nearest the piece.
+4. Pick a mode and click **Create**. What it made is selected, and one undo takes all of it away again.
+
+![The Place Along Path dialog set to Repeat with Spacing 64 and Upright ticked, making 17 copies along a chain of 4 points](../assets/brushes/place-along-path-dialog.png)
+
+| Mode | What it makes |
+|---|---|
+| **Repeat** | Copies of the piece about **Spacing** apart, evened out so the first and last copy sit on the ends of the path. **Upright** keeps them standing straight on a slope. |
+| **Bend** | The piece laid end to end and bent along the path, one mesh for each of its brushes and meshes, with the texture running on. The copies stretch a little so only whole ones fit. On a long path a detailed piece bends in coarser steps, and one too detailed to bend is refused rather than stalling the editor. |
+| **Cable** | A round cable in the current material that hangs **Sag** units below the straight line in the middle of each span. It needs no piece. |
+
+![A road bent round a curve with a fence of orange posts beside it, a thin cable sagging from post to post](../assets/brushes/place-along-path-fence.png)
+
+The longer side of the piece, X or Z, runs along the path and its bottom sits on it, so build a post standing up and a
+road slab lying flat. The dialog keeps its piece while it is open, so you can select and move the path's points to
+reshape the curve and the outline follows. Click **Use Selection** to swap in another piece.
+
+<div class="td-mcp" markdown>
+
+The MCP tool `place_along_path` takes `mode` (`repeat`, `bend` or `cable`), the piece as `ids` or the selection, and the
+curve as `points` or `chain` like `sweep_faces`, plus `spacing`, `upright`, `sag`, `radius`, `sides` and `material`.
+
+</div>
+
 ## CSG
 
 The CSG operations are under *Brush > CSG*, which also holds their two settings.

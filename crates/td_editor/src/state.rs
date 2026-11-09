@@ -573,6 +573,8 @@ pub struct EditorState {
     pub shape_preview: Vec<(td_core::DVec3, td_core::DVec3)>,
     /// Outline segments of the copies the open Array Copies dialog would create.
     pub array_preview: Vec<(DVec3, DVec3)>,
+    /// Edges of what the open Place Along Path dialog would create, drawn as lines.
+    pub spline_preview: Vec<(DVec3, DVec3)>,
     pub walkable: crate::walkable::WalkableView,
     pub void_cull: crate::void_cull::VoidView,
     pub models: crate::models::ModelCache,
@@ -748,6 +750,7 @@ impl EditorState {
             sweep_preview: Vec::new(),
             shape_preview: Vec::new(),
             array_preview: Vec::new(),
+            spline_preview: Vec::new(),
             walkable: Default::default(),
             void_cull: Default::default(),
             models: Default::default(),

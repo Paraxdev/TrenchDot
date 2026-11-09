@@ -520,6 +520,16 @@ pub fn tool_definitions() -> Vec<Value> {
             } }
         }),
         json!({
+            "name": "place_along_path",
+            "description": "Places a piece along a smooth curve through points [[x, y, z], ...] in order, or through a chain of point entities linked by target (the Path tool's path_corner chains) named by chain, the targetname or id of its first point, by default the chain that starts nearest the piece, as one undo step. The piece is ids or the selection, leaving out the points of any chain; its long axis (X or Z of its bounds) runs along the curve and its bottom sits on it. mode: repeat (default) places copies spaced about spacing apart (64), evened out so the first and last sit on the ends, and upright (default true) keeps them standing straight on slopes, like fence posts. bend lays the piece's brushes and meshes end to end, stretched to fill the curve with whole copies, and bends them into one mesh per source with the texture running on, like a road, trim or pipe. cable hangs a round tube between each pair of points, sag (32) below the straight line at the middle of each span, radius (2), sides 3 to 64 (6), in material (the current one), and needs no piece. Returns the new ids, which are selected.",
+            "inputSchema": { "type": "object", "properties": {
+                "mode": { "type": "string", "enum": ["repeat", "bend", "cable"] }, "ids": { "type": "array", "items": { "type": "integer" } },
+                "points": { "type": "array", "items": { "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3 } },
+                "chain": { "type": ["string", "integer"] }, "spacing": { "type": "number" }, "upright": { "type": "boolean" },
+                "sag": { "type": "number" }, "radius": { "type": "number" }, "sides": { "type": "integer" }, "material": { "type": "string" }
+            } }
+        }),
+        json!({
             "name": "prefab_library",
             "description": "The prefab library of the Prefabs panel: ready made pieces (stairs, doorways, pillars, rooms, details) that come with the editor on dev materials, and the project's own .tdm files in res://prefab_library, one folder per category. ops: list {query} (name is category/name, size in map units, source builtin or project), paste {name, origin (centers it there), offset, parent} (plain copies, no link back), copy {name} (the clipboard text), add {name, category, ids (default the selection), keep_position} (saves them as a new project entry, moved so their bottom center sits on the origin, or where they are with keep_position, for kit pieces built around the origin). run_action paste also takes TrenchBroom clipboard text.",
             "inputSchema": { "type": "object", "properties": {
