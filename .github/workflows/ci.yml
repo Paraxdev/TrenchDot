@@ -308,16 +308,17 @@ jobs:
           "$butler" -V
           # The rolling beta is the only build, so it fills the plain channels.
           version="beta-$(date -u +%Y%m%d)-${GITHUB_SHA::7}"
+          # Downloaded binaries keep the platform in their name, so a folder holding several builds stays readable.
           push() {
-            file="$1"; channel="$2"; name="$3"; out="itch/$channel"
+            file="$1"; channel="$2"; out="itch/$channel"
             rm -rf "$out" && mkdir -p "$out"
-            cp "$file" "$out/$name" && chmod +x "$out/$name"
+            cp "$file" "$out/" && chmod +x "$out/$(basename "$file")"
             "$butler" push "$out" "paraxdev/trenchdot:$channel" --userversion "$version"
           }
-          push dist/trenchdot-linux-x86_64 linux trenchdot
-          push dist/trenchdot-windows-x86_64.exe windows trenchdot.exe
-          push dist/trenchdot-macos-arm64 mac trenchdot
-          push dist/trenchdot-windows-x86_64-setup.exe windows-installer trenchdot-windows-x86_64-setup.exe
+          push dist/trenchdot-linux-x86_64 linux
+          push dist/trenchdot-windows-x86_64.exe windows
+          push dist/trenchdot-macos-arm64 mac
+          push dist/trenchdot-windows-x86_64-setup.exe windows-installer
           # The addon, demo project and content ship as their own zips so their folder layout (addons/func_godot, the
           # project, trenchdot/nature, demo and models) survives.
           "$butler" push dist/func_godot-trenchdot-addon.zip "paraxdev/trenchdot:addon" --userversion "$version"
