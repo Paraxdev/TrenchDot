@@ -161,10 +161,12 @@ Over MCP, `transform` takes `shear` with a `side` (such as `+y`), the axis it sl
 For cylinders, arches, stairs, roofs and other shapes that would take a lot of hand drawn brushes, use the Shape
 Generator.
 
-1. Draw a box where the shape should go, and leave it selected.
+1. Draw a box where the shape should go and leave it selected, or select nothing to give the generator a box of its
+   own, see below.
 2. Open *Brush > Shape Generator…* (Ctrl+Shift+B).
-3. Pick the **Shape** and its options. The dialog says the bounds it fills, and that it replaces the selection. The
-   views draw the shape in cyan lines while you change the options, so you can see it before anything changes.
+3. Pick the **Shape** and its options. With a selection the dialog says the bounds it fills, and that it replaces the
+   selection. The views draw the shape in cyan lines while you change the options, so you can see it before anything
+   changes.
 4. Click **Create**.
 
 The new shape stays selected, so you can change an option and click **Create** again to swap it for the next try,
@@ -174,6 +176,34 @@ make. The triangle count turns yellow past 10,000, since a shape that heavy can 
 ![The Shape Generator dialog set to Cylinder with 16 sides and the Y axis, filling a 128 x 192 x 128 selection](../assets/brushes/shape-generator.png)
 
 ![The selected box on the left, the 16 sided cylinder that replaced it on the right](../assets/brushes/shape-generator-box-to-cylinder.png)
+
+### Without a selection
+
+With nothing selected you do not need a brush first. The dialog hands you a box of its own, drawn in indigo lines in
+every view, with the cyan shape inside it. It starts around the last brush you drew or clicked, rounded to the grid.
+
+![The Shape Generator with its own box, a Corner of 64, 0, -96 and a Size of 256, 128, 128 under the options](../assets/brushes/shape-generator-box.png)
+
+Set the box in either of two ways:
+
+* Type its **Corner** (the lowest X, Y and Z) and its **Size** under the options. The box scales away from the corner,
+  like [the Inspector's fields](#exact-position-and-size). The Text shape only uses the corner, so it has no **Size**.
+* With the Select tool in a 2D view, drag one of the box's sides to resize it, or drag anywhere else to draw a new box,
+  the way you draw a brush. The box keeps its depth along the axis the view looks down.
+
+![The Top view with the indigo box, its 256 and 128 size labels and the cyan cylinder inside it](../assets/brushes/shape-generator-box-view.png)
+
+Nothing is added to the map, and nothing lands in the undo history, until you click **Create**. The shape then goes into
+the current group or layer and stays selected, so the next **Create** replaces it. A drag in the 3D view still draws a
+real brush, and since that brush is then selected, the dialog switches to filling it. Closing the dialog forgets the
+box, and the next time it starts around the last brush again.
+
+<div class="td-mcp" markdown>
+
+`get_state` reports the box as `ui.shape_bounds`, with `min` and `max`, while the dialog shows it, and null otherwise.
+Use the same numbers as `min` and `max` of `create_brush` or `create_mesh` to build the shape without the dialog.
+
+</div>
 
 Cylinders and cones stand upright by default. Pick **X** or **Z** under **Axis** to lay one down inside the same box,
 for pipes, logs or a beam, instead of rotating it afterwards. The torus, arch wall, gable roof, spire and grid are
