@@ -17,8 +17,8 @@ When a newer build is out, a cyan **Update available** chip shows in the status 
 
 The new build replaces the editor's executable in its folder. The Windows installer puts the editor in your user
 folder for this reason, so it can update itself without asking for administrator rights. The old one stays beside it
-with `-previous` added to its name, for example `trenchdot-windows-x86_64-previous.exe` next to a downloaded
-`trenchdot-windows-x86_64.exe`, or `trenchdot-previous.exe` for the installed editor.
+with `-previous` added to its name, for example `trenchdot-windows-x86_64-previous.exe` next to
+`trenchdot-windows-x86_64.exe`.
 
 > [!TIP]
 > A new editor build usually comes with a new Godot addon. After the restart, choose
