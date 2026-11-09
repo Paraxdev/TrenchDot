@@ -167,6 +167,9 @@ Generator.
    views draw the shape in cyan lines while you change the options, so you can see it before anything changes.
 4. Click **Create**.
 
+The new shape stays selected, so you can change an option and click **Create** again to swap it for the next try,
+for example to go through a few rock seeds.
+
 ![The Shape Generator dialog set to Cylinder with 16 sides and the Y axis, filling a 128 x 192 x 128 selection](../assets/brushes/shape-generator.png)
 
 ![The selected box on the left, the 16 sided cylinder that replaced it on the right](../assets/brushes/shape-generator-box-to-cylinder.png)

@@ -550,6 +550,14 @@ fn preview_lines(kinds: &[NodeKind]) -> Vec<(DVec3, DVec3)> {
     out
 }
 
+/// The selected brushes and meshes, which the shape takes its bounds from and replaces.
+fn shape_sources(state: &EditorState) -> Vec<td_doc::NodeId> {
+    let (selection, map) = (&state.doc.selection, &state.doc.map);
+    let mut ids = selection.brushes(map);
+    ids.extend(selection.meshes(map));
+    ids
+}
+
 impl ShapeDialog {
     fn key(&self, bounds: &Aabb, material: &str) -> ShapeKey {
         (self.kind, self.sides, self.thickness, self.steps, self.as_mesh, self.smooth, self.axis, self.text.clone(), self.rock, *bounds, material.to_string())
@@ -614,8 +622,8 @@ impl ShapeDialog {
         }
 
         let mut open = self.open;
-        let brushes = state.doc.selection.brushes(&state.doc.map);
-        let bounds = if brushes.is_empty() { state.last_bounds } else { state.doc.map.bounds_of(brushes.iter().copied()) };
+        let sources = shape_sources(state);
+        let bounds = if sources.is_empty() { state.last_bounds } else { state.doc.map.bounds_of(sources.iter().copied()) };
         widgets::window(en!("Shape Generator")).open(&mut open).resizable(false).show(ctx, |ui| {
             egui::ComboBox::new("shape_kind", tr("Shape")).selected_text(tr(self.kind.label())).show_ui(ui, |ui| {
                 for k in ShapeKind::ALL {
@@ -719,7 +727,7 @@ impl ShapeDialog {
             }
 
             let size = bounds.size();
-            let source = tr(if brushes.is_empty() { en!("last brush") } else { en!("replaces selection") });
+            let source = tr(if sources.is_empty() { en!("last brush") } else { en!("replaces selection") });
             if self.kind == ShapeKind::Text {
                 let c = bounds.min;
                 ui.label(trf!("Starts at {x} {y} {z} ({source})", x = c.x, y = c.y, z = c.z, source));
@@ -737,24 +745,29 @@ impl ShapeDialog {
             let count = self.preview.as_ref().map_or(0, |(_, p)| p.len());
             ui.label(RichText::new(tr_n!(count, "{n} object", "{n} objects")).weak());
             if ui.add_enabled(count > 0, egui::Button::new(tr("Create"))).clicked() {
-                let preview = self.preview.as_ref().map(|(_, p)| p.clone()).unwrap_or_default();
-                let parent = state.insert_parent();
-                state.doc.edit(en!("Create Shape"), |m, s| {
-                    let target_parent = brushes.first().and_then(|b| m.get(*b)).and_then(|n| n.parent).unwrap_or(parent);
-                    for b in &brushes {
-                        m.remove(*b);
-                    }
-
-                    s.clear();
-                    for kind in preview {
-                        let id = m.insert(target_parent, kind);
-                        s.nodes.insert(id);
-                    }
-                });
+                let kinds = self.preview.as_ref().map(|(_, p)| p.clone()).unwrap_or_default();
+                create_shape(state, &sources, kinds);
             }
         });
         self.open = open;
     }
+}
+
+/// Puts the shape where `sources` were, in their parent, and selects it.
+fn create_shape(state: &mut EditorState, sources: &[td_doc::NodeId], kinds: Vec<NodeKind>) {
+    let parent = state.insert_parent();
+    state.doc.edit(en!("Create Shape"), |m, s| {
+        let target_parent = sources.first().and_then(|b| m.get(*b)).and_then(|n| n.parent).unwrap_or(parent);
+        for id in sources {
+            m.remove(*id);
+        }
+
+        s.clear();
+        for kind in kinds {
+            let id = m.insert(target_parent, kind);
+            s.nodes.insert(id);
+        }
+    });
 }
 
 pub struct TerrainDialog {
@@ -1243,6 +1256,90 @@ mod tests {
         let mesh = dialog.generate(&bounds, "m");
         let [NodeKind::Mesh(m)] = mesh.as_slice() else { panic!("one rock mesh") };
         assert!(m.is_closed() && m.faces.len() > b.faces.len());
+    }
+
+    /// One frame of the dialog, returning each text it drew with its screen rect and color.
+    fn shape_frame(
+        ctx: &egui::Context,
+        dialog: &mut ShapeDialog,
+        state: &mut EditorState,
+        time: &mut f64,
+        events: Vec<egui::Event>,
+    ) -> Vec<(String, egui::Rect, egui::Color32)> {
+        *time += 0.05;
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1200.0, 900.0));
+        ctx.begin_pass(egui::RawInput { events, time: Some(*time), screen_rect: Some(screen), ..Default::default() });
+        dialog.show(ctx, state);
+        let mut output = ctx.end_pass();
+        let mut shapes: Vec<_> = std::mem::take(&mut output.shapes).into_iter().map(|c| c.shape).collect();
+        output.drop_without_applying_deltas();
+        let mut texts = Vec::new();
+        while let Some(shape) = shapes.pop() {
+            match shape {
+                egui::Shape::Vec(inner) => shapes.extend(inner),
+                egui::Shape::Text(t) => {
+                    let color = t.galley.job.sections.first().map_or(egui::Color32::PLACEHOLDER, |s| s.format.color);
+                    let color = t.override_text_color.unwrap_or(if color == egui::Color32::PLACEHOLDER { t.fallback_color } else { color });
+                    texts.push((t.galley.text().to_string(), t.galley.rect.translate(t.pos.to_vec2()), color));
+                }
+                _ => {}
+            }
+        }
+
+        texts
+    }
+
+    fn click_create(ctx: &egui::Context, dialog: &mut ShapeDialog, state: &mut EditorState, time: &mut f64) {
+        let mut texts = Vec::new();
+        for _ in 0..3 {
+            texts = shape_frame(ctx, dialog, state, time, vec![]);
+        }
+
+        let at = texts.iter().find(|(text, ..)| text == "Create").expect("the dialog draws its Create button").1.center();
+        let press = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+        for event in [egui::Event::PointerMoved(at), press(true), press(false)] {
+            shape_frame(ctx, dialog, state, time, vec![event]);
+        }
+    }
+
+    #[test]
+    fn a_selected_terrain_is_never_replaced() {
+        let (ctx, mut state, mut time) = (egui::Context::default(), EditorState::new(crate::state::Prefs::default()), 0.0);
+        let parent = state.insert_parent();
+        let terrain = state.doc.map.insert(parent, NodeKind::Terrain(Terrain::new(DVec3::new(512.0, 0.0, 0.0), [5, 5], 32.0, "m")));
+        state.doc.selection.select_node(terrain);
+        assert!(shape_sources(&state).is_empty());
+        let mut dialog = ShapeDialog { open: true, ..Default::default() };
+        click_create(&ctx, &mut dialog, &mut state, &mut time);
+        let made = state.doc.selection.brushes(&state.doc.map);
+        assert!(!made.is_empty(), "Create made a shape");
+        let made_bounds = state.doc.map.bounds_of(made.iter().copied());
+        assert!(
+            state.last_bounds.expanded(0.01).contains(&made_bounds),
+            "a terrain alone leaves the shape at the last brush bounds, it went to {made_bounds:?}"
+        );
+
+        state.doc.selection.select_node(terrain);
+        assert_eq!(shape_sources(&state), made);
+        click_create(&ctx, &mut dialog, &mut state, &mut time);
+        assert!(matches!(state.doc.map.get(terrain).map(|n| &n.kind), Some(NodeKind::Terrain(_))), "Create keeps the terrain");
+        assert!(made.iter().all(|id| state.doc.map.get(*id).is_none()), "and replaces the shape selected with it");
+    }
+
+    #[test]
+    fn creating_a_shape_again_replaces_the_mesh_it_made() {
+        let (ctx, mut state, mut time) = (egui::Context::default(), EditorState::new(crate::state::Prefs::default()), 0.0);
+        let parent = state.insert_parent();
+        let block = Brush::from_aabb(&Aabb::new(DVec3::ZERO, DVec3::new(96.0, 48.0, 64.0)), "m").unwrap();
+        let block = state.doc.map.insert(parent, NodeKind::Brush(block));
+        state.doc.selection.select_node(block);
+        let mut dialog = ShapeDialog { open: true, kind: ShapeKind::Rock, as_mesh: true, ..Default::default() };
+        for _ in 0..3 {
+            click_create(&ctx, &mut dialog, &mut state, &mut time);
+        }
+
+        assert!(state.doc.map.brush(block).is_none());
+        assert_eq!(state.doc.map.meshes().count(), 1, "Create on the selected rock swaps it rather than stacking another");
     }
 
     #[test]
