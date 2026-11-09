@@ -1,5 +1,5 @@
 ---
-source: b549cb4d1d3fd2ab8e0ac144848e50eac2b168fc
+source: d60c5225169c3dea1afc8fc0cde90fdb9203b43d
 ---
 
 # Organiser une carte { #organizing-a-map }
@@ -66,6 +66,17 @@ Tout ce qui concerne les groupes se trouve sous *Édition > Groupes*.
 | Ctrl+G, Ctrl+Shift+G | Grouper la sélection, la dégrouper |
 | Clic | Sélectionner l'objet à l'intérieur du groupe |
 | Double clic | Sélectionner tout le groupe |
+
+Vous pouvez aussi grouper dans l'Outliner en faisant glisser. Faites glisser une ligne sur un autre brush et relâchez, et les
+deux se retrouvent dans un nouveau groupe. Une infobulle à côté du pointeur dit ce que fait le dépôt avant que vous
+relâchiez, et la ligne cible reçoit un contour.
+
+![La ligne brush4 glissée sur brush2 dans l'Outliner, brush2 a un contour cyan et une infobulle dit Grouper avec brush2](../assets/organizing/outliner-drag-group.png)
+
+Déposez une ligne sur un groupe ou un calque pour la déplacer dedans. Déposée sur un objet qui se trouve déjà dans un
+groupe, elle rejoint ce groupe, et les brushes déposés sur une entité brush comme une porte rejoignent cette entité.
+Faites glisser une ligne sur son calque pour la sortir d'un groupe. Quand vous faites glisser une ligne sélectionnée, toute
+la sélection suit.
 
 **Dupliquer en lien** (Ctrl+Shift+D) crée une copie qui reste synchronisée avec son original, si bien que corriger un
 cadre de fenêtre les corrige tous. Les copies liées affichent *(lié)* dans l'Outliner, et un clic sur l'une sélectionne

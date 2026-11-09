@@ -1,5 +1,5 @@
 ---
-source: b549cb4d1d3fd2ab8e0ac144848e50eac2b168fc
+source: d60c5225169c3dea1afc8fc0cde90fdb9203b43d
 ---
 
 # Organizar un mapa { #organizing-a-map }
@@ -49,6 +49,12 @@ Un grupo mantiene objetos juntos para que se seleccionen y se muevan como uno, c
 | Ctrl+G, Ctrl+Shift+G | Agrupar la selección, desagruparla |
 | Clic | Seleccionar el objeto dentro del grupo |
 | Doble clic | Seleccionar el grupo entero |
+
+También puedes agrupar en el Outliner arrastrando. Arrastra una fila sobre otro brush y suéltala, y los dos acaban en un grupo nuevo. Un tooltip junto al puntero indica qué hará soltar antes de que sueltes, y la fila de destino recibe un contorno.
+
+![Arrastrando la fila brush4 sobre brush2 en el Outliner, brush2 tiene un contorno cian y un tooltip dice Agrupar con brush2](../assets/organizing/outliner-drag-group.png)
+
+Suelta una fila sobre un grupo o una capa para moverla dentro. Soltarla sobre un objeto que ya está en un grupo la mueve a ese grupo, y los brushes soltados sobre una entidad brush, como una puerta, pasan a formar parte de esa entidad. Arrastra una fila hasta su capa para sacarla de un grupo. Si arrastras una fila seleccionada, toda la selección se mueve con ella.
 
 **Duplicar enlazado** (Ctrl+Shift+D) hace una copia que se mantiene sincronizada con su original, así que arreglar un marco de ventana arregla todos. Las copias enlazadas muestran *(enlazado)* en el Outliner, y un clic en una selecciona el grupo entero, ya que sus copias se editan como una sola. *Editar > Grupos > Desenlazar grupos* rompe el enlace cuando una copia tiene que ser distinta.
 

@@ -1,5 +1,5 @@
 ---
-source: b549cb4d1d3fd2ab8e0ac144848e50eac2b168fc
+source: d60c5225169c3dea1afc8fc0cde90fdb9203b43d
 ---
 
 # Organizando um mapa { #organizing-a-map }
@@ -49,6 +49,12 @@ Um grupo mantém objetos juntos para que sejam selecionados e movidos como um s�
 | Ctrl+G, Ctrl+Shift+G | Agrupar a seleção, desagrupá-la |
 | Clique | Seleciona o objeto dentro do grupo |
 | Clique duplo | Seleciona o grupo inteiro |
+
+Você também pode agrupar no Outliner arrastando. Arraste uma linha sobre outro brush e solte, e os dois vão parar em um grupo novo. Uma dica ao lado do ponteiro diz o que vai acontecer antes de você soltar, e a linha de destino ganha um contorno.
+
+![Arrastando a linha brush4 sobre brush2 no Outliner, brush2 tem um contorno ciano e uma dica diz Agrupar com brush2](../assets/organizing/outliner-drag-group.png)
+
+Solte uma linha sobre um grupo ou uma camada para movê-la para dentro. Soltá-la sobre um objeto que já está em um grupo a move para esse grupo, e brushes soltos sobre uma entidade brush, como uma porta, passam a fazer parte dessa entidade. Arraste uma linha até a sua camada para tirá-la de um grupo. Ao arrastar uma linha selecionada, a seleção inteira vai junto.
 
 **Duplicar vinculado** (Ctrl+Shift+D) faz uma cópia que continua em sincronia com a original, então consertar um batente de janela conserta todos. As cópias vinculadas mostram *(linked)* no Outliner, e um clique em uma seleciona o grupo inteiro, já que as cópias são editadas como uma só. *Editar > Grupos > Desvincular grupos* quebra o vínculo quando uma cópia precisa ser diferente.
 

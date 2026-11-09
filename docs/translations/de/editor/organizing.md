@@ -1,5 +1,5 @@
 ---
-source: b549cb4d1d3fd2ab8e0ac144848e50eac2b168fc
+source: d60c5225169c3dea1afc8fc0cde90fdb9203b43d
 ---
 
 # Eine Karte organisieren { #organizing-a-map }
@@ -49,6 +49,12 @@ Eine Gruppe hält Objekte zusammen, damit sie sich als eines auswählen und vers
 | Ctrl+G, Ctrl+Shift+G | Die Auswahl gruppieren, die Gruppierung aufheben |
 | Klick | Das Objekt in der Gruppe auswählen |
 | Doppelklick | Die ganze Gruppe auswählen |
+
+Du kannst auch im Outliner per Ziehen gruppieren. Zieh eine Zeile auf einen anderen Brush und lass los, dann landen die beiden in einer neuen Gruppe. Ein Tooltip neben dem Mauszeiger sagt dir vor dem Loslassen, was das Ablegen bewirkt, und die Zielzeile bekommt eine Umrandung.
+
+![Die Zeile brush4 wird im Outliner auf brush2 gezogen, brush2 hat eine cyanfarbene Umrandung und ein Tooltip sagt Mit brush2 gruppieren](../assets/organizing/outliner-drag-group.png)
+
+Lege eine Zeile auf einer Gruppe oder einer Ebene ab, um sie hineinzuschieben. Ein Objekt, das du auf einem Objekt ablegst, das schon in einer Gruppe steckt, wandert in diese Gruppe, und Brushes, die du auf einer Brush-Entität wie einer Tür ablegst, werden Teil dieser Entität. Zieh eine Zeile auf ihre Ebene, um sie wieder aus einer Gruppe zu nehmen. Wenn du eine ausgewählte Zeile ziehst, bewegt sich die ganze Auswahl mit.
 
 **Verknüpft duplizieren** (Ctrl+Shift+D) macht eine Kopie, die mit ihrem Original synchron bleibt, sodass die Reparatur eines Fensterrahmens alle repariert. Verknüpfte Kopien zeigen im Outliner *(verknüpft)*, und ein Klick auf eine wählt die ganze Gruppe aus, da ihre Kopien als eines bearbeitet werden. *Bearbeiten > Gruppen > Gruppen trennen* löst die Verknüpfung, wenn sich eine Kopie unterscheiden muss.
 
