@@ -542,6 +542,16 @@ impl Default for ShapeDialog {
     }
 }
 
+fn bounds_label(kind: ShapeKind, bounds: &Aabb, source: &str) -> String {
+    let (c, size) = (bounds.min, bounds.size());
+    let n = crate::gizmos::fmt_num;
+    if kind == ShapeKind::Text {
+        trf!("Starts at {x} {y} {z} ({source})", x = n(c.x), y = n(c.y), z = n(c.z), source)
+    } else {
+        trf!("Bounds {x} x {y} x {z} ({source})", x = n(size.x), y = n(size.y), z = n(size.z), source)
+    }
+}
+
 fn preview_lines(kinds: &[NodeKind]) -> Vec<(DVec3, DVec3)> {
     let mut out = Vec::new();
     for kind in kinds {
@@ -743,14 +753,8 @@ impl ShapeDialog {
                 }
             }
 
-            let size = bounds.size();
             let source = tr(if sources.is_empty() { en!("last brush") } else { en!("replaces selection") });
-            if self.kind == ShapeKind::Text {
-                let c = bounds.min;
-                ui.label(trf!("Starts at {x} {y} {z} ({source})", x = c.x, y = c.y, z = c.z, source));
-            } else {
-                ui.label(trf!("Bounds {x} x {y} x {z} ({source})", x = size.x, y = size.y, z = size.z, source));
-            }
+            ui.label(bounds_label(self.kind, &bounds, source));
 
             let key = self.key(&bounds, &state.current_material);
             if self.preview.as_ref().is_none_or(|(k, ..)| *k != key) {
@@ -1225,6 +1229,19 @@ impl LinkDialog {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_shape_bounds_label_is_rounded() {
+        let bounds = Aabb::new(DVec3::new(-12.3456789, 3.1417, 40.0), DVec3::new(383.0962, 500.7383, 121.17647058825241));
+        assert_eq!(bounds_label(ShapeKind::Rock, &bounds, "last brush"), "Bounds 395.442 x 497.597 x 81.176 (last brush)");
+        assert_eq!(bounds_label(ShapeKind::Text, &bounds, "last brush"), "Starts at -12.346 3.142 40 (last brush)");
+
+        let whole = Aabb::new(DVec3::new(32.0, -64.0, 0.0), DVec3::new(96.0, 0.0, 16.5));
+        assert_eq!(bounds_label(ShapeKind::Rock, &whole, "replaces selection"), "Bounds 64 x 64 x 16.5 (replaces selection)");
+
+        let tiny = Aabb::new(DVec3::new(-0.0004, -0.0, 1.0004), DVec3::new(10.0, 10.0, 10.0));
+        assert_eq!(bounds_label(ShapeKind::Text, &tiny, "x"), "Starts at 0 0 1 (x)");
+    }
 
     fn palette_frame(ctx: &egui::Context, palette: &mut CommandPalette, state: &EditorState, time: &mut f64, events: Vec<egui::Event>) -> Vec<Action> {
         *time += 0.05;

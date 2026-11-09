@@ -27,7 +27,7 @@ pub fn parse_vec3(s: &str) -> Option<DVec3> {
     (v.len() >= 3).then(|| DVec3::new(v[0], v[1], v[2]))
 }
 
-fn fmt_num(v: f64) -> String {
+pub fn fmt_num(v: f64) -> String {
     let r = (v * 1000.0).round() / 1000.0;
     if r == r.round() { format!("{}", r as i64) } else { format!("{r}") }
 }
