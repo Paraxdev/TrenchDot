@@ -1881,6 +1881,76 @@ fn sweep_faces_runs_a_corridor_round_a_bend() {
     assert!(ed.call_err("sweep_faces", json!({ "faces": [[floor, end], [floor, back]] })).contains("opposite directions"));
 }
 
+/// The Array Copies dialog and the duplicate tool share one core: copies turn and scale step by step, and the whole run
+/// is a single undo step.
+#[test]
+#[ignore]
+fn array_copies_turn_scale_and_undo_in_one_step() {
+    let ed = Editor::launch("array");
+    let bar = ed.box_brush([-32.0, 0.0, -8.0], [32.0, 16.0, 8.0]);
+    let node = |id: u64| -> Value {
+        let nodes = ed.call("list_nodes", json!({}));
+        nodes["nodes"].as_array().unwrap().iter().find(|n| n["id"] == id).expect("copy listed").clone()
+    };
+    let bounds_of = |id: u64| -> [[i64; 3]; 2] {
+        let b = node(id)["bounds"].clone();
+        ["min", "max"].map(|end| [0, 1, 2].map(|i| b[end][i].as_f64().unwrap().round() as i64))
+    };
+    let size_of = |id: u64| -> [i64; 3] {
+        let [min, max] = bounds_of(id);
+        [0, 1, 2].map(|i| max[i] - min[i])
+    };
+
+    let turned = ed.call("duplicate", json!({ "ids": [bar], "count": 2, "offset": [0, 100, 0], "rotate": [0, 0, 90] }));
+    let ids: Vec<u64> = turned["copies"].as_array().unwrap().iter().map(|c| c[0].as_u64().unwrap()).collect();
+    assert_eq!(size_of(ids[0]), [16, 64, 16], "a quarter turn about Z stands the bar up");
+    assert_eq!(size_of(ids[1]), [64, 16, 16], "two quarter turns lay it down again");
+    assert_eq!(ed.brushes(), 3);
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(ed.brushes(), 1, "one undo removes every copy");
+
+    let shrunk = ed.call("duplicate", json!({ "ids": [bar], "count": 2, "offset": [0, 0, 100], "scale": 0.5 }));
+    let ids: Vec<u64> = shrunk["copies"].as_array().unwrap().iter().map(|c| c[0].as_u64().unwrap()).collect();
+    assert_eq!(size_of(ids[0]), [32, 8, 8]);
+    assert_eq!(size_of(ids[1]), [16, 4, 4], "the scale compounds");
+    ed.call("run_action", json!({ "action": "undo" }));
+    let stretched = ed.call("duplicate", json!({ "ids": [bar], "scale": [1, 2, 1], "pivot": [0, 0, 0], "offset": [0, 0, 0] }));
+    assert_eq!(size_of(stretched["copies"][0][0].as_u64().unwrap()), [64, 32, 16]);
+
+    assert!(ed.call_err("duplicate", json!({ "ids": [bar], "scale": 0 })).contains("scale has to be more than 0"));
+    assert!(ed.call_err("duplicate", json!({ "ids": [bar], "scale": "big" })).contains("scale must be"));
+    assert!(ed.call_err("duplicate", json!({ "ids": [bar], "scale": 2, "count": 512 })).contains("beyond"));
+    assert!(ed.call_err("duplicate", json!({ "ids": [bar], "rotate": [0, 90] })).contains("rotate"));
+
+    ed.call("select", json!({ "ids": [bar] }));
+    ed.input("window", json!([{ "type": "move", "x": 10, "y": 10 }, { "type": "key", "key": "F1" }, { "type": "text", "text": "array copies" }, { "type": "key", "key": "Enter" }]));
+    ed.input("window", json!([{ "type": "move", "x": 10, "y": 10 }]));
+    assert!(window_titles(&ed).contains(&"Array Copies".to_string()), "the palette opens the dialog: {:?}", window_titles(&ed));
+    assert_eq!(ed.brushes(), 2, "opening the dialog only previews");
+    let state = ed.state();
+    let window = state["ui"]["windows"].as_array().unwrap().iter().find(|w| w["title"] == "Array Copies").unwrap()["rect"].clone();
+    let r: Vec<f64> = window.as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    // Create is the last row, at the window's left edge.
+    ed.input("window", json!([{ "type": "click", "x": r[0] + 24.0, "y": r[3] - 16.0 }]));
+    assert!(!window_titles(&ed).contains(&"Array Copies".to_string()), "Create closes the dialog");
+    assert_eq!(ed.brushes(), 5, "three copies by default");
+    assert_eq!(bounds_of(selected(&ed)[0]), [[160, 0, -8], [224, 16, 8]], "the last copy is three steps along X and stays selected");
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(ed.brushes(), 2, "one undo removes every copy the dialog made");
+
+    let linked = ed.call("duplicate", json!({ "ids": [bar], "count": 2, "offset": [0, 0, 0], "rotate_y": 90, "pivot": [100, 0, 0], "linked": true }));
+    let groups: Vec<u64> = linked["copies"].as_array().unwrap().iter().map(|c| c[0].as_u64().unwrap()).collect();
+    for g in &groups {
+        assert!(node(*g)["name"].as_str().unwrap().ends_with("(linked)"), "{}", node(*g));
+    }
+
+    assert_eq!(bounds_of(groups[0]), [[92, 0, 68], [108, 16, 132]], "rotate_y still turns about the pivot");
+    assert_eq!(bounds_of(groups[1]), [[168, 0, -8], [232, 16, 8]]);
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(ed.brushes(), 2);
+    assert_eq!(ed.call("list_nodes", json!({ "type": "group" }))["nodes"], json!([]), "the same undo takes the wrapping group back");
+}
+
 /// Scripted building blocks the withered city showcase needs: block letters, window grids, plane clips, vertex moves and
 /// named wizard entities, all without mouse input.
 #[test]

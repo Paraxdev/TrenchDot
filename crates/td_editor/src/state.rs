@@ -571,6 +571,8 @@ pub struct EditorState {
     pub sweep_preview: Vec<td_geom::Brush>,
     /// Edges of what the open Shape Generator would create, drawn as lines.
     pub shape_preview: Vec<(td_core::DVec3, td_core::DVec3)>,
+    /// Outline segments of the copies the open Array Copies dialog would create.
+    pub array_preview: Vec<(DVec3, DVec3)>,
     pub walkable: crate::walkable::WalkableView,
     pub void_cull: crate::void_cull::VoidView,
     pub models: crate::models::ModelCache,
@@ -745,6 +747,7 @@ impl EditorState {
             overlay_ghosts: Default::default(),
             sweep_preview: Vec::new(),
             shape_preview: Vec::new(),
+            array_preview: Vec::new(),
             walkable: Default::default(),
             void_cull: Default::default(),
             models: Default::default(),

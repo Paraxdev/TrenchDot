@@ -123,6 +123,7 @@ pub enum Action {
     ShowCommandPalette,
     ShowShapeDialog,
     ShowSweepDialog,
+    ShowArrayDialog,
     ShowTrimDialog,
     ShowRandomFillDialog,
     ShowTerrainDialog,
@@ -347,6 +348,7 @@ impl Action {
             Action::ShowCommandPalette => en!("Command Palette"),
             Action::ShowShapeDialog => en!("Shape Generator"),
             Action::ShowSweepDialog => en!("Sweep Faces"),
+            Action::ShowArrayDialog => en!("Array Copies"),
             Action::ShowTrimDialog => en!("Add Trim"),
             Action::ShowRandomFillDialog => en!("Random Fill"),
             Action::ShowTerrainDialog => en!("Create Terrain"),
@@ -1426,6 +1428,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         | Action::ExportObj
         | Action::ShowShapeDialog
         | Action::ShowSweepDialog
+        | Action::ShowArrayDialog
         | Action::ShowTrimDialog
         | Action::ShowRandomFillDialog
         | Action::ShowTerrainDialog

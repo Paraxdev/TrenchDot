@@ -1122,7 +1122,6 @@
   "Reparent": "Сменить родителя",
   "Set Flags": "Задать флаги",
   "Set Map Properties": "Задать свойства карты",
-  "Rotate Copy": "Повёрнутая копия",
   "Create Mesh": "Создать меш",
   "Texture Settings": "Настройки текстуры",
   "Update Entity": "Обновить сущность",
@@ -2206,5 +2205,16 @@
   "Select at least two objects to align": "Выберите хотя бы два объекта для выравнивания",
   "Nothing to align, the objects already line up": "Выравнивать нечего, объекты уже на одной линии",
   "Select at least three objects to distribute": "Выберите хотя бы три объекта для распределения",
-  "Nothing to distribute, the gaps are already equal": "Распределять нечего, промежутки уже равны"
+  "Nothing to distribute, the gaps are already equal": "Распределять нечего, промежутки уже равны",
+  "Array Copies…": "Массив копий…",
+  "Array Copies": "Массив копий",
+  "Array Copies of the selection": "Массив копий из выделения",
+  "Copies": "Копии",
+  "Pivot": "Точка опоры",
+  "Custom": "Своя",
+  "Where each copy turns and scales, Center is the middle of the selection": "Вокруг какой точки копии вращаются и масштабируются, Центр означает середину выделения",
+  "Linked": "Связанные",
+  "Select the objects to copy": "Выберите объекты для копирования",
+  "The scale grows or shrinks the copies too much": "Масштаб слишком сильно увеличивает или уменьшает копии",
+  "{n} copy": { "one": "{n} копия", "few": "{n} копии", "many": "{n} копий" }
 }

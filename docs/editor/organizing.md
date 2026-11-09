@@ -73,6 +73,32 @@ it out of a group again. When you drag a selected row, the whole selection moves
 all of them. Linked copies show *(linked)* in the Outliner, and a click on one selects the whole group, since its copies
 are edited as one. *Edit > Groups > Unlink Groups* breaks the link when one copy has to differ.
 
+## Array copies
+
+For a row of pillars, a stair or a ring of lamps, copy once with a rule instead of by hand. Select what to copy and
+choose *Edit > Array Copies…*. Cyan outlines in the views show where the copies would land as you change a value.
+
+![The Array Copies window with 7 copies, an offset of 18 units up and a rotation of 25 degrees about Y](../assets/organizing/array-copies-dialog.png)
+
+1. Set **Copies**, how many to make.
+2. Set **Offset**, how far each copy sits from the one before it, in units along X, Y and Z.
+3. Set **Rotate** in degrees about X, Y and Z and **Scale** if each copy should turn or grow. Every copy is made from the
+    previous one, so the turn and the scale add up along the run. 18 units up with 25 degrees about Y gives a spiral
+    stair.
+4. Leave **Pivot** on **Center** to turn and scale each copy in place, or pick **Custom** and enter a point to swing the run
+    around, such as the middle of a ring.
+5. Click **Create**. The window closes, the copies are in the map, the last one is selected and one Ctrl+Z removes the
+    whole run.
+
+Tick **Linked** to make linked groups, so fixing one copy fixes them all, see [Groups](#groups). Without a selection the
+window says so and has nothing to preview.
+
+<div class="td-mcp" markdown>
+
+The MCP tool `duplicate` takes the same settings as `count`, `offset`, `rotate`, `scale`, `pivot` and `linked`.
+
+</div>
+
 ## Prefabs
 
 For pieces you reuse across maps, select them and choose *Edit > Prefabs > Create from Selection…*. That saves the

@@ -1122,7 +1122,6 @@
   "Reparent": "親を変更",
   "Set Flags": "フラグを設定",
   "Set Map Properties": "マップ設定を変更",
-  "Rotate Copy": "回転コピー",
   "Create Mesh": "メッシュを作成",
   "Texture Settings": "テクスチャ設定",
   "Update Entity": "エンティティを更新",
@@ -2206,5 +2205,16 @@
   "Select at least two objects to align": "整列するオブジェクトを2つ以上選択してください",
   "Nothing to align, the objects already line up": "整列済みのため、移動するものがありません",
   "Select at least three objects to distribute": "等間隔に配置するオブジェクトを3つ以上選択してください",
-  "Nothing to distribute, the gaps are already equal": "間隔がすでに等しいため、移動するものがありません"
+  "Nothing to distribute, the gaps are already equal": "間隔がすでに等しいため、移動するものがありません",
+  "Array Copies…": "配列コピー…",
+  "Array Copies": "配列コピー",
+  "Array Copies of the selection": "選択範囲の配列コピー",
+  "Copies": "コピー数",
+  "Pivot": "ピボット",
+  "Custom": "カスタム",
+  "Where each copy turns and scales, Center is the middle of the selection": "各コピーが回転とスケールの基準にする点、中央は選択範囲の中心",
+  "Linked": "リンク",
+  "Select the objects to copy": "コピーするオブジェクトを選択",
+  "The scale grows or shrinks the copies too much": "スケールでコピーが大きく、または小さくなりすぎます",
+  "{n} copy": { "other": "{n}個のコピー" }
 }

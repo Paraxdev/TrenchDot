@@ -587,10 +587,11 @@ pub fn tool_definitions() -> Vec<Value> {
         }),
         json!({
             "name": "duplicate",
-            "description": "Array duplicate like Hammer's paste special: count copies of ids (or the selection), each offset further (one grid step along X by default) and optionally rotated around Y by rotate_y degrees per copy (about pivot or each copy's exact center, never snapped). linked makes linked groups that stay in sync. Offsets are used as given, and textures stay locked to the copies while UV lock is on, the editor setting unless uv_lock is passed, like transform.",
+            "description": "Array duplicate like Hammer's paste special, the Array Copies dialog: count (1 to 512) copies of ids (or the selection), each offset further (one grid step along X by default), turned by rotate [x, y, z] degrees per copy (Godot's rotation_degrees order, rotate_y is the older form for Y only) and scaled by scale (a number or [x, y, z], 1 keeps the size) about pivot, or about the selection's center carried along by the offsets when there is none, never snapped. Each copy is made from the previous one, so turning and scaling accumulate, and the whole run is one undo step. linked makes linked groups that stay in sync. Offsets are used as given, and textures stay locked to the copies while UV lock is on, the editor setting unless uv_lock is passed, like transform.",
             "inputSchema": { "type": "object", "properties": {
                 "ids": { "type": "array", "items": { "type": "integer" } }, "offset": vec3_schema("offset per copy"), "count": { "type": "integer" },
-                "linked": { "type": "boolean" }, "rotate_y": { "type": "number" }, "pivot": vec3_schema("rotation pivot"),
+                "linked": { "type": "boolean" }, "rotate": vec3_schema("degrees per copy about X, Y and Z"), "rotate_y": { "type": "number", "description": "older form of rotate [0, degrees, 0]" },
+                "scale": { "type": ["number", "array"], "items": { "type": "number" }, "description": "factor per copy, a number or [x, y, z]" }, "pivot": vec3_schema("rotation and scale pivot"),
                 "uv_lock": { "type": "boolean", "description": "keep textures locked to the copies, default the editor's UV lock" }
             } }
         }),

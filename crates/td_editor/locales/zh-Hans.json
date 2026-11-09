@@ -1122,7 +1122,6 @@
   "Reparent": "更换父级",
   "Set Flags": "设置标志",
   "Set Map Properties": "设置地图属性",
-  "Rotate Copy": "旋转复制",
   "Create Mesh": "创建网格",
   "Texture Settings": "纹理设置",
   "Update Entity": "更新实体",
@@ -2206,5 +2205,16 @@
   "Select at least two objects to align": "请至少选择两个对象来对齐",
   "Nothing to align, the objects already line up": "无需对齐，对象已经对齐",
   "Select at least three objects to distribute": "请至少选择三个对象来分布",
-  "Nothing to distribute, the gaps are already equal": "无需分布，间距已经相等"
+  "Nothing to distribute, the gaps are already equal": "无需分布，间距已经相等",
+  "Array Copies…": "阵列复制…",
+  "Array Copies": "阵列复制",
+  "Array Copies of the selection": "选区的阵列复制",
+  "Copies": "副本数",
+  "Pivot": "枢轴",
+  "Custom": "自定义",
+  "Where each copy turns and scales, Center is the middle of the selection": "每个副本旋转和缩放的中心，居中为所选对象的中点",
+  "Linked": "链接",
+  "Select the objects to copy": "选择要复制的对象",
+  "The scale grows or shrinks the copies too much": "缩放使副本过大或过小",
+  "{n} copy": { "other": "{n} 个副本" }
 }

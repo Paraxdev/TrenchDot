@@ -1122,7 +1122,6 @@
   "Reparent": "Cambiar padre",
   "Set Flags": "Fijar flags",
   "Set Map Properties": "Fijar propiedades del mapa",
-  "Rotate Copy": "Copia girada",
   "Create Mesh": "Crear malla",
   "Texture Settings": "Ajustes de textura",
   "Update Entity": "Actualizar entidad",
@@ -2206,5 +2205,16 @@
   "Select at least two objects to align": "Seleccione al menos dos objetos para alinear",
   "Nothing to align, the objects already line up": "Nada que alinear, los objetos ya están alineados",
   "Select at least three objects to distribute": "Seleccione al menos tres objetos para distribuir",
-  "Nothing to distribute, the gaps are already equal": "Nada que distribuir, los espacios ya son iguales"
+  "Nothing to distribute, the gaps are already equal": "Nada que distribuir, los espacios ya son iguales",
+  "Array Copies…": "Copias en serie…",
+  "Array Copies": "Copias en serie",
+  "Array Copies of the selection": "Copias en serie de la selección",
+  "Copies": "Copias",
+  "Pivot": "Pivote",
+  "Custom": "Personalizado",
+  "Where each copy turns and scales, Center is the middle of the selection": "Dónde gira y escala cada copia, Centro es el medio de la selección",
+  "Linked": "Enlazado",
+  "Select the objects to copy": "Selecciona los objetos que copiar",
+  "The scale grows or shrinks the copies too much": "La escala agranda o reduce demasiado las copias",
+  "{n} copy": { "one": "{n} copia", "other": "{n} copias" }
 }

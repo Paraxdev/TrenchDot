@@ -923,6 +923,95 @@ pub fn duplicate_linked(map: &mut Map, sel: &mut Selection, offset: DVec3, opts:
     new_ids
 }
 
+pub const MAX_COPIES: usize = 512;
+
+/// A run of copies, each the previous one moved by `offset`, then turned and scaled about the pivot.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ArraySpec {
+    pub count: usize,
+    pub offset: DVec3,
+    /// Degrees per copy about X, Y and Z, in Godot's YXZ order like entity angles.
+    pub rotate: DVec3,
+    pub scale: DVec3,
+    /// Without one each copy turns about the center of the selection, carried along by the offsets.
+    pub pivot: Option<DVec3>,
+    pub linked: bool,
+}
+
+impl Default for ArraySpec {
+    fn default() -> Self {
+        Self { count: 1, offset: DVec3::ZERO, rotate: DVec3::ZERO, scale: DVec3::ONE, pivot: None, linked: false }
+    }
+}
+
+impl ArraySpec {
+    pub fn turns(&self) -> bool {
+        self.rotate != DVec3::ZERO || self.scale != DVec3::ONE
+    }
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.count == 0 || self.count > MAX_COPIES {
+            return Err(format!("count has to be 1 to {MAX_COPIES}"));
+        }
+
+        if self.scale.to_array().iter().any(|s| s.is_nan() || *s <= 0.0) {
+            return Err("scale has to be more than 0 on every axis".to_string());
+        }
+
+        let growth = self.scale.max_element().powi(self.count as i32);
+        let shrink = self.scale.min_element().powi(self.count as i32);
+        if growth > 1e5 || shrink < 1e-4 {
+            return Err("scale over that many copies grows or shrinks them beyond 100000 times".to_string());
+        }
+
+        Ok(())
+    }
+
+    /// What turns the copy that was just moved, about `pivot` or, when there is none, `center` moved by `offset` times `step`.
+    fn turn(&self, center: DVec3, step: usize) -> DMat4 {
+        let p = self.pivot.unwrap_or(center + self.offset * step as f64);
+        let euler = DQuat::from_euler(td_core::EulerRot::YXZ, self.rotate.y.to_radians(), self.rotate.x.to_radians(), self.rotate.z.to_radians());
+        DMat4::from_translation(p) * DMat4::from_quat(euler) * DMat4::from_scale(self.scale) * DMat4::from_translation(-p)
+    }
+
+    /// Where each copy sits relative to the original, for a selection centered on `center`.
+    pub fn matrices(&self, center: DVec3) -> Vec<DMat4> {
+        let mut at = DMat4::IDENTITY;
+        (1..=self.count)
+            .map(|k| {
+                at = DMat4::from_translation(self.offset) * at;
+                if self.turns() {
+                    at = self.turn(center, k) * at;
+                }
+
+                at
+            })
+            .collect()
+    }
+}
+
+/// Makes `spec.count` copies of the selection and returns each batch of new ids. The last batch ends up selected.
+/// Linked copies wrap the selection in a group under `parent` first when it holds none.
+pub fn array_copies(map: &mut Map, sel: &mut Selection, spec: &ArraySpec, parent: NodeId, opts: EditOptions) -> Vec<Vec<NodeId>> {
+    if spec.linked && !selection_roots(map, sel).iter().any(|id| matches!(map.get(*id).map(|n| &n.kind), Some(NodeKind::Group(_)))) {
+        group_selection(map, sel, "Linked", parent);
+    }
+
+    let center = map.bounds_of(sel.nodes.iter().copied()).center();
+    let mut all = Vec::new();
+    for k in 1..=spec.count {
+        let copies = if spec.linked { duplicate_linked(map, sel, spec.offset, opts) } else { duplicate_selection(map, sel, spec.offset, opts) };
+        if spec.turns() {
+            // Each copy is duplicated from the previous one, so one step of turning accumulates.
+            transform_selection(map, sel, &spec.turn(center, k), opts);
+        }
+
+        all.push(copies);
+    }
+
+    all
+}
+
 /// Turns selected linked groups back into independent groups.
 pub fn unlink_groups(map: &mut Map, sel: &Selection) {
     for id in selection_roots(map, sel) {
@@ -1036,6 +1125,113 @@ mod tests {
         let group = group_selection(&mut m, &mut sel, "g", layer).unwrap();
         sel.nodes.extend([ids[0], group, ids[2]]);
         assert_eq!(selection_units(&m, &sel).len(), 2);
+    }
+
+    fn near(a: DVec3, b: DVec3) -> bool {
+        a.distance(b) < 1e-6
+    }
+
+    #[test]
+    fn array_without_pivot_turns_each_copy_about_its_own_center() {
+        let spec = ArraySpec { count: 4, offset: DVec3::new(100.0, 0.0, 0.0), rotate: DVec3::new(0.0, 90.0, 0.0), ..Default::default() };
+        let center = DVec3::new(10.0, 5.0, 0.0);
+        let steps = spec.matrices(center);
+        assert_eq!(steps.len(), 4);
+        for (i, m) in steps.iter().enumerate() {
+            assert!(near(m.transform_point3(center), center + DVec3::new(100.0 * (i + 1) as f64, 0.0, 0.0)), "copy {i} keeps its center on the line");
+        }
+
+        let tip = center + DVec3::X;
+        assert!(near(steps[0].transform_point3(tip) - steps[0].transform_point3(center), DVec3::NEG_Z), "one quarter turn about Y sends +X to -Z");
+        assert!(near(steps[3].transform_point3(tip) - steps[3].transform_point3(center), DVec3::X), "four quarter turns are a full turn");
+    }
+
+    #[test]
+    fn array_pivot_and_scale_accumulate_about_the_pivot() {
+        let spec = ArraySpec { count: 3, scale: DVec3::splat(2.0), pivot: Some(DVec3::new(0.0, 0.0, 10.0)), ..Default::default() };
+        let steps = spec.matrices(DVec3::ZERO);
+        let p = DVec3::new(1.0, 0.0, 10.0);
+        assert!(near(steps[0].transform_point3(p), DVec3::new(2.0, 0.0, 10.0)));
+        assert!(near(steps[2].transform_point3(p), DVec3::new(8.0, 0.0, 10.0)));
+        assert!(near(steps[2].transform_point3(spec.pivot.unwrap()), spec.pivot.unwrap()));
+
+        let spiral =
+            ArraySpec { count: 2, offset: DVec3::new(0.0, 16.0, 0.0), rotate: DVec3::new(0.0, 90.0, 0.0), pivot: Some(DVec3::ZERO), ..Default::default() };
+        let m = spiral.matrices(DVec3::ZERO);
+        assert!(near(m[1].transform_point3(DVec3::new(10.0, 0.0, 0.0)), DVec3::new(-10.0, 32.0, 0.0)));
+    }
+
+    #[test]
+    fn array_rejects_nonsense() {
+        assert!(ArraySpec::default().validate().is_ok());
+        assert!(ArraySpec { count: 0, ..Default::default() }.validate().is_err());
+        assert!(ArraySpec { count: MAX_COPIES + 1, ..Default::default() }.validate().is_err());
+        assert!(ArraySpec { scale: DVec3::new(1.0, 0.0, 1.0), ..Default::default() }.validate().is_err());
+        assert!(ArraySpec { scale: DVec3::new(1.0, f64::NAN, 1.0), ..Default::default() }.validate().is_err());
+        assert!(ArraySpec { count: 512, scale: DVec3::splat(2.0), ..Default::default() }.validate().is_err());
+    }
+
+    #[test]
+    fn array_copies_follow_the_matrices() {
+        let (mut m, ids) = world_with_boxes();
+        let mut sel = Selection::default();
+        sel.nodes.insert(ids[1]);
+        let layer = m.default_layer();
+        let spec =
+            ArraySpec { count: 3, offset: DVec3::new(64.0, 0.0, 0.0), rotate: DVec3::new(0.0, 0.0, 90.0), scale: DVec3::splat(0.5), ..Default::default() };
+        let center = m.bounds(ids[1]).center();
+        let made = array_copies(&mut m, &mut sel, &spec, layer, EditOptions { uv_lock: true, grid: 0.0 });
+        assert_eq!(made.len(), 3);
+        assert_eq!(sel.nodes.iter().copied().collect::<Vec<_>>(), made[2], "the last copies stay selected");
+        assert_eq!(m.brush_count(), 6);
+        let original = m.bounds(ids[1]);
+        for (copy, matrix) in made.iter().zip(spec.matrices(center)) {
+            let got = m.bounds(copy[0]);
+            let expected = Aabb::from_points(original.corners().map(|c| matrix.transform_point3(c)));
+            assert!(got.min.distance(expected.min) < 1e-3 && got.max.distance(expected.max) < 1e-3, "{got:?} vs {expected:?}");
+        }
+    }
+
+    /// A lopsided brush has its bounds center move as it turns, so the pivot has to be carried along by the offsets
+    /// rather than read off each copy, or the copies drift off the line the preview draws.
+    #[test]
+    fn array_of_a_lopsided_brush_lands_on_the_preview() {
+        let mut m = Map::new();
+        let layer = m.default_layer();
+        let wedge = td_geom::shapes::wedge(&Aabb::new(DVec3::ZERO, DVec3::new(32.0, 64.0, 128.0)), "a").unwrap();
+        let points = wedge.vertices.clone();
+        let id = create_brush(&mut m, layer, wedge);
+        let mut sel = Selection::default();
+        sel.nodes.insert(id);
+        let spec = ArraySpec { count: 4, offset: DVec3::new(0.0, 0.0, 200.0), rotate: DVec3::new(30.0, 20.0, 0.0), ..Default::default() };
+        let center = m.bounds(id).center();
+        let made = array_copies(&mut m, &mut sel, &spec, layer, EditOptions::default());
+        for (copy, matrix) in made.iter().zip(spec.matrices(center)) {
+            let got = m.bounds(copy[0]);
+            let expected = Aabb::from_points(points.iter().map(|p| matrix.transform_point3(*p)));
+            assert!(got.min.distance(expected.min) < 1e-3 && got.max.distance(expected.max) < 1e-3, "{got:?} vs {expected:?}");
+        }
+    }
+
+    #[test]
+    fn linked_array_wraps_a_loose_brush_in_one_group() {
+        let (mut m, ids) = world_with_boxes();
+        let mut sel = Selection::default();
+        sel.nodes.insert(ids[0]);
+        let layer = m.default_layer();
+        let spec = ArraySpec { count: 2, offset: DVec3::new(100.0, 0.0, 0.0), linked: true, ..Default::default() };
+        let made = array_copies(&mut m, &mut sel, &spec, layer, EditOptions::default());
+        assert_eq!(made.len(), 2);
+        let links: BTreeSet<_> = made
+            .iter()
+            .flatten()
+            .filter_map(|id| match &m.get(*id)?.kind {
+                NodeKind::Group(g) => g.link_id,
+                _ => None,
+            })
+            .collect();
+        assert_eq!(links.len(), 1, "every copy shares the original's link id");
+        assert_eq!(m.brush_count(), 5);
     }
 
     #[test]

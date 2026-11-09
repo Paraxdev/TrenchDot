@@ -1566,56 +1566,47 @@ impl App {
             return err(e);
         }
 
-        let (offset, pivot) = match (optional_vec3(args, "offset"), optional_vec3(args, "pivot")) {
-            (Ok(o), Ok(p)) => (o.unwrap_or(DVec3::new(self.state.grid, 0.0, 0.0)), p),
-            (Err(e), _) | (_, Err(e)) => return err(e),
+        let (offset, pivot, rotate) = match (optional_vec3(args, "offset"), optional_vec3(args, "pivot"), optional_vec3(args, "rotate")) {
+            (Ok(o), Ok(p), Ok(r)) => (o.unwrap_or(DVec3::new(self.state.grid, 0.0, 0.0)), p, r),
+            (Err(e), _, _) | (_, Err(e), _) | (_, _, Err(e)) => return err(e),
         };
-        let count = args["count"].as_u64().unwrap_or(1).clamp(1, 512) as usize;
-        let linked = args["linked"].as_bool().unwrap_or(false);
-        let rotate = args["rotate_y"].as_f64().unwrap_or(0.0);
+        let scale = match &args["scale"] {
+            Value::Null => DVec3::ONE,
+            Value::Number(n) => DVec3::splat(n.as_f64().unwrap_or(1.0)),
+            v => match vec3(v) {
+                Some(s) => s,
+                None => return err("scale must be a number or [x, y, z]"),
+            },
+        };
         let uv_lock = match bool_arg(args, "uv_lock") {
             Ok(u) => u.unwrap_or(self.state.uv_lock),
             Err(e) => return err(e),
         };
-        let opts = ops::EditOptions { uv_lock, grid: 0.0 };
+        let spec = ops::ArraySpec {
+            count: args["count"].as_u64().unwrap_or(1).clamp(1, ops::MAX_COPIES as u64) as usize,
+            offset,
+            rotate: rotate.unwrap_or(DVec3::new(0.0, args["rotate_y"].as_f64().unwrap_or(0.0), 0.0)),
+            scale,
+            pivot,
+            linked: args["linked"].as_bool().unwrap_or(false),
+        };
+        if let Err(e) = spec.validate() {
+            return err(e);
+        }
+
         let parent = match resolve_parent(&self.state, &Value::Null, Child::Other) {
             Ok(p) => p,
-            Err(e) if linked => return err(e),
+            Err(e) if spec.linked => return err(e),
             Err(_) => self.state.insert_parent(),
         };
-        let mut all = Vec::new();
-        self.state.doc.begin(if linked { "Duplicate Linked" } else { "Array Duplicate" });
         self.state.doc.select(|_, s| {
             s.clear();
             s.nodes.extend(source.iter().copied());
         });
-        if linked && !source.iter().any(|id| matches!(self.state.doc.map.get(*id).map(|n| &n.kind), Some(NodeKind::Group(_)))) {
-            self.state.doc.edit("Group", |m, s| ops::group_selection(m, s, "Linked", parent));
-        }
-
-        for _ in 0..count {
-            let copies = if linked {
-                self.state.doc.edit("Duplicate Linked", |m, s| ops::duplicate_linked(m, s, offset, opts))
-            } else {
-                self.state.doc.edit("Duplicate", |m, s| ops::duplicate_selection(m, s, offset, opts))
-            };
-            if rotate != 0.0 {
-                let center = pivot.unwrap_or_else(|| self.state.doc.map.bounds_of(copies.iter().copied()).center());
-                // Each copy is duplicated from the previous one, so one step of rotation accumulates.
-                let turn = ops::rotation_about(center, DVec3::Y, rotate);
-                let only = copies.clone();
-                self.state.doc.edit("Rotate Copy", |m, s| {
-                    let mut sel = td_doc::Selection::default();
-                    sel.nodes.extend(only.iter().copied());
-                    ops::transform_selection(m, &sel, &turn, opts);
-                    s.nodes = only.iter().copied().collect();
-                });
-            }
-
-            all.push(copies.iter().map(|i| i.0).collect::<Vec<_>>());
-        }
-
-        self.state.doc.commit();
+        let opts = ops::EditOptions { uv_lock, grid: 0.0 };
+        let label = if spec.linked { "Duplicate Linked" } else { "Array Duplicate" };
+        let all = self.state.doc.edit(label, |m, s| ops::array_copies(m, s, &spec, parent, opts));
+        let all: Vec<Vec<u64>> = all.iter().map(|batch| batch.iter().map(|i| i.0).collect()).collect();
         ok(json!({ "copies": all, "selection": self.state.doc.selection.nodes.iter().map(|i| i.0).collect::<Vec<_>>() }))
     }
 
