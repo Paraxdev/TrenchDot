@@ -569,6 +569,8 @@ pub struct EditorState {
     pub overlay_ghosts: crate::overlays::OverlayGhosts,
     /// Brushes the open Sweep Faces dialog would create, drawn as lines.
     pub sweep_preview: Vec<td_geom::Brush>,
+    /// Edges of what the open Shape Generator would create, drawn as lines.
+    pub shape_preview: Vec<(td_core::DVec3, td_core::DVec3)>,
     pub walkable: crate::walkable::WalkableView,
     pub void_cull: crate::void_cull::VoidView,
     pub models: crate::models::ModelCache,
@@ -742,6 +744,7 @@ impl EditorState {
             instance_bounds: Default::default(),
             overlay_ghosts: Default::default(),
             sweep_preview: Vec::new(),
+            shape_preview: Vec::new(),
             walkable: Default::default(),
             void_cull: Default::default(),
             models: Default::default(),

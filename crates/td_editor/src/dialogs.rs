@@ -479,7 +479,11 @@ pub struct ShapeDialog {
     axis: shapes::Axis,
     text: TextShape,
     rock: Rock,
+    preview: Option<(ShapeKey, Vec<NodeKind>)>,
 }
+
+/// Every setting the generated shape depends on, so it is only rebuilt when one of them changes.
+type ShapeKey = (ShapeKind, usize, f64, usize, bool, bool, shapes::Axis, TextShape, Rock, Aabb, String);
 
 /// Block letter settings of the Text shape, laid out from the corner of the bounds.
 #[derive(Clone, Debug, PartialEq)]
@@ -520,11 +524,29 @@ impl Default for ShapeDialog {
             axis: shapes::Axis::Y,
             text: TextShape::default(),
             rock: Rock::default(),
+            preview: None,
         }
     }
 }
 
+fn preview_lines(kinds: &[NodeKind]) -> Vec<(DVec3, DVec3)> {
+    let mut out = Vec::new();
+    for kind in kinds {
+        match kind {
+            NodeKind::Brush(b) => out.extend(b.edges().into_iter().map(|(a, c)| (b.vertices[a as usize], b.vertices[c as usize]))),
+            NodeKind::Mesh(m) => out.extend(m.edges().into_iter().map(|(a, c)| (m.vertices[a as usize], m.vertices[c as usize]))),
+            _ => {}
+        }
+    }
+
+    out
+}
+
 impl ShapeDialog {
+    fn key(&self, bounds: &Aabb, material: &str) -> ShapeKey {
+        (self.kind, self.sides, self.thickness, self.steps, self.as_mesh, self.smooth, self.axis, self.text.clone(), self.rock, *bounds, material.to_string())
+    }
+
     pub fn generate(&self, bounds: &Aabb, material: &str) -> Vec<NodeKind> {
         let brushes = |list: Vec<Brush>| -> Vec<NodeKind> { list.into_iter().map(NodeKind::Brush).collect() };
         let smooth = |mut m: td_geom::Mesh| {
@@ -575,6 +597,14 @@ impl ShapeDialog {
     }
 
     pub fn show(&mut self, ctx: &egui::Context, state: &mut EditorState) {
+        if !self.open {
+            if self.preview.take().is_some() {
+                state.shape_preview.clear();
+            }
+
+            return;
+        }
+
         let mut open = self.open;
         let brushes = state.doc.selection.brushes(&state.doc.map);
         let bounds = if brushes.is_empty() { state.last_bounds } else { state.doc.map.bounds_of(brushes.iter().copied()) };
@@ -689,9 +719,17 @@ impl ShapeDialog {
                 ui.label(trf!("Bounds {x} x {y} x {z} ({source})", x = size.x, y = size.y, z = size.z, source));
             }
 
-            let preview = self.generate(&bounds, &state.current_material);
-            ui.label(RichText::new(tr_n!(preview.len(), "{n} object", "{n} objects")).weak());
-            if ui.add_enabled(!preview.is_empty(), egui::Button::new(tr("Create"))).clicked() {
+            let key = self.key(&bounds, &state.current_material);
+            if self.preview.as_ref().is_none_or(|(k, _)| *k != key) {
+                let kinds = self.generate(&bounds, &state.current_material);
+                state.shape_preview = preview_lines(&kinds);
+                self.preview = Some((key, kinds));
+            }
+
+            let count = self.preview.as_ref().map_or(0, |(_, p)| p.len());
+            ui.label(RichText::new(tr_n!(count, "{n} object", "{n} objects")).weak());
+            if ui.add_enabled(count > 0, egui::Button::new(tr("Create"))).clicked() {
+                let preview = self.preview.as_ref().map(|(_, p)| p.clone()).unwrap_or_default();
                 let parent = state.insert_parent();
                 state.doc.edit(en!("Create Shape"), |m, s| {
                     let target_parent = brushes.first().and_then(|b| m.get(*b)).and_then(|n| n.parent).unwrap_or(parent);

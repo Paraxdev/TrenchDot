@@ -92,7 +92,8 @@ Generator.
 
 1. Draw a box where the shape should go, and leave it selected.
 2. Open *Brush > Shape Generator…* (Ctrl+Shift+B).
-3. Pick the **Shape** and its options. The dialog says the bounds it fills, and that it replaces the selection.
+3. Pick the **Shape** and its options. The dialog says the bounds it fills, and that it replaces the selection. The
+   views draw the shape in cyan lines while you change the options, so you can see it before anything changes.
 4. Click **Create**.
 
 ![The Shape Generator dialog set to Cylinder with 16 sides and the Y axis, filling a 128 x 192 x 128 selection](../assets/brushes/shape-generator.png)

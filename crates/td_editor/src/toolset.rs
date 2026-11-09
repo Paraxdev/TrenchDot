@@ -1073,6 +1073,10 @@ impl ToolSet {
             }
         }
 
+        for &(a, b) in &state.shape_preview {
+            line(&mut out, a, b, [0.3, 1.0, 1.0, 0.9]);
+        }
+
         if let Some(id) = state.outliner_hover {
             outliner_hover_lines(state, id, &mut out);
         }
