@@ -129,7 +129,7 @@ pub fn check(api: &str, current: &str) -> Result<Option<Release>, Error> {
     Ok(Some(Release { version: version.to_string(), asset }))
 }
 
-/// Where the replaced build stays, `trenchdot-previous.exe` beside `trenchdot.exe`.
+/// Where the replaced build stays, `trenchdot-windows-x86_64-previous.exe` beside `trenchdot-windows-x86_64.exe`.
 pub fn previous(exe: &Path) -> PathBuf {
     let stem = exe.file_stem().unwrap_or_default().to_string_lossy();
     let ext = exe.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
