@@ -1,5 +1,5 @@
 ---
-source: 7b101e87633cb98c2091d8f67c6857fb5371a1d9
+source: b69e3e68d14e4acf224ebc411ee99d88523920f4
 ---
 
 # Brushes et CSG { #brushes-and-csg }
@@ -124,6 +124,38 @@ règle la finesse de la subdivision de la surface.
 ![Le Générateur de formes réglé sur Rocher en maillage modifiable, avec Rugosité 0.5, Facettes 5, Base plate 0.3, Détail 3 et Graine 1](../assets/brushes/shape-generator-rock.png)
 
 ![Cinq rochers orange sur un sol gris, trois maillages bosselés devant et deux rochers brush à facettes derrière](../assets/brushes/shape-generator-rocks.png)
+
+## Balayer des faces { #sweep-faces }
+
+Pour prolonger un couloir, un tuyau ou une moulure autour d'un angle, balayez les faces de son extrémité. Chaque face
+est poussée le long d'un chemin et laisse derrière elle une suite de brushes, avec les matériaux du brush dont elle
+vient.
+
+1. Faites Shift+clic sur une face à l'extrémité du tronçon dans la vue 3D, puis Ctrl+Shift+clic sur les autres, par
+   exemple le sol et les deux murs d'un couloir.
+2. Ouvrez *Brush > Balayer des faces…*. Un contour cyan montre les brushes qu'il créerait.
+3. Choisissez **Droit**, **Arc** ou **Courbe en S** et réglez le chemin. **Rayon** se mesure du centre du virage au
+   milieu des faces, et **Direction** se voit en regardant les faces.
+4. Cliquez sur **Créer**. Les nouveaux brushes sont sélectionnés et rejoignent le groupe ou l'entité du brush dont ils
+   viennent, si bien que balayer l'extrémité d'une `func_door` allonge la porte.
+
+![La boîte de dialogue Balayer des faces réglée sur Arc avec Rayon 128, Angle 90, Direction Droite et 8 segments, qui crée 32 brushes](../assets/brushes/sweep-faces-dialog.png)
+
+![Un couloir au sol sombre et à deux murs orange, balayé en ligne droite, autour d'un arc de 90 degrés, puis de nouveau en ligne droite](../assets/brushes/sweep-faces-corridor.png)
+
+Davantage de **Segments** donnent une courbe plus lisse. **Montée** soulève l'extrémité, si bien qu'un arc avec de la
+montée devient une rampe en spirale, **Torsion** fait tourner les faces sur elles-mêmes et **Échelle finale** les
+agrandit ou les rétrécit en chemin. Un arc plus serré que la largeur des faces se replierait sur son côté intérieur, la
+boîte de dialogue indique alors le plus petit rayon qui convient. Toutes les faces choisies avancent dans le même sens,
+selon leur direction moyenne, choisissez donc des faces orientées de la même façon, comme l'extrémité d'un couloir. Des
+faces inclinées les unes par rapport aux autres partiraient de travers.
+
+<div class="td-mcp" markdown>
+
+L'outil MCP `sweep_faces` prend les mêmes réglages, avec les faces sous forme de paires `[brush id, face index]` ou les
+faces sélectionnées quand aucune n'est donnée.
+
+</div>
 
 ## CSG { #csg }
 

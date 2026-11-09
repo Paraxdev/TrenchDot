@@ -1,5 +1,5 @@
 ---
-source: 7b101e87633cb98c2091d8f67c6857fb5371a1d9
+source: b69e3e68d14e4acf224ebc411ee99d88523920f4
 ---
 
 # Brushes e CSG { #brushes-and-csg }
@@ -93,6 +93,27 @@ Cilindros e cones ficam em pé por padrão. Escolha **X** ou **Z** em **Eixo** p
 ![O Gerador de formas com Rocha como malha editável, com Rugosidade 0.5, Facetas 5, Base plana 0.3, Detalhe 3 e Semente 1](../assets/brushes/shape-generator-rock.png)
 
 ![Cinco rochas laranja sobre um piso cinza, três malhas irregulares na frente e duas rochas de brush facetadas atrás](../assets/brushes/shape-generator-rocks.png)
+
+## Varrer faces { #sweep-faces }
+
+Para levar um corredor, um cano ou um acabamento em volta de uma curva, varra as faces da ponta dele. Cada face é empurrada ao longo de um caminho e deixa para trás uma série de brushes, com os materiais do brush de onde ela veio.
+
+1. Faça Shift+clique em uma face na ponta do trecho na vista 3D, depois Ctrl+Shift+clique nas outras, por exemplo o piso e as duas paredes de um corredor.
+2. Abra *Brush > Varrer faces…*. Um contorno ciano mostra os brushes que seriam criados.
+3. Escolha **Reta**, **Arco** ou **Curva em S** e defina o caminho. **Raio** é medido do centro da curva até o meio das faces, e **Direção** é vista olhando para as faces.
+4. Clique em **Criar**. Os brushes novos ficam selecionados e entram no grupo ou na entidade do brush de onde vieram, então varrer a ponta de uma `func_door` deixa a porta mais comprida.
+
+![A janela Varrer faces em Arco com Raio 128, Ângulo 90, Direção Direita e 8 segmentos, criando 32 brushes](../assets/brushes/sweep-faces-dialog.png)
+
+![Um corredor com piso escuro e duas paredes laranja, varrido reto, em volta de um arco de 90 graus e reto de novo](../assets/brushes/sweep-faces-corridor.png)
+
+Mais **Segmentos** deixam a curva mais suave. **Subida** levanta a ponta, então um arco com subida vira uma rampa em espiral, **Torção** gira as faces em torno de si mesmas e **Escala final** as aumenta ou diminui pelo caminho. Um arco mais fechado do que a largura das faces dobraria sobre si mesmo no lado interno, então a janela informa o menor raio que funciona. Todas as faces selecionadas seguem no mesmo sentido, ao longo da direção média delas, então escolha faces que apontem para o mesmo lado, como a ponta de um corredor. Faces em ângulo umas com as outras sairiam tortas.
+
+<div class="td-mcp" markdown>
+
+A ferramenta MCP `sweep_faces` aceita os mesmos ajustes, com as faces como pares `[brush id, face index]` ou as faces selecionadas quando nenhuma é informada.
+
+</div>
 
 ## CSG { #csg }
 

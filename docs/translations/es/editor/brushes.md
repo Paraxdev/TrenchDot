@@ -1,5 +1,5 @@
 ---
-source: 7b101e87633cb98c2091d8f67c6857fb5371a1d9
+source: b69e3e68d14e4acf224ebc411ee99d88523920f4
 ---
 
 # Brushes y CSG { #brushes-and-csg }
@@ -93,6 +93,27 @@ Los cilindros y los conos están de pie por defecto. Elige **X** o **Z** en **Ej
 ![El Generador de formas con Roca como malla editable, con Rugosidad 0.5, Facetas 5, Base plana 0.3, Detalle 3 y Semilla 1](../assets/brushes/shape-generator-rock.png)
 
 ![Cinco rocas naranjas sobre un suelo gris, tres mallas irregulares delante y dos rocas de brush facetadas detrás](../assets/brushes/shape-generator-rocks.png)
+
+## Barrer caras { #sweep-faces }
+
+Para llevar un pasillo, una tubería o un remate alrededor de una esquina, barre las caras de su extremo. Cada cara se empuja a lo largo de un camino y deja tras de sí una serie de brushes, con los materiales del brush del que salió.
+
+1. Haz Shift+clic en una cara del extremo del tramo en la vista 3D, y luego Ctrl+Shift+clic en las demás, por ejemplo el suelo y las dos paredes de un pasillo.
+2. Abre *Brush > Barrer caras…*. Un contorno cian muestra los brushes que crearía.
+3. Elige **Recta**, **Arco** o **Curva en S** y ajusta el camino. **Radio** se mide desde el centro del giro hasta el medio de las caras, y **Dirección** se ve mirando las caras.
+4. Haz clic en **Crear**. Los brushes nuevos quedan seleccionados y se unen al grupo o a la entidad del brush del que salieron, así que barrer el extremo de una `func_door` alarga la puerta.
+
+![El diálogo Barrer caras con Arco, Radio 128, Ángulo 90, Dirección Derecha y 8 segmentos, que crea 32 brushes](../assets/brushes/sweep-faces-dialog.png)
+
+![Un pasillo con suelo oscuro y dos paredes naranjas, barrido recto, alrededor de un arco de 90 grados y otra vez recto](../assets/brushes/sweep-faces-corridor.png)
+
+Más **Segmentos** dan una curva más suave. **Subida** eleva el extremo, así que un arco con subida se convierte en una rampa en espiral, **Torsión** gira las caras sobre sí mismas y **Escala final** las agranda o las encoge por el camino. Un arco más cerrado que el ancho de las caras se plegaría sobre sí mismo en su lado interior, así que el diálogo indica el radio mínimo que funciona. Todas las caras seleccionadas viajan en el mismo sentido, a lo largo de su dirección media, así que elige caras que apunten hacia el mismo lado, como el extremo de un pasillo. Las caras en ángulo entre sí saldrían torcidas.
+
+<div class="td-mcp" markdown>
+
+La herramienta MCP `sweep_faces` acepta los mismos ajustes, con las caras como pares `[brush id, face index]` o las caras seleccionadas si no se indica ninguna.
+
+</div>
 
 ## CSG { #csg }
 
