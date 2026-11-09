@@ -488,6 +488,8 @@ pub struct ShapeDialog {
     axis: shapes::Axis,
     text: TextShape,
     rock: Rock,
+    /// The box kept while the dialog is open, used when nothing is selected.
+    bounds: Option<Aabb>,
     /// The generated shape and its triangle count.
     preview: Option<(ShapeKey, Vec<NodeKind>, usize)>,
 }
@@ -537,6 +539,7 @@ impl Default for ShapeDialog {
             axis: shapes::Axis::Y,
             text: TextShape::default(),
             rock: Rock::default(),
+            bounds: None,
             preview: None,
         }
     }
@@ -639,18 +642,35 @@ impl ShapeDialog {
         }
     }
 
+    /// What the shape replaces and the box it fills. With nothing to replace the dialog keeps a box of its own,
+    /// which a view may have edited earlier in the frame.
+    fn sources_and_bounds(&mut self, state: &mut EditorState) -> (Vec<td_doc::NodeId>, Aabb) {
+        let sources = shape_sources(state);
+        if !sources.is_empty() {
+            state.shape_bounds = None;
+            let bounds = state.doc.map.bounds_of(sources.iter().copied());
+            return (sources, bounds);
+        }
+
+        let bounds = state.shape_bounds.or(self.bounds).unwrap_or_else(|| crate::shape_bounds::seed(state.last_bounds, state.grid));
+        state.shape_bounds = Some(bounds);
+        self.bounds = Some(bounds);
+        (sources, bounds)
+    }
+
     pub fn show(&mut self, ctx: &egui::Context, state: &mut EditorState) {
         if !self.open {
             if self.preview.take().is_some() {
                 state.shape_preview.clear();
             }
 
+            self.bounds = None;
+            state.shape_bounds = None;
             return;
         }
 
         let mut open = self.open;
-        let sources = shape_sources(state);
-        let bounds = if sources.is_empty() { state.last_bounds } else { state.doc.map.bounds_of(sources.iter().copied()) };
+        let (sources, bounds) = self.sources_and_bounds(state);
         widgets::window(en!("Shape Generator")).open(&mut open).resizable(false).show(ctx, |ui| {
             egui::ComboBox::new("shape_kind", tr("Shape")).selected_text(tr(self.kind.label())).show_ui(ui, |ui| {
                 for k in ShapeKind::ALL {
@@ -1394,6 +1414,181 @@ mod tests {
         assert!(triangles(&dialog.generate(&bounds, "m")) <= HEAVY_TRIANGLES, "the most detailed rock is fine on its own");
         let grid = ShapeDialog { kind: ShapeKind::Grid, steps: 128, ..Default::default() };
         assert!(triangles(&grid.generate(&bounds, "m")) > HEAVY_TRIANGLES);
+    }
+
+    fn show_frame(dialog: &mut ShapeDialog, ctx: &egui::Context, state: &mut EditorState) {
+        ctx.begin_pass(egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1200.0, 900.0))), ..Default::default() });
+        dialog.show(ctx, state);
+        ctx.end_pass().drop_without_applying_deltas();
+    }
+
+    fn open_shape_dialog(last: Aabb) -> (ShapeDialog, egui::Context, EditorState) {
+        let mut state = EditorState::new(crate::state::Prefs::default());
+        state.grid = 16.0;
+        state.last_bounds = last;
+        (ShapeDialog { open: true, ..Default::default() }, egui::Context::default(), state)
+    }
+
+    fn box_of(min: [f64; 3], max: [f64; 3]) -> Aabb {
+        Aabb::new(DVec3::from(min), DVec3::from(max))
+    }
+
+    fn insert_block(state: &mut EditorState, bounds: &Aabb) -> td_doc::NodeId {
+        let parent = state.insert_parent();
+        let brush = Brush::from_aabb(bounds, "m").unwrap();
+        state.doc.map.insert(parent, NodeKind::Brush(brush))
+    }
+
+    #[test]
+    fn with_nothing_selected_the_dialog_seeds_a_box_around_the_last_brush() {
+        let last = box_of([-37.0, 5.0, 22.0], [51.0, 70.0, 99.0]);
+        let (mut dialog, ctx, mut state) = open_shape_dialog(last);
+        assert_eq!(state.shape_bounds, None);
+        show_frame(&mut dialog, &ctx, &mut state);
+        let seeded = box_of([-32.0, 0.0, 16.0], [48.0, 64.0, 96.0]);
+        assert_eq!(state.shape_bounds, Some(seeded));
+        assert_eq!(dialog.sources_and_bounds(&mut state), (Vec::new(), seeded));
+        assert_eq!(state.last_bounds, last, "the box never writes the last brush");
+    }
+
+    #[test]
+    fn a_selected_brush_or_mesh_replaces_the_box() {
+        let (mut dialog, ctx, mut state) = open_shape_dialog(box_of([-37.0, 5.0, 22.0], [51.0, 70.0, 99.0]));
+        show_frame(&mut dialog, &ctx, &mut state);
+        assert!(state.shape_bounds.is_some());
+
+        let block_bounds = box_of([100.0, -8.0, 40.0], [180.0, 56.0, 104.0]);
+        let block = insert_block(&mut state, &block_bounds);
+        state.doc.selection.select_node(block);
+        show_frame(&mut dialog, &ctx, &mut state);
+        assert_eq!(state.shape_bounds, None);
+        assert_eq!(dialog.sources_and_bounds(&mut state), (vec![block], block_bounds));
+
+        let mesh_bounds = box_of([-200.0, 0.0, -90.0], [-120.0, 64.0, -10.0]);
+        let mesher = ShapeDialog { kind: ShapeKind::Rock, as_mesh: true, ..Default::default() };
+        let kinds = mesher.generate(&mesh_bounds, "m");
+        assert!(matches!(kinds[..], [NodeKind::Mesh(_)]));
+        let parent = state.insert_parent();
+        let mesh = state.doc.map.insert(parent, kinds.into_iter().next().unwrap());
+        state.doc.selection.clear();
+        state.doc.selection.select_node(mesh);
+        show_frame(&mut dialog, &ctx, &mut state);
+        let (sources, bounds) = dialog.sources_and_bounds(&mut state);
+        assert_eq!(sources, vec![mesh]);
+        assert_eq!(bounds, state.doc.map.bounds_of([mesh]));
+
+        state.doc.selection.select_node(block);
+        let (sources, bounds) = dialog.sources_and_bounds(&mut state);
+        assert_eq!(sources.len(), 2);
+        assert_eq!(bounds, state.doc.map.bounds_of([block, mesh]));
+        assert_ne!(bounds, block_bounds);
+        assert_eq!(state.shape_bounds, None);
+    }
+
+    #[test]
+    fn a_point_entity_alone_still_shows_the_box() {
+        let (mut dialog, ctx, mut state) = open_shape_dialog(box_of([-37.0, 5.0, 22.0], [51.0, 70.0, 99.0]));
+        let layer = state.doc.map.default_layer();
+        let light = td_doc::ops::create_point_entity(&mut state.doc.map, layer, "light", DVec3::new(300.0, 4.0, -9.0));
+        state.doc.selection.select_node(light);
+        show_frame(&mut dialog, &ctx, &mut state);
+        assert_eq!(state.shape_bounds, Some(box_of([-32.0, 0.0, 16.0], [48.0, 64.0, 96.0])));
+    }
+
+    #[test]
+    fn the_box_is_remembered_while_a_selection_hides_it() {
+        let (mut dialog, ctx, mut state) = open_shape_dialog(box_of([-37.0, 5.0, 22.0], [51.0, 70.0, 99.0]));
+        show_frame(&mut dialog, &ctx, &mut state);
+        let edited = box_of([-40.0, 8.0, 24.0], [88.0, 72.0, 120.0]);
+        state.shape_bounds = Some(edited);
+        show_frame(&mut dialog, &ctx, &mut state);
+        assert_eq!(state.shape_bounds, Some(edited), "a view edit wins over the stored box");
+
+        let block = insert_block(&mut state, &box_of([0.0; 3], [32.0; 3]));
+        state.doc.selection.select_node(block);
+        state.last_bounds = box_of([500.0, 500.0, 500.0], [600.0, 600.0, 600.0]);
+        show_frame(&mut dialog, &ctx, &mut state);
+        assert_eq!(state.shape_bounds, None);
+
+        state.doc.selection.clear();
+        show_frame(&mut dialog, &ctx, &mut state);
+        assert_eq!(state.shape_bounds, Some(edited), "deselecting brings the box back, it is not seeded again");
+    }
+
+    #[test]
+    fn closing_forgets_the_box_and_reopening_seeds_again() {
+        let (mut dialog, ctx, mut state) = open_shape_dialog(box_of([-37.0, 5.0, 22.0], [51.0, 70.0, 99.0]));
+        show_frame(&mut dialog, &ctx, &mut state);
+        assert!(state.shape_bounds.is_some() && dialog.bounds.is_some());
+
+        dialog.open = false;
+        show_frame(&mut dialog, &ctx, &mut state);
+        assert_eq!(state.shape_bounds, None);
+        assert_eq!(dialog.bounds, None);
+
+        state.last_bounds = box_of([130.0, 0.0, -70.0], [190.0, 41.0, -9.0]);
+        dialog.open = true;
+        show_frame(&mut dialog, &ctx, &mut state);
+        assert_eq!(state.shape_bounds, Some(box_of([128.0, 0.0, -64.0], [192.0, 48.0, -16.0])));
+    }
+
+    #[test]
+    fn closing_clears_a_box_that_never_had_a_preview() {
+        let (mut dialog, ctx, mut state) = open_shape_dialog(Aabb::EMPTY);
+        state.shape_bounds = Some(box_of([0.0; 3], [16.0; 3]));
+        dialog.bounds = state.shape_bounds;
+        dialog.open = false;
+        assert!(dialog.preview.is_none());
+        show_frame(&mut dialog, &ctx, &mut state);
+        assert_eq!(state.shape_bounds, None);
+        assert_eq!(dialog.bounds, None);
+    }
+
+    #[test]
+    fn the_preview_follows_the_box_between_frames() {
+        let (mut dialog, ctx, mut state) = open_shape_dialog(box_of([-37.0, 5.0, 22.0], [51.0, 70.0, 99.0]));
+        let inside =
+            |lines: &[(DVec3, DVec3)], b: &Aabb| lines.iter().all(|(p, q)| [p, q].iter().all(|v| v.cmpge(b.min - 1e-6).all() && v.cmple(b.max + 1e-6).all()));
+        let (first, second) = (box_of([-40.0, 8.0, 24.0], [88.0, 72.0, 120.0]), box_of([100.0, -16.0, -48.0], [164.0, 48.0, 16.0]));
+        state.shape_bounds = Some(first);
+        show_frame(&mut dialog, &ctx, &mut state);
+        let lines_first = state.shape_preview.clone();
+        assert!(!lines_first.is_empty() && inside(&lines_first, &first));
+
+        state.shape_bounds = Some(second);
+        show_frame(&mut dialog, &ctx, &mut state);
+        assert!(!state.shape_preview.is_empty() && inside(&state.shape_preview, &second));
+        assert_ne!(state.shape_preview, lines_first);
+
+        state.shape_bounds = Some(first);
+        show_frame(&mut dialog, &ctx, &mut state);
+        assert_eq!(state.shape_preview, lines_first);
+    }
+
+    #[test]
+    fn creating_from_the_box_adds_the_shape_and_hands_the_selection_over() {
+        let (mut dialog, ctx, mut state) = open_shape_dialog(box_of([-37.0, 5.0, 22.0], [51.0, 70.0, 99.0]));
+        dialog.kind = ShapeKind::Stairs;
+        let layer = state.doc.map.default_layer();
+        let group = state.doc.map.insert(layer, NodeKind::Group(td_doc::Group::new("g")));
+        state.open_groups.push(group);
+        let target = box_of([-40.0, 8.0, 24.0], [88.0, 72.0, 120.0]);
+        state.shape_bounds = Some(target);
+        show_frame(&mut dialog, &ctx, &mut state);
+        let kinds = dialog.preview.as_ref().map(|(_, k, _)| k.clone()).unwrap();
+        assert!(kinds.len() > 1, "stairs are many objects");
+
+        create_shape(&mut state, &[], kinds.clone());
+        assert_eq!(state.doc.map.brushes().count(), kinds.len());
+        let created: Vec<_> = state.doc.selection.nodes.iter().copied().collect();
+        assert_eq!(created.len(), kinds.len());
+        assert!(created.iter().all(|id| state.doc.map.get(*id).and_then(|n| n.parent) == Some(group)));
+        assert_eq!(state.doc.map.bounds_of(created.iter().copied()), target);
+
+        let (sources, bounds) = dialog.sources_and_bounds(&mut state);
+        assert_eq!(sources.len(), created.len());
+        assert_eq!(bounds, target);
+        assert_eq!(state.shape_bounds, None, "the new shape drives the dialog now");
     }
 
     #[test]

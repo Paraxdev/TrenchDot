@@ -1137,6 +1137,7 @@ impl App {
                 "theme": s.prefs.theme.id(), "theme_active": if crate::theme::active() == egui::Theme::Light { "light" } else { "dark" },
                 "scale": (s.prefs.ui_scale as f64 * 100.0).round() / 100.0, "follow_display_scaling": s.prefs.follow_display_scaling,
                 "pixels_per_point": self.viewports.first().map(|v| (v.pixels_per_point as f64 * 1000.0).round() / 1000.0),
+                "shape_bounds": s.shape_bounds.map(|b| json!({ "min": arr(b.min), "max": arr(b.max) })),
                 "windows": self.open_windows.iter().map(|(title, r)| json!({ "title": title, "rect": [r.min.x, r.min.y, r.max.x, r.max.y] })).collect::<Vec<_>>(),
                 "tool_buttons": self.tool_buttons.iter().map(|(t, r)| json!({ "tool": t.label(), "rect": [r.min.x, r.min.y, r.max.x, r.max.y] })).collect::<Vec<_>>(),
                 "mcp_prefs": self.mcp_pref_rects.iter().map(|(name, r)| (name.to_string(), json!([r.min.x, r.min.y, r.max.x, r.max.y]))).collect::<serde_json::Map<_, _>>(),

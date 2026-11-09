@@ -576,6 +576,34 @@ fn selected(ed: &Editor) -> Vec<u64> {
 
 #[test]
 #[ignore]
+fn the_shape_generator_shows_its_own_box() {
+    let ed = Editor::launch("shape_box");
+    let a = ed.box_brush([-37.0, 5.0, 22.0], [51.0, 70.0, 99.0]);
+    ed.call("run_action", json!({ "action": "select_none" }));
+    ed.call("set_camera", json!({ "view": "top", "center": [0, 0, 0], "zoom": 1 }));
+    let bounds = |ed: &Editor| ed.state()["ui"]["shape_bounds"].clone();
+    assert_eq!(bounds(&ed), Value::Null, "no box while the dialog is closed");
+
+    ed.input("top", json!([{ "type": "move" }, { "type": "key", "key": "B", "modifiers": ["ctrl", "shift"] }]));
+    ed.input("top", json!([{ "type": "move" }]));
+    let want = json!({ "min": [-32.0, 0.0, 16.0], "max": [48.0, 64.0, 96.0] });
+    assert_eq!(bounds(&ed), want, "the box starts on the grid lines nearest the last brush");
+    ed.screenshot("top", "top");
+    ed.screenshot("3d", "3d");
+
+    ed.call("select", json!({ "ids": [a] }));
+    ed.input("top", json!([{ "type": "move" }]));
+    assert_eq!(bounds(&ed), Value::Null, "a selected brush takes over");
+
+    ed.call("run_action", json!({ "action": "select_none" }));
+    ed.input("top", json!([{ "type": "move" }]));
+    assert_eq!(bounds(&ed), want, "deselecting brings the same box back");
+    assert_eq!(ed.brushes(), 1, "the box is not part of the map");
+    assert_eq!(selected(&ed), Vec::<u64>::new());
+}
+
+#[test]
+#[ignore]
 fn keys_stay_with_windows_menus_and_the_palette() {
     let ed = Editor::launch("key_scope");
     let a = ed.box_brush([-64.0, 0.0, -64.0], [64.0, 32.0, 64.0]);

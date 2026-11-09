@@ -142,7 +142,7 @@ pub fn tool_definitions() -> Vec<Value> {
     vec![
         json!({
             "name": "get_state",
-            "description": "Editor state: open map, modified flag, counts, selection, grid, tool, cameras, held modifier keys, game config. map.void_cull is the void culling of the open map: state (off, nothing, sealed, leak, over_budget or pending), pending (the numbers are from before the latest edit), dropped_faces, candidate_faces, spacing, and for a leak the seed entity, its origin and the path to the border. It is off unless worldspawn sets _cull_void_faces to 1.",
+            "description": "Editor state: open map, modified flag, counts, selection, grid, tool, cameras, held modifier keys, game config. map.void_cull is the void culling of the open map: state (off, nothing, sealed, leak, over_budget or pending), pending (the numbers are from before the latest edit), dropped_faces, candidate_faces, spacing, and for a leak the seed entity, its origin and the path to the border. It is off unless worldspawn sets _cull_void_faces to 1. ui.shape_bounds is the Shape Generator's box (min and max) while it is open with no brush or mesh selected, else null.",
             "inputSchema": { "type": "object", "properties": {} }
         }),
         json!({
