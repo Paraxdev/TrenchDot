@@ -23,6 +23,7 @@ Select it clears the selection.
 | V | Vertex, to drag the corners of brushes |
 | R | Rotate |
 | T | Scale |
+| Shift+R | Shear |
 | Tab | Edit the selection where it stands: meshes in the Mesh tool, brushes in the Vertex tool. It never converts a brush, *Mesh > Edit Mesh* does that |
 | Shift+T | Texture, to align textures on faces |
 | P | Paint, to paint vertex colors onto faces |

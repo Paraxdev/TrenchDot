@@ -2232,5 +2232,10 @@
   "With": "Por",
   "{n} face uses it": { "one": "{n} face o usa", "other": "{n} faces o usam" },
   "Keeps each face's offset, scale and rotation": "Mantém o deslocamento, a escala e a rotação de cada face",
-  "Selected {n} entity": { "one": "{n} entidade selecionada", "other": "{n} entidades selecionadas" }
+  "Selected {n} entity": { "one": "{n} entidade selecionada", "other": "{n} entidades selecionadas" },
+  "Shear": "Cisalhar",
+  "Drag a side, the opposite side stays put": "Arraste um lado, o lado oposto fica fixo",
+  "Drag a side of the selection's bounds to slide it sideways.": "Arraste um lado da caixa da seleção para deslizá-lo.",
+  "Shear: drag a side of the box, Shift moves freely in 3D": "Cisalhar: arrastar um lado da caixa, Shift move livre em 3D",
+  "Shear by {offset}": "Cisalhar {offset}"
 }

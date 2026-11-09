@@ -2232,5 +2232,10 @@
   "With": "На",
   "{n} face uses it": { "one": "{n} грань использует его", "few": "{n} грани используют его", "many": "{n} граней используют его" },
   "Keeps each face's offset, scale and rotation": "Сохраняет сдвиг, масштаб и поворот каждой грани",
-  "Selected {n} entity": { "one": "Выделена {n} сущность", "few": "Выделено {n} сущности", "many": "Выделено {n} сущностей" }
+  "Selected {n} entity": { "one": "Выделена {n} сущность", "few": "Выделено {n} сущности", "many": "Выделено {n} сущностей" },
+  "Shear": "Сдвиг",
+  "Drag a side, the opposite side stays put": "Тяните сторону, противоположная остаётся на месте",
+  "Drag a side of the selection's bounds to slide it sideways.": "Тяните сторону рамки выделения, чтобы сдвинуть её вбок.",
+  "Shear: drag a side of the box, Shift moves freely in 3D": "Сдвиг: тяните сторону рамки, Shift двигает свободно в 3D",
+  "Shear by {offset}": "Сдвиг на {offset}"
 }

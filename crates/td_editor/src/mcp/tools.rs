@@ -99,6 +99,93 @@ fn axis_index(v: &Value) -> Option<usize> {
     }
 }
 
+/// transform's `shear` as the axis of the side, whether it is the max side, the axis it slides along and how far.
+fn shear_arg(v: &Value) -> Result<Option<(usize, bool, usize, f64)>, &'static str> {
+    let r = match v {
+        Value::Null => return Ok(None),
+        Value::Object(r) => r,
+        _ => return Err("shear must be {side, along, amount}"),
+    };
+    let side = r.get("side").and_then(Value::as_str).unwrap_or_default().to_ascii_lowercase();
+    let (axis, max) = match side.as_str() {
+        "+x" => (0, true),
+        "-x" => (0, false),
+        "+y" => (1, true),
+        "-y" => (1, false),
+        "+z" => (2, true),
+        "-z" => (2, false),
+        _ => return Err("shear.side must be +x, -x, +y, -y, +z or -z"),
+    };
+    let Some(along) = r.get("along").and_then(axis_index) else { return Err("shear.along must be x, y or z") };
+    if along == axis {
+        return Err("shear.along must differ from the axis of shear.side");
+    }
+
+    let Some(amount) = r.get("amount").and_then(Value::as_f64).filter(|a| a.is_finite()) else { return Err("shear.amount must be a number") };
+    Ok(Some((axis, max, along, amount)))
+}
+
+#[derive(Clone, Copy, Default)]
+struct TransformSteps {
+    translate: Option<DVec3>,
+    rotate: Option<(usize, f64, Option<DVec3>)>,
+    flip: Option<usize>,
+    scale_to: Option<Aabb>,
+    shear: Option<(usize, bool, usize, f64)>,
+}
+
+impl TransformSteps {
+    /// Runs the steps as one edit, or one part of a transaction that is already open. A shear of a selection that is
+    /// flat by then fails, and the steps before it are taken back.
+    fn apply(&self, doc: &mut td_doc::Document, grid: f64, opts: ops::EditOptions) -> Result<(), &'static str> {
+        let run = |m: &mut td_doc::Map, s: &mut td_doc::selection::Selection| {
+            if let Some(t) = self.translate {
+                ops::translate_selection(m, s, t, opts);
+            }
+
+            if let Some((axis, degrees, center)) = self.rotate {
+                let c = center.unwrap_or_else(|| ops::selection_center(m, s, grid));
+                let mut dir = DVec3::ZERO;
+                dir[axis] = 1.0;
+                ops::transform_selection(m, s, &ops::rotation_about(c, dir, degrees), opts);
+            }
+
+            if let Some(axis) = self.flip {
+                let center = ops::selection_center(m, s, grid);
+                ops::transform_selection(m, s, &ops::flip_about(center, axis), opts);
+            }
+
+            if let Some(target) = self.scale_to {
+                let old = m.bounds_of(s.nodes.iter().copied());
+                ops::transform_selection(m, s, &ops::scale_bounds(&old, &target), opts);
+            }
+
+            if let Some((axis, max, along, amount)) = self.shear {
+                let mut offset = DVec3::ZERO;
+                offset[along] = amount;
+                let Some(mat) = ops::shear_side(&m.bounds_of(s.nodes.iter().copied()), axis, max, offset) else {
+                    return Err("the selection has no extent along the axis of shear.side");
+                };
+                ops::shear_selection(m, s, &mat, opts);
+            }
+
+            Ok(())
+        };
+        let started = !doc.in_transaction();
+        doc.begin("Transform");
+        // Only a shear can fail. try_edit clones the map to take back this call alone, which a transaction we opened
+        // here does on cancel anyway.
+        let applied = if started || self.shear.is_none() { doc.edit("Transform", run) } else { doc.try_edit("Transform", run) };
+        match (started, applied.is_ok()) {
+            (true, true) => doc.commit(),
+            (true, false) => doc.cancel(),
+            _ => {}
+        }
+
+        applied
+    }
+}
+
 fn view_kind(name: &str) -> Option<ViewKind> {
     match name.to_ascii_lowercase().as_str() {
         "3d" | "perspective" => Some(ViewKind::Perspective),
@@ -2226,7 +2313,7 @@ impl App {
         }
     }
 
-    /// Applied in order translate, rotate, flip, scale_to as one undo step. rotate and flip pivot on the selection
+    /// Applied in order translate, rotate, flip, scale_to, shear as one undo step. rotate and flip pivot on the selection
     /// center as it is at that step, so a translated selection flips in place at its new position. The pivot snaps to
     /// the grid only while snapping is on, and `snap` and `uv_lock` override the editor settings for this call.
     fn tool_transform(&mut self, args: &Value) -> ToolResult {
@@ -2288,44 +2375,23 @@ impl App {
                 _ => return err("scale_to needs min and max"),
             },
         };
-        if translate.is_none() && rotate.is_none() && flip.is_none() && scale_to.is_none() {
-            return err("pass translate, rotate, flip or scale_to");
+        let shear = match shear_arg(&args["shear"]) {
+            Ok(s) => s,
+            Err(e) => return err(e),
+        };
+        if translate.is_none() && rotate.is_none() && flip.is_none() && scale_to.is_none() && shear.is_none() {
+            return err("pass translate, rotate, flip, scale_to or shear");
         }
+
+        let steps = TransformSteps { translate, rotate, flip, scale_to, shear };
 
         let (snap, uv_lock) = match (bool_arg(args, "snap"), bool_arg(args, "uv_lock")) {
             (Ok(s), Ok(u)) => (s.unwrap_or(self.state.snap), u.unwrap_or(self.state.uv_lock)),
             (Err(e), _) | (_, Err(e)) => return err(e),
         };
         let grid = if snap { self.state.grid } else { 0.0 };
-        let opts = ops::EditOptions { uv_lock, grid };
-        let started = !self.state.doc.in_transaction();
-        self.state.doc.begin("Transform");
-        if let Some(t) = translate {
-            self.state.doc.edit("Move", |m, s| ops::translate_selection(m, s, t, opts));
-        }
-
-        if let Some((axis, degrees, center)) = rotate {
-            let c = center.unwrap_or_else(|| ops::selection_center(&self.state.doc.map, &self.state.doc.selection, grid));
-            let mut dir = DVec3::ZERO;
-            dir[axis] = 1.0;
-            let mat = ops::rotation_about(c, dir, degrees);
-            self.state.doc.edit("Rotate", |m, s| ops::transform_selection(m, s, &mat, opts));
-        }
-
-        if let Some(axis) = flip {
-            let center = ops::selection_center(&self.state.doc.map, &self.state.doc.selection, grid);
-            let mat = ops::flip_about(center, axis);
-            self.state.doc.edit("Flip", |m, s| ops::transform_selection(m, s, &mat, opts));
-        }
-
-        if let Some(target) = scale_to {
-            let old = self.state.doc.map.bounds_of(self.state.doc.selection.nodes.iter().copied());
-            let mat = ops::scale_bounds(&old, &target);
-            self.state.doc.edit("Scale", |m, s| ops::transform_selection(m, s, &mat, opts));
-        }
-
-        if started {
-            self.state.doc.commit();
+        if let Err(e) = steps.apply(&mut self.state.doc, grid, ops::EditOptions { uv_lock, grid }) {
+            return err(e);
         }
 
         ok(json!({ "bounds": bounds_json(&self.state.doc.map.bounds_of(self.state.doc.selection.nodes.iter().copied())) }))
@@ -2567,6 +2633,40 @@ mod tests {
         );
         assert_eq!(path_value(None::<&std::path::Path>), Value::Null);
         assert_eq!(id_list(&json!({ "ids": [[1, 2], 3, [[4]]] }), "ids"), Ok(vec![NodeId(1), NodeId(2), NodeId(3), NodeId(4)]), "joined id lists flatten");
+    }
+
+    #[test]
+    fn shear_sides_are_read_whole_whatever_their_characters() {
+        assert_eq!(shear_arg(&Value::Null), Ok(None));
+        assert_eq!(shear_arg(&json!({ "side": "-Z", "along": "x", "amount": 8 })), Ok(Some((2, false, 0, 8.0))));
+        for side in ["é+x", "😀", "+", "x", "+w", "+xx", ""] {
+            assert!(shear_arg(&json!({ "side": side, "along": "y", "amount": 1 })).unwrap_err().contains("shear.side"), "{side}");
+        }
+
+        assert!(shear_arg(&json!({ "side": "+y", "along": "y", "amount": 1 })).unwrap_err().contains("shear.along"));
+        assert!(shear_arg(&json!({ "side": "+y", "along": "x", "amount": "a" })).unwrap_err().contains("shear.amount"));
+        assert!(shear_arg(&json!("+y")).is_err());
+    }
+
+    #[test]
+    fn a_rejected_shear_takes_back_the_steps_before_it() {
+        let mut state = state();
+        let layer = state.doc.map.default_layer();
+        let flat = td_geom::Terrain::new(DVec3::ZERO, [3, 3], 32.0, "t");
+        state.doc.edit("terrain", |m, s| s.select_node(m.insert(layer, NodeKind::Terrain(flat))));
+        let steps = TransformSteps { translate: Some(DVec3::new(32.0, 0.0, 0.0)), shear: Some((1, true, 0, 16.0)), ..Default::default() };
+        let opts = ops::EditOptions { uv_lock: false, grid: 0.0 };
+        let before = state.doc.map.clone();
+        let undo = state.doc.history.undo_labels().count();
+        assert!(steps.apply(&mut state.doc, 0.0, opts).unwrap_err().contains("no extent"));
+        assert_eq!(state.doc.map.nodes, before.nodes);
+        assert_eq!(state.doc.history.undo_labels().count(), undo);
+        assert!(!state.doc.in_transaction());
+
+        state.doc.begin("Drag");
+        assert!(steps.apply(&mut state.doc, 0.0, opts).is_err());
+        assert_eq!(state.doc.map.nodes, before.nodes, "the move is taken back inside an open drag too");
+        assert!(state.doc.in_transaction(), "and the drag stays open");
     }
 
     #[test]

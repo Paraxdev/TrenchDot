@@ -2948,12 +2948,13 @@ pub fn issues(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actions
 
 /// One short line per tool, shown in the toolbar tooltip, the Tools menu, the tool options and the reference panel.
 /// Modifiers and the rest live in the manual.
-pub const TOOL_HELP: [(&str, &str); 14] = [
+pub const TOOL_HELP: [(&str, &str); 15] = [
     ("Select", en!("Click to select, double click for the whole group. Drag empty space to draw a brush, drag the selection to move it.")),
     ("Clip", en!("Click two or three points, Tab picks the side to keep, Enter clips.")),
     ("Vertex", en!("Drag brush vertices, drag an edge or face midpoint to split it.")),
     ("Rotate", en!("Drag a ring to rotate the selection.")),
     ("Scale", en!("Drag a handle on the selection's bounds to scale it.")),
+    ("Shear", en!("Drag a side of the selection's bounds to slide it sideways.")),
     ("Mesh", en!("Edit a mesh Blender style, 1/2/3 pick vertices, edges or faces and G/R/S move, rotate or scale them.")),
     ("Sculpt", en!("Drag over a terrain or displacement to shape it with the chosen mode.")),
     ("Blend", en!("Drag to paint blends on terrain layers, displacements and faces with a blend material.")),

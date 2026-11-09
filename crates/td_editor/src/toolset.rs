@@ -154,6 +154,31 @@ struct ScaleDrag {
 }
 
 #[derive(Default)]
+pub struct ShearTool {
+    drag: Option<ShearDrag>,
+    hover: Option<ShearSide>,
+}
+
+/// A side of the selection's bounds, with a point on it to anchor the drag plane.
+#[derive(Clone, Copy)]
+struct ShearSide {
+    axis: usize,
+    max: bool,
+    anchor: DVec3,
+}
+
+struct ShearDrag {
+    base: Aabb,
+    side: ShearSide,
+    plane: Plane,
+    start: DVec3,
+    matrix: DMat4,
+}
+
+/// Pixels from a side in a 2D view that still picks it.
+const SHEAR_PICK_PIXELS: f32 = 10.0;
+
+#[derive(Default)]
 pub struct BrushStrokeTool {
     /// Surface point and normal under the cursor.
     pub hover: Option<(DVec3, DVec3)>,
@@ -184,6 +209,7 @@ pub struct ToolSet {
     pub vertex: VertexTool,
     pub rotate: RotateTool,
     pub scale: ScaleTool,
+    pub shear: ShearTool,
     pub stroke: BrushStrokeTool,
     pub mesh: crate::mesh_tool::MeshTool,
     pub scatter: crate::scatter_tool::ScatterTool,
@@ -269,6 +295,7 @@ impl ToolSet {
             || self.vertex.gizmo_drag.is_some()
             || self.rotate.drag.is_some()
             || self.scale.drag.is_some()
+            || self.shear.drag.is_some()
             || self.stroke.stroking
             || self.scatter.stroking()
             || self.blend.stroking()
@@ -280,6 +307,7 @@ impl ToolSet {
         self.vertex.gizmo_drag = None;
         self.rotate.drag = None;
         self.scale.drag = None;
+        self.shear.drag = None;
         self.stroke.stroking = false;
         self.stroke.last_dab = None;
         self.scatter.reset();
@@ -395,6 +423,7 @@ impl ToolSet {
             ToolKind::Vertex => self.vertex_input(ui, response, cam, rect, state),
             ToolKind::Rotate => self.rotate_input(ui, response, cam, rect, hover, state),
             ToolKind::Scale => self.scale_input(ui, response, cam, rect, hover, state),
+            ToolKind::Shear => self.shear_input(ui, response, cam, rect, hover, state),
             ToolKind::Sculpt | ToolKind::Paint => self.stroke_input(ui, response, cam, rect, hover, state),
             ToolKind::Mesh => self.mesh.viewport_input(ui, response, cam, rect, hover, state),
             ToolKind::Scatter => self.scatter.input(ui, response, cam, rect, hover, state),
@@ -976,6 +1005,146 @@ impl ToolSet {
         }
     }
 
+    // --------------------------------------------------------------- shear
+
+    /// The four corners of a side of `bounds`, flattened onto the middle of the view axis in a 2D view.
+    fn shear_face(bounds: &Aabb, axis: usize, max: bool, flatten: Option<usize>) -> [DVec3; 4] {
+        let mut lo = bounds.min;
+        let mut hi = bounds.max;
+        let at = if max { bounds.max[axis] } else { bounds.min[axis] };
+        lo[axis] = at;
+        hi[axis] = at;
+        if let Some(d) = flatten {
+            lo[d] = bounds.center()[d];
+            hi[d] = lo[d];
+        }
+
+        let (u, v) = ((axis + 1) % 3, (axis + 2) % 3);
+        let corner = |a: bool, b: bool| {
+            let mut p = lo;
+            p[u] = if a { hi[u] } else { lo[u] };
+            p[v] = if b { hi[v] } else { lo[v] };
+            p
+        };
+        [corner(false, false), corner(true, false), corner(true, true), corner(false, true)]
+    }
+
+    /// The side of `bounds` under `pos`: the nearest edge in a 2D view, the face the pointer lies over in 3D.
+    fn shear_pick(bounds: &Aabb, cam: &Camera, rect: Rect, pos: Pos2) -> Option<ShearSide> {
+        if cam.kind.is_2d() {
+            let depth = cam.kind.depth_axis();
+            return (0..3)
+                .filter(|a| *a != depth)
+                .flat_map(|axis| [false, true].map(move |max| (axis, max)))
+                .map(|(axis, max)| {
+                    let along = (0..3).find(|i| *i != axis && *i != depth).unwrap_or(axis);
+                    let mut a = Self::shear_face(bounds, axis, max, Some(depth))[0];
+                    let mut b = a;
+                    a[along] = bounds.min[along];
+                    b[along] = bounds.max[along];
+                    (seg_screen_dist(cam, rect, a, b, pos), ShearSide { axis, max, anchor: bounds.center() })
+                })
+                .filter(|(d, _)| *d < SHEAR_PICK_PIXELS)
+                .min_by(|a, b| a.0.total_cmp(&b.0))
+                .map(|(_, side)| side);
+        }
+
+        let ray = cam.ray(rect, pos);
+        let mut best: Option<(f64, ShearSide)> = None;
+        for axis in 0..3 {
+            for max in [false, true] {
+                let facing = if max { ray.dir[axis] < 0.0 } else { ray.dir[axis] > 0.0 };
+                let f = Self::shear_face(bounds, axis, max, None);
+                let mut normal = DVec3::ZERO;
+                normal[axis] = 1.0;
+                let Some(t) = ray.intersect_plane(&Plane::from_point_normal(f[0], normal)) else { continue };
+                let hit = ray.at(t);
+                let inside = (0..3).all(|i| i == axis || (hit[i] >= bounds.min[i] && hit[i] <= bounds.max[i]));
+                if facing && t > 0.0 && inside && best.is_none_or(|(bt, _)| t < bt) {
+                    best = Some((t, ShearSide { axis, max, anchor: hit }));
+                }
+            }
+        }
+
+        best.map(|(_, side)| side)
+    }
+
+    /// The box as it is now, the matrix being dragged, and the side to highlight.
+    fn shear_view(&self, state: &EditorState) -> Option<(Aabb, DMat4, Option<ShearSide>)> {
+        if let Some(d) = &self.shear.drag {
+            return Some((d.base, d.matrix, Some(d.side)));
+        }
+
+        let bounds = state.doc.map.bounds_of(state.doc.selection.nodes.iter().copied());
+        (!bounds.is_empty()).then_some((bounds, DMat4::IDENTITY, self.shear.hover))
+    }
+
+    fn shear_input(&mut self, ui: &Ui, response: &Response, cam: &Camera, rect: Rect, hover: Option<Pos2>, state: &mut EditorState) {
+        if self.shear.drag.is_none() {
+            let bounds = state.doc.map.bounds_of(state.doc.selection.nodes.iter().copied());
+            self.shear.hover = hover.filter(|_| !bounds.is_empty()).and_then(|pos| Self::shear_pick(&bounds, cam, rect, pos));
+        }
+
+        if response.drag_started_by(PointerButton::Primary)
+            && self.shear.drag.is_none()
+            && let Some(origin) = ui.input(|i| i.pointer.press_origin())
+        {
+            let bounds = state.doc.map.bounds_of(state.doc.selection.nodes.iter().copied());
+            if !bounds.is_empty()
+                && let Some(side) = Self::shear_pick(&bounds, cam, rect, origin)
+            {
+                let plane = if cam.kind.is_2d() {
+                    Plane::from_point_normal(side.anchor, -cam.kind.axes().2)
+                } else {
+                    let mut normal = DVec3::ZERO;
+                    normal[side.axis] = 1.0;
+                    Plane::from_point_normal(side.anchor, normal)
+                };
+                let ray = cam.ray(rect, origin);
+                if let Some(t) = ray.intersect_plane(&plane) {
+                    state.doc.begin(en!("Shear"));
+                    self.shear.drag = Some(ShearDrag { base: bounds, side, plane, start: ray.at(t), matrix: DMat4::IDENTITY });
+                }
+            }
+        }
+
+        let Some(drag) = &mut self.shear.drag else { return };
+        // Every visible view runs this with the one global pointer, only the view being dragged may compute the shear.
+        if response.dragged_by(PointerButton::Primary)
+            && let Some(pos) = ui.input(|i| i.pointer.interact_pos())
+        {
+            let ray = cam.ray(rect, pos);
+            if let Some(t) = ray.intersect_plane(&drag.plane) {
+                let delta = ray.at(t) - drag.start;
+                let mut offset = DVec3::ZERO;
+                let tangents: Vec<usize> = (0..3).filter(|a| *a != drag.side.axis && !(cam.kind.is_2d() && *a == cam.kind.depth_axis())).collect();
+                let free = ui.input(|i| i.modifiers.shift);
+                let dominant = tangents.iter().copied().max_by(|a, b| delta[*a].abs().total_cmp(&delta[*b].abs()));
+                for a in tangents {
+                    if free || Some(a) == dominant {
+                        offset[a] = state.snap_scalar(delta[a]);
+                    }
+                }
+
+                state.doc.reset_transaction();
+                drag.matrix = DMat4::IDENTITY;
+                if offset != DVec3::ZERO
+                    && let Some(m) = ops::shear_side(&drag.base, drag.side.axis, drag.side.max, offset)
+                {
+                    let opts = state.opts();
+                    state.doc.edit("Shear", |map, s| ops::shear_selection(map, s, &m, opts));
+                    drag.matrix = m;
+                    state.set_status(msg!("Shear by {offset}", offset = format!("{} {} {}", offset.x, offset.y, offset.z)));
+                }
+            }
+        }
+
+        if response.drag_stopped() || !ui.input(|i| i.pointer.primary_down()) {
+            self.shear.drag = None;
+            state.doc.commit();
+        }
+    }
+
     // ------------------------------------------------------------ drawing
 
     pub fn lines(&self, cam: &Camera, rect: Rect, state: &EditorState) -> Vec<LineVertex> {
@@ -1036,6 +1205,22 @@ impl ToolSet {
                     let c = b.corners();
                     for (i, j) in Aabb::EDGES {
                         line(&mut out, c[i], c[j], [1.0, 0.8, 0.2, 0.9]);
+                    }
+                }
+            }
+            ToolKind::Shear => {
+                if let Some((bounds, m, side)) = self.shear_view(state) {
+                    let c = bounds.corners().map(|p| m.transform_point3(p));
+                    for (i, j) in Aabb::EDGES {
+                        line(&mut out, c[i], c[j], [1.0, 0.8, 0.2, 0.9]);
+                    }
+
+                    if let Some(side) = side {
+                        let flatten = cam.kind.is_2d().then(|| cam.kind.depth_axis());
+                        let f = Self::shear_face(&bounds, side.axis, side.max, flatten).map(|p| m.transform_point3(p));
+                        for k in 0..4 {
+                            line(&mut out, f[k], f[(k + 1) % 4], [1.0, 1.0, 0.3, 1.0]);
+                        }
                     }
                 }
             }
@@ -1185,6 +1370,18 @@ impl ToolSet {
                 }
 
                 corner_hint(&painter, rect, trf!("Scale: drag handles, Alt scales symmetrically"), Color32::from_rgb(255, 210, 120));
+            }
+            ToolKind::Shear => {
+                if !cam.kind.is_2d()
+                    && let Some((bounds, m, Some(side))) = self.shear_view(state)
+                {
+                    let f = Self::shear_face(&bounds, side.axis, side.max, None).map(|p| cam.project(rect, m.transform_point3(p)));
+                    if let [Some(a), Some(b), Some(c), Some(d)] = f {
+                        painter.add(egui::Shape::convex_polygon(vec![a, b, c, d], Color32::from_rgba_unmultiplied(255, 230, 80, 120), Stroke::NONE));
+                    }
+                }
+
+                corner_hint(&painter, rect, trf!("Shear: drag a side of the box, Shift moves freely in 3D"), Color32::from_rgb(255, 210, 120));
             }
             ToolKind::Rotate => {
                 corner_hint(
@@ -1772,6 +1969,53 @@ mod tests {
         tools.settle(&mut state);
         assert!(!state.doc.in_transaction(), "the rotate transaction is not left open");
         assert_eq!(state.doc.history.undo_labels().count(), undo_before + 1, "the rotation so far is kept as its own undo step");
+    }
+
+    /// Starts a shear drag the way `shear_input` does and slides the top side 32 along X inside it.
+    fn shear_mid_drag(tools: &mut ToolSet, state: &mut EditorState) {
+        state.tool = ToolKind::Shear;
+        tools.sync(state);
+        let base = Aabb::new(DVec3::ZERO, DVec3::splat(64.0));
+        let plane = Plane::from_point_normal(DVec3::splat(32.0), DVec3::Z);
+        let m = ops::shear_side(&base, 1, true, DVec3::new(32.0, 0.0, 0.0)).unwrap();
+        state.doc.begin("Shear");
+        tools.shear.drag = Some(ShearDrag { base, side: ShearSide { axis: 1, max: true, anchor: DVec3::splat(32.0) }, plane, start: DVec3::ZERO, matrix: m });
+        let opts = state.opts();
+        state.doc.edit("Shear", |map, s| ops::shear_selection(map, s, &m, opts));
+    }
+
+    #[test]
+    fn escape_mid_shear_cancels_it() {
+        let (mut state, id) = state_with_brush();
+        let before = state.doc.map.brush(id).unwrap().clone();
+        let mut tools = ToolSet::default();
+        shear_mid_drag(&mut tools, &mut state);
+        assert_ne!(state.doc.map.brush(id), Some(&before));
+        let ctx = egui::Context::default();
+        let mut input = egui::RawInput::default();
+        input.events.push(egui::Event::Key { key: Key::Escape, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE });
+        ctx.begin_pass(input);
+        assert!(tools.keys(&ctx, &mut state), "Escape is taken by the drag");
+        assert!(tools.shear.drag.is_none());
+        assert!(!state.doc.in_transaction());
+        assert_eq!(state.doc.map.brush(id), Some(&before), "the brush is back where it was");
+        assert_eq!(state.tool, ToolKind::Shear, "the tool stays, only the drag ends");
+    }
+
+    #[test]
+    fn switching_tools_mid_shear_closes_the_undo_step() {
+        let (mut state, id) = state_with_brush();
+        let mut tools = ToolSet::default();
+        shear_mid_drag(&mut tools, &mut state);
+        let undo_before = state.doc.history.undo_labels().count();
+
+        state.tool = ToolKind::Select;
+        tools.sync(&state);
+        assert!(tools.shear.drag.is_none());
+        tools.settle(&mut state);
+        assert!(!state.doc.in_transaction());
+        assert_eq!(state.doc.history.undo_labels().count(), undo_before + 1);
+        assert!(state.doc.map.brush(id).unwrap().vertices.iter().any(|v| v.abs_diff_eq(DVec3::new(96.0, 64.0, 0.0), 1e-6)));
     }
 
     #[test]

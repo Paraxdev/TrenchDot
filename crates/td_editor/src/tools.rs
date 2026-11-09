@@ -10,6 +10,8 @@ pub enum ToolKind {
     Vertex,
     Rotate,
     Scale,
+    /// Slides one side of the selection's bounds sideways, turning the box into a parallelepiped.
+    Shear,
     /// Displacement and terrain sculpting.
     Sculpt,
     /// Material blending on terrains, displacements and faces with a blend material.
@@ -38,6 +40,7 @@ impl ToolKind {
             ToolKind::Vertex => en!("Vertex"),
             ToolKind::Rotate => en!("Rotate"),
             ToolKind::Scale => en!("Scale"),
+            ToolKind::Shear => en!("Shear"),
             ToolKind::Sculpt => en!("Sculpt"),
             ToolKind::Blend => en!("Blend"),
             ToolKind::Paint => en!("Paint"),
@@ -50,13 +53,14 @@ impl ToolKind {
         }
     }
 
-    pub fn all() -> [ToolKind; 14] {
+    pub fn all() -> [ToolKind; 15] {
         [
             ToolKind::Select,
             ToolKind::Clip,
             ToolKind::Vertex,
             ToolKind::Rotate,
             ToolKind::Scale,
+            ToolKind::Shear,
             ToolKind::Mesh,
             ToolKind::Sculpt,
             ToolKind::Blend,
@@ -71,7 +75,7 @@ impl ToolKind {
 
     /// Tools grouped the way the toolbar and the Tools menu show them: brush editing, meshes, surfaces, terrain, gameplay.
     pub const GROUPS: [&'static [ToolKind]; 5] = [
-        &[ToolKind::Select, ToolKind::Clip, ToolKind::Vertex, ToolKind::Rotate, ToolKind::Scale],
+        &[ToolKind::Select, ToolKind::Clip, ToolKind::Vertex, ToolKind::Rotate, ToolKind::Scale, ToolKind::Shear],
         &[ToolKind::Mesh],
         &[ToolKind::Texture, ToolKind::Paint],
         &[ToolKind::Sculpt, ToolKind::Blend, ToolKind::Scatter],

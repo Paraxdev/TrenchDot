@@ -261,7 +261,21 @@ impl MeshTool {
     /// Returns true if the key was consumed.
     pub fn keys(&mut self, ctx: &egui::Context, state: &mut EditorState) -> bool {
         self.prune(state);
-        let pressed = |ctx: &egui::Context, m: Modifiers, k: Key| ctx.input_mut(|i| i.consume_key(m, k));
+        // egui's consume_key lets an extra Shift through, which keeps + working on layouts that need Shift for it, but a
+        // plain R would then also take the Shear tool's Shift+R.
+        let pressed = |ctx: &egui::Context, m: Modifiers, k: Key| {
+            ctx.input_mut(|i| {
+                if k != Key::R {
+                    return i.consume_key(m, k);
+                }
+
+                let before = i.events.len();
+                i.events.retain(|e| {
+                    !matches!(e, egui::Event::Key { key: Key::R, pressed: true, modifiers, .. } if modifiers.shift == m.shift && modifiers.matches_logically(m))
+                });
+                i.events.len() < before
+            })
+        };
         if let Some(modal) = self.modal.clone() {
             if pressed(ctx, Modifiers::NONE, Key::Escape) {
                 self.cancel(state);
@@ -1526,6 +1540,45 @@ mod tests {
         );
         assert_eq!(status.en, "Rotate X  -12.50 3.00 0.25  (X/Y/Z constrain, type a value, Enter confirms, Esc cancels)");
         assert!(status.shown.starts_with("Drehen X  -12.50 3.00 0.25  ("), "{}", status.shown);
+    }
+
+    #[test]
+    fn shift_r_is_left_to_the_shear_shortcut() {
+        let mut state = EditorState::new(Default::default());
+        let layer = state.doc.map.default_layer();
+        let mesh = td_geom::mesh_shapes::cuboid(&td_core::Aabb::new(DVec3::ZERO, DVec3::splat(32.0)), "m");
+        let id = state.doc.edit("mesh", |m, s| {
+            let id = m.insert(layer, td_doc::NodeKind::Mesh(mesh));
+            s.select_node(id);
+            id
+        });
+        let mut tool = MeshTool::default();
+        tool.selection.insert(id, MeshSel { verts: (0..8).collect(), ..Default::default() });
+        let press = |modifiers: Modifiers| {
+            let ctx = egui::Context::default();
+            let mut input = egui::RawInput::default();
+            input.events.push(egui::Event::Key { key: Key::R, physical_key: None, pressed: true, repeat: false, modifiers });
+            ctx.begin_pass(input);
+            ctx
+        };
+
+        assert!(!tool.keys(&press(Modifiers::SHIFT), &mut state), "Shift+R goes on to the editor shortcuts");
+        assert!(tool.modal.is_none());
+        assert!(tool.keys(&press(Modifiers::NONE), &mut state));
+        assert!(matches!(tool.modal, Some(Modal::Transform { kind: TransformKind::Rotate, .. })), "R still rotates the vertices");
+    }
+
+    #[test]
+    fn plus_typed_with_shift_adds_a_loop_cut() {
+        let mut state = EditorState::new(Default::default());
+        let mut tool = MeshTool { modal: Some(Modal::LoopCut { hover: None, cuts: 1 }), ..Default::default() };
+        let ctx = egui::Context::default();
+        let mut input = egui::RawInput::default();
+        input.events.push(egui::Event::Key { key: Key::Plus, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::SHIFT });
+        ctx.begin_pass(input);
+
+        tool.keys(&ctx, &mut state);
+        assert!(matches!(tool.modal, Some(Modal::LoopCut { cuts: 2, .. })), "+ needs Shift on a US layout");
     }
 
     #[test]

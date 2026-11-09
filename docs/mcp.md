@@ -153,7 +153,7 @@ See [Reviewing changes](editor/reviewing.md) for keeping maps in git.
 | `run_action` `create_decal` | Places a [decal](editor/decals.md), use it instead of thin brushes |
 | `create_brush` | `openings` carves doors and windows, `{min, max, count, step, rows, row_step}` repeats one as a grid |
 | `create_mesh` `rotate` | `[x, y, z]` degrees in Godot's YXZ order, so `[0, 0, 90]` lays a cylinder along X |
-| `transform` | Applies translate, rotate, flip and scale_to in that order, as one undo step. `rotate` turns 90 degrees about Y unless told otherwise |
+| `transform` | Applies translate, rotate, flip, scale_to and shear in that order, as one undo step. `rotate` turns 90 degrees about Y unless told otherwise, `shear` slides one side of the selection's bounds, for example `{"side": "+y", "along": "x", "amount": 32}` |
 | `create_terrain` | `origin` is the terrain's minimum corner, unlike other tools. `center` places it around a point instead |
 | `create_brush`, `create_mesh` | A gable ridge runs along Z for brushes and along X for meshes. Both tools take `ridge_x` and `ridge_z` |
 | `map_file` exports | `path` is the written file, kept for older callers, `exported` names it too and `map_path` is the open map |

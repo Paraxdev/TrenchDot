@@ -355,6 +355,67 @@ fn a_held_rotate_drag_shows_its_angle_and_keeps_it_on_release() {
 
 #[test]
 #[ignore]
+fn shear_over_mcp_slides_a_side_and_keeps_the_brush_valid() {
+    let ed = Editor::launch("shear_mcp");
+    let brush = ed.box_brush([0.0, 0.0, 0.0], [64.0, 32.0, 64.0]);
+    ed.call("select", json!({ "ids": [brush] }));
+    let undo_before = ed.state()["undo"].as_array().unwrap().len();
+    let reply = ed.call("transform", json!({ "shear": { "side": "+y", "along": "x", "amount": 16 } }));
+    let (min, max) = (&reply["bounds"]["min"], &reply["bounds"]["max"]);
+    assert_eq!((min[0].as_f64(), max[0].as_f64()), (Some(0.0), Some(80.0)), "the top side slid 16 along X {reply}");
+    assert_eq!((min[1].as_f64(), max[1].as_f64()), (Some(0.0), Some(32.0)), "the height is unchanged {reply}");
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), undo_before + 1, "one undo step");
+    assert_eq!(ed.call("validate_map", json!({}))["count"], 0, "the sheared brush is still valid");
+    let vertices = ed.call("get_node", json!({ "id": brush }))["vertices"].clone();
+    assert_eq!(vertices.as_array().unwrap().len(), 8, "{vertices}");
+    let low: Vec<f64> = vertices.as_array().unwrap().iter().filter(|v| v[1].as_f64() == Some(0.0)).map(|v| v[0].as_f64().unwrap()).collect();
+    assert!(low.iter().all(|x| *x == 0.0 || *x == 64.0), "the fixed bottom side stayed put {low:?}");
+
+    ed.call("transform", json!({ "shear": { "side": "-x", "along": "z", "amount": -8 } }));
+    assert_eq!(ed.call("validate_map", json!({}))["count"], 0);
+    assert!(ed.call_err("transform", json!({ "shear": { "side": "y", "along": "x", "amount": 1 } })).contains("shear.side"));
+    assert!(ed.call_err("transform", json!({ "shear": { "side": "+y", "along": "y", "amount": 1 } })).contains("shear.along"));
+    assert!(ed.call_err("transform", json!({ "shear": { "side": "+y", "along": "x" } })).contains("shear.amount"));
+    assert!(ed.call_err("transform", json!({ "shear": { "side": "é+x", "along": "y", "amount": 1 } })).contains("shear.side"));
+    ed.call("run_action", json!({ "action": "undo", "args": { "steps": 2 } }));
+    let (min, max) = ed.selection_bounds();
+    assert!(approx(&[min[0], max[0], min[2], max[2]], &[0.0, 64.0, 0.0, 64.0]), "undo restores the box {min:?} {max:?}");
+
+    let flat = ed.call("create_terrain", json!({ "origin": [0, 0, 0], "resolution": 3, "cell_size": 32, "shape": "flat" }))["id"].clone();
+    ed.call("select", json!({ "ids": [flat] }));
+    let undo_before = ed.state()["undo"].as_array().unwrap().len();
+    let rejected = json!({ "translate": [32, 0, 0], "shear": { "side": "+y", "along": "x", "amount": 16 } });
+    assert!(ed.call_err("transform", rejected).contains("no extent"), "a flat selection has no side to slide");
+    let (min, _) = ed.selection_bounds();
+    assert_eq!(min[0], 0.0, "the move before the shear was taken back");
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), undo_before);
+}
+
+#[test]
+#[ignore]
+fn the_shear_tool_drags_a_side_as_one_undo_step() {
+    let ed = Editor::launch("shear_drag");
+    let brush = ed.box_brush([0.0, 0.0, 0.0], [64.0, 64.0, 64.0]);
+    ed.call("select", json!({ "ids": [brush] }));
+    ed.call("set_camera", json!({ "view": "front", "center": [32, 32, 32], "zoom": 1.5 }));
+    ed.call("run_action", json!({ "action": "set_tool", "args": { "tool": "shear" } }));
+    let undo_before = ed.state()["undo"].as_array().unwrap().len();
+    ed.input("front", json!([{ "type": "drag", "world": [32, 64, 32], "to_world": [80, 64, 32] }]));
+    let (min, max) = ed.selection_bounds();
+    assert!(approx(&[min[0], max[0], min[1], max[1]], &[0.0, 112.0, 0.0, 64.0]), "the top side slid 48 along X {min:?} {max:?}");
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), undo_before + 1, "the whole drag is one undo step");
+    assert_eq!(ed.call("validate_map", json!({}))["count"], 0);
+    ed.call("run_action", json!({ "action": "undo" }));
+    let (min, max) = ed.selection_bounds();
+    assert!(approx(&[min[0], max[0]], &[0.0, 64.0]), "one undo reverts the drag {min:?} {max:?}");
+
+    ed.input("front", json!([{ "type": "drag", "world": [32, 24, 32], "to_world": [32, 24, 100] }]));
+    let (min, max) = ed.selection_bounds();
+    assert!(approx(&[min[0], max[0]], &[0.0, 64.0]), "a drag that misses every side changes nothing {min:?} {max:?}");
+}
+
+#[test]
+#[ignore]
 fn a_one_shot_rotate_drag_commits_the_angle_it_ended_on() {
     let ed = Editor::launch("one_shot_rotate_drag");
     let brush = ed.box_brush([32.0, 0.0, 0.0], [160.0, 64.0, 64.0]);

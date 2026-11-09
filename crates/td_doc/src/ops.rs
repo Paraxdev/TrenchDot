@@ -156,6 +156,49 @@ pub fn scale_bounds(old: &Aabb, new: &Aabb) -> DMat4 {
     DMat4::from_translation(new.min) * DMat4::from_scale(s) * DMat4::from_translation(-old.min)
 }
 
+/// Shear that slides the `max` or min side of `bounds` perpendicular to `axis` by `offset` while the opposite side
+/// stays put, so a box becomes a parallelepiped. `offset[axis]` is ignored. None when the bounds are flat along `axis`.
+pub fn shear_side(bounds: &Aabb, axis: usize, max: bool, offset: DVec3) -> Option<DMat4> {
+    if axis > 2 {
+        return None;
+    }
+
+    let size = bounds.size()[axis];
+    if size < 1e-6 {
+        return None;
+    }
+
+    let (fixed, reach) = if max { (bounds.min[axis], size) } else { (bounds.max[axis], -size) };
+    let mut k = offset / reach;
+    k[axis] = 0.0;
+    let mut m = DMat4::IDENTITY;
+    for i in 0..3 {
+        m.col_mut(axis)[i] += k[i];
+        m.col_mut(3)[i] -= k[i] * fixed;
+    }
+
+    Some(m)
+}
+
+/// Applies a [`shear_side`] matrix. Brushes and meshes lean, point entities and instances only move and keep their
+/// facing, terrains and scatters stay put since a heightfield cannot lean.
+pub fn shear_selection(map: &mut Map, sel: &Selection, m: &DMat4, opts: EditOptions) {
+    let mut lean = Vec::new();
+    for id in sel.transformables(map) {
+        let Some(node) = map.get_mut(id) else { continue };
+        let leaf = node.children.is_empty();
+        match &mut node.kind {
+            NodeKind::Brush(_) | NodeKind::Mesh(_) => lean.push(id),
+            NodeKind::Entity(e) if leaf => e.origin = td_core::snap_vec(m.transform_point3(e.origin)),
+            NodeKind::Instance(i) => i.origin = td_core::snap_vec(m.transform_point3(i.origin)),
+            _ => {}
+        }
+    }
+
+    transform_nodes(map, &lean, m, opts);
+    update_group_transforms(map, sel, m);
+}
+
 /// Center of the selected nodes' bounds, snapped to `grid` (at least 1 unit), or exact when `grid` is 0.
 pub fn selection_center(map: &Map, sel: &Selection, grid: f64) -> DVec3 {
     let b = map.bounds_of(sel.nodes.iter().copied());
@@ -1462,5 +1505,84 @@ mod tests {
 
         m.get_mut(layer).unwrap().locked = true;
         assert_eq!(drop_plan(&m, &[ids[1]], ids[2], |_| true), None, "nothing goes into a locked layer");
+    }
+
+    #[test]
+    fn shear_moves_one_side_and_keeps_the_opposite_fixed() {
+        let b = Aabb::new(DVec3::new(0.0, 0.0, 0.0), DVec3::new(64.0, 32.0, 16.0));
+        let m = shear_side(&b, 1, true, DVec3::new(24.0, 0.0, -8.0)).unwrap();
+        for c in b.corners() {
+            let p = m.transform_point3(c);
+            if c.y == 0.0 {
+                assert!(p.abs_diff_eq(c, 1e-9), "{c} on the fixed side moved to {p}");
+            } else {
+                assert!(p.abs_diff_eq(c + DVec3::new(24.0, 0.0, -8.0), 1e-9), "{c} on the moved side went to {p}");
+            }
+        }
+
+        assert!((m.determinant() - 1.0).abs() < 1e-12, "a shear keeps the volume");
+    }
+
+    #[test]
+    fn shear_of_the_min_side_mirrors_the_max_side() {
+        let b = Aabb::new(DVec3::new(-10.0, 5.0, 0.0), DVec3::new(30.0, 25.0, 40.0));
+        let m = shear_side(&b, 0, false, DVec3::new(0.0, 0.0, 12.0)).unwrap();
+        assert!(m.transform_point3(DVec3::new(30.0, 7.0, 3.0)).abs_diff_eq(DVec3::new(30.0, 7.0, 3.0), 1e-9));
+        assert!(m.transform_point3(DVec3::new(-10.0, 7.0, 3.0)).abs_diff_eq(DVec3::new(-10.0, 7.0, 15.0), 1e-9));
+        let mid = m.transform_point3(DVec3::new(10.0, 7.0, 3.0));
+        assert!(mid.abs_diff_eq(DVec3::new(10.0, 7.0, 9.0), 1e-9), "points between slide in proportion, got {mid}");
+    }
+
+    #[test]
+    fn shear_ignores_the_offset_along_its_own_axis_and_flat_bounds() {
+        let b = Aabb::new(DVec3::ZERO, DVec3::new(10.0, 10.0, 0.0));
+        assert!(shear_side(&b, 2, true, DVec3::X).is_none());
+        assert!(shear_side(&b, 3, true, DVec3::X).is_none());
+        let m = shear_side(&b, 0, true, DVec3::new(5.0, 3.0, 0.0)).unwrap();
+        assert!(m.transform_point3(DVec3::new(10.0, 0.0, 0.0)).abs_diff_eq(DVec3::new(10.0, 3.0, 0.0), 1e-9));
+    }
+
+    #[test]
+    fn sheared_brush_stays_convex_and_valid() {
+        let mut m = Map::new();
+        let l = m.default_layer();
+        let b = Aabb::new(DVec3::ZERO, DVec3::new(64.0, 64.0, 64.0));
+        let id = create_brush(&mut m, l, Brush::from_aabb(&b, "a").unwrap());
+        let mut sel = Selection::default();
+        sel.nodes.insert(id);
+        let mat = shear_side(&b, 1, true, DVec3::new(32.0, 0.0, 16.0)).unwrap();
+        shear_selection(&mut m, &sel, &mat, EditOptions::default());
+        let sheared = m.brush(id).unwrap();
+        assert_eq!(sheared.faces.len(), 6);
+        assert!(sheared.vertices.iter().any(|v| v.abs_diff_eq(DVec3::new(96.0, 64.0, 80.0), 1e-6)));
+        assert!(sheared.validate().is_ok());
+        assert!((sheared.volume() - 64.0 * 64.0 * 64.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn shear_leans_meshes_moves_points_and_leaves_terrain_put() {
+        let mut m = Map::new();
+        let l = m.default_layer();
+        let b = Aabb::new(DVec3::ZERO, DVec3::splat(64.0));
+        let mesh = m.insert(l, NodeKind::Mesh(td_geom::mesh_shapes::cuboid(&b, "m")));
+        let mut e = Entity::new("info_player_start");
+        e.origin = DVec3::new(32.0, 64.0, 32.0);
+        e.properties.insert("angle".into(), "90".into());
+        let ent = m.insert(l, NodeKind::Entity(e.clone()));
+        let terrain = m.insert(l, NodeKind::Terrain(td_geom::Terrain::new(DVec3::ZERO, [3, 3], 32.0, "t")));
+        let mut sel = Selection::default();
+        sel.nodes.extend([mesh, ent, terrain]);
+        let before = m.clone();
+        let mat = shear_side(&b, 1, true, DVec3::new(32.0, 0.0, 0.0)).unwrap();
+        shear_selection(&mut m, &sel, &mat, EditOptions::default());
+
+        for (v, old) in m.mesh(mesh).unwrap().vertices.iter().zip(&before.mesh(mesh).unwrap().vertices) {
+            assert!(v.abs_diff_eq(*old + DVec3::X * old.y * 0.5, 1e-9), "{old} went to {v}");
+        }
+
+        let Some(NodeKind::Entity(moved)) = m.get(ent).map(|n| &n.kind) else { panic!("entity gone") };
+        assert_eq!(moved.origin, DVec3::new(64.0, 64.0, 32.0), "the entity rides with the side it is on");
+        assert_eq!((moved.angles, &moved.properties), (e.angles, &e.properties), "it keeps its facing and quake angle");
+        assert_eq!(m.get(terrain), before.get(terrain), "a terrain cannot lean");
     }
 }

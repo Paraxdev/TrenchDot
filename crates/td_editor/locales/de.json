@@ -2232,5 +2232,10 @@
   "With": "Durch",
   "{n} face uses it": { "one": "{n} Fläche verwendet es", "other": "{n} Flächen verwenden es" },
   "Keeps each face's offset, scale and rotation": "Behält Versatz, Skalierung und Drehung jeder Fläche",
-  "Selected {n} entity": { "one": "{n} Entität ausgewählt", "other": "{n} Entitäten ausgewählt" }
+  "Selected {n} entity": { "one": "{n} Entität ausgewählt", "other": "{n} Entitäten ausgewählt" },
+  "Shear": "Scheren",
+  "Drag a side, the opposite side stays put": "Seite ziehen, die gegenüberliegende bleibt stehen",
+  "Drag a side of the selection's bounds to slide it sideways.": "Eine Seite der Auswahlbox ziehen, um sie seitlich zu verschieben.",
+  "Shear: drag a side of the box, Shift moves freely in 3D": "Scheren: Seite der Box ziehen, Shift bewegt frei in 3D",
+  "Shear by {offset}": "Scheren um {offset}"
 }

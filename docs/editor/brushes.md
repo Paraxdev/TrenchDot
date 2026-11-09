@@ -103,6 +103,32 @@ Each command is one undo step and moves by exact amounts, so the results are not
 already line up, the status bar says so and nothing changes. Objects that overlap along the axis end up with the same
 overlap between each pair.
 
+## Shear
+
+The Shear tool slants the selection, so a box becomes a parallelepiped. Use it for leaning walls, slanted doorways and
+ramps that a plain scale cannot make.
+
+1. Select what you want to slant, brushes, groups and brush entities all work.
+2. Pick the Shear tool with Shift+R, or in *Tools > Shear Tool*. An orange box shows the selection's bounds.
+3. Point at a side of the box. In the 3D view the side lights up when the pointer is over it, in a 2D view the edge
+    nearest the pointer does.
+4. Drag the side. It slides parallel to itself while the opposite side stays where it is, and the selection follows live.
+
+![A cube mid shear in the 3D view, the top side slid sideways with the bottom fixed](../assets/brushes/shear.png)
+
+The slide snaps to the grid. In a 2D view it runs along the view's axis that is parallel to the side. In the 3D view it
+follows whichever direction you drag further, and holding Shift frees it to slide both ways at once. Esc cancels the
+drag, and one undo takes back the whole shear. Textures stay locked to the faces while UV lock is on.
+
+Brushes and meshes slant. Point entities and prefab instances move along with the part of the box they sit in but
+keep the way they face. Terrains and scatters cannot slant, so they stay where they are.
+
+<div class="td-mcp" markdown>
+
+Over MCP, `transform` takes `shear` with a `side` (such as `+y`), the axis it slides `along` and the `amount`.
+
+</div>
+
 ## Shape Generator
 
 For cylinders, arches, stairs, roofs and other shapes that would take a lot of hand drawn brushes, use the Shape

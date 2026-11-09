@@ -2232,5 +2232,10 @@
   "With": "替换为",
   "{n} face uses it": { "other": "{n} 个面使用它" },
   "Keeps each face's offset, scale and rotation": "保留每个面的偏移、缩放和旋转",
-  "Selected {n} entity": { "other": "已选择 {n} 个实体" }
+  "Selected {n} entity": { "other": "已选择 {n} 个实体" },
+  "Shear": "剪切",
+  "Drag a side, the opposite side stays put": "拖动一侧，对侧保持不动",
+  "Drag a side of the selection's bounds to slide it sideways.": "拖选区边界的一侧，使其平行滑动。",
+  "Shear: drag a side of the box, Shift moves freely in 3D": "剪切：拖动框的一侧，Shift 在 3D 中自由移动",
+  "Shear by {offset}": "剪切 {offset}"
 }

@@ -2232,5 +2232,10 @@
   "With": "置換後",
   "{n} face uses it": { "other": "{n} 個の面で使用中" },
   "Keeps each face's offset, scale and rotation": "各面のオフセット、スケール、回転を保ちます",
-  "Selected {n} entity": { "other": "{n} 個のエンティティを選択しました" }
+  "Selected {n} entity": { "other": "{n} 個のエンティティを選択しました" },
+  "Shear": "せん断",
+  "Drag a side, the opposite side stays put": "辺をドラッグ、反対側は固定",
+  "Drag a side of the selection's bounds to slide it sideways.": "選択範囲の辺をドラッグして横にずらす。",
+  "Shear: drag a side of the box, Shift moves freely in 3D": "せん断：ボックスの辺をドラッグ、Shiftで3Dの自由移動",
+  "Shear by {offset}": "せん断 {offset}"
 }

@@ -570,6 +570,7 @@ fn trenchbroom_bindings() -> Vec<(KeyboardShortcut, Action)> {
         (sc(NONE, Key::V), Action::SetTool(ToolKind::Vertex)),
         (sc(NONE, Key::R), Action::SetTool(ToolKind::Rotate)),
         (sc(NONE, Key::T), Action::SetTool(ToolKind::Scale)),
+        (sc(SHIFT, Key::R), Action::SetTool(ToolKind::Shear)),
         (sc(NONE, Key::Q), Action::SetTool(ToolKind::Select)),
         (sc(NONE, Key::G), Action::SetTool(ToolKind::Sculpt)),
         (sc(NONE, Key::P), Action::SetTool(ToolKind::Paint)),
@@ -2965,6 +2966,14 @@ mod tests {
         let ids: Vec<String> = bindable_actions().iter().map(|a| a.binding_id()).collect();
         let unique: std::collections::BTreeSet<&String> = ids.iter().collect();
         assert_eq!(ids.len(), unique.len());
+    }
+
+    #[test]
+    fn shift_r_picks_the_shear_tool_in_every_preset() {
+        for preset in PRESETS {
+            let taken: Vec<Action> = preset_bindings(preset).into_iter().filter(|(s, _)| *s == sc(SHIFT, Key::R)).map(|(_, a)| a).collect();
+            assert_eq!(taken, [Action::SetTool(ToolKind::Shear)], "{preset}");
+        }
     }
 
     #[test]
