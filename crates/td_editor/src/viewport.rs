@@ -797,26 +797,7 @@ impl Viewport {
         let (r, u, _) = self.camera.kind.axes();
         let min = self.camera.project(self.rect, bounds.min)?;
         let max = self.camera.project(self.rect, bounds.max)?;
-        let screen = Rect::from_two_pos(min, max);
-        if !screen.expand(EDGE_GRAB).contains(pos) {
-            return None;
-        }
-
-        // View axes can point along negative world axes, so the side of the screen the bounds minimum lands on picks the face.
-        let (r, u) = (r.abs(), u.abs());
-        let candidates = [
-            ((pos.x - screen.min.x).abs(), screen.width(), if min.x <= max.x { -r } else { r }, [screen.left_top(), screen.left_bottom()]),
-            ((pos.x - screen.max.x).abs(), screen.width(), if min.x <= max.x { r } else { -r }, [screen.right_top(), screen.right_bottom()]),
-            ((pos.y - screen.min.y).abs(), screen.height(), if min.y <= max.y { -u } else { u }, [screen.left_top(), screen.right_top()]),
-            ((pos.y - screen.max.y).abs(), screen.height(), if min.y <= max.y { u } else { -u }, [screen.left_bottom(), screen.right_bottom()]),
-        ];
-        let (dist, extent, normal, segment) = candidates.into_iter().min_by(|a, b| a.0.total_cmp(&b.0))?;
-        // Inside a thin brush the edge zones leave its middle third for moving it.
-        let grab = if screen.contains(pos) { EDGE_GRAB.min(extent / 3.0) } else { EDGE_GRAB };
-        if dist > grab {
-            return None;
-        }
-
+        let (normal, segment) = side_under(min, max, r, u, pos)?;
         let extreme = if normal.element_sum() > 0.0 { bounds.max.dot(normal) } else { bounds.min.dot(normal) };
         let mut faces = Vec::new();
         for id in brushes {
@@ -1197,9 +1178,31 @@ fn snap_face_move(state: &EditorState, faces: &[(NodeId, usize)], normal: DVec3,
     state.snap_scalar(at + dist) - at
 }
 
+/// The outward normal and screen segment of the side of a box within `EDGE_GRAB` of `pos` in a 2D view, given where
+/// the box's min and max corners land on screen and the view's right and up axes.
+pub(crate) fn side_under(min: Pos2, max: Pos2, r: DVec3, u: DVec3, pos: Pos2) -> Option<(DVec3, [Pos2; 2])> {
+    let screen = Rect::from_two_pos(min, max);
+    if !screen.expand(EDGE_GRAB).contains(pos) {
+        return None;
+    }
+
+    // View axes can point along negative world axes, so the side of the screen the bounds minimum lands on picks the face.
+    let (r, u) = (r.abs(), u.abs());
+    let candidates = [
+        ((pos.x - screen.min.x).abs(), screen.width(), if min.x <= max.x { -r } else { r }, [screen.left_top(), screen.left_bottom()]),
+        ((pos.x - screen.max.x).abs(), screen.width(), if min.x <= max.x { r } else { -r }, [screen.right_top(), screen.right_bottom()]),
+        ((pos.y - screen.min.y).abs(), screen.height(), if min.y <= max.y { -u } else { u }, [screen.left_top(), screen.right_top()]),
+        ((pos.y - screen.max.y).abs(), screen.height(), if min.y <= max.y { u } else { -u }, [screen.left_bottom(), screen.right_bottom()]),
+    ];
+    let (dist, extent, normal, segment) = candidates.into_iter().min_by(|a, b| a.0.total_cmp(&b.0))?;
+    // Inside a thin box the edge zones leave its middle third for moving it.
+    let grab = if screen.contains(pos) { EDGE_GRAB.min(extent / 3.0) } else { EDGE_GRAB };
+    (dist <= grab).then_some((normal, segment))
+}
+
 /// A grid aligned span covering `a` to `b` and the cells under both ends, at least one cell wide. An end a hair
 /// past a grid line (pointer to world rounding) counts as on it.
-fn cell_span(a: f64, b: f64, grid: f64, snap: bool) -> (f64, f64) {
+pub(crate) fn cell_span(a: f64, b: f64, grid: f64, snap: bool) -> (f64, f64) {
     let (lo, hi) = (a.min(b), a.max(b));
     let eps = grid * 1e-3;
     let (lo, hi) = if snap { (((lo + eps) / grid).floor() * grid, ((hi - eps) / grid).ceil() * grid) } else { (lo, hi) };
@@ -1523,5 +1526,70 @@ mod tests {
         assert_eq!(cell_span(15.9999, 48.0001, 16.0, true), (16.0, 48.0), "so do ends a rounding error off them");
         assert_eq!(cell_span(3.0, 3.0, 16.0, true), (0.0, 16.0), "a click still makes one cell");
         assert_eq!(cell_span(3.0, 3.0, 16.0, false), (3.0, 19.0));
+    }
+
+    // The top view's axes: min lands left and above max on screen.
+    const TOP_MIN: Pos2 = Pos2::new(300.0, 250.0);
+    const TOP_MAX: Pos2 = Pos2::new(500.0, 400.0);
+
+    fn top_side(pos: Pos2) -> Option<(DVec3, [Pos2; 2])> {
+        side_under(TOP_MIN, TOP_MAX, DVec3::X, DVec3::NEG_Z, pos)
+    }
+
+    #[test]
+    fn each_side_of_a_box_picks_its_normal() {
+        let (lt, rb) = (Pos2::new(300.0, 250.0), Pos2::new(500.0, 400.0));
+        let (rt, lb) = (Pos2::new(500.0, 250.0), Pos2::new(300.0, 400.0));
+        assert_eq!(top_side(Pos2::new(300.0, 320.0)), Some((DVec3::NEG_X, [lt, lb])));
+        assert_eq!(top_side(Pos2::new(503.0, 320.0)), Some((DVec3::X, [rt, rb])));
+        assert_eq!(top_side(Pos2::new(400.0, 247.0)), Some((DVec3::NEG_Z, [lt, rt])));
+        assert_eq!(top_side(Pos2::new(410.0, 396.0)), Some((DVec3::Z, [lb, rb])));
+    }
+
+    #[test]
+    fn a_side_grabs_up_to_eight_points_away() {
+        assert_eq!(top_side(Pos2::new(292.1, 320.0)).map(|s| s.0), Some(DVec3::NEG_X));
+        assert_eq!(top_side(Pos2::new(292.0, 320.0)).map(|s| s.0), Some(DVec3::NEG_X));
+        assert_eq!(top_side(Pos2::new(291.9, 320.0)), None);
+        assert_eq!(top_side(Pos2::new(400.0, 408.0)).map(|s| s.0), Some(DVec3::Z));
+        assert_eq!(top_side(Pos2::new(400.0, 408.1)), None);
+        assert_eq!(top_side(Pos2::new(308.0, 320.0)).map(|s| s.0), Some(DVec3::NEG_X), "inside a big box too");
+        assert_eq!(top_side(Pos2::new(308.1, 320.0)), None);
+    }
+
+    #[test]
+    fn far_from_every_side_grabs_nothing() {
+        assert_eq!(top_side(Pos2::new(400.0, 320.0)), None);
+        assert_eq!(top_side(Pos2::new(10.0, 10.0)), None);
+        assert_eq!(top_side(Pos2::new(900.0, 320.0)), None);
+    }
+
+    #[test]
+    fn inside_a_thin_box_only_the_outer_thirds_grab() {
+        let thin = |x: f32| side_under(Pos2::new(300.0, 250.0), Pos2::new(312.0, 400.0), DVec3::X, DVec3::NEG_Z, Pos2::new(x, 320.0)).map(|s| s.0);
+        assert_eq!(thin(303.0), Some(DVec3::NEG_X));
+        assert_eq!(thin(304.0), Some(DVec3::NEG_X), "a third of 12 points is still the side");
+        assert_eq!(thin(305.0), None);
+        assert_eq!(thin(306.0), None);
+        assert_eq!(thin(307.0), None);
+        assert_eq!(thin(309.0), Some(DVec3::X));
+        assert_eq!(thin(293.0), Some(DVec3::NEG_X), "outside it the full eight points grab");
+        assert_eq!(thin(319.0), Some(DVec3::X));
+    }
+
+    #[test]
+    fn a_flipped_projection_picks_the_opposite_normal() {
+        // The side view looks down -X with -Z to the right and +Y up, so min lands right of and below max.
+        let side = |min: Pos2, max: Pos2, pos: Pos2| side_under(min, max, DVec3::NEG_Z, DVec3::Y, pos).map(|s| s.0);
+        let (min, max) = (Pos2::new(500.0, 400.0), Pos2::new(300.0, 250.0));
+        assert_eq!(side(min, max, Pos2::new(300.0, 320.0)), Some(DVec3::Z));
+        assert_eq!(side(min, max, Pos2::new(500.0, 320.0)), Some(DVec3::NEG_Z));
+        assert_eq!(side(min, max, Pos2::new(400.0, 250.0)), Some(DVec3::Y));
+        assert_eq!(side(min, max, Pos2::new(400.0, 400.0)), Some(DVec3::NEG_Y));
+        let (min, max) = (Pos2::new(300.0, 250.0), Pos2::new(500.0, 400.0));
+        assert_eq!(side(min, max, Pos2::new(300.0, 320.0)), Some(DVec3::NEG_Z));
+        assert_eq!(side(min, max, Pos2::new(400.0, 250.0)), Some(DVec3::NEG_Y));
+        let segment = side_under(Pos2::new(500.0, 400.0), Pos2::new(300.0, 250.0), DVec3::NEG_Z, DVec3::Y, Pos2::new(300.0, 320.0)).map(|s| s.1);
+        assert_eq!(segment, Some([Pos2::new(300.0, 250.0), Pos2::new(300.0, 400.0)]), "the segment is in screen order");
     }
 }
