@@ -2159,5 +2159,11 @@
   "A brush drawn in a 2D view takes the depth of the selection, like in Hammer": "Браш, нарисованный в 2D виде, получает глубину выделения, как в Hammer",
   "Move Into": "Переместить внутрь",
   "Move into {name}": "Переместить в {name}",
-  "Group with {name}": "Сгруппировать с {name}"
+  "Group with {name}": "Сгруппировать с {name}",
+  "Rock": "Камень",
+  "Roughness": "Шероховатость",
+  "Facets": "Грани",
+  "Flat base": "Плоское основание",
+  "Detail": "Детализация",
+  "Flat chipped faces cut into the surface": "Плоские сколы на поверхности"
 }

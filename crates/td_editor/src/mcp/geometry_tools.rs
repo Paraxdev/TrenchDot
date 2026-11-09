@@ -6,7 +6,7 @@ use td_doc::NodeKind;
 use td_geom::mesh_shapes;
 
 use super::ToolResult;
-use super::tools::{Child, editable_ids, face_list, optional_vec3, pair_list, require_id, resolve_parent, ridge_along_x, uint, uint_list};
+use super::tools::{Child, editable_ids, face_list, optional_vec3, pair_list, require_id, resolve_parent, ridge_along_x, rock_params, uint, uint_list};
 use crate::app::App;
 
 fn vec3(v: &Value) -> Option<DVec3> {
@@ -120,6 +120,10 @@ impl App {
                 &material,
             ),
             "spire" => mesh_shapes::spire(&bounds, sides.max(3), &material),
+            "rock" => match rock_params(args) {
+                Ok(rock) => mesh_shapes::rock(&bounds, &rock, &material),
+                Err(e) => return err(e),
+            },
             "lathe" => {
                 let profile: Vec<DVec2> = args["profile"].as_array().into_iter().flatten().filter_map(vec2).collect();
                 if profile.len() < 2 {

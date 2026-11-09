@@ -2159,5 +2159,11 @@
   "A brush drawn in a 2D view takes the depth of the selection, like in Hammer": "Un brush dibujado en una vista 2D toma la profundidad de la selección, como en Hammer",
   "Move Into": "Mover dentro",
   "Move into {name}": "Mover a {name}",
-  "Group with {name}": "Agrupar con {name}"
+  "Group with {name}": "Agrupar con {name}",
+  "Rock": "Roca",
+  "Roughness": "Rugosidad",
+  "Facets": "Facetas",
+  "Flat base": "Base plana",
+  "Detail": "Detalle",
+  "Flat chipped faces cut into the surface": "Caras planas astilladas en la superficie"
 }

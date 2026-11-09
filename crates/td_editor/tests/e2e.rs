@@ -1842,6 +1842,20 @@ fn mesh_uv_projections_adjustments_and_the_mesh_vertex_gizmo() {
     assert_eq!(ed.state()["undo"][0], "Move Vertices");
 }
 
+#[test]
+#[ignore]
+fn rocks_from_create_brush_and_create_mesh() {
+    let ed = Editor::launch("rocks");
+    let brush = ed.call("create_brush", json!({ "shape": "rock", "min": [0, 0, 0], "max": [96, 48, 64], "seed": 7, "facets": 3 }));
+    assert_eq!(brush["ids"].as_array().map(Vec::len), Some(1), "one convex brush: {brush}");
+    let low = ed.call("create_mesh", json!({ "shape": "rock", "min": [200, 0, 0], "max": [296, 48, 64], "detail": 1 }))["faces"].as_u64().unwrap();
+    let high =
+        ed.call("create_mesh", json!({ "shape": "rock", "min": [400, 0, 0], "max": [496, 48, 64], "detail": 3, "flatten": 0 }))["faces"].as_u64().unwrap();
+    assert!(high > low * 8, "detail subdivides the mesh: {low} vs {high}");
+    assert!(ed.call_err("create_brush", json!({ "shape": "rock", "min": [0, 0, 0], "max": [64, 64, 64], "seed": -1 })).contains("seed must be"));
+    assert!(ed.call_err("create_mesh", json!({ "shape": "rock", "min": [0, 0, 0], "max": [64, 64, 64], "roughness": 2 })).contains("roughness must be"));
+}
+
 /// Scripted building blocks the withered city showcase needs: block letters, window grids, plane clips, vertex moves and
 /// named wizard entities, all without mouse input.
 #[test]

@@ -105,6 +105,15 @@ always made as a [mesh](meshes.md). Cylinders, cones and spheres can be one too 
 **Smooth shading** rounds them off. The **Text** shape builds block letters from brushes, for signs and floor
 lettering.
 
+**Rock** fills the box with a stone. **Roughness** sets how lumpy it is, **Facets** chips flat faces into it and
+**Flat base** cuts its underside flat so it sits on the ground. Change the **Seed** for a different stone of the same
+kind. As a brush the rock is one low poly convex stone that works with CSG and collides like any brush. With **Create
+as editable mesh** it keeps its dents and overhangs, and **Detail** sets how finely the surface is divided.
+
+![The Shape Generator set to Rock as an editable mesh, with Roughness 0.5, Facets 5, Flat base 0.3, Detail 3 and Seed 1](../assets/brushes/shape-generator-rock.png)
+
+![Five orange rocks on a grey floor, three lumpy meshes in front and two faceted brush rocks behind them](../assets/brushes/shape-generator-rocks.png)
+
 ## CSG
 
 The CSG operations are under *Brush > CSG*, which also holds their two settings.

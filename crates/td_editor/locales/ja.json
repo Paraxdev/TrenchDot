@@ -2159,5 +2159,11 @@
   "A brush drawn in a 2D view takes the depth of the selection, like in Hammer": "2D ビューで描いたブラシは Hammer と同じく選択範囲の奥行きになります",
   "Move Into": "中へ移動",
   "Move into {name}": "{name} の中へ移動",
-  "Group with {name}": "{name} とグループ化"
+  "Group with {name}": "{name} とグループ化",
+  "Rock": "岩",
+  "Roughness": "粗さ",
+  "Facets": "ファセット",
+  "Flat base": "平らな底",
+  "Detail": "詳細",
+  "Flat chipped faces cut into the surface": "表面に刻まれる平らな欠け面"
 }

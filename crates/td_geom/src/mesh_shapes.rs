@@ -2,11 +2,14 @@
 
 use std::f64::consts::{PI, TAU};
 
-use td_core::{Aabb, DVec2, DVec3};
+use std::collections::BTreeSet;
+
+use td_core::{Aabb, DVec2, DVec3, Plane};
 
 use crate::brush::FaceData;
 use crate::mesh::{Mesh, MeshFace};
 use crate::polygon;
+use crate::rock::{self, Rock};
 use crate::uv::FaceUv;
 
 fn data(material: &str, pts: &[DVec3]) -> FaceData {
@@ -247,6 +250,29 @@ pub fn spire(bounds: &Aabb, sides: usize, material: &str) -> Mesh {
     m
 }
 
+/// Noisy rock filling the bounds, with a flat base when `flatten` is above 0.
+pub fn rock(bounds: &Aabb, params: &Rock, material: &str) -> Mesh {
+    let (verts, tris) = params.surface(params.detail);
+    let mut mesh = build(verts, tris.iter().map(|t| t.to_vec()).collect(), material, 40.0);
+    let b = mesh.bounds();
+    let floor = params.floor(b.min.y, b.max.y);
+    if floor > b.min.y + 1e-6 {
+        let plane = Plane::from_point_normal(DVec3::new(0.0, floor, 0.0), DVec3::Y);
+        mesh.bisect(&plane, None);
+        mesh.delete_side(&plane, true);
+        let rim: BTreeSet<u32> = (0..mesh.vertices.len() as u32).filter(|i| (mesh.vertices[*i as usize].y - floor).abs() < 1e-6).collect();
+        mesh.fill_boundary_loops(&rim, &FaceData::new(material, FaceUv::default()));
+    }
+
+    rock::fit(&mut mesh.vertices, bounds);
+    // World aligned rather than face aligned, so a texture runs on across neighbouring triangles.
+    for fi in 0..mesh.faces.len() {
+        mesh.faces[fi].data.uv = FaceUv::paraxial(mesh.face_normal(fi), DVec2::ONE);
+    }
+
+    mesh
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -271,6 +297,8 @@ mod tests {
             ("roof", gable_roof(&b(), false, 4.0, 4.0, "m")),
             ("roof z", gable_roof(&b(), true, 4.0, 4.0, "m")),
             ("spire", spire(&b(), 4, "m")),
+            ("rock", rock(&b(), &Rock::default(), "m")),
+            ("round rock", rock(&b(), &Rock { flatten: 0.0, ..Rock::default() }, "m")),
         ] {
             m.validate().unwrap_or_else(|e| panic!("{name}: {e}"));
             assert!(m.is_closed(), "{name} open: {:?}", m.boundary_edges());
@@ -291,5 +319,20 @@ mod tests {
         let full = 128.0 * 128.0 * 16.0;
         let opening = (48.0 * 72.0 + PI * 24.0 * 24.0 * 0.5) * 16.0;
         assert!((m.volume() - (full - opening)).abs() < 150.0, "volume {} vs {}", m.volume(), full - opening);
+    }
+
+    #[test]
+    fn rocks_fill_their_bounds_and_close_for_every_seed() {
+        let bounds = Aabb::new(DVec3::new(0.0, 0.0, 0.0), DVec3::new(96.0, 48.0, 64.0));
+        for seed in 0..40 {
+            for (detail, flatten) in [(1, 0.0), (2, 1.0), (3, 0.3)] {
+                let m = rock(&bounds, &Rock { seed, detail, flatten, roughness: 1.0, facets: 8 }, "m");
+                m.validate().unwrap_or_else(|e| panic!("seed {seed}: {e}"));
+                assert!(m.is_closed(), "seed {seed} detail {detail} open: {:?}", m.boundary_edges());
+                assert!(m.volume() > 0.0, "seed {seed} volume {}", m.volume());
+                let got = m.bounds();
+                assert!((got.min - bounds.min).abs().max_element() < 1e-6 && (got.max - bounds.max).abs().max_element() < 1e-6);
+            }
+        }
     }
 }

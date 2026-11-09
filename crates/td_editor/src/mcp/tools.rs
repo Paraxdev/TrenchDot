@@ -311,6 +311,26 @@ pub(super) fn bool_arg(args: &Value, key: &str) -> Result<Option<bool>, String> 
     }
 }
 
+/// The rock options shared by create_brush and create_mesh, each falling back to the Shape Generator default.
+pub(super) fn rock_params(args: &Value) -> Result<td_geom::rock::Rock, String> {
+    let d = td_geom::rock::Rock::default();
+    let int = |key: &str, default: u32| match &args[key] {
+        Value::Null => Ok(default),
+        v => v.as_u64().and_then(|n| u32::try_from(n).ok()).ok_or_else(|| format!("{key} must be a whole number of 0 or more, got {v}")),
+    };
+    let unit = |key: &str, default: f64| match &args[key] {
+        Value::Null => Ok(default),
+        v => v.as_f64().filter(|x| (0.0..=1.0).contains(x)).ok_or_else(|| format!("{key} must be a number from 0 to 1, got {v}")),
+    };
+    Ok(td_geom::rock::Rock {
+        seed: int("seed", d.seed)?,
+        roughness: unit("roughness", d.roughness)?,
+        detail: int("detail", d.detail)?,
+        facets: int("facets", d.facets)?,
+        flatten: unit("flatten", d.flatten)?,
+    })
+}
+
 /// Whether a gable ridge runs along X. create_brush names it `ridge_x` and create_mesh `ridge_z`, so both take either;
 /// `default_x` is the tool's own axis when neither is given.
 pub(super) fn ridge_along_x(args: &Value, default_x: bool) -> Result<bool, String> {
@@ -1991,6 +2011,10 @@ impl App {
             "cone" => shapes::cone(&upright, sides, &material).map(|b| axis.lay(b, &bounds)).into_iter().collect(),
             "spike" => shapes::spike(&bounds, &material).into_iter().collect(),
             "wedge" => shapes::wedge(&bounds, &material).into_iter().collect(),
+            "rock" => match rock_params(args) {
+                Ok(rock) => shapes::rock(&bounds, &rock, &material).into_iter().collect(),
+                Err(e) => return err(e),
+            },
             "sphere" => shapes::sphere(&bounds, sides, (sides / 2).max(3), &material),
             "arch" => shapes::arch(&bounds, sides, thickness, &material),
             "pipe" => shapes::pipe(&bounds, sides, thickness, &material),

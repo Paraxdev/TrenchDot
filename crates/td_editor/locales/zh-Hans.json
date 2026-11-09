@@ -2159,5 +2159,11 @@
   "A brush drawn in a 2D view takes the depth of the selection, like in Hammer": "在 2D 视图中绘制的笔刷采用所选对象的深度，与 Hammer 相同",
   "Move Into": "移入",
   "Move into {name}": "移入 {name}",
-  "Group with {name}": "与 {name} 编组"
+  "Group with {name}": "与 {name} 编组",
+  "Rock": "岩石",
+  "Roughness": "粗糙度",
+  "Facets": "切面",
+  "Flat base": "平底",
+  "Detail": "细节",
+  "Flat chipped faces cut into the surface": "表面上切出的平整缺口面"
 }

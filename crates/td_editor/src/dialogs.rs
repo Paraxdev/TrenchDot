@@ -4,6 +4,7 @@ use egui::{Key, RichText};
 use td_core::{Aabb, DVec3};
 use td_doc::NodeKind;
 use td_geom::heightfield::{TerrainGen, TerrainShape};
+use td_geom::rock::{self, Rock};
 use td_geom::{Brush, Terrain, TerrainLayer, mesh_shapes, shapes};
 
 use crate::commands::{self, Action, ModelImport};
@@ -416,10 +417,11 @@ pub enum ShapeKind {
     Spire,
     Grid,
     Text,
+    Rock,
 }
 
 impl ShapeKind {
-    const ALL: [ShapeKind; 15] = [
+    const ALL: [ShapeKind; 16] = [
         ShapeKind::Cylinder,
         ShapeKind::Cone,
         ShapeKind::Sphere,
@@ -435,6 +437,7 @@ impl ShapeKind {
         ShapeKind::Spire,
         ShapeKind::Grid,
         ShapeKind::Text,
+        ShapeKind::Rock,
     ];
 
     fn label(&self) -> &'static str {
@@ -454,6 +457,7 @@ impl ShapeKind {
             ShapeKind::Spire => en!("Spire"),
             ShapeKind::Grid => en!("Grid"),
             ShapeKind::Text => en!("Text"),
+            ShapeKind::Rock => en!("Rock"),
         }
     }
 
@@ -473,6 +477,7 @@ pub struct ShapeDialog {
     smooth: bool,
     axis: shapes::Axis,
     text: TextShape,
+    rock: Rock,
 }
 
 /// Block letter settings of the Text shape, laid out from the corner of the bounds.
@@ -513,6 +518,7 @@ impl Default for ShapeDialog {
             smooth: true,
             axis: shapes::Axis::Y,
             text: TextShape::default(),
+            rock: Rock::default(),
         }
     }
 }
@@ -562,6 +568,8 @@ impl ShapeDialog {
             (ShapeKind::Stairs, _) => brushes(shapes::stairs(bounds, self.steps, material)),
             (ShapeKind::SpiralStairs, _) => brushes(shapes::spiral_stairs(bounds, self.steps, self.thickness, 1.0, material)),
             (ShapeKind::Text, _) => brushes(self.text.brushes(bounds.min, material).unwrap_or_default()),
+            (ShapeKind::Rock, true) => smooth(mesh_shapes::rock(bounds, &self.rock, material)),
+            (ShapeKind::Rock, false) => brushes(shapes::rock(bounds, &self.rock, material).into_iter().collect()),
         }
     }
 
@@ -611,12 +619,36 @@ impl ShapeDialog {
                 ui.add(egui::Slider::new(&mut self.steps, 1..=128).text(tr(if self.kind == ShapeKind::Grid { en!("divisions") } else { en!("steps") })));
             }
 
-            if !self.kind.mesh_only() && matches!(self.kind, ShapeKind::Cylinder | ShapeKind::Cone | ShapeKind::Sphere) {
+            if !self.kind.mesh_only() && matches!(self.kind, ShapeKind::Cylinder | ShapeKind::Cone | ShapeKind::Sphere | ShapeKind::Rock) {
                 ui.checkbox(&mut self.as_mesh, tr("Create as editable mesh"));
             }
 
             if self.as_mesh || matches!(self.kind, ShapeKind::Torus) {
                 ui.checkbox(&mut self.smooth, tr("Smooth shading"));
+            }
+
+            if self.kind == ShapeKind::Rock {
+                let r = &mut self.rock;
+                egui::Grid::new("shape_rock").num_columns(2).show(ui, |ui| {
+                    ui.label(tr("Roughness"));
+                    ui.add(egui::Slider::new(&mut r.roughness, 0.0..=1.0));
+                    ui.end_row();
+                    ui.label(tr("Facets"));
+                    ui.add(egui::Slider::new(&mut r.facets, 0..=rock::MAX_FACETS)).on_hover_text(tr("Flat chipped faces cut into the surface"));
+                    ui.end_row();
+                    ui.label(tr("Flat base"));
+                    ui.add(egui::Slider::new(&mut r.flatten, 0.0..=1.0));
+                    ui.end_row();
+                    if self.as_mesh {
+                        ui.label(tr("Detail"));
+                        ui.add(egui::Slider::new(&mut r.detail, 1..=rock::MAX_DETAIL));
+                        ui.end_row();
+                    }
+
+                    ui.label(tr("Seed"));
+                    ui.add(egui::DragValue::new(&mut r.seed));
+                    ui.end_row();
+                });
             }
 
             if self.kind == ShapeKind::Text {
@@ -1151,6 +1183,19 @@ mod tests {
         let a = fuzzy_score("sub", "Brush: CSG Subtract").unwrap();
         let b = fuzzy_score("sub", "Select: Same Material but").unwrap_or(i32::MIN);
         assert!(a > b);
+    }
+
+    #[test]
+    fn the_shape_dialog_builds_rocks_as_a_brush_or_a_mesh() {
+        let bounds = Aabb::new(DVec3::new(0.0, 0.0, 0.0), DVec3::new(96.0, 48.0, 64.0));
+        let mut dialog = ShapeDialog { kind: ShapeKind::Rock, ..Default::default() };
+        let brush = dialog.generate(&bounds, "m");
+        let [NodeKind::Brush(b)] = brush.as_slice() else { panic!("one rock brush") };
+        assert!((b.bounds().size() - bounds.size()).abs().max_element() < 1e-6);
+        dialog.as_mesh = true;
+        let mesh = dialog.generate(&bounds, "m");
+        let [NodeKind::Mesh(m)] = mesh.as_slice() else { panic!("one rock mesh") };
+        assert!(m.is_closed() && m.faces.len() > b.faces.len());
     }
 
     #[test]

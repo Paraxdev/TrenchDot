@@ -5,6 +5,7 @@ use std::f64::consts::TAU;
 use td_core::{Aabb, DMat4, DVec2, DVec3};
 
 use crate::brush::{Brush, FaceData};
+use crate::rock::{self, Rock};
 use crate::uv::FaceUv;
 
 /// The world axis a round shape (cylinder, cone) runs along.
@@ -226,6 +227,19 @@ pub fn spiral_stairs(bounds: &Aabb, steps: usize, inner_radius: f64, turns: f64,
         .collect()
 }
 
+/// Low poly rock: the convex hull of a coarse noisy rock filling the bounds.
+pub fn rock(bounds: &Aabb, params: &Rock, material: &str) -> Option<Brush> {
+    let (mut pts, _) = params.surface(1);
+    let b = Aabb::from_points(pts.iter().copied());
+    let floor = params.floor(b.min.y, b.max.y);
+    for p in &mut pts {
+        p.y = p.y.max(floor);
+    }
+
+    rock::fit(&mut pts, bounds);
+    hull(&pts, material)
+}
+
 pub fn default_face(material: &str, normal: DVec3) -> FaceData {
     FaceData::with_normal(material, normal)
 }
@@ -256,6 +270,9 @@ mod tests {
         assert_eq!(pipe(&b(), 12, 8.0, "m").len(), 12);
         assert_eq!(arch(&b(), 8, 8.0, "m").len(), 8);
         assert_eq!(stairs(&b(), 4, "m").len(), 4);
+        for seed in 0..20 {
+            rock(&b(), &Rock { seed, ..Rock::default() }, "m").unwrap().validate().unwrap();
+        }
     }
 
     #[test]

@@ -2159,5 +2159,11 @@
   "A brush drawn in a 2D view takes the depth of the selection, like in Hammer": "Ein in einer 2D-Ansicht gezeichneter Brush übernimmt die Tiefe der Auswahl, wie in Hammer",
   "Move Into": "Hineinverschieben",
   "Move into {name}": "In {name} verschieben",
-  "Group with {name}": "Mit {name} gruppieren"
+  "Group with {name}": "Mit {name} gruppieren",
+  "Rock": "Fels",
+  "Roughness": "Rauheit",
+  "Facets": "Facetten",
+  "Flat base": "Flacher Boden",
+  "Detail": "Detail",
+  "Flat chipped faces cut into the surface": "Flache, abgeschlagene Flächen in der Oberfläche"
 }

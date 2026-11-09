@@ -96,6 +96,20 @@ terrain_edit and scatter build landscapes, gameplay sets up doors, lifts, trigge
 for any entity, and run_script replays a JSON list of these calls (see examples/mcp in the repository). \
 Each call, and each run_script as a whole, is one undo step named \"MCP: ...\", so the person can take it back in one go.";
 
+/// Adds the rock shape's options, kept out of the json! literals since they would pass its recursion limit.
+fn with_rock_options(mut tool: Value, detail: bool) -> Value {
+    let props = &mut tool["inputSchema"]["properties"];
+    for (name, kind) in [("seed", "integer"), ("roughness", "number"), ("facets", "integer"), ("flatten", "number")] {
+        props[name] = json!({ "type": kind });
+    }
+
+    if detail {
+        props["detail"] = json!({ "type": "integer" });
+    }
+
+    tool
+}
+
 fn vec3_schema(desc: &str) -> Value {
     json!({ "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3, "description": desc })
 }
@@ -170,51 +184,57 @@ pub fn tool_definitions() -> Vec<Value> {
                 "args": { "type": "object" }
             }, "required": ["action"] }
         }),
-        json!({
-            "name": "create_brush",
-            "description": "Creates brushes inside the given bounds and selects them. shape defaults to box. openings are boxes [[min], [max]] carved out with CSG (doors, windows), or {min, max, count, step, rows, row_step} to repeat one box along step and row_step, a row of windows over several floors in one entry. hollow turns the box into walls of that thickness. uv_scale sets world units per texel. entity {classname, properties, outputs} wraps the brushes in a brush entity. shape text builds block letters of text (A-Z, 0-9, . , ! ? ' - + : /, \n for a new line) as large as fit the bounds: lying on the floor with their tops towards -Z by default, standing with their tops up when standing is true; spacing is the gap between letters in font cells (default 1) and letters lists each character's brush ids. Defaults: sides 12 (cylinder, cone, sphere, arch, pipe), thickness 16 (arch, pipe and the spiral_stairs steps), steps 8 for stairs and 16 for spiral_stairs, turns 1. A gable's ridge runs along Z by default, ridge_x: true (or ridge_z: false, the name create_mesh uses) runs it along X.",
-            "inputSchema": { "type": "object", "properties": {
-                "min": vec3_schema("minimum corner"),
-                "max": vec3_schema("maximum corner"),
-                "openings": { "type": "array", "items": { "anyOf": [
-                    { "type": "array", "items": vec3_schema("corner"), "minItems": 2, "maxItems": 2 },
-                    { "type": "object", "properties": { "min": vec3_schema("corner"), "max": vec3_schema("corner"), "count": { "type": "integer" }, "step": vec3_schema("offset per copy"),
-                        "rows": { "type": "integer" }, "row_step": vec3_schema("offset per row") }, "required": ["min", "max"] }
-                ] } },
-                "hollow": { "type": "number" },
-                "uv_scale": { "type": "number" },
-                "entity": { "type": "object", "properties": { "classname": { "type": "string" }, "properties": { "type": "object" }, "outputs": outputs_schema() } },
-                "shape": { "type": "string", "enum": ["box", "cylinder", "cone", "sphere", "wedge", "spike", "arch", "pipe", "stairs", "spiral_stairs", "gable", "text"] }, "turns": { "type": "number" }, "ridge_x": { "type": "boolean", "description": "gable: ridge along X instead of Z" },
-                "ridge_z": { "type": "boolean", "description": "gable: ridge along Z (the default), the create_mesh name for the opposite of ridge_x" },
-                "axis": { "type": "string", "enum": ["x", "y", "z"], "description": "cylinder and cone: the axis they run along inside the bounds, y (upright) by default, the cone's tip at the max end" },
-                "text": { "type": "string" }, "standing": { "type": "boolean" }, "spacing": { "type": "number" },
-                "material": { "type": "string" },
-                "sides": { "type": "integer" },
-                "thickness": { "type": "number" },
-                "steps": { "type": "integer" },
-                "parent": { "type": "integer", "description": "layer, group or brush entity id, unlocked" }
-            }, "required": ["min", "max"] }
-        }),
-        json!({
-            "name": "create_mesh",
-            "description": "Creates an editable polygon mesh and selects it. Shapes: cuboid, cylinder, cone, sphere, torus, grid, arch_wall, gable_roof, spire, lathe (profile of [radius, height] around center), prism (footprint of [x, z] between bottom and top). smooth_angle enables smooth shading. uv_scale projects face aligned textures, rotate [x, y, z] degrees turns it around its center like Godot's rotation_degrees (YXZ order, so [0, 0, 90] lays a cylinder along X and [90, 0, 0] along Z), rotate_y is the older form that turns it around Y only, translate moves it, roughen {amount (16), seed (1)} displaces vertices into rock shapes. Defaults: sides 16, thickness 8 (torus tube radius) or 4 (gable_roof), divisions 4, overhang 8. A gable_roof's ridge runs along X by default, ridge_z: true (or ridge_x: false, the name create_brush uses) runs it along Z.",
-            "inputSchema": { "type": "object", "properties": {
-                "shape": { "type": "string", "default": "cuboid" },
-                "min": vec3_schema("minimum corner, with max; both default to a 64 unit box around the origin"), "max": vec3_schema("maximum corner"),
-                "axis": { "type": "string", "enum": ["x", "y", "z"], "description": "cylinder and cone: the axis they run along, y by default" },
-                "material": { "type": "string" }, "sides": { "type": "integer" }, "thickness": { "type": "number" },
-                "divisions": { "type": "integer" }, "opening_width": { "type": "number" }, "opening_height": { "type": "number" },
-                "ridge_z": { "type": "boolean", "description": "gable_roof: ridge along Z instead of X" },
-                "ridge_x": { "type": "boolean", "description": "gable_roof: ridge along X (the default), the create_brush name for the opposite of ridge_z" }, "overhang": { "type": "number" },
-                "profile": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
-                "center": vec3_schema("lathe axis point"), "caps": { "type": "boolean" },
-                "footprint": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
-                "bottom": { "type": "number" }, "top": { "type": "number" },
-                "smooth_angle": { "type": "number" }, "parent": { "type": "integer", "description": "layer, group or brush entity id, unlocked" },
-                "uv_scale": { "type": "number" }, "translate": vec3_schema("moves the mesh after building"), "rotate": vec3_schema("degrees about X, Y and Z, Godot rotation_degrees"), "rotate_y": { "type": "number", "description": "older form of rotate [0, degrees, 0]" },
-                "roughen": { "type": "object", "properties": { "amount": { "type": "number" }, "seed": { "type": "integer" } } }
-            } }
-        }),
+        with_rock_options(
+            json!({
+                "name": "create_brush",
+                "description": "Creates brushes inside the given bounds and selects them. shape defaults to box. openings are boxes [[min], [max]] carved out with CSG (doors, windows), or {min, max, count, step, rows, row_step} to repeat one box along step and row_step, a row of windows over several floors in one entry. hollow turns the box into walls of that thickness. uv_scale sets world units per texel. entity {classname, properties, outputs} wraps the brushes in a brush entity. shape text builds block letters of text (A-Z, 0-9, . , ! ? ' - + : /, \n for a new line) as large as fit the bounds: lying on the floor with their tops towards -Z by default, standing with their tops up when standing is true; spacing is the gap between letters in font cells (default 1) and letters lists each character's brush ids. Defaults: sides 12 (cylinder, cone, sphere, arch, pipe), thickness 16 (arch, pipe and the spiral_stairs steps), steps 8 for stairs and 16 for spiral_stairs, turns 1. shape rock is a low poly stone, the convex hull of a noisy rock filling the bounds, taking the top-level arguments seed (1), roughness 0-1 (0.5), facets (5, flat chipped faces) and flatten 0-1 (0.3, share of the lower half cut flat). A gable's ridge runs along Z by default, ridge_x: true (or ridge_z: false, the name create_mesh uses) runs it along X.",
+                "inputSchema": { "type": "object", "properties": {
+                    "min": vec3_schema("minimum corner"),
+                    "max": vec3_schema("maximum corner"),
+                    "openings": { "type": "array", "items": { "anyOf": [
+                        { "type": "array", "items": vec3_schema("corner"), "minItems": 2, "maxItems": 2 },
+                        { "type": "object", "properties": { "min": vec3_schema("corner"), "max": vec3_schema("corner"), "count": { "type": "integer" }, "step": vec3_schema("offset per copy"),
+                            "rows": { "type": "integer" }, "row_step": vec3_schema("offset per row") }, "required": ["min", "max"] }
+                    ] } },
+                    "hollow": { "type": "number" },
+                    "uv_scale": { "type": "number" },
+                    "entity": { "type": "object", "properties": { "classname": { "type": "string" }, "properties": { "type": "object" }, "outputs": outputs_schema() } },
+                    "shape": { "type": "string", "enum": ["box", "cylinder", "cone", "sphere", "wedge", "spike", "arch", "pipe", "stairs", "spiral_stairs", "gable", "text", "rock"] }, "turns": { "type": "number" }, "ridge_x": { "type": "boolean", "description": "gable: ridge along X instead of Z" },
+                    "ridge_z": { "type": "boolean", "description": "gable: ridge along Z (the default), the create_mesh name for the opposite of ridge_x" },
+                    "axis": { "type": "string", "enum": ["x", "y", "z"], "description": "cylinder and cone: the axis they run along inside the bounds, y (upright) by default, the cone's tip at the max end" },
+                    "text": { "type": "string" }, "standing": { "type": "boolean" }, "spacing": { "type": "number" },
+                    "material": { "type": "string" },
+                    "sides": { "type": "integer" },
+                    "thickness": { "type": "number" },
+                    "steps": { "type": "integer" },
+                    "parent": { "type": "integer", "description": "layer, group or brush entity id, unlocked" }
+                }, "required": ["min", "max"] }
+            }),
+            false,
+        ),
+        with_rock_options(
+            json!({
+                "name": "create_mesh",
+                "description": "Creates an editable polygon mesh and selects it. Shapes: cuboid, cylinder, cone, sphere, torus, grid, arch_wall, gable_roof, spire, rock (a noisy stone filling the bounds, taking the top-level arguments seed (1), roughness 0-1 (0.5), facets (5, flat chipped faces), flatten 0-1 (0.3, share of the lower half cut flat) and detail 1-4 (3, subdivision)), lathe (profile of [radius, height] around center), prism (footprint of [x, z] between bottom and top). smooth_angle enables smooth shading. uv_scale projects face aligned textures, rotate [x, y, z] degrees turns it around its center like Godot's rotation_degrees (YXZ order, so [0, 0, 90] lays a cylinder along X and [90, 0, 0] along Z), rotate_y is the older form that turns it around Y only, translate moves it, roughen {amount (16), seed (1)} displaces the vertices of any shape. Defaults: sides 16, thickness 8 (torus tube radius) or 4 (gable_roof), divisions 4, overhang 8. A gable_roof's ridge runs along X by default, ridge_z: true (or ridge_x: false, the name create_brush uses) runs it along Z.",
+                "inputSchema": { "type": "object", "properties": {
+                    "shape": { "type": "string", "default": "cuboid" },
+                    "min": vec3_schema("minimum corner, with max; both default to a 64 unit box around the origin"), "max": vec3_schema("maximum corner"),
+                    "axis": { "type": "string", "enum": ["x", "y", "z"], "description": "cylinder and cone: the axis they run along, y by default" },
+                    "material": { "type": "string" }, "sides": { "type": "integer" }, "thickness": { "type": "number" },
+                    "divisions": { "type": "integer" }, "opening_width": { "type": "number" }, "opening_height": { "type": "number" },
+                    "ridge_z": { "type": "boolean", "description": "gable_roof: ridge along Z instead of X" },
+                    "ridge_x": { "type": "boolean", "description": "gable_roof: ridge along X (the default), the create_brush name for the opposite of ridge_z" }, "overhang": { "type": "number" },
+                    "profile": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
+                    "center": vec3_schema("lathe axis point"), "caps": { "type": "boolean" },
+                    "footprint": { "type": "array", "items": { "type": "array", "items": { "type": "number" } } },
+                    "bottom": { "type": "number" }, "top": { "type": "number" },
+                    "smooth_angle": { "type": "number" }, "parent": { "type": "integer", "description": "layer, group or brush entity id, unlocked" },
+                    "uv_scale": { "type": "number" }, "translate": vec3_schema("moves the mesh after building"), "rotate": vec3_schema("degrees about X, Y and Z, Godot rotation_degrees"), "rotate_y": { "type": "number", "description": "older form of rotate [0, degrees, 0]" },
+                    "roughen": { "type": "object", "properties": { "amount": { "type": "number" }, "seed": { "type": "integer" } } }
+                } }
+            }),
+            true,
+        ),
         json!({
             "name": "mesh_edit",
             "description": "Topology operation on a mesh by vertex, edge and face indices (see get_node). ops: extrude_faces {faces, offset|distance}, extrude_edges {edges, offset}, inset {faces, thickness}, loop_cut {edges:[[a,b]], cuts}, bisect {point, normal, faces?, delete: front|back, fill}, subdivide {faces}, merge {verts, at?}, weld {distance}, fill {verts}, delete_faces {faces}, delete_faces_in_box {min, max} (faces whose center lies inside, e.g. door and window holes), set_material_in_box {min, max, material}, delete_vertices {verts}, bevel_edges {edges, width}, bevel_vertices {verts, width}, translate {verts, offset}, smooth {verts, factor, iterations}, solidify {thickness}, flip {faces}, triangulate {faces}, smooth_angle {angle}, set_material {faces, material}, separate {faces}. Indices outside the mesh are an error.",

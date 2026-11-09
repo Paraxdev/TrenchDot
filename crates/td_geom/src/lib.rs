@@ -8,6 +8,7 @@ pub mod mesh;
 pub mod mesh_shapes;
 pub mod mesh_uv;
 pub mod polygon;
+pub mod rock;
 pub mod shapes;
 pub mod uv;
 
