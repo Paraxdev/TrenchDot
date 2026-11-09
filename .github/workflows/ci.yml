@@ -132,7 +132,9 @@ jobs:
       matrix:
         include:
           - name: linux-x86_64
-            os: ubuntu-latest
+            # The binary needs the glibc it was built against or newer, and ubuntu-latest has one that Ubuntu 24.04,
+            # Debian 13 and Fedora 43 do not.
+            os: ubuntu-24.04
             exe: trenchdot
           - name: windows-x86_64
             os: windows-latest
@@ -149,7 +151,9 @@ jobs:
           toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: Swatinem/rust-cache@v2
         with:
-          key: release
+          # rust-cache keys on the OS family, not the runner image, and build scripts and proc macros from a newer
+          # glibc fail to load on an older one.
+          key: release-${{ matrix.os }}
       - name: Linux packages
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y $LINUX_DEPS
