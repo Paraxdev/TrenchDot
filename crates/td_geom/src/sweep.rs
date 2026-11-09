@@ -1,6 +1,6 @@
 //! Sweeping brush faces along a path into a run of convex brush segments.
 
-use td_core::{Aabb, DMat4, DVec3, snap_vec};
+use td_core::{Aabb, DMat4, DQuat, DVec3, snap_vec};
 
 use crate::brush::Brush;
 
@@ -12,6 +12,8 @@ pub enum SweepPath {
     Straight,
     Arc,
     SBend,
+    /// Through a list of points, see [`Curve`].
+    Curve,
 }
 
 /// Which way an arc turns or an S-bend shifts, seen looking at the faces from outside. On a floor or ceiling face up
@@ -61,6 +63,10 @@ pub enum SweepError {
     Angle,
     /// The arc radius has to be more than this.
     Radius(f64),
+    /// A curve needs at least one point away from the faces.
+    NoPoints,
+    /// A bend in the curve is tighter than the faces reach.
+    Bend,
     /// A segment came out without volume.
     Flat,
 }
@@ -75,6 +81,10 @@ impl std::fmt::Display for SweepError {
             SweepError::Length => write!(f, "length must be more than 0"),
             SweepError::Angle => write!(f, "angle must be more than 0 and at most 720 degrees, bend picks the side it turns to"),
             SweepError::Radius(min) => write!(f, "the arc radius must be more than {}, or the inner side of the faces folds over", min.ceil()),
+            SweepError::NoPoints => write!(f, "a curve needs at least one point away from the faces"),
+            SweepError::Bend => {
+                write!(f, "a bend in the curve is tighter than the faces reach, so their inner side folds over, move the points further apart")
+            }
             SweepError::Flat => write!(f, "a segment has no volume, try fewer segments or less twist"),
         }
     }
@@ -115,17 +125,115 @@ impl Frame {
     }
 }
 
+const CURVE_STEPS: usize = 32;
+
+/// A smooth curve that leaves the faces along their normal and passes through each point in turn, as cubic Hermite
+/// spans whose tangents bisect the neighbouring chords. Each span scales its tangents to its own length, which keeps
+/// the curve from overshooting where the points are spaced unevenly.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Curve {
+    /// Position, rotation from the faces' frame and share of the curve's length at each sample.
+    samples: Vec<(DVec3, DQuat, f64)>,
+}
+
+impl Curve {
+    pub fn new(frame: &Frame, points: &[DVec3]) -> Option<Curve> {
+        let mut pts = vec![frame.center];
+        for p in points {
+            if p.distance(*pts.last()?) > 1e-6 {
+                pts.push(*p);
+            }
+        }
+
+        if pts.len() < 2 {
+            return None;
+        }
+
+        let last = pts.len() - 1;
+        let direction = |i: usize| -> DVec3 {
+            if i == 0 {
+                frame.normal
+            } else if i == last {
+                (pts[i] - pts[i - 1]).normalize()
+            } else {
+                ((pts[i] - pts[i - 1]).normalize() + (pts[i + 1] - pts[i]).normalize()).try_normalize().unwrap_or((pts[i + 1] - pts[i]).normalize())
+            }
+        };
+        let mut samples: Vec<(DVec3, DVec3)> = vec![(pts[0], frame.normal)];
+        for i in 0..last {
+            let (a, b) = (pts[i], pts[i + 1]);
+            let len = a.distance(b);
+            let (ma, mb) = (direction(i) * len, direction(i + 1) * len);
+            for k in 1..=CURVE_STEPS {
+                let u = k as f64 / CURVE_STEPS as f64;
+                let (u2, u3) = (u * u, u * u * u);
+                let pos = a * (2.0 * u3 - 3.0 * u2 + 1.0) + ma * (u3 - 2.0 * u2 + u) + b * (3.0 * u2 - 2.0 * u3) + mb * (u3 - u2);
+                let tangent = a * (6.0 * u2 - 6.0 * u) + ma * (3.0 * u2 - 4.0 * u + 1.0) + b * (6.0 * u - 6.0 * u2) + mb * (3.0 * u2 - 2.0 * u);
+                samples.push((pos, tangent.try_normalize().unwrap_or(samples.last()?.1)));
+            }
+        }
+
+        // Each sample turns the last one's frame by the smallest rotation onto its own tangent, so the faces never
+        // spin around the curve on their own.
+        let mut out = Vec::with_capacity(samples.len());
+        let (mut rot, mut length) = (DQuat::IDENTITY, 0.0);
+        for (i, &(pos, tangent)) in samples.iter().enumerate() {
+            if i > 0 {
+                let (prev, prev_tangent) = samples[i - 1];
+                rot = (DQuat::from_rotation_arc(prev_tangent, tangent) * rot).normalize();
+                length += prev.distance(pos);
+            }
+
+            out.push((pos, rot, length));
+        }
+
+        if length <= 1e-9 {
+            return None;
+        }
+
+        for s in &mut out {
+            s.2 /= length;
+        }
+
+        Some(Curve { samples: out })
+    }
+
+    /// Position and rotation at `t` from 0 to 1, spaced evenly along the curve's length.
+    fn at(&self, t: f64) -> (DVec3, DQuat) {
+        let i = self.samples.partition_point(|s| s.2 < t).clamp(1, self.samples.len() - 1);
+        let (a, b) = (self.samples[i - 1], self.samples[i]);
+        let f = if b.2 > a.2 { ((t - a.2) / (b.2 - a.2)).clamp(0.0, 1.0) } else { 0.0 };
+        (a.0.lerp(b.0, f), a.1.slerp(b.1, f))
+    }
+}
+
 impl Sweep {
-    /// Where the faces sit at `t` from 0 to 1 along the path.
-    pub fn transform(&self, frame: &Frame, t: f64) -> DMat4 {
+    /// Twist and scale around the faces' center at `t`.
+    fn local(&self, frame: &Frame, t: f64) -> DMat4 {
         let Frame { center: c, normal: n, .. } = *frame;
-        let local = DMat4::from_translation(c)
+        DMat4::from_translation(c)
             * DMat4::from_axis_angle(n, self.twist.to_radians() * t)
             * DMat4::from_scale(DVec3::splat(1.0 + (self.end_scale - 1.0) * t))
-            * DMat4::from_translation(-c);
+            * DMat4::from_translation(-c)
+    }
+
+    /// Where the faces sit at `t` from 0 to 1 along the curve.
+    pub fn transform_along(&self, frame: &Frame, curve: &Curve, t: f64) -> DMat4 {
+        let (pos, rot) = curve.at(t);
+        DMat4::from_translation(DVec3::Y * self.rise * t)
+            * DMat4::from_translation(pos)
+            * DMat4::from_quat(rot)
+            * DMat4::from_translation(-frame.center)
+            * self.local(frame, t)
+    }
+
+    /// Where the faces sit at `t` from 0 to 1 along the path. A curve takes its points, see [`Self::transform_along`].
+    pub fn transform(&self, frame: &Frame, t: f64) -> DMat4 {
+        let Frame { center: c, normal: n, .. } = *frame;
+        let local = self.local(frame, t);
         let dir = frame.towards(self.bend);
         let path = match self.path {
-            SweepPath::Straight => DMat4::from_translation(n * self.length * t),
+            SweepPath::Straight | SweepPath::Curve => DMat4::from_translation(n * self.length * t),
             SweepPath::SBend => DMat4::from_translation(n * self.length * t + dir * self.offset * t * t * (3.0 - 2.0 * t)),
             SweepPath::Arc => {
                 let pivot = c + dir * self.length;
@@ -164,9 +272,38 @@ impl Sweep {
         }
     }
 
+    /// Refuses a curve whose tightest bend is smaller than how far the faces reach towards its inside there.
+    fn check_curve(&self, frame: &Frame, faces: &[SweepFace], curve: &Curve) -> Result<(), SweepError> {
+        let offsets: Vec<DVec3> = faces.iter().flat_map(|f| f.brush.face_points(f.face)).map(|p| p - frame.center).collect();
+        let tangent = |rot: DQuat| rot * frame.normal;
+        for w in curve.samples.windows(2) {
+            let ((p0, r0, _), (p1, r1, t)) = (w[0], w[1]);
+            let (t0, t1) = (tangent(r0), tangent(r1));
+            let angle = t0.angle_between(t1);
+            if angle < 1e-9 {
+                continue;
+            }
+
+            let radius = p0.distance(p1) / angle;
+            let inward = (t1 - t0).normalize();
+            let local = self.local(frame, t);
+            let reach = offsets.iter().map(|d| (r1 * local.transform_vector3(*d)).dot(inward)).fold(0.0, f64::max);
+            if reach >= radius - 1e-6 {
+                return Err(SweepError::Bend);
+            }
+        }
+
+        Ok(())
+    }
+
     /// One convex brush per face and segment, face by face. Each ring of points is worked out once, so neighbouring
     /// segments meet exactly.
     pub fn brushes(&self, faces: &[SweepFace]) -> Result<Vec<Brush>, SweepError> {
+        self.brushes_through(faces, &[])
+    }
+
+    /// Like [`Self::brushes`], with the points a [`SweepPath::Curve`] passes through.
+    pub fn brushes_through(&self, faces: &[SweepFace], points: &[DVec3]) -> Result<Vec<Brush>, SweepError> {
         let faces: Vec<SweepFace> = faces.iter().filter(|f| f.face < f.brush.faces.len()).cloned().collect();
         if faces.is_empty() {
             return Err(SweepError::NoFaces);
@@ -174,8 +311,19 @@ impl Sweep {
 
         let frame = Frame::of(&faces).ok_or(SweepError::Facing)?;
         self.check(&frame, &faces)?;
+        let curve = match self.path {
+            SweepPath::Curve => {
+                let curve = Curve::new(&frame, points).ok_or(SweepError::NoPoints)?;
+                self.check_curve(&frame, &faces, &curve)?;
+                Some(curve)
+            }
+            _ => None,
+        };
         let n = self.segments;
-        let at = |i: f64| self.transform(&frame, i / n as f64);
+        let at = |i: f64| match &curve {
+            Some(c) => self.transform_along(&frame, c, i / n as f64),
+            None => self.transform(&frame, i / n as f64),
+        };
         let rings: Vec<DMat4> = (0..=n).map(|i| at(i as f64)).collect();
         let mut out = Vec::new();
         for f in &faces {
@@ -289,6 +437,60 @@ mod tests {
             let top = b.faces.iter().find(|f| f.plane.normal.y > 0.9).unwrap();
             assert_eq!(top.data.material, "ceiling");
         }
+    }
+
+    fn curve() -> Sweep {
+        Sweep { path: SweepPath::Curve, segments: 16, ..Sweep::default() }
+    }
+
+    #[test]
+    fn a_curve_through_one_point_ahead_matches_an_extrusion() {
+        let face = box_face(DVec3::ZERO, DVec3::splat(64.0), DVec3::X);
+        let out = curve().brushes_through(&[face], &[DVec3::new(192.0, 32.0, 32.0)]).unwrap();
+        assert!((total_volume(&out) - 64.0 * 64.0 * 128.0).abs() < 1e-3);
+        let b = Aabb::from_points(out.iter().flat_map(|b| b.vertices.iter().copied()));
+        assert!(b.min.distance(DVec3::new(64.0, 0.0, 0.0)) < 1e-6 && b.max.distance(DVec3::new(192.0, 64.0, 64.0)) < 1e-6, "{b:?}");
+    }
+
+    #[test]
+    fn a_curve_passes_through_its_points_and_ends_along_the_last_chord() {
+        let face = box_face(DVec3::ZERO, DVec3::new(16.0, 64.0, 64.0), DVec3::X);
+        let points = [DVec3::new(208.0, 32.0, 32.0), DVec3::new(400.0, 32.0, -160.0)];
+        let sweep = curve();
+        let frame = Frame::of(std::slice::from_ref(&face)).unwrap();
+        let path = Curve::new(&frame, &points).unwrap();
+        assert!(path.samples.iter().any(|s| s.0.distance(points[0]) < 1e-9));
+        let end = sweep.transform_along(&frame, &path, 1.0);
+        assert!(end.transform_point3(frame.center).distance(points[1]) < 1e-6);
+        let along = end.transform_vector3(frame.normal).normalize();
+        assert!(along.dot(DVec3::new(1.0, 0.0, -1.0).normalize()) > 0.999, "{along:?}");
+
+        let out = sweep.brushes_through(&[face], &points).unwrap();
+        assert_eq!(out.len(), 16);
+        assert!(out.iter().all(|b| b.validate().is_ok() && b.volume() > 0.0));
+        for w in out.windows(2) {
+            let shared = w[0].vertices.iter().filter(|v| w[1].vertices.iter().any(|u| u.distance(**v) < 1e-9)).count();
+            assert_eq!(shared, 4);
+        }
+    }
+
+    #[test]
+    fn a_flat_curve_keeps_the_faces_upright() {
+        let face = box_face(DVec3::ZERO, DVec3::new(16.0, 64.0, 64.0), DVec3::X);
+        let points = [DVec3::new(160.0, 32.0, -64.0), DVec3::new(96.0, 32.0, -256.0), DVec3::new(320.0, 32.0, -384.0)];
+        let out = curve().brushes_through(&[face], &points).unwrap();
+        for b in &out {
+            assert!(b.faces.iter().any(|f| f.plane.normal.y > 0.999), "a segment rolled over");
+        }
+    }
+
+    #[test]
+    fn a_bend_tighter_than_the_faces_or_a_curve_without_points_is_refused() {
+        let face = box_face(DVec3::ZERO, DVec3::splat(64.0), DVec3::X);
+        let tight = [DVec3::new(72.0, 32.0, 32.0), DVec3::new(72.0, 32.0, 24.0)];
+        assert_eq!(curve().brushes_through(std::slice::from_ref(&face), &tight).unwrap_err(), SweepError::Bend);
+        assert_eq!(curve().brushes_through(std::slice::from_ref(&face), &[]).unwrap_err(), SweepError::NoPoints);
+        assert_eq!(curve().brushes_through(&[face], &[DVec3::new(64.0, 32.0, 32.0)]).unwrap_err(), SweepError::NoPoints);
     }
 
     #[test]

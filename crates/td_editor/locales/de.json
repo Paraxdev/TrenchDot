@@ -2168,7 +2168,7 @@
   "Flat chipped faces cut into the surface": "Flache, abgeschlagene Flächen in der Oberfläche",
   "Sweep Faces…": "Flächen austragen…",
   "Sweep Faces": "Flächen austragen",
-  "Sweep Faces along a line, arc or S-bend": "Flächen entlang Linie, Bogen oder S-Kurve austragen",
+  "Sweep Faces along a line, arc, S-bend or curve": "Flächen entlang Linie, Bogen, S-Kurve oder Kurve austragen",
   "The radius has to be more than {min} u, or the inner side folds over": "Der Radius muss größer als {min} u sein, sonst klappt die Innenseite um",
   "The faces point opposite ways, pick faces that face the same way": "Die Flächen zeigen in entgegengesetzte Richtungen, nur Flächen mit derselben Richtung wählen",
   "These settings leave a segment without volume": "Mit diesen Einstellungen hat ein Segment kein Volumen",
@@ -2191,5 +2191,11 @@
   "Turns the faces around their own normal along the way": "Dreht die Flächen unterwegs um ihre eigene Normale",
   "End scale": "Endgröße",
   "Size of the faces at the end, 1 keeps them as they are": "Größe der Flächen am Ende, 1 lässt sie unverändert",
-  "Shift+click a face to sweep, Ctrl+Shift+click adds more": "Shift+Klick auf eine Fläche zum Austragen, Ctrl+Shift+Klick fügt weitere hinzu"
+  "Shift+click a face to sweep, Ctrl+Shift+click adds more": "Shift+Klick auf eine Fläche zum Austragen, Ctrl+Shift+Klick fügt weitere hinzu",
+  "Curve": "Kurve",
+  "Through a chain of points from the Path tool, move or add points to reshape it": "Durch eine Punktkette des Pfad-Werkzeugs, Punkte verschieben oder hinzufügen formt sie um",
+  "Points": "Punkte",
+  "{n} point": { "one": "{n} Punkt", "other": "{n} Punkte" },
+  "Place points with the Path tool, the curve runs through them in order": "Setze Punkte mit dem Pfad-Werkzeug, die Kurve läuft der Reihe nach durch sie",
+  "A bend is tighter than the faces are wide, move the points further apart": "Eine Biegung ist enger als die Flächen breit sind, rücke die Punkte weiter auseinander"
 }

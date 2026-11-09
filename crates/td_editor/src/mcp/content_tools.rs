@@ -218,7 +218,8 @@ impl App {
                 "straight" => SweepPath::Straight,
                 "arc" => SweepPath::Arc,
                 "s_bend" => SweepPath::SBend,
-                _ => return err(format!("unknown path {name}, use straight, arc or s_bend")),
+                "curve" => SweepPath::Curve,
+                _ => return err(format!("unknown path {name}, use straight, arc, s_bend or curve")),
             };
         }
 
@@ -278,7 +279,32 @@ impl App {
             return err("every face must be [brush id, face index] of an existing brush face");
         }
 
-        match crate::sweep_dialog::apply(&mut self.state, &picked, &sweep) {
+        let mut points = Vec::new();
+        if sweep.path == SweepPath::Curve {
+            if let Some(list) = args["points"].as_array() {
+                points = match list.iter().map(vec3).collect::<Option<Vec<_>>>() {
+                    Some(p) => p,
+                    None => return err("points must be [[x, y, z], ...]"),
+                };
+            } else {
+                let chains = crate::sweep_dialog::point_chains(&self.state.doc.map);
+                let start = match &args["chain"] {
+                    Value::Null => None,
+                    Value::String(name) => match chains.iter().find(|c| c.name == *name) {
+                        Some(c) => Some(c.start),
+                        None => return err(format!("no chain of points starts at {name}")),
+                    },
+                    v => match v.as_u64().map(NodeId).filter(|id| chains.iter().any(|c| c.start == *id)) {
+                        Some(id) => Some(id),
+                        None => return err(format!("chain must be the targetname or id of a chain's first point, got {v}")),
+                    },
+                };
+                let faces: Vec<_> = picked.iter().map(|(_, f)| f.clone()).collect();
+                points = crate::sweep_dialog::pick_chain(&self.state.doc.map, &faces, start).map(|c| c.points).unwrap_or_default();
+            }
+        }
+
+        match crate::sweep_dialog::apply(&mut self.state, &picked, &sweep, &points) {
             Ok(ids) => {
                 let b = self.state.doc.map.bounds_of(ids.iter().copied());
                 ok(json!({ "ok": true, "ids": ids.iter().map(|id| id.0).collect::<Vec<_>>(), "bounds": bounds_json(&b) }))

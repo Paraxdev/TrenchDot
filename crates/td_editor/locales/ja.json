@@ -2168,7 +2168,7 @@
   "Flat chipped faces cut into the surface": "表面に刻まれる平らな欠け面",
   "Sweep Faces…": "面をスイープ…",
   "Sweep Faces": "面をスイープ",
-  "Sweep Faces along a line, arc or S-bend": "線、円弧、S字に沿って面をスイープ",
+  "Sweep Faces along a line, arc, S-bend or curve": "線、円弧、S字、曲線に沿って面をスイープ",
   "The radius has to be more than {min} u, or the inner side folds over": "半径は {min} u より大きくする必要があります。小さいと内側が折り返します",
   "The faces point opposite ways, pick faces that face the same way": "面が逆向きです。同じ向きの面を選んでください",
   "These settings leave a segment without volume": "この設定ではボリュームのないセグメントができます",
@@ -2191,5 +2191,11 @@
   "Turns the faces around their own normal along the way": "途中で面を自身の法線の周りに回します",
   "End scale": "終端スケール",
   "Size of the faces at the end, 1 keeps them as they are": "終端での面の大きさ。1 でそのまま",
-  "Shift+click a face to sweep, Ctrl+Shift+click adds more": "スイープする面を Shift+クリック、Ctrl+Shift+クリックで追加"
+  "Shift+click a face to sweep, Ctrl+Shift+click adds more": "スイープする面を Shift+クリック、Ctrl+Shift+クリックで追加",
+  "Curve": "曲線",
+  "Through a chain of points from the Path tool, move or add points to reshape it": "パスツールで置いた点の連なりを通ります。点を動かしたり足したりして形を変えます",
+  "Points": "点",
+  "{n} point": { "other": "{n} 点" },
+  "Place points with the Path tool, the curve runs through them in order": "パスツールで点を置くと、曲線がその順に通ります",
+  "A bend is tighter than the faces are wide, move the points further apart": "曲がりが面の幅よりきついので、点の間隔を広げてください"
 }

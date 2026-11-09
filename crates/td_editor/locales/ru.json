@@ -2168,7 +2168,7 @@
   "Flat chipped faces cut into the surface": "Плоские сколы на поверхности",
   "Sweep Faces…": "Протянуть грани…",
   "Sweep Faces": "Протянуть грани",
-  "Sweep Faces along a line, arc or S-bend": "Протянуть грани вдоль линии, дуги или S-изгиба",
+  "Sweep Faces along a line, arc, S-bend or curve": "Протянуть грани вдоль линии, дуги, S-изгиба или кривой",
   "The radius has to be more than {min} u, or the inner side folds over": "Радиус должен быть больше {min} u, иначе внутренняя сторона загнётся",
   "The faces point opposite ways, pick faces that face the same way": "Грани смотрят в противоположные стороны, выберите грани, обращённые в одну сторону",
   "These settings leave a segment without volume": "При этих настройках у сегмента нет объёма",
@@ -2191,5 +2191,11 @@
   "Turns the faces around their own normal along the way": "Поворачивает грани вокруг их собственной нормали по пути",
   "End scale": "Масштаб в конце",
   "Size of the faces at the end, 1 keeps them as they are": "Размер граней в конце, 1 оставляет их как есть",
-  "Shift+click a face to sweep, Ctrl+Shift+click adds more": "Щёлкните с Shift по грани для протяжки, Ctrl+Shift+щелчок добавляет ещё"
+  "Shift+click a face to sweep, Ctrl+Shift+click adds more": "Щёлкните с Shift по грани для протяжки, Ctrl+Shift+щелчок добавляет ещё",
+  "Curve": "Кривая",
+  "Through a chain of points from the Path tool, move or add points to reshape it": "Через цепочку точек инструмента «Путь», двигайте или добавляйте точки, чтобы изменить форму",
+  "Points": "Точки",
+  "{n} point": { "one": "{n} точка", "few": "{n} точки", "many": "{n} точек" },
+  "Place points with the Path tool, the curve runs through them in order": "Расставьте точки инструментом «Путь», кривая пройдёт через них по порядку",
+  "A bend is tighter than the faces are wide, move the points further apart": "Изгиб круче, чем ширина граней, разнесите точки дальше"
 }

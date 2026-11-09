@@ -2168,7 +2168,7 @@
   "Flat chipped faces cut into the surface": "Faces planes éclatées dans la surface",
   "Sweep Faces…": "Balayer des faces…",
   "Sweep Faces": "Balayer des faces",
-  "Sweep Faces along a line, arc or S-bend": "Balayer des faces le long d'une ligne, d'un arc ou d'une courbe en S",
+  "Sweep Faces along a line, arc, S-bend or curve": "Balayer des faces le long d'une ligne, d'un arc, d'un S ou d'une courbe",
   "The radius has to be more than {min} u, or the inner side folds over": "Le rayon doit dépasser {min} u, sinon le côté intérieur se replie",
   "The faces point opposite ways, pick faces that face the same way": "Les faces pointent dans des sens opposés, choisissez des faces orientées du même côté",
   "These settings leave a segment without volume": "Avec ces réglages, un segment n'a pas de volume",
@@ -2191,5 +2191,11 @@
   "Turns the faces around their own normal along the way": "Fait tourner les faces autour de leur propre normale en chemin",
   "End scale": "Échelle finale",
   "Size of the faces at the end, 1 keeps them as they are": "Taille des faces à la fin, 1 les laisse telles quelles",
-  "Shift+click a face to sweep, Ctrl+Shift+click adds more": "Shift+clic sur une face à balayer, Ctrl+Shift+clic en ajoute d'autres"
+  "Shift+click a face to sweep, Ctrl+Shift+click adds more": "Shift+clic sur une face à balayer, Ctrl+Shift+clic en ajoute d'autres",
+  "Curve": "Courbe",
+  "Through a chain of points from the Path tool, move or add points to reshape it": "Passe par une chaîne de points de l'outil Chemin, déplacez ou ajoutez des points pour la remodeler",
+  "Points": "Points",
+  "{n} point": { "one": "{n} point", "other": "{n} points" },
+  "Place points with the Path tool, the curve runs through them in order": "Placez des points avec l'outil Chemin, la courbe les traverse dans l'ordre",
+  "A bend is tighter than the faces are wide, move the points further apart": "Un virage est plus serré que la largeur des faces, écartez davantage les points"
 }

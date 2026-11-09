@@ -2168,7 +2168,7 @@
   "Flat chipped faces cut into the surface": "表面上切出的平整缺口面",
   "Sweep Faces…": "扫掠面…",
   "Sweep Faces": "扫掠面",
-  "Sweep Faces along a line, arc or S-bend": "沿直线、圆弧或 S 形弯扫掠面",
+  "Sweep Faces along a line, arc, S-bend or curve": "沿直线、圆弧、S 形弯或曲线扫掠面",
   "The radius has to be more than {min} u, or the inner side folds over": "半径必须大于 {min} u，否则内侧会折叠",
   "The faces point opposite ways, pick faces that face the same way": "这些面朝向相反，请选择朝向相同的面",
   "These settings leave a segment without volume": "这些设置会产生没有体积的分段",
@@ -2191,5 +2191,11 @@
   "Turns the faces around their own normal along the way": "沿途让面绕自身法线旋转",
   "End scale": "末端缩放",
   "Size of the faces at the end, 1 keeps them as they are": "末端面的大小，1 保持不变",
-  "Shift+click a face to sweep, Ctrl+Shift+click adds more": "按 Shift 单击要扫掠的面，Ctrl+Shift 单击添加更多"
+  "Shift+click a face to sweep, Ctrl+Shift+click adds more": "按 Shift 单击要扫掠的面，Ctrl+Shift 单击添加更多",
+  "Curve": "曲线",
+  "Through a chain of points from the Path tool, move or add points to reshape it": "穿过路径工具放置的一串点，移动或添加点即可改变形状",
+  "Points": "点",
+  "{n} point": { "other": "{n} 个点" },
+  "Place points with the Path tool, the curve runs through them in order": "用路径工具放置点，曲线会按顺序穿过它们",
+  "A bend is tighter than the faces are wide, move the points further apart": "有一处弯道比面的宽度还急，请把点拉开一些"
 }

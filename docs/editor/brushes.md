@@ -137,10 +137,17 @@ wide would fold over on its inner side, the dialog says the smallest radius that
 travel the same way, along their average direction, so pick faces that point the same way, like the end of a corridor.
 Faces at an angle to each other would go out on a slant.
 
+For a path of your own shape, pick **Curve**. Place a few points ahead of the faces with the **Path** tool (Shift+P,
+see [Placing and wiring](../gameplay/placing.md#placing-entities)) first. The curve leaves the faces straight out and
+runs smoothly through the points in order. **Points** picks which chain to follow, by default the one that starts
+nearest the faces. Move a point or add one to the chain and the cyan outline follows, so you can shape the run before
+you click **Create**. A bend tighter than the faces are wide is refused, spread the points further apart then.
+
 <div class="td-mcp" markdown>
 
 The MCP tool `sweep_faces` takes the same settings, with the faces as `[brush id, face index]` pairs or the selected
-faces when none are given.
+faces when none are given. A curve takes `points` as `[[x, y, z], ...]`, or `chain`, the targetname or id of the first
+point entity of a chain.
 
 </div>
 

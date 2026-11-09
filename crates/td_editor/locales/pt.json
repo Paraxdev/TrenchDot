@@ -2168,7 +2168,7 @@
   "Flat chipped faces cut into the surface": "Faces planas lascadas na superfície",
   "Sweep Faces…": "Varrer faces…",
   "Sweep Faces": "Varrer faces",
-  "Sweep Faces along a line, arc or S-bend": "Varrer faces ao longo de uma linha, um arco ou uma curva em S",
+  "Sweep Faces along a line, arc, S-bend or curve": "Varrer faces ao longo de uma linha, um arco, uma curva em S ou uma curva livre",
   "The radius has to be more than {min} u, or the inner side folds over": "O raio precisa ser maior que {min} u, senão o lado interno se dobra",
   "The faces point opposite ways, pick faces that face the same way": "As faces apontam em sentidos opostos, escolha faces voltadas para o mesmo lado",
   "These settings leave a segment without volume": "Com estes ajustes um segmento fica sem volume",
@@ -2191,5 +2191,11 @@
   "Turns the faces around their own normal along the way": "Gira as faces em torno da própria normal pelo caminho",
   "End scale": "Escala final",
   "Size of the faces at the end, 1 keeps them as they are": "Tamanho das faces no fim, 1 as mantém como estão",
-  "Shift+click a face to sweep, Ctrl+Shift+click adds more": "Shift+clique numa face a varrer, Ctrl+Shift+clique adiciona mais"
+  "Shift+click a face to sweep, Ctrl+Shift+click adds more": "Shift+clique numa face a varrer, Ctrl+Shift+clique adiciona mais",
+  "Curve": "Curva",
+  "Through a chain of points from the Path tool, move or add points to reshape it": "Passa por uma cadeia de pontos da ferramenta Caminho, mova ou adicione pontos para mudar a forma",
+  "Points": "Pontos",
+  "{n} point": { "one": "{n} ponto", "other": "{n} pontos" },
+  "Place points with the Path tool, the curve runs through them in order": "Coloque pontos com a ferramenta Caminho, a curva passa por eles em ordem",
+  "A bend is tighter than the faces are wide, move the points further apart": "Uma curva é mais fechada que a largura das faces, afaste mais os pontos"
 }
