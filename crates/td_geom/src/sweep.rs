@@ -74,7 +74,7 @@ impl std::fmt::Display for SweepError {
             SweepError::EndScale => write!(f, "end_scale must be more than 0"),
             SweepError::Length => write!(f, "length must be more than 0"),
             SweepError::Angle => write!(f, "angle must be more than 0 and at most 720 degrees, bend picks the side it turns to"),
-            SweepError::Radius(min) => write!(f, "the arc radius must be more than {min:.0}, or the inner side of the faces folds over"),
+            SweepError::Radius(min) => write!(f, "the arc radius must be more than {}, or the inner side of the faces folds over", min.ceil()),
             SweepError::Flat => write!(f, "a segment has no volume, try fewer segments or less twist"),
         }
     }
