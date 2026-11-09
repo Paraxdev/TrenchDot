@@ -2295,7 +2295,7 @@ impl App {
         let mut ask_trust = false;
         self.trust_chip = None;
         ui.horizontal(|ui| {
-            let s = &self.state;
+            let s = &mut self.state;
             let stats = self.scene.stats;
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(stats_text(&stats));
@@ -2344,10 +2344,7 @@ impl App {
                 }
 
                 // The message gets the width the counts leave, so a long one is cut short instead of running under them.
-                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                    let alpha = if s.status_age() > 6.0 { 120 } else { 230 };
-                    ui.add(egui::Label::new(RichText::new(s.status_shown()).color(crate::theme::colors().fg.gamma_multiply_u8(alpha))).truncate());
-                });
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| crate::status_line::show(ui, s));
             });
         });
         if ask_trust && let Some(root) = self.state.game.project_root.clone() {

@@ -48,6 +48,7 @@ pub mod scatter_tool;
 pub mod scene;
 pub mod spline_dialog;
 pub mod state;
+pub mod status_line;
 pub mod sweep_dialog;
 pub mod texture_convert;
 pub mod texture_ops;

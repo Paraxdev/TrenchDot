@@ -194,6 +194,46 @@ impl Default for ScatterSettings {
 const LIVE_IDLE: std::time::Duration = std::time::Duration::from_millis(250);
 /// Added to the status when a map from outside the open, trusted project holds code, see [`crate::validate::map_script_issues`].
 pub const MAP_SCRIPTS: &str = en!("The map runs GDScript of its own when the scene plays, the Issues panel shows where");
+const STATUS_LOG_LEN: usize = 30;
+/// Drags and gizmos report a new message every frame. Messages closer together than this that differ only in their
+/// numbers share one log entry, and a failure among them rings the bell only for the first.
+const STATUS_STREAM_GAP: std::time::Duration = std::time::Duration::from_millis(400);
+/// A failure that repeats word for word rings the bell again only after this long, like a full disk at every
+/// autosave.
+const STATUS_RERING: std::time::Duration = std::time::Duration::from_secs(10);
+/// How long the status bar's bell swings when a command fails.
+pub const STATUS_RING_SECS: f32 = 1.2;
+
+/// A status line kept for the list under the status bar's bell.
+#[derive(Clone, Debug)]
+pub struct LoggedStatus {
+    pub en: String,
+    shown: String,
+    lang: crate::i18n::Lang,
+    pub failed: bool,
+    pub time: Instant,
+}
+
+impl LoggedStatus {
+    /// The text in the user's language, looked up again after a switch like [`EditorState::status_shown`].
+    pub fn text(&self) -> &str {
+        if self.lang == crate::i18n::current() { &self.shown } else { crate::i18n::tr_known(&self.en) }
+    }
+}
+
+/// `en` with each number replaced, so the frames of a drag or a failure that counts something compare equal.
+fn status_shape(en: &str) -> String {
+    let mut shape = String::with_capacity(en.len());
+    for ch in en.chars() {
+        if !(ch.is_ascii_digit() || matches!(ch, '.' | '-')) {
+            shape.push(ch);
+        } else if !shape.ends_with('#') {
+            shape.push('#');
+        }
+    }
+
+    shape
+}
 
 /// When the live map was last handed to the link.
 struct LiveTick {
@@ -506,6 +546,14 @@ pub struct EditorState {
     status_time: Instant,
     /// The status line reports that the last command failed or had nothing to do, set by [`Self::fail_status`].
     status_failed: bool,
+    /// Recent status lines, newest last, listed under the status bar's bell.
+    status_log: std::collections::VecDeque<LoggedStatus>,
+    /// Failures that rang the bell lately, newest last, kept after the user saw them to hold back one that repeats.
+    status_rings: Vec<(String, Instant)>,
+    /// A failure came in that the user has not looked at yet, the bell keeps a dot meanwhile.
+    status_unread: bool,
+    /// The status line shows the failure the bell last rang for, see [`Self::status_rang`].
+    status_rang: bool,
     /// Bounds of the last created or selected brush, used for the depth of brushes drawn in 2D views.
     pub last_bounds: Aabb,
     /// Node picked in a view that the outliner should expand to and scroll into sight.
@@ -711,6 +759,10 @@ impl EditorState {
             status_tr: None,
             status_time: Instant::now(),
             status_failed: false,
+            status_log: Default::default(),
+            status_rings: Vec::new(),
+            status_unread: false,
+            status_rang: false,
             last_bounds: Aabb::new(DVec3::ZERO, DVec3::splat(64.0)),
             outliner_reveal: None,
             renaming: None,
@@ -803,23 +855,87 @@ impl EditorState {
     }
 
     pub fn set_status(&mut self, msg: impl Into<Msg>) {
-        let msg = msg.into();
-        self.status_tr = (msg.shown != msg.en).then(|| (msg.en.clone(), msg.shown, crate::i18n::current()));
-        self.status = msg.en;
-        self.status_time = Instant::now();
-        self.status_failed = false;
+        self.show_status(msg.into(), false, false);
     }
 
     /// Adds `next` to the status line after `sep`, in the English and the shown text.
     pub fn extend_status(&mut self, sep: &str, next: Msg) {
         let current = Msg { en: self.status.clone(), shown: self.status_shown().to_string() };
-        self.set_status(current.then(sep, next));
+        self.show_status(current.then(sep, next), false, true);
     }
 
     /// Shows why a command failed or did nothing. MCP's run_action turns it into an error.
     pub fn fail_status(&mut self, msg: impl Into<Msg>) {
-        self.set_status(msg);
-        self.status_failed = true;
+        self.show_status(msg.into(), true, false);
+    }
+
+    fn show_status(&mut self, msg: Msg, failed: bool, extends: bool) {
+        self.status_tr = (msg.shown != msg.en).then(|| (msg.en.clone(), msg.shown, crate::i18n::current()));
+        self.status = msg.en;
+        self.status_time = Instant::now();
+        self.status_failed = failed;
+        let entry =
+            LoggedStatus { en: self.status.clone(), shown: self.status_shown().to_string(), lang: crate::i18n::current(), failed, time: self.status_time };
+        let last = self.status_log.back();
+        let repeat = last.is_some_and(|last| last.en == entry.en && last.failed == failed);
+        let streaming = last.is_some_and(|last| {
+            last.failed == failed && entry.time.duration_since(last.time) < STATUS_STREAM_GAP && status_shape(&last.en) == status_shape(&entry.en)
+        });
+        let folds = extends || repeat || streaming;
+        match self.status_log.back_mut() {
+            Some(last) if folds => *last = LoggedStatus { failed: failed || (extends && last.failed), ..entry },
+            _ => {
+                if self.status_log.len() == STATUS_LOG_LEN {
+                    self.status_log.pop_front();
+                }
+
+                self.status_log.push_back(entry);
+            }
+        }
+
+        let mut rings = false;
+        if failed && !streaming {
+            let now = self.status_time;
+            self.status_rings.retain(|(_, t)| now.duration_since(*t) < STATUS_RERING);
+            rings = !self.status_rings.iter().any(|(rang, _)| *rang == self.status);
+            if rings {
+                self.status_rings.push((self.status.clone(), now));
+                self.status_unread = true;
+            }
+        }
+
+        self.status_rang = rings || (failed && folds && self.status_rang);
+    }
+
+    /// Recent status lines, newest last.
+    pub fn status_log(&self) -> &std::collections::VecDeque<LoggedStatus> {
+        &self.status_log
+    }
+
+    /// Seconds since the bell rang for a failure the user has not looked at yet.
+    pub fn status_alert_age(&self) -> Option<f32> {
+        self.status_rings.last().filter(|_| self.status_unread).map(|(_, t)| t.elapsed().as_secs_f32())
+    }
+
+    /// The user looked at the status line, or `clicked` the bell. A look clears the bell's dot only once the ring
+    /// played out, so a failure that arrives under a resting pointer still shows.
+    pub fn status_seen(&mut self, clicked: bool) {
+        if clicked || self.status_alert_age().is_some_and(|t| t >= STATUS_RING_SECS) {
+            self.status_unread = false;
+        }
+    }
+
+    /// The status line shows the failure the bell last rang for, or a repeat or a drag's next frame of it, and not one
+    /// held back because it rang a while ago.
+    pub fn status_rang(&self) -> bool {
+        self.status_rang
+    }
+
+    #[cfg(test)]
+    pub(crate) fn rewind_rings(&mut self, ago: std::time::Duration) {
+        for (_, t) in &mut self.status_rings {
+            *t = Instant::now() - ago;
+        }
     }
 
     /// The status as a message, to pass on what a helper reported in both languages.
@@ -1795,6 +1911,143 @@ pub fn load_document(path: &Path) -> Result<Document, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_failure_stays_unread_through_later_messages_until_seen() {
+        let mut state = EditorState::new(Prefs::default());
+        state.set_status("Grid 32");
+        assert!(state.status_alert_age().is_none());
+        state.fail_status("Nothing to paste");
+        state.set_status("Grid 64");
+        assert!(state.status_alert_age().is_some());
+        let log: Vec<_> = state.status_log().iter().map(|e| (e.text(), e.failed)).collect();
+        assert_eq!(log, [("Grid 32", false), ("Nothing to paste", true), ("Grid 64", false)]);
+        state.status_seen(true);
+        assert!(state.status_alert_age().is_none());
+    }
+
+    fn came_ago(state: &mut EditorState, ago: std::time::Duration) {
+        state.rewind_rings(ago);
+        for entry in &mut state.status_log {
+            entry.time = Instant::now() - ago;
+        }
+    }
+
+    #[test]
+    fn a_click_on_the_bell_clears_its_dot_even_while_it_rings() {
+        let mut state = EditorState::new(Prefs::default());
+        state.fail_status("Nothing to paste");
+        state.status_seen(false);
+        assert!(state.status_alert_age().is_some(), "a pointer resting on the status bar lets the ring play out");
+        state.status_seen(true);
+        assert!(state.status_alert_age().is_none());
+    }
+
+    #[test]
+    fn a_failure_reported_every_frame_folds_and_rings_once() {
+        let mut state = EditorState::new(Prefs::default());
+        state.fail_status("The cut misses the brush by 0");
+        state.rewind_rings(std::time::Duration::from_secs(2));
+        for i in 1..100 {
+            state.fail_status(format!("The cut misses the brush by {}", i as f32 * -0.25));
+        }
+
+        assert_eq!(state.status_log().len(), 1);
+        assert!(state.status_alert_age().unwrap() > 1.5);
+    }
+
+    #[test]
+    fn a_failure_between_other_messages_rings_once_within_a_while() {
+        let mut state = EditorState::new(Prefs::default());
+        state.fail_status("Nothing to paste");
+        came_ago(&mut state, std::time::Duration::from_secs(2));
+        state.set_status("Grid 64");
+        state.fail_status("Nothing to paste");
+        assert!(state.status_alert_age().unwrap() > 1.5);
+    }
+
+    #[test]
+    fn quick_messages_that_differ_keep_their_own_entries() {
+        let mut state = EditorState::new(Prefs::default());
+        state.set_status("Pasted 3 brushes");
+        state.set_status("Grid 64");
+        let log: Vec<_> = state.status_log().iter().map(|e| (e.text(), e.failed)).collect();
+        assert_eq!(log, [("Pasted 3 brushes", false), ("Grid 64", false)]);
+    }
+
+    #[test]
+    fn a_drag_reporting_every_frame_keeps_the_failure_in_the_log() {
+        let mut state = EditorState::new(Prefs::default());
+        state.fail_status("Nothing to paste");
+        for i in 0..100 {
+            state.set_status(format!("Move {i} 0 0"));
+        }
+
+        let log: Vec<_> = state.status_log().iter().map(|e| (e.text(), e.failed)).collect();
+        assert_eq!(log, [("Nothing to paste", true), ("Move 99 0 0", false)]);
+    }
+
+    #[test]
+    fn a_repeated_failure_rings_again_only_after_a_while() {
+        let mut state = EditorState::new(Prefs::default());
+        state.fail_status("Nothing to paste");
+        came_ago(&mut state, std::time::Duration::from_secs(2));
+        state.fail_status("Nothing to paste");
+        assert!(state.status_alert_age().unwrap() > 1.5, "a repeat soon after keeps the first ring");
+        state.status_seen(true);
+        state.fail_status("Nothing to paste");
+        assert!(state.status_alert_age().is_none(), "nor brings back the dot the user just cleared");
+        came_ago(&mut state, STATUS_RERING);
+        state.fail_status("Nothing to paste");
+        assert!(state.status_alert_age().unwrap() < 0.5);
+        state.fail_status("Nothing to cut");
+        assert!(state.status_alert_age().unwrap() < 0.5);
+    }
+
+    #[test]
+    fn failures_that_differ_only_in_a_number_ring_apart_when_they_do_not_stream() {
+        let mut state = EditorState::new(Prefs::default());
+        state.fail_status("Brush 3 is locked");
+        came_ago(&mut state, std::time::Duration::from_secs(2));
+        state.status_seen(true);
+        state.fail_status("Brush 4 is locked");
+        assert!(state.status_alert_age().unwrap() < 0.5);
+    }
+
+    #[test]
+    fn the_ring_lights_only_the_failure_it_rang_for() {
+        let mut state = EditorState::new(Prefs::default());
+        state.fail_status("Nothing to paste");
+        state.fail_status("The cut misses the brush by 0.25");
+        state.fail_status("The cut misses the brush by 0.5");
+        assert!(state.status_rang(), "a drag reporting the failure every frame keeps its ring");
+        state.fail_status("Nothing to paste");
+        assert!(!state.status_rang(), "a failure held back is not the one the bell rings for");
+        assert!(state.status_alert_age().is_some());
+        state.set_status("Grid 64");
+        assert!(!state.status_rang());
+    }
+
+    #[test]
+    fn the_status_log_folds_extensions_and_stays_short() {
+        let mut state = EditorState::new(Prefs::default());
+        state.fail_status("Nothing to paste");
+        state.extend_status(", ", Msg::from("try again"));
+        assert!(!state.status_failed(), "MCP reads an extended status as the action's own");
+        let log: Vec<_> = state.status_log().iter().map(|e| (e.text(), e.failed)).collect();
+        assert_eq!(log, [("Nothing to paste, try again", true)]);
+        // Alternating, since lines that differ only in a number fold like a drag's.
+        for i in 0..STATUS_LOG_LEN + 5 {
+            if i % 2 == 0 {
+                state.fail_status(format!("step {i}"));
+            } else {
+                state.set_status(format!("step {i}"));
+            }
+        }
+
+        assert_eq!(state.status_log().len(), STATUS_LOG_LEN);
+        assert_eq!(state.status_log().back().unwrap().text(), format!("step {}", STATUS_LOG_LEN + 4));
+    }
 
     #[test]
     fn classes_godot_lacks_are_told_while_the_map_uses_them() {

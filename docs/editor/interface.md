@@ -55,6 +55,15 @@ everything back where it started.
 
 ![The View menu with Panels open, the shown panels ticked and Reset Layout at the bottom](../assets/interface/view-panels-menu.png)
 
+### The status bar
+
+The line at the bottom says what the last command did. When a command fails or has nothing to do, its message turns
+yellow and the bell at the bottom left rings. The bell keeps a yellow dot until you point at it or at the
+message, so you still notice the failure after a later message replaced it. Click the bell to list the recent
+messages, newest first.
+
+![The status bar with a yellow failure message and the bell before it showing a yellow dot](../assets/interface/status-bar-bell.png)
+
 ## Help and the manual
 
 Tooltips explain buttons, tabs and settings. For more, point at a tool, a panel tab, a menu entry or an Inspector

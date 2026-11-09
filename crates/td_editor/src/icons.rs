@@ -102,6 +102,8 @@ icons! {
     ROTATE_CW = "rotate-cw",
     ROTATE_CCW = "rotate-ccw",
     GODOT = "godot",
+    BELL = "bell",
+    BELL_RING = "bell-ring",
 }
 
 impl Icon {
