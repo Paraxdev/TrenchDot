@@ -1,5 +1,5 @@
 ---
-source: 6e5c9bc3787f689328791dca9df024446698b311
+source: 7b101e87633cb98c2091d8f67c6857fb5371a1d9
 ---
 
 # Brushes und CSG { #brushes-and-csg }
@@ -8,7 +8,9 @@ Aus Brushes baust du den größten Teil eines Levels. Sie sind schnell gezeichne
 
 ## Zeichnen und verschieben { #draw-and-move }
 
-Zieh irgendwo neben der Auswahl, in einer beliebigen Ansicht, und eine Box folgt der Maus. Die 2D-Ansichten schreiben ihre Größe daneben. In der 3D-Ansicht beginnt sie auf der Fläche unter dem Cursor und ist einen Rasterschritt dick. In einer 2D-Ansicht übernimmt sie die Tiefe des zuletzt gezeichneten Brushes, beim allerersten sind es 128 Einheiten.
+Zieh irgendwo neben der Auswahl, in einer beliebigen Ansicht, und eine Box folgt der Maus. Die 2D-Ansichten schreiben ihre Größe daneben. In der 3D-Ansicht beginnt sie auf der Fläche unter dem Cursor und ist einen Rasterschritt dick. In einer 2D-Ansicht übernimmt sie die Tiefe der Auswahl, wie in Hammer und TrenchBroom. Ist ein Boden markiert, kannst du allein in der Ansicht Oben weitere Böden derselben Höhe zeichnen. Ist nichts markiert, übernimmt sie die Tiefe des zuletzt gezeichneten Brushes, beim allerersten sind es 128 Einheiten. Nimm unter *Datei > Einstellungen* das Häkchen bei *Tiefe neuer Brushes aus Auswahl* heraus, um immer die Tiefe des letzten Brushes zu nehmen.
+
+![Das Kontrollkästchen Tiefe neuer Brushes aus Auswahl in den Einstellungen, angehakt, unter Tastenbelegung](../assets/brushes/preferences-depth-from-selection.png)
 
 ![Die vier Ansichten, während in 3D eine Box gezeichnet wird, die neue Box ist 144 mal 144 Einheiten groß und einen Rasterschritt, 16 Einheiten, dick](../assets/brushes/draw-box-3d.png)
 
@@ -41,6 +43,8 @@ Einen markierten Brush kannst du umformen, ohne das Werkzeug Auswählen zu verla
 | Shift+Ziehen einer markierten Fläche (3D) | Diese Fläche drücken oder ziehen |
 | Ctrl+Shift+Ziehen einer markierten Fläche (3D) | Einen neuen Brush aus ihr herausziehen |
 | Eine Kante der Auswahl ziehen (2D) | Die Größe ändern. Die Kante leuchtet gelb, und der Cursor ändert sich dort, wo ein Ziehen die Größe ändert |
+
+Solange das Einrasten an ist, landet eine gezogene Fläche auf einer Rasterlinie, auch wenn der Brush vorher neben dem Raster lag. Schräge Flächen bewegen sich stattdessen in Rasterschritten.
 
 ![Shift+Ziehen der Seitenfläche einer markierten Box in der 3D-Ansicht, die Box dehnt sich in Rasterschritten](../assets/brushes/push-face.gif)
 
@@ -83,6 +87,12 @@ Für Zylinder, Bögen, Treppen, Dächer und andere Formen, die von Hand gezeichn
 ![Links die markierte Box, rechts der Zylinder mit 16 Seiten, der sie ersetzt hat](../assets/brushes/shape-generator-box-to-cylinder.png)
 
 Zylinder und Kegel stehen standardmäßig aufrecht. Wähl unter **Achse** **X** oder **Z**, um einen innerhalb derselben Box hinzulegen, für Rohre, Baumstämme oder einen Balken, statt ihn danach zu drehen. Torus, Bogenwand, Satteldach, Turmspitze und Gitter werden immer als [Mesh](meshes.md) erzeugt. Zylinder, Kegel und Kugeln können mit **Als bearbeitbares Mesh erstellen** auch eins sein, und **Glatte Schattierung** rundet sie dann ab. Die Form **Text** baut Blockbuchstaben aus Brushes, für Schilder und Bodenbeschriftung.
+
+**Fels** füllt die Box mit einem Stein. **Rauheit** legt fest, wie klumpig er ist, **Facetten** schlägt flache Flächen hinein und **Flacher Boden** schneidet die Unterseite eben ab, sodass er auf dem Boden liegt. Ändere den **Seed** für einen anderen Stein derselben Art. Als Brush ist der Fels ein einziger konvexer Low-Poly-Stein, der mit CSG funktioniert und wie jeder Brush kollidiert. Mit **Als bearbeitbares Mesh erstellen** behält er seine Dellen und Überhänge, und **Detail** legt fest, wie fein die Oberfläche unterteilt wird.
+
+![Der Formgenerator mit der Form Fels als bearbeitbares Mesh, mit Rauheit 0.5, Facetten 5, Flacher Boden 0.3, Detail 3 und Seed 1](../assets/brushes/shape-generator-rock.png)
+
+![Fünf orangefarbene Felsen auf einem grauen Boden, vorn drei klumpige Meshes und dahinter zwei facettierte Brush-Felsen](../assets/brushes/shape-generator-rocks.png)
 
 ## CSG { #csg }
 

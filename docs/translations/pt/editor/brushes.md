@@ -1,5 +1,5 @@
 ---
-source: 6e5c9bc3787f689328791dca9df024446698b311
+source: 7b101e87633cb98c2091d8f67c6857fb5371a1d9
 ---
 
 # Brushes e CSG { #brushes-and-csg }
@@ -8,7 +8,9 @@ Os brushes são o que você usa para construir a maior parte de um nível. Desen
 
 ## Desenhar e mover { #draw-and-move }
 
-Arraste em qualquer lugar fora da seleção, em qualquer vista, e uma caixa segue o mouse. As vistas 2D escrevem o tamanho dela ao lado. Na vista 3D ela começa na superfície sob o cursor e tem um passo de grade de espessura. Numa vista 2D ela pega a profundidade do último brush que você desenhou, 128 unidades para o primeiríssimo.
+Arraste em qualquer lugar fora da seleção, em qualquer vista, e uma caixa segue o mouse. As vistas 2D escrevem o tamanho dela ao lado. Na vista 3D ela começa na superfície sob o cursor e tem um passo de grade de espessura. Numa vista 2D ela pega a profundidade do que está selecionado, como no Hammer e no TrenchBroom. Com um piso selecionado, você pode desenhar mais pisos da mesma altura só pela vista Topo. Sem nada selecionado, ela pega a profundidade do último brush que você desenhou, 128 unidades para o primeiríssimo. Desmarque *Profundidade do novo brush pela seleção* em *Arquivo > Preferências* para usar sempre a profundidade do último brush.
+
+![A caixa Profundidade do novo brush pela seleção marcada nas Preferências, abaixo de Predefinição de atalhos](../assets/brushes/preferences-depth-from-selection.png)
 
 ![As quatro vistas enquanto uma caixa é desenhada em 3D, a nova caixa tem 144 por 144 unidades e um passo de grade, 16 unidades, de espessura](../assets/brushes/draw-box-3d.png)
 
@@ -41,6 +43,8 @@ Você pode remodelar um brush selecionado sem sair da ferramenta Selecionar:
 | Shift+arrastar uma face selecionada (3D) | Empurra ou puxa essa face |
 | Ctrl+Shift+arrastar uma face selecionada (3D) | Extrai um brush novo a partir dela |
 | Arrastar uma aresta da seleção (2D) | Redimensiona. A aresta acende em amarelo e o cursor muda onde um arrasto redimensiona |
+
+Enquanto o encaixe está ligado, uma face que você arrasta cai sobre uma linha da grade, mesmo que o brush estivesse fora da grade antes. As faces inclinadas se movem em passos de grade.
 
 ![Shift+arrastar a face lateral de uma caixa selecionada na vista 3D, a caixa estica em passos de grade](../assets/brushes/push-face.gif)
 
@@ -83,6 +87,12 @@ Para cilindros, arcos, escadas, telhados e outras formas que dariam muito trabal
 ![A caixa selecionada à esquerda, o cilindro de 16 lados que a substituiu à direita](../assets/brushes/shape-generator-box-to-cylinder.png)
 
 Cilindros e cones ficam em pé por padrão. Escolha **X** ou **Z** em **Eixo** para deitar um dentro da mesma caixa, para canos, troncos ou uma viga, em vez de girá-lo depois. O toro, a parede em arco, o telhado de duas águas, a torre pontiaguda e a grade sempre são feitos como [malha](meshes.md). Cilindros, cones e esferas também podem ser uma com **Criar como malha editável**, e então **Sombreamento suave** os arredonda. A forma **Texto** constrói letras em bloco com brushes, para placas e letreiros no chão.
+
+**Rocha** preenche a caixa com uma pedra. **Rugosidade** define o quanto ela é irregular, **Facetas** esculpe faces planas nela e **Base plana** corta a parte de baixo para que ela assente no chão. Troque a **Semente** para obter outra pedra do mesmo tipo. Como brush, a rocha é uma única pedra convexa de poucos polígonos (low poly) que funciona com CSG e colide como qualquer brush. Com **Criar como malha editável**, ela mantém suas reentrâncias e saliências, e **Detalhe** define quão finamente a superfície é dividida.
+
+![O Gerador de formas com Rocha como malha editável, com Rugosidade 0.5, Facetas 5, Base plana 0.3, Detalhe 3 e Semente 1](../assets/brushes/shape-generator-rock.png)
+
+![Cinco rochas laranja sobre um piso cinza, três malhas irregulares na frente e duas rochas de brush facetadas atrás](../assets/brushes/shape-generator-rocks.png)
 
 ## CSG { #csg }
 

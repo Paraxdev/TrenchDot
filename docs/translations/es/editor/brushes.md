@@ -1,5 +1,5 @@
 ---
-source: 6e5c9bc3787f689328791dca9df024446698b311
+source: 7b101e87633cb98c2091d8f67c6857fb5371a1d9
 ---
 
 # Brushes y CSG { #brushes-and-csg }
@@ -8,7 +8,9 @@ Los brushes son con lo que construyes la mayor parte de un nivel. Se dibujan rá
 
 ## Dibujar y mover { #draw-and-move }
 
-Arrastra en cualquier sitio fuera de la selección, en cualquier vista, y una caja sigue al ratón. Las vistas 2D imprimen su tamaño junto a ella. En la vista 3D empieza en la superficie bajo el cursor y tiene un paso de rejilla de grosor. En una vista 2D toma la profundidad del último brush que dibujaste, 128 unidades para el primero de todos.
+Arrastra en cualquier sitio fuera de la selección, en cualquier vista, y una caja sigue al ratón. Las vistas 2D imprimen su tamaño junto a ella. En la vista 3D empieza en la superficie bajo el cursor y tiene un paso de rejilla de grosor. En una vista 2D toma la profundidad de lo que está seleccionado, como en Hammer y TrenchBroom. Con un suelo seleccionado puedes dibujar más suelos de la misma altura solo desde la vista superior. Sin nada seleccionado toma la profundidad del último brush que dibujaste, 128 unidades para el primero de todos. Desmarca *Profundidad de brush nuevo desde la selección* en *Archivo > Preferencias* para usar siempre la profundidad del último brush.
+
+![La casilla Profundidad de brush nuevo desde la selección marcada en Preferencias, debajo de Preajuste de atajos](../assets/brushes/preferences-depth-from-selection.png)
 
 ![Las cuatro vistas mientras se dibuja una caja en 3D, la caja nueva mide 144 por 144 unidades y tiene un paso de rejilla, 16 unidades, de grosor](../assets/brushes/draw-box-3d.png)
 
@@ -41,6 +43,8 @@ Puedes remodelar un brush seleccionado sin salir de la herramienta Seleccionar:
 | Shift+arrastrar una cara seleccionada (3D) | Empuja o tira de esa cara |
 | Ctrl+Shift+arrastrar una cara seleccionada (3D) | Extruye un brush nuevo a partir de ella |
 | Arrastrar un borde de la selección (2D) | Redimensiona. El borde se ilumina en amarillo y el cursor cambia donde un arrastre redimensiona |
+
+Mientras el ajuste está activado, una cara que arrastras cae sobre una línea de la rejilla, aunque antes el brush estuviera fuera de la rejilla. Las caras inclinadas se mueven en pasos de rejilla.
 
 ![Shift+arrastrar la cara lateral de una caja seleccionada en la vista 3D, la caja se estira en pasos de rejilla](../assets/brushes/push-face.gif)
 
@@ -83,6 +87,12 @@ Para cilindros, arcos, escaleras, tejados y otras formas que llevarían muchos b
 ![La caja seleccionada a la izquierda, el cilindro de 16 lados que la reemplazó a la derecha](../assets/brushes/shape-generator-box-to-cylinder.png)
 
 Los cilindros y los conos están de pie por defecto. Elige **X** o **Z** en **Eje** para tumbar uno dentro de la misma caja, para tuberías, troncos o una viga, en lugar de girarlo después. El toro, el muro con arco, el tejado a dos aguas, la aguja y la cuadrícula se hacen siempre como [malla](meshes.md). Los cilindros, los conos y las esferas también pueden serlo con **Crear como malla editable**, y entonces **Sombreado suave** los redondea. La forma **Texto** construye letras de bloque con brushes, para carteles y rótulos en el suelo.
+
+**Roca** llena la caja con una piedra. **Rugosidad** fija lo irregular que es, **Facetas** le talla caras planas y **Base plana** corta su parte inferior para que apoye en el suelo. Cambia la **Semilla** para obtener otra piedra del mismo tipo. Como brush, la roca es una sola piedra convexa de pocos polígonos (low poly) que funciona con CSG y colisiona como cualquier brush. Con **Crear como malla editable** conserva sus hendiduras y salientes, y **Detalle** fija lo fino que se divide la superficie.
+
+![El Generador de formas con Roca como malla editable, con Rugosidad 0.5, Facetas 5, Base plana 0.3, Detalle 3 y Semilla 1](../assets/brushes/shape-generator-rock.png)
+
+![Cinco rocas naranjas sobre un suelo gris, tres mallas irregulares delante y dos rocas de brush facetadas detrás](../assets/brushes/shape-generator-rocks.png)
 
 ## CSG { #csg }
 

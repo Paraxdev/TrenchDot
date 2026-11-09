@@ -1,5 +1,5 @@
 ---
-source: 6e5c9bc3787f689328791dca9df024446698b311
+source: 7b101e87633cb98c2091d8f67c6857fb5371a1d9
 ---
 
 # Brushes et CSG { #brushes-and-csg }
@@ -12,7 +12,13 @@ l'outil **Sélectionner** (Q), sauf si une section nomme un autre outil.
 
 Faites glisser n'importe où hors de la sélection, dans n'importe quelle vue, et une boîte suit la souris. Les vues 2D
 affichent sa taille à côté. Dans la vue 3D, elle commence sur la surface sous le curseur et a l'épaisseur d'un pas de
-grille. Dans une vue 2D, elle prend la profondeur du dernier brush que vous avez dessiné, 128 unités pour le tout premier.
+grille. Dans une vue 2D, elle prend la profondeur de ce qui est sélectionné, comme dans Hammer et TrenchBroom. Avec un
+sol sélectionné, vous pouvez dessiner d'autres sols de même hauteur depuis la seule vue de dessus. Sans sélection, elle
+prend la profondeur du dernier brush que vous avez dessiné, 128 unités pour le tout premier. Décochez *Profondeur des
+nouvelles brushes selon la sélection* dans *Fichier > Préférences* pour toujours reprendre la profondeur du dernier
+brush.
+
+![La case Profondeur des nouvelles brushes selon la sélection cochée dans les Préférences, sous Préréglage des raccourcis](../assets/brushes/preferences-depth-from-selection.png)
 
 ![Les quatre vues pendant qu'une boîte est dessinée en 3D, la nouvelle boîte fait 144 sur 144 unités et un pas de grille, 16 unités, d'épaisseur](../assets/brushes/draw-box-3d.png)
 
@@ -50,6 +56,9 @@ Vous pouvez remodeler un brush sélectionné sans quitter l'outil Sélectionner 
 | Shift+glisser une face sélectionnée (3D) | Pousse ou tire cette face |
 | Ctrl+Shift+glisser une face sélectionnée (3D) | Extrude un nouveau brush à partir d'elle |
 | Faire glisser une arête de la sélection (2D) | Redimensionne. L'arête s'allume en jaune et le curseur change là où un glisser redimensionne |
+
+Tant que l'aimantation est active, une face que vous faites glisser se pose sur une ligne de la grille, même si le brush
+était hors grille avant. Les faces inclinées se déplacent plutôt par pas de grille.
 
 ![Shift+glisser la face latérale d'une boîte sélectionnée dans la vue 3D, la boîte s'étire par pas de grille](../assets/brushes/push-face.gif)
 
@@ -105,6 +114,16 @@ boîte, pour des tuyaux, des troncs ou une poutre, au lieu de le tourner ensuite
 pignon, la flèche et la grille sont toujours créés comme [maillage](meshes.md). Les cylindres, les cônes et les sphères
 peuvent l'être aussi avec **Créer comme maillage modifiable**, puis **Ombrage lisse** les arrondit. La forme **Texte**
 construit des lettres en blocs à partir de brushes, pour des enseignes et des inscriptions au sol.
+
+**Rocher** remplit la boîte d'une pierre. **Rugosité** règle son aspect bosselé, **Facettes** y taille des faces planes
+et **Base plate** coupe son dessous à plat pour qu'il repose sur le sol. Changez la **Graine** pour une autre pierre du
+même genre. En brush, le rocher est une seule pierre convexe low poly qui fonctionne avec le CSG et entre en collision
+comme n'importe quel brush. Avec **Créer comme maillage modifiable**, il garde ses creux et ses surplombs, et **Détail**
+règle la finesse de la subdivision de la surface.
+
+![Le Générateur de formes réglé sur Rocher en maillage modifiable, avec Rugosité 0.5, Facettes 5, Base plate 0.3, Détail 3 et Graine 1](../assets/brushes/shape-generator-rock.png)
+
+![Cinq rochers orange sur un sol gris, trois maillages bosselés devant et deux rochers brush à facettes derrière](../assets/brushes/shape-generator-rocks.png)
 
 ## CSG { #csg }
 
