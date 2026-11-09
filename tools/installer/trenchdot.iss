@@ -25,6 +25,7 @@ PrivilegesRequired=lowest
 DefaultDirName={localappdata}\Programs\TrenchDot
 DisableProgramGroupPage=yes
 DisableDirPage=auto
+SetupIconFile=..\..\crates\td_editor\assets\logo.ico
 UninstallDisplayIcon={app}\{#Exe}
 UninstallDisplayName=TrenchDot
 LicenseFile=..\..\LICENSE

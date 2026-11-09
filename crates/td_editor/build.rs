@@ -1,5 +1,5 @@
 //! Hashes the addon in godot/addons/func_godot, which the release zip is made of, so the editor knows the bytes of the
-//! addon and the Gameplay pack it installs, see `code_scan.rs`.
+//! addon and the Gameplay pack it installs, see `code_scan.rs`. On Windows it also embeds the exe icon.
 
 use std::path::Path;
 
@@ -17,6 +17,10 @@ fn main() {
     out += "]\n";
     let path = Path::new(&std::env::var_os("OUT_DIR").expect("cargo sets OUT_DIR")).join("addon_files.rs");
     std::fs::write(&path, out).unwrap_or_else(|e| panic!("could not write {}: {e}", path.display()));
+
+    // Explorer, the Start menu entry and .tdm files show the exe's own icon, which egui's window icon does not set.
+    #[cfg(windows)]
+    embed_resource::compile("assets/trenchdot.rc", embed_resource::NONE).manifest_optional().expect("could not embed the exe icon");
 }
 
 fn walk(root: &Path, dir: &Path, out: &mut Vec<(String, [u8; 32])>) {
