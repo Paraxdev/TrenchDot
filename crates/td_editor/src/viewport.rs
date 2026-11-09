@@ -88,8 +88,10 @@ impl Viewport {
         if self.drag.is_some() && !self.is_camera_drag() {
             // A tool picked mid drag (a shortcut, the toolbar) stops the select handling below, so close its edit here.
             // A drag whose transaction was closed elsewhere (undo, a tab switch) must not go on editing outside it.
+            // The Shape Generator's box has none, it ends with the box (a selection took the dialog over).
             let switched = cx.state.tool != ToolKind::Select;
-            if switched || !cx.state.doc.in_transaction() {
+            let orphaned = if matches!(self.drag, Some(Drag::ShapeBounds { .. })) { cx.state.shape_bounds.is_none() } else { !cx.state.doc.in_transaction() };
+            if switched || orphaned {
                 self.drag = None;
                 cx.state.drag_preview = None;
                 if switched {
@@ -530,11 +532,11 @@ impl Viewport {
         if self.drag.is_none()
             && self.camera.kind.is_2d()
             && let Some(pos) = response.hover_pos()
-            && let Some(edge) = self.edge_under_cursor(pos, cx)
+            && let Some((normal, segment)) = self.edge_under_cursor(pos, cx).map(|e| (e.normal, e.segment)).or_else(|| self.box_side_under(pos, cx.state))
         {
-            let icon = if edge.normal.dot(self.camera.kind.axes().0).abs() > 0.5 { CursorIcon::ResizeHorizontal } else { CursorIcon::ResizeVertical };
+            let icon = if normal.dot(self.camera.kind.axes().0).abs() > 0.5 { CursorIcon::ResizeHorizontal } else { CursorIcon::ResizeVertical };
             ui.ctx().set_cursor_icon(icon);
-            self.hover_edge = Some(edge.segment);
+            self.hover_edge = Some(segment);
         }
 
         let _ = rect;
@@ -604,6 +606,13 @@ impl Viewport {
             }
         }
 
+        if self.camera.kind.is_2d()
+            && let Some((normal, _)) = self.box_side_under(origin, state)
+        {
+            let start = self.camera.screen_to_plane(self.rect, origin);
+            return Some(Drag::ShapeBounds { start, side: Some(normal) });
+        }
+
         match self.camera.kind {
             ViewKind::Perspective => {
                 let (start, normal) = match hit {
@@ -621,6 +630,10 @@ impl Viewport {
             }
             _ => {
                 let start = self.camera.screen_to_plane(self.rect, origin);
+                if state.shape_bounds.is_some() {
+                    return Some(Drag::ShapeBounds { start, side: None });
+                }
+
                 let axis = self.camera.kind.depth_axis();
                 let selected = map.bounds_of(state.doc.selection.nodes.iter().copied());
                 let depth = (state.prefs.draw_depth_from_selection && !selected.is_empty() && selected.size()[axis] > 1e-6)
@@ -732,6 +745,17 @@ impl Viewport {
 
                 self.replace_created_brush(Aabb::new(a, b), state);
             }
+            Drag::ShapeBounds { start, side } => {
+                let Some(base) = state.shape_bounds else { return };
+                let current = self.camera.screen_to_plane(rect, pos);
+                state.shape_bounds = Some(match side {
+                    Some(normal) => {
+                        let min_size = if state.snap { state.grid } else { 1.0 };
+                        crate::shape_bounds::with_side(&base, *normal, state.snap_scalar(current[td_core::major_axis(*normal)]), min_size)
+                    }
+                    None => crate::shape_bounds::drawn(*start, current, &base, self.camera.kind.depth_axis(), state.grid, state.snap),
+                });
+            }
             Drag::FaceResize { faces, origin, normal } => {
                 let dist = match self.camera.kind {
                     ViewKind::Perspective => line_ray_param(*origin, *normal, &ray),
@@ -783,6 +807,13 @@ impl Viewport {
             let size = bounds.size();
             state.set_status(msg!("Brush {x} x {y} x {z}", x = size.x, y = size.y, z = size.z));
         }
+    }
+
+    /// 2D views: the side of the Shape Generator's box under the cursor and its screen segment.
+    fn box_side_under(&self, pos: Pos2, state: &EditorState) -> Option<(DVec3, [Pos2; 2])> {
+        let b = state.shape_bounds?;
+        let (r, u, _) = self.camera.kind.axes();
+        side_under(self.camera.project(self.rect, b.min)?, self.camera.project(self.rect, b.max)?, r, u, pos)
     }
 
     /// 2D views: the side of the selection bounds under the cursor, with the faces lying on it.

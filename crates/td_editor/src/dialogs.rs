@@ -806,6 +806,8 @@ impl ShapeDialog {
                     state.shape_bounds = Some(bounds);
                     self.bounds = Some(bounds);
                 }
+
+                ui.label(RichText::new(tr(en!("Drag in a 2D view to draw the box, or drag its sides"))).weak());
             } else {
                 ui.label(bounds_label(self.kind, &bounds, tr(en!("replaces selection"))));
             }

@@ -2276,5 +2276,6 @@
   "Only brushes and meshes bend, select one of those": "Seuls brushes et maillages se courbent, sélectionnez l'un d'eux",
   "The piece has too many faces to bend along a path this long": "La pièce a trop de faces pour être courbée le long d'un chemin aussi long",
   "Recent messages": "Messages récents",
-  "No messages yet": "Aucun message pour l'instant"
+  "No messages yet": "Aucun message pour l'instant",
+  "Drag in a 2D view to draw the box, or drag its sides": "Glisser dans une vue 2D dessine la boîte, glisser ses côtés la modifie"
 }

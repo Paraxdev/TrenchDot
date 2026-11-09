@@ -152,7 +152,8 @@ pub fn view_hint(
     }
 
     if kind.is_2d() {
-        if state.tool == ToolKind::Select && rect.width() > 160.0 && rect.height() > 80.0 {
+        // With the Shape Generator's box showing, a drag draws that box rather than a brush.
+        if state.tool == ToolKind::Select && state.shape_bounds.is_none() && rect.width() > 160.0 && rect.height() > 80.0 {
             let start = start_view == Some(kind);
             let (text, color) = if start {
                 (tr("Drag here to draw your first box"), theme::colors().yellow)
@@ -436,6 +437,33 @@ mod tests {
         harness.state_mut().state.doc.map.insert(layer, td_doc::NodeKind::Brush(brush));
         harness.run();
         assert!(harness.query_by_label("This is a new, empty map").is_none(), "the card goes once the map has something in it");
+    }
+
+    #[test]
+    fn the_2d_hints_step_aside_for_the_shape_generator_box() {
+        let ctx = egui::Context::default();
+        let mut fixture = Fixture::new(EditorState::new(Default::default()));
+        let hints = |f: &mut Fixture| {
+            ctx.begin_pass(egui::RawInput::default());
+            let rect = Rect::from_min_size(egui::pos2(13.0, 41.0), egui::vec2(410.0, 270.0));
+            let mut ui = Ui::new(ctx.clone(), egui::Id::new("views"), egui::UiBuilder::new().max_rect(rect));
+            for kind in [ViewKind::Top, ViewKind::Front] {
+                view_hint(&mut ui, rect, kind, f.start_view, &mut f.state, &mut f.maps, &mut f.actions);
+            }
+
+            let out = ctx.end_pass();
+            let texts: Vec<String> =
+                out.shapes.iter().filter_map(|c| if let egui::Shape::Text(t) = &c.shape { Some(t.galley.text().to_owned()) } else { None }).collect();
+            out.drop_without_applying_deltas();
+            texts
+        };
+
+        let both = [tr("Drag here to draw your first box"), tr("Drag here to draw a box")];
+        assert_eq!(hints(&mut fixture), both);
+        fixture.state.shape_bounds = Some(td_core::Aabb::new(td_core::DVec3::new(-40.0, 8.0, 24.0), td_core::DVec3::new(88.0, 72.0, 56.0)));
+        assert_eq!(hints(&mut fixture), Vec::<String>::new(), "a drag draws the Shape Generator's box, not a brush");
+        fixture.state.shape_bounds = None;
+        assert_eq!(hints(&mut fixture), both, "closing the dialog brings them back");
     }
 
     #[test]

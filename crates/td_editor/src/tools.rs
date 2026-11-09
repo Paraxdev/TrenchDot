@@ -132,6 +132,12 @@ pub enum Drag {
     },
     /// Dragging a move, rotate or scale handle of the transform gizmo.
     Transform(crate::transform_gizmo::GizmoDrag),
+    /// Drawing the Shape Generator's box from `start`, or moving its side facing `side`. Holds no transaction, the box
+    /// is not part of the map.
+    ShapeBounds {
+        start: DVec3,
+        side: Option<DVec3>,
+    },
     /// Tool specific drags handled by the tool itself.
     Tool,
 }

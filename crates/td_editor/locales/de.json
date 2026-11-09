@@ -2276,5 +2276,6 @@
   "Only brushes and meshes bend, select one of those": "Nur Brushes und Meshes lassen sich biegen, wähle eines davon",
   "The piece has too many faces to bend along a path this long": "Das Teil hat zu viele Flächen, um es entlang eines so langen Pfads zu biegen",
   "Recent messages": "Letzte Meldungen",
-  "No messages yet": "Noch keine Meldungen"
+  "No messages yet": "Noch keine Meldungen",
+  "Drag in a 2D view to draw the box, or drag its sides": "In einer 2D-Ansicht ziehen zeichnet die Box, ihre Seiten ziehen ändert sie"
 }

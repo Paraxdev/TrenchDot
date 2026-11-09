@@ -602,6 +602,109 @@ fn the_shape_generator_shows_its_own_box() {
     assert_eq!(selected(&ed), Vec::<u64>::new());
 }
 
+/// Where a world point lands in a 2D view, in window points.
+fn screen_of(ed: &Editor, view: &str, world: [f64; 3]) -> (f64, f64) {
+    let state = ed.state();
+    let cam = state["cameras"].as_array().unwrap().iter().find(|c| c["view"] == view).expect("view open");
+    let n = |v: &Value| v.as_f64().unwrap();
+    let (rect, zoom) = (&cam["rect"], n(&cam["zoom"]));
+    let at = |i: usize| n(&cam["center"][i]);
+    let (dx, dy) = match view {
+        "top" => (world[0] - at(0), world[2] - at(2)),
+        "front" => (world[0] - at(0), at(1) - world[1]),
+        _ => (at(2) - world[2], at(1) - world[1]),
+    };
+    (n(&rect[0]) + n(&rect[2]) / 2.0 + dx * zoom, n(&rect[1]) + n(&rect[3]) / 2.0 + dy * zoom)
+}
+
+/// Asserts that a press at each world point lands on the view and not on the Shape Generator's window.
+fn assert_clear_of_the_dialog(ed: &Editor, view: &str, points: &[[f64; 3]]) {
+    let state = ed.state();
+    let r: Vec<f64> = state["ui"]["windows"].as_array().unwrap().iter().find(|w| w["title"] == "Shape Generator").expect("Shape Generator open")["rect"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_f64().unwrap())
+        .collect();
+    for p in points {
+        let (x, y) = screen_of(ed, view, *p);
+        assert!(x < r[0] - 4.0 || x > r[2] + 4.0 || y < r[1] - 4.0 || y > r[3] + 4.0, "{p:?} at ({x}, {y}) is under the dialog {r:?}");
+    }
+}
+
+#[test]
+#[ignore]
+fn the_shape_generator_box_is_drawn_and_resized_in_2d() {
+    let ed = Editor::launch("shape_box_2d");
+    let a = ed.box_brush([-37.0, 5.0, 22.0], [51.0, 70.0, 99.0]);
+    ed.call("run_action", json!({ "action": "select_none" }));
+    ed.call("set_camera", json!({ "view": "top", "center": [-40, 0, 0], "zoom": 1 }));
+    ed.input("top", json!([{ "type": "move" }, { "type": "key", "key": "B", "modifiers": ["ctrl", "shift"] }]));
+    ed.input("top", json!([{ "type": "move" }]));
+    let bounds = |ed: &Editor| ed.state()["ui"]["shape_bounds"].clone();
+    let box_of = |min: [f64; 3], max: [f64; 3]| json!({ "min": min, "max": max });
+    assert_eq!(bounds(&ed), box_of([-32.0, 0.0, 16.0], [48.0, 64.0, 96.0]), "the seeded box");
+    let undo = ed.state()["undo"].clone();
+    let drag = |ed: &Editor, view: &str, from: [f64; 3], to: [f64; 3]| {
+        assert_clear_of_the_dialog(ed, view, &[from]);
+        ed.input(view, json!([{ "type": "drag", "world": from, "to_world": to }]));
+    };
+
+    drag(&ed, "top", [-100.0, 0.0, -60.0], [20.0, 0.0, 40.0]);
+    assert_eq!(bounds(&ed), box_of([-112.0, 0.0, -64.0], [32.0, 64.0, 48.0]), "drawn over the cells under both ends, keeping the depth");
+    assert_eq!(ed.brushes(), 1, "no brush was made");
+    assert_eq!(selected(&ed), Vec::<u64>::new());
+    assert_eq!(ed.state()["undo"], undo, "the box is not an undo step");
+
+    drag(&ed, "top", [32.0, 0.0, 0.0], [77.0, 0.0, 0.0]);
+    assert_eq!(bounds(&ed), box_of([-112.0, 0.0, -64.0], [80.0, 64.0, 48.0]), "the +X side follows the pointer on the grid");
+
+    drag(&ed, "top", [-112.0, 0.0, 0.0], [200.0, 0.0, 0.0]);
+    assert_eq!(bounds(&ed), box_of([64.0, 0.0, -64.0], [80.0, 64.0, 48.0]), "the -X side stops one cell short of the other");
+
+    ed.call("set_camera", json!({ "view": "front", "center": [0, 50, 0], "zoom": 1 }));
+    drag(&ed, "front", [0.0, 100.0, 0.0], [40.0, 30.0, 0.0]);
+    assert_eq!(bounds(&ed), box_of([0.0, 16.0, -64.0], [48.0, 112.0, 48.0]), "a front drag keeps the depth from the top drag");
+    assert_eq!((ed.brushes(), ed.state()["undo"].clone()), (1, undo), "still nothing in the map");
+
+    // Selecting a brush hands the dialog over to it, which ends a box drag in flight for good.
+    ed.call("set_camera", json!({ "view": "top", "center": [-40, 0, 0], "zoom": 1 }));
+    let before = bounds(&ed);
+    assert_clear_of_the_dialog(&ed, "top", &[[-100.0, 0.0, -60.0]]);
+    ed.input("top", json!([{ "type": "drag", "world": [-100, 0, -60], "to_world": [20, 0, 40], "release": false }]));
+    let held = bounds(&ed);
+    assert_ne!(held, before, "the drag was drawing");
+    ed.call("select", json!({ "ids": [a] }));
+    ed.input("top", json!([{ "type": "move", "world": [90, 0, 70] }, { "type": "move", "world": [100, 0, 80] }]));
+    assert_eq!(bounds(&ed), Value::Null, "a selected brush takes over");
+    ed.call("run_action", json!({ "action": "select_none" }));
+    ed.input("top", json!([{ "type": "move", "world": [110, 0, 90] }, { "type": "move", "world": [120, 0, 100] }, { "type": "release" }]));
+    assert_eq!(bounds(&ed), held, "the box comes back, the drag does not");
+    assert_eq!(ed.brushes(), 1);
+
+    // A selected light on a side of the box moves, the box stays.
+    let light = ed.call("create_entity", json!({ "classname": "light", "origin": [32, 64, 0] }))["id"].as_u64().unwrap();
+    assert_eq!(selected(&ed), [light]);
+    let (min, max) = ed.selection_bounds();
+    drag(&ed, "top", [32.0, 0.0, 0.0], [64.0, 0.0, 32.0]);
+    let moved = |v: &[f64]| vec![v[0] + 32.0, v[1], v[2] + 32.0];
+    assert_eq!(ed.selection_bounds(), (moved(&min), moved(&max)), "the light follows the pointer");
+    assert_eq!(bounds(&ed), held, "the side under the light is left alone");
+
+    ed.screenshot("top", "top");
+
+    // The 3D view still draws real brushes, which the dialog then replaces.
+    ed.call("set_camera", json!({ "view": "3d", "position": [0, 300, 300], "look_at": [0, 0, 0] }));
+    ed.input("3d", json!([{ "type": "drag", "world": [150, 0, 100], "to_world": [250, 0, 160], "steps": 8 }]));
+    ed.input("top", json!([{ "type": "move" }]));
+    assert_eq!(ed.brushes(), 2, "a 3D drag makes a brush");
+    assert_eq!(selected(&ed).len(), 1);
+    assert_eq!(bounds(&ed), Value::Null);
+    ed.call("set_camera", json!({ "view": "top", "center": [-40, 0, 0], "zoom": 1 }));
+    ed.input("top", json!([{ "type": "drag", "world": [-100, 0, -60], "to_world": [-60, 0, -20] }]));
+    assert_eq!(ed.brushes(), 3, "with a brush selected a 2D drag draws a brush as before");
+}
+
 #[test]
 #[ignore]
 fn keys_stay_with_windows_menus_and_the_palette() {
