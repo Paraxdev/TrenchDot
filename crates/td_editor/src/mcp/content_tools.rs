@@ -1602,7 +1602,14 @@ impl App {
         };
         let map = &self.state.doc.map;
         let id = given.or_else(|| self.state.doc.selection.terrains(map).first().copied()).or_else(|| map.terrains().next().map(|(id, _)| id));
-        let Some(id) = id.filter(|id| map.terrain(*id).is_some()) else { return err("no terrain, pass id or create one") };
+        let Some(id) = id else { return err("no terrain, pass id or create one") };
+        if map.terrain(id).is_none() {
+            return err(match map.get(id) {
+                Some(_) => format!("node {} is not a terrain", id.0),
+                None => format!("no node {}", id.0),
+            });
+        }
+
         let probe = match &args["probe"] {
             Value::Null => None,
             v => match point(v) {

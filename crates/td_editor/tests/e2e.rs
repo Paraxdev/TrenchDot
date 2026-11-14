@@ -1282,6 +1282,11 @@ fn terrain_resize_over_mcp() {
     let tiny = ed.call("terrain_edit", json!({ "id": id, "op": "resize", "cell_size": 100000 }));
     assert_eq!((tiny["cells"].clone(), tiny["cell_size"].clone()), (json!([1, 1]), json!(100000.0)));
 
+    let e = ed.call_err("terrain_edit", json!({ "id": set, "op": "resize", "east": 1 }));
+    assert!(e.contains(&format!("node {set} is not a terrain")), "{e}");
+    let e = ed.call_err("terrain_edit", json!({ "id": 987654, "probe": [0, 0] }));
+    assert!(e.contains("no node 987654"), "{e}");
+
     // A locked terrain refuses, the same as the other terrain ops.
     ed.call("hierarchy", json!({ "op": "set_flags", "ids": [id], "locked": true }));
     let e = ed.call_err("terrain_edit", json!({ "id": id, "op": "resize", "east": 1 }));
