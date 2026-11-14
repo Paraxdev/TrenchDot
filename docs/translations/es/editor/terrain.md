@@ -1,5 +1,5 @@
 ---
-source: 5b022e12202fe97edce0105dd2916cbd30e66e36
+source: caa4681b9da88e6c8635967bd981136c01a89951
 ---
 
 # Terreno { #terrain }
@@ -45,11 +45,44 @@ Esta página cubre cómo crear uno y darle forma con la herramienta Esculpir (G)
 
 No hay nada entre dos vértices, así que el tamaño de celda es el detalle más fino que puede guardar el terreno. Una cordillera pide celdas grandes, un jardín celdas pequeñas.
 
-¿Te equivocaste? Selecciona el terreno y abre **Remuestrear** en el Inspector. Reconstruye la rejilla con 65, 129, 257 o 513 vértices a lo largo del lado más largo y conserva las alturas, la pintura y los agujeros. El terreno mantiene su tamaño, así que más vértices significan celdas más pequeñas.
-
-![El Inspector del terreno con el menú Remuestrear abierto y 257 vértices bajo el cursor](../assets/terrain/inspector-resample.png)
+¿Te equivocaste? Puedes [cambiar el tamaño](#changing-the-size) cuando quieras después de crear el terreno.
 
 **Celdas por chunk** (32 por defecto) divide el terreno en piezas cuadradas para dibujar y para la colisión. Los chunks más pequeños se reconstruyen más rápido al esculpir, los más grandes significan menos nodos en Godot.
+
+## Cambiar el tamaño { #changing-the-size }
+
+Un terreno no se queda atascado en el tamaño con que lo creaste. Puedes añadir celdas en cualquier lado, recortarlas o cambiar el tamaño de celda, y el suelo que ya esculpiste se queda justo donde estaba en el mapa.
+
+1. Selecciona el terreno
+
+    Haz clic en él en una vista o en el Outliner. Su bloque **Tamaño** está en el Inspector bajo **Origen**.
+
+2. Escribe el cambio
+
+    **Celdas** muestra cuántas celdas hay a lo largo de X y Z. Escribe ahí un total y los dos lados opuestos crecen o se encogen por igual, con la celda impar para el lado este o sur. Los campos **Norte (-Z)**, **Sur (+Z)**, **Oeste (-X)** y **Este (+X)** cambian un solo lado. Un número positivo añade esas celdas y uno negativo las quita, así que `+8` en Este añade 8 celdas y `-2` en Sur recorta 2.
+
+    ![El bloque Tamaño con 8 celdas añadidas al este y 2 quitadas al sur, y la línea Después mostrando el resultado](../assets/terrain/inspector-size.png)
+
+    Todavía no cambia nada. Tus ediciones son un borrador, dibujado como contorno en las vistas, y la línea **Después** bajo **Aplicar** te dice las celdas y el tamaño que tendrías.
+
+3. Elige qué recibe el suelo nuevo
+
+    **Suelo nuevo** aparece en cuanto un lado crece. **Altura del borde** continúa el borde más cercano, tanto la altura como la pintura, así que el terreno simplemente se alarga. **Cero** da a las celdas nuevas altura 0 y la primera capa, para una franja plana donde construir. La primera celda nueva sigue bajando del borde viejo hasta 0, así que la parte plana empieza una celda más afuera.
+
+4. Haz clic en **Aplicar**
+
+    El terreno cambia en un solo paso, y Ctrl+Z lo devuelve exactamente. **Restablecer** descarta el borrador en su lugar.
+
+Todo lo que se conserva aparece en la misma posición del mundo que antes: alturas, pintura y agujeros de las celdas que quedan. Si añades celdas en el lado oeste o norte, el **Origen** del terreno se mueve hacia fuera para cuadrar.
+
+**Tamaño de celda** funciona distinto. Mantiene el tamaño del terreno en el mapa a la celda entera más cercana y reconstruye la rejilla con la nueva separación, así que el número de celdas cambia con él, y las alturas y la pintura se mezclan entre los vértices viejos. Cuando el tamaño no es múltiplo de la celda nueva, el terreno crece o se encoge hasta media celda, y **Las celdas enteras cambian el tamaño en** bajo **Después** te dice cuánto. Volver al tamaño de celda anterior no deshace ese redondeo, Ctrl+Z sí. Hacer las celdas más grandes tira detalle, y el Inspector te avisa con **Se pierde detalle fino** antes de aplicar. Hacerlas más pequeñas mantiene la forma pero no puede añadir detalle que nunca estuvo. Primero se aplican los lados, luego el tamaño de celda.
+
+> [!NOTE]
+> Un terreno tiene entre 1 y 2048 celdas a lo largo de cada eje, y un tamaño de celda entre 0.001 y 100000 unidades. Un cambio que se sale de eso, o que recortaría todas las celdas, se rechaza con el motivo en rojo, y **Aplicar** queda en gris.
+
+### El scatter sobre el terreno { #scatter-on-the-terrain }
+
+El [scatter](scatter.md) pintado sobre el terreno se queda en el suelo. Las instancias sobre suelo que sigue ahí suben o bajan con la nueva altura, así que nada flota ni se hunde. Las instancias sobre suelo recortado se quitan por defecto, y cuando hay alguna aparece bajo **Aplicar** una casilla **Quitar n instancias de scatter del suelo quitado**. Desmárcala para dejarlas donde están, flotando sobre la nada, si piensas moverlas tú. Un conjunto de scatter bloqueado u oculto, o que está en una capa bloqueada u oculta, se queda como está.
 
 ## Esculpir { #sculpting }
 
@@ -91,5 +124,7 @@ Cada terreno se convierte en un nodo `TrenchDotTerrain`, un `StaticBody3D` (el n
 ## MCP { #mcp }
 
 La operación `sculpt` de la herramienta `terrain_edit` aplica un solo toque, y su fuerza es cuánto mueve ese toque el centro, otra vez sea cual sea el radio. Mantener un trazo un segundo con fuerza 4 equivale a un toque de fuerza 32.
+
+El mismo cambio de tamaño es `terrain_edit` con `op: "resize"`, que toma `north`, `south`, `west` y `east` en celdas, o `cells: [x, z]`, y `cell_size`. Añade `dry_run: true` para leer antes las celdas, los límites, `scatter_removed` y `detail_lost` del resultado. `fill` es `edge` o `zero` y `scatter` es `drop` o `keep`, como en el Inspector. Mira [MCP](../mcp.md) para los límites.
 
 </div>

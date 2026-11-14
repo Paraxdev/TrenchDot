@@ -1,5 +1,5 @@
 ---
-source: 5b022e12202fe97edce0105dd2916cbd30e66e36
+source: caa4681b9da88e6c8635967bd981136c01a89951
 ---
 
 # Terrain { #terrain }
@@ -56,14 +56,66 @@ Cette page explique comment en créer un et le modeler avec l'outil Sculpter (G)
 Rien ne se trouve entre deux sommets, la taille de cellule est donc le plus fin détail que le terrain peut contenir. Une
 chaîne de montagnes veut de grandes cellules, un jardin de petites.
 
-Mauvais choix ? Sélectionnez le terrain et ouvrez **Rééchantillonner** dans l'Inspecteur. Il reconstruit la grille à 65,
-129, 257 ou 513 sommets le long du plus grand côté et garde les hauteurs, la peinture et les trous. Le terrain garde sa
-taille, donc plus de sommets veut dire des cellules plus petites.
-
-![L'Inspecteur du terrain avec le menu Rééchantillonner ouvert et 257 sommets survolé](../assets/terrain/inspector-resample.png)
+Mauvais choix ? Vous pouvez [changer la taille](#changing-the-size) à tout moment après avoir créé le terrain.
 
 **Cellules par chunk** (32 par défaut) découpe le terrain en morceaux carrés pour le dessin et la collision. De petits
 chunks se reconstruisent plus vite pendant le sculptage, de plus grands donnent moins de nœuds dans Godot.
+
+## Changer la taille { #changing-the-size }
+
+Un terrain n'est pas bloqué à la taille de sa création. Vous pouvez ajouter des cellules de n'importe quel côté, en
+retirer ou changer la taille de cellule, et le sol que vous avez déjà sculpté reste exactement là où il était dans la
+carte.
+
+1. Sélectionner le terrain
+
+    Cliquez dessus dans une vue ou dans l'Outliner. Son bloc **Taille** se trouve dans l'Inspecteur sous **Origine**.
+
+2. Saisir le changement
+
+    **Cellules** montre combien de cellules courent le long de X et de Z. Saisissez-y un total et les deux côtés opposés
+    grandissent ou rétrécissent de façon égale, la cellule impaire allant au côté est ou sud. Les champs **Nord (-Z)**,
+    **Sud (+Z)**, **Ouest (-X)** et **Est (+X)** ne changent qu'un côté. Un nombre positif ajoute autant de cellules et
+    un nombre négatif en retire, donc `+8` sur Est ajoute 8 cellules et `-2` sur Sud en retire 2.
+
+    ![Le bloc Taille avec 8 cellules ajoutées à l'est et 2 retirées au sud, et la ligne Après qui montre le résultat](../assets/terrain/inspector-size.png)
+
+    Rien ne change encore. Vos saisies sont un brouillon, dessiné en contour dans les vues, et la ligne **Après** sous
+    **Appliquer** vous dit les cellules et la taille que vous obtiendriez.
+
+3. Choisir ce que reçoit le nouveau sol
+
+    **Nouveau sol** apparaît dès qu'un côté grandit. **Hauteur du bord** prolonge le bord le plus proche, la hauteur
+    comme la peinture, donc le terrain devient simplement plus long. **Zéro** donne aux nouvelles cellules la hauteur 0
+    et le premier calque, pour une bande plate où construire. La première nouvelle cellule descend quand même du vieux
+    bord jusqu'à 0, donc la partie plate commence une cellule plus loin.
+
+4. Cliquer sur **Appliquer**
+
+    Le terrain change en une seule étape, et Ctrl+Z le remet exactement comme avant. **Réinitialiser** abandonne le
+    brouillon à la place.
+
+Tout ce qui est gardé reste à la même position dans le monde qu'avant : hauteurs, peinture et trous des cellules qui
+restent. Si vous ajoutez des cellules du côté ouest ou nord, l'**Origine** du terrain se déplace vers l'extérieur pour
+suivre.
+
+**Taille de cellule** marche autrement. Elle garde la taille du terrain dans la carte à la cellule entière la plus
+proche et reconstruit la grille avec le nouvel espacement, donc le nombre de cellules change avec elle, et les hauteurs
+et la peinture sont mélangées entre les anciens sommets. Quand la taille n'est pas un multiple de la nouvelle cellule,
+le terrain grandit ou rétrécit d'au plus une demi-cellule, et **Les cellules entières changent la taille de** sous
+**Après** vous dit de combien. Remettre l'ancienne taille de cellule n'annule pas cet arrondi, Ctrl+Z si. Des cellules
+plus grandes jettent du détail, et l'Inspecteur vous prévient avec **Les détails fins sont perdus** avant d'appliquer.
+Des cellules plus petites gardent la forme mais ne peuvent pas ajouter un détail qui n'a jamais existé. Les côtés
+s'appliquent d'abord, puis la taille de cellule.
+
+> [!NOTE]
+> Un terrain a entre 1 et 2048 cellules le long de chaque axe, et une taille de cellule entre 0.001 et 100000 unités. Un
+> changement qui sort de ces limites, ou qui retirerait toutes les cellules, est refusé avec la raison affichée en
+> rouge, et **Appliquer** reste grisé.
+
+### Le scatter sur le terrain { #scatter-on-the-terrain }
+
+Le [scatter](scatter.md) peint sur le terrain reste au sol. Les instances au-dessus d'un sol encore là montent ou descendent avec la nouvelle hauteur, donc rien ne flotte ni ne s'enfonce. Les instances au-dessus d'un sol retiré sont supprimées par défaut, et quand il y en a, une case **Retirer n instances scatter du sol retiré** apparaît sous **Appliquer**. Décochez-la pour les garder là où elles sont, flottant au-dessus du vide, si vous comptez les déplacer vous-même. Un ensemble de scatter verrouillé ou masqué, ou placé dans un calque verrouillé ou masqué, reste tel quel.
 
 ## Sculpter { #sculpting }
 
@@ -114,5 +166,10 @@ du sol à une position locale, pratique pour poser des choses sur le sol à l'ex
 L'opération `sculpt` de l'outil `terrain_edit` applique un seul coup de pinceau, et sa force est la distance dont ce coup
 déplace le centre, là encore quel que soit le rayon. Maintenir un trait pendant une seconde à la force 4 équivaut à un
 coup de force 32.
+
+Le même changement de taille est `terrain_edit` avec `op: "resize"`, qui prend `north`, `south`, `west` et `east` en
+cellules, ou `cells: [x, z]`, et `cell_size`. Ajoutez `dry_run: true` pour lire d'abord les cellules, les limites,
+`scatter_removed` et `detail_lost` du résultat. `fill` vaut `edge` ou `zero` et `scatter` vaut `drop` ou `keep`, comme
+dans l'Inspecteur. Les limites sont dans [MCP](../mcp.md).
 
 </div>

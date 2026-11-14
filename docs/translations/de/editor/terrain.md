@@ -1,5 +1,5 @@
 ---
-source: 5b022e12202fe97edce0105dd2916cbd30e66e36
+source: caa4681b9da88e6c8635967bd981136c01a89951
 ---
 
 # Terrain { #terrain }
@@ -45,11 +45,44 @@ Diese Seite zeigt, wie du eins anlegst und mit dem Modellier-Werkzeug (G) formst
 
 Zwischen zwei Vertices liegt nichts, die Zellgröße ist also das feinste Detail, das das Terrain halten kann. Ein Gebirge braucht große Zellen, ein Garten kleine.
 
-Falsch gewählt? Wähl das Terrain aus und öffne **Neu abtasten** im Inspektor. Es baut das Raster mit 65, 129, 257 oder 513 Vertices an der längeren Seite neu auf und behält Höhen, Bemalung und Löcher. Das Terrain behält seine Größe, mehr Vertices bedeuten also kleinere Zellen.
-
-![Der Inspektor des Terrains mit offenem Menü Neu abtasten und dem Mauszeiger auf 257 Vertices](../assets/terrain/inspector-resample.png)
+Falsch gewählt? Du kannst [die Größe ändern](#changing-the-size), jederzeit nach dem Anlegen des Terrains.
 
 **Chunk-Zellen** (standardmäßig 32) teilt das Terrain zum Zeichnen und für die Kollision in quadratische Stücke. Kleinere Chunks bauen sich beim Modellieren schneller neu auf, größere bedeuten weniger Nodes in Godot.
+
+## Die Größe ändern { #changing-the-size }
+
+Ein Terrain bleibt nicht auf der Größe, mit der du es angelegt hast. Du kannst an jeder Seite Zellen anfügen, sie abschneiden oder die Zellgröße ändern, und der Boden, den du schon modelliert hast, bleibt genau da, wo er in der Karte war.
+
+1. Wähl das Terrain aus
+
+    Klick es in einer Ansicht oder im Outliner an. Sein Block **Größe** sitzt im Inspektor unter **Ursprung**.
+
+2. Gib die Änderung ein
+
+    **Zellen** zeigt, wie viele Zellen entlang X und Z laufen. Gib dort eine Gesamtzahl ein, dann wachsen oder schrumpfen beide gegenüberliegenden Seiten gleichmäßig, und die ungerade Zelle geht an die Ost- oder Südseite. Die Felder **Norden (-Z)**, **Süden (+Z)**, **Westen (-X)** und **Osten (+X)** ändern nur eine Seite. Eine positive Zahl fügt so viele Zellen an und eine negative entfernt sie, `+8` bei Osten fügt also 8 Zellen an und `-2` bei Süden schneidet 2 ab.
+
+    ![Der Block Größe mit 8 Zellen mehr im Osten und 2 weniger im Süden, darunter die Zeile Danach mit dem Ergebnis](../assets/terrain/inspector-size.png)
+
+    Noch ändert sich nichts. Deine Eingaben sind ein Entwurf, als Umriss in den Ansichten gezeichnet, und die Zeile **Danach** unter **Anwenden** sagt dir, welche Zellen und welche Größe du bekämst.
+
+3. Wähl, was der neue Boden bekommt
+
+    **Neuer Boden** erscheint, sobald eine Seite wächst. **Randhöhe** setzt den nächsten Rand fort, Höhe und Bemalung, das Terrain wird also einfach länger. **Null** gibt den neuen Zellen die Höhe 0 und die erste Ebene, als flache Fläche zum Bauen. Die erste neue Zelle fällt trotzdem vom alten Rand auf 0 ab, die flache Fläche beginnt also eine Zelle weiter draußen.
+
+4. Klick auf **Anwenden**
+
+    Das Terrain ändert sich in einem Schritt, und Ctrl+Z stellt es genau wieder her. **Zurücksetzen** verwirft stattdessen den Entwurf.
+
+Alles, was bleibt, liegt an derselben Weltposition wie vorher: Höhen, Bemalung und Löcher der Zellen, die bleiben. Fügst du an der West- oder Nordseite Zellen an, wandert der **Ursprung** des Terrains passend nach außen.
+
+**Zellgröße** funktioniert anders. Sie behält die Größe des Terrains in der Karte auf die nächste ganze Zelle genau und baut das Raster mit dem neuen Abstand neu auf, die Zellenzahl ändert sich also mit, und Höhen und Bemalung werden zwischen den alten Vertices gemischt. Ist die Größe kein Vielfaches der neuen Zelle, wächst oder schrumpft das Terrain um bis zu eine halbe Zelle, und **Ganze Zellen ändern die Größe um** unter **Danach** sagt dir, um wie viel. Die Zellgröße zurückzustellen macht dieses Runden nicht rückgängig, Ctrl+Z schon. Größere Zellen werfen Details weg, und der Inspektor warnt dich vor dem Anwenden mit **Feine Details gehen verloren**. Kleinere Zellen behalten die Form, können aber keine Details hinzufügen, die nie da waren. Erst gelten die Seiten, dann die Zellgröße.
+
+> [!NOTE]
+> Ein Terrain hat entlang jeder Achse zwischen 1 und 2048 Zellen und eine Zellgröße zwischen 0.001 und 100000 Einheiten. Eine Änderung, die darüber hinausgeht oder jede Zelle abschneiden würde, wird abgelehnt, der Grund steht in Rot, und **Anwenden** bleibt ausgegraut.
+
+### Scatter auf dem Terrain { #scatter-on-the-terrain }
+
+Auf das Terrain gemalter [Scatter](scatter.md) bleibt am Boden. Instanzen über Boden, der noch da ist, steigen oder sinken mit der neuen Höhe, nichts schwebt also oder versinkt. Instanzen über abgeschnittenem Boden werden standardmäßig entfernt, und wenn es welche gibt, erscheint unter **Anwenden** ein Kästchen **n Scatter-Instanzen auf entfernter Fläche entfernen**. Nimm den Haken heraus, damit sie bleiben, wo sie sind, schwebend über nichts, wenn du sie selbst verschieben willst. Ein Scatter-Set, das gesperrt oder ausgeblendet ist oder in einer gesperrten oder ausgeblendeten Ebene liegt, bleibt, wie es ist.
 
 ## Modellieren { #sculpting }
 
@@ -91,5 +124,7 @@ Jedes Terrain wird zu einem `TrenchDotTerrain`-Node, einem `StaticBody3D` (Godot
 ## MCP { #mcp }
 
 Die Operation `sculpt` des Tools `terrain_edit` wendet einen einzelnen Tupfer an, und seine Stärke ist, wie weit dieser Tupfer die Mitte bewegt, wieder unabhängig vom Radius. Einen Strich eine Sekunde lang bei Stärke 4 zu halten entspricht einem Tupfer der Stärke 32.
+
+Dieselbe Größenänderung ist `terrain_edit` mit `op: "resize"` und nimmt `north`, `south`, `west` und `east` in Zellen oder `cells: [x, z]`, dazu `cell_size`. Mit `dry_run: true` liest du vorher die Zellen, Grenzen, `scatter_removed` und `detail_lost` des Ergebnisses. `fill` ist `edge` oder `zero` und `scatter` ist `drop` oder `keep`, wie im Inspektor. Die Grenzen stehen unter [MCP](../mcp.md).
 
 </div>
