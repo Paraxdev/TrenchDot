@@ -2794,5 +2794,16 @@
   "No match": "Нет совпадений",
   "Look around, WASD flies, Q and X go up and down": "Осмотреться, WASD летит, Q и X вверх и вниз",
   "Alt+right drag (3D)": "Alt+тянуть правой кнопкой (3D)",
-  "3D: right drag looks, WASD flies, Q and X go up and down, middle drag pans, Alt+right drag orbits": "3D: правая кнопка с перетаскиванием осматривается, WASD летает, Q и X вверх и вниз, средняя сдвигает, Alt+правая вращает"
+  "3D: right drag looks, WASD flies, Q and X go up and down, middle drag pans, Alt+right drag orbits": "3D: правая кнопка с перетаскиванием осматривается, WASD летает, Q и X вверх и вниз, средняя сдвигает, Alt+правая вращает",
+  "Terrain3D edits were not applied: {problem}": "Изменения Terrain3D не применены: {problem}",
+  "Terrain3D edits wait in the data folder until Godot applies them": "Изменения Terrain3D ждут в папке данных, пока Godot их не применит",
+  "Godot applied {applied} Terrain3D region(s), {refused} changed in Godot and stay here": "Godot применил регионов Terrain3D: {applied}, изменились в Godot и остаются здесь: {refused}",
+  "Godot applied no Terrain3D regions, {refused} changed in Godot and stay here": "Godot не применил ни одного региона Terrain3D, изменились в Godot и остаются здесь: {refused}",
+  "Godot applied no Terrain3D regions": "Godot не применил ни одного региона Terrain3D",
+  "Godot has unsaved changes in Terrain3D region {x}, {y}, save the scene there and send again": "В Godot есть несохранённые изменения в регионе Terrain3D {x}, {y}, сохраните там сцену и отправьте снова",
+  "Godot has unsaved changes in {n} Terrain3D region, save the scene there and send again": {"one": "В Godot есть несохранённые изменения в {n} регионе Terrain3D, сохраните там сцену и отправьте снова", "few": "В Godot есть несохранённые изменения в {n} регионах Terrain3D, сохраните там сцену и отправьте снова", "many": "В Godot есть несохранённые изменения в {n} регионах Terrain3D, сохраните там сцену и отправьте снова"},
+  "Godot applied {applied} Terrain3D region(s)": "Godot применил регионов Terrain3D: {applied}",
+  "Godot had no Terrain3D edits to apply": "У Godot не было изменений Terrain3D для применения",
+  "Update the TrenchDot addon in Godot to send Terrain3D edits to the open editor": "Обновите аддон TrenchDot в Godot, чтобы отправлять изменения Terrain3D в открытый редактор",
+  "Terrain3D {version} was not tested with this editor, edits still go through Godot": "Terrain3D {version} не проверялся с этим редактором, изменения по-прежнему идут через Godot"
 }

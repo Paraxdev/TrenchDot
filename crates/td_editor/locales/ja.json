@@ -2794,5 +2794,16 @@
   "No match": "一致なし",
   "Look around, WASD flies, Q and X go up and down": "見回す。WASD で飛行、Q と X で上昇と下降",
   "Alt+right drag (3D)": "Alt+右ドラッグ (3D)",
-  "3D: right drag looks, WASD flies, Q and X go up and down, middle drag pans, Alt+right drag orbits": "3D：右ドラッグで見回し、WASDで移動、Q/Xで上昇と下降、中ドラッグでパン、Alt+右ドラッグで周回"
+  "3D: right drag looks, WASD flies, Q and X go up and down, middle drag pans, Alt+right drag orbits": "3D：右ドラッグで見回し、WASDで移動、Q/Xで上昇と下降、中ドラッグでパン、Alt+右ドラッグで周回",
+  "Terrain3D edits were not applied: {problem}": "Terrain3Dの変更を適用できませんでした: {problem}",
+  "Terrain3D edits wait in the data folder until Godot applies them": "Terrain3Dの変更は、Godotが適用するまでデータフォルダに残ります",
+  "Godot applied {applied} Terrain3D region(s), {refused} changed in Godot and stay here": "Godotが{applied}個のTerrain3Dリージョンを適用しました。{refused}個はGodotで変更されているためここに残ります",
+  "Godot applied no Terrain3D regions, {refused} changed in Godot and stay here": "GodotはTerrain3Dリージョンを適用しませんでした。{refused}個はGodotで変更されているためここに残ります",
+  "Godot applied no Terrain3D regions": "GodotはTerrain3Dリージョンを適用しませんでした",
+  "Godot has unsaved changes in Terrain3D region {x}, {y}, save the scene there and send again": "GodotのTerrain3Dリージョン {x}, {y} に未保存の変更があります。Godotでシーンを保存してから再送信してください",
+  "Godot has unsaved changes in {n} Terrain3D region, save the scene there and send again": {"other": "Godotの{n}個のTerrain3Dリージョンに未保存の変更があります。Godotでシーンを保存してから再送信してください"},
+  "Godot applied {applied} Terrain3D region(s)": "Godotが{applied}個のTerrain3Dリージョンを適用しました",
+  "Godot had no Terrain3D edits to apply": "GodotにはTerrain3Dの適用すべき変更がありませんでした",
+  "Update the TrenchDot addon in Godot to send Terrain3D edits to the open editor": "開いているエディタにTerrain3Dの変更を送るには、GodotのTrenchDotアドオンを更新してください",
+  "Terrain3D {version} was not tested with this editor, edits still go through Godot": "Terrain3D {version}はこのエディタで未検証です。変更は引き続きGodot経由で適用されます"
 }

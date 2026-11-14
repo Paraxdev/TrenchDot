@@ -2794,5 +2794,16 @@
   "No match": "Sin coincidencias",
   "Look around, WASD flies, Q and X go up and down": "Mirar alrededor, WASD vuela, Q y X suben y bajan",
   "Alt+right drag (3D)": "Alt+arrastre derecho (3D)",
-  "3D: right drag looks, WASD flies, Q and X go up and down, middle drag pans, Alt+right drag orbits": "3D: arrastrar con el botón derecho mira, WASD vuela, Q y X suben y bajan, arrastrar con el central desplaza, Alt+arrastrar con el derecho orbita"
+  "3D: right drag looks, WASD flies, Q and X go up and down, middle drag pans, Alt+right drag orbits": "3D: arrastrar con el botón derecho mira, WASD vuela, Q y X suben y bajan, arrastrar con el central desplaza, Alt+arrastrar con el derecho orbita",
+  "Terrain3D edits were not applied: {problem}": "Los cambios de Terrain3D no se aplicaron: {problem}",
+  "Terrain3D edits wait in the data folder until Godot applies them": "Los cambios de Terrain3D esperan en la carpeta de datos hasta que Godot los aplique",
+  "Godot applied {applied} Terrain3D region(s), {refused} changed in Godot and stay here": "Godot aplicó {applied} región(es) de Terrain3D, {refused} cambiaron en Godot y se quedan aquí",
+  "Godot applied no Terrain3D regions, {refused} changed in Godot and stay here": "Godot no aplicó ninguna región de Terrain3D, {refused} cambiaron en Godot y se quedan aquí",
+  "Godot applied no Terrain3D regions": "Godot no aplicó ninguna región de Terrain3D",
+  "Godot has unsaved changes in Terrain3D region {x}, {y}, save the scene there and send again": "Godot tiene cambios sin guardar en la región {x}, {y} de Terrain3D, guardar la escena allí y volver a enviar",
+  "Godot has unsaved changes in {n} Terrain3D region, save the scene there and send again": {"one": "Godot tiene cambios sin guardar en {n} región de Terrain3D, guardar la escena allí y volver a enviar", "other": "Godot tiene cambios sin guardar en {n} regiones de Terrain3D, guardar la escena allí y volver a enviar"},
+  "Godot applied {applied} Terrain3D region(s)": "Godot aplicó {applied} región(es) de Terrain3D",
+  "Godot had no Terrain3D edits to apply": "Godot no tenía cambios de Terrain3D que aplicar",
+  "Update the TrenchDot addon in Godot to send Terrain3D edits to the open editor": "Actualiza el addon de TrenchDot en Godot para enviar los cambios de Terrain3D al editor abierto",
+  "Terrain3D {version} was not tested with this editor, edits still go through Godot": "Terrain3D {version} no se probó con este editor, los cambios siguen pasando por Godot"
 }

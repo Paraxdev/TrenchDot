@@ -30,7 +30,7 @@ const SETTINGS_REPLY: Duration = Duration::from_secs(10);
 pub type Done = Box<dyn FnOnce(Result<Value, String>) + Send>;
 
 // Status messages show these errors translated, MCP gets the English.
-const NOT_RUNNING: &str = en!("Godot is not running with the TrenchDot addon");
+pub(crate) const NOT_RUNNING: &str = en!("Godot is not running with the TrenchDot addon");
 const CLOSED: &str = en!("Godot closed the connection");
 
 pub fn send(port: u16, message: &Value) -> Result<Value, String> {

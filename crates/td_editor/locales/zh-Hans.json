@@ -2794,5 +2794,16 @@
   "No match": "无匹配项",
   "Look around, WASD flies, Q and X go up and down": "环顾四周，WASD 飞行，Q 和 X 上升与下降",
   "Alt+right drag (3D)": "Alt+右键拖动 (3D)",
-  "3D: right drag looks, WASD flies, Q and X go up and down, middle drag pans, Alt+right drag orbits": "3D：右键拖动环视，WASD 飞行，Q 和 X 上升和下降，中键拖动平移，Alt+右键拖动环绕"
+  "3D: right drag looks, WASD flies, Q and X go up and down, middle drag pans, Alt+right drag orbits": "3D：右键拖动环视，WASD 飞行，Q 和 X 上升和下降，中键拖动平移，Alt+右键拖动环绕",
+  "Terrain3D edits were not applied: {problem}": "Terrain3D 修改未应用：{problem}",
+  "Terrain3D edits wait in the data folder until Godot applies them": "Terrain3D 修改会留在数据文件夹中，等待 Godot 应用",
+  "Godot applied {applied} Terrain3D region(s), {refused} changed in Godot and stay here": "Godot 已应用 {applied} 个 Terrain3D 区域，{refused} 个在 Godot 中有改动，保留在此处",
+  "Godot applied no Terrain3D regions, {refused} changed in Godot and stay here": "Godot 没有应用任何 Terrain3D 区域，{refused} 个在 Godot 中有改动，保留在此处",
+  "Godot applied no Terrain3D regions": "Godot 没有应用任何 Terrain3D 区域",
+  "Godot has unsaved changes in Terrain3D region {x}, {y}, save the scene there and send again": "Godot 在 Terrain3D 区域 {x}, {y} 中有未保存的修改，请在 Godot 中保存场景后再次发送",
+  "Godot has unsaved changes in {n} Terrain3D region, save the scene there and send again": {"other": "Godot 在 {n} 个 Terrain3D 区域中有未保存的修改，请在 Godot 中保存场景后再次发送"},
+  "Godot applied {applied} Terrain3D region(s)": "Godot 已应用 {applied} 个 Terrain3D 区域",
+  "Godot had no Terrain3D edits to apply": "Godot 没有需要应用的 Terrain3D 修改",
+  "Update the TrenchDot addon in Godot to send Terrain3D edits to the open editor": "请更新 Godot 中的 TrenchDot 插件，以便向已打开的编辑器发送 Terrain3D 修改",
+  "Terrain3D {version} was not tested with this editor, edits still go through Godot": "Terrain3D {version} 未在此编辑器上测试过，修改仍通过 Godot 进行"
 }
