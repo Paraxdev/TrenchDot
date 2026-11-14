@@ -121,6 +121,7 @@ static func _test_fixture_bytes(t) -> void:
 	var result := TrenchDotTerrain3DCache.export(terrain, folder, null, { "editor_open": true, "map_transform_identity": false })
 	t.check(result.ok and result.problems.is_empty(), "the fixture regions export, got %s" % [result])
 	t.check(result.written == [Vector2i(3, -2), Vector2i(-1, 0)], "both regions are written, south first, got %s" % [result.written])
+	t.check(terrain.get(&"data").get_region_locations() == [Vector2i(-1, 0), Vector2i(3, -2)], "Terrain3D keeps its region list in the order it had, got %s" % [terrain.get(&"data").get_region_locations()])
 	for name in ["terrain3d-01_00.td3r", "terrain3d_03-02.td3r"]:
 		var exported := FileAccess.get_file_as_bytes(folder.path_join(".trenchdot/regions").path_join(name))
 		var fixture := _fixture("regions/" + name)
