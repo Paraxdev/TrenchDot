@@ -23,6 +23,7 @@ static func run(t) -> void:
 	await _test_data_versions(t)
 	await _test_triggers(t)
 	await _test_build_exports_in_editor_only(t)
+	_test_cli(t)
 	_clear(WORK)
 
 static func _clear(dir: String) -> void:
@@ -335,3 +336,43 @@ static func _test_build_exports_in_editor_only(t) -> void:
 			t.check(not DirAccess.dir_exists_absolute(TrenchDotTerrain3DCache.cache_dir(folder)), "a build outside the editor writes no cache")
 		map.free()
 	TrenchDotTerrain3D.export_outside_editor = false
+
+## Runs the export CLI in a headless Godot, returns its exit code and the JSON of its last line.
+static func _cli(args: Array) -> Array:
+	var output: Array = []
+	var cli_args := ["--headless", "--path", ProjectSettings.globalize_path("res://"), "--script", "res://addons/func_godot/src/trenchdot/terrain3d_cli.gd", "--"]
+	var code := OS.execute(OS.get_executable_path(), cli_args + args, output, true)
+	var lines := "
+".join(output).strip_edges().split("
+")
+	var parsed: Variant = JSON.parse_string(lines[lines.size() - 1])
+	return [code, parsed if parsed is Dictionary else {}]
+
+static func _test_cli(t) -> void:
+	var folder := WORK.path_join("cli")
+	_clear(folder)
+	DirAccess.make_dir_recursive_absolute(folder)
+	DirAccess.copy_absolute("res://tests/terrain3d/probe/terrain3d-01_02.res", folder.path_join("terrain3d-01_02.res"))
+	var first := _cli(["export", folder])
+	t.check(first[0] == 0 and first[1].get("ok") == true and _ints(first[1].get("written")) == [[-1, 2]], "the CLI exports a saved folder, got %s" % [first])
+	var m := _manifest(folder)
+	t.check(m.get("editor_open") == false and float(m.get("vertex_spacing", 0.0)) == 1.0 and FileAccess.file_exists(TrenchDotTerrain3DCache.region_path(folder, Vector2i(-1, 2))), "it writes the manifest and the region file, got %s" % [m])
+
+	m["vertex_spacing"] = 2.5
+	FileAccess.open(folder.path_join(".trenchdot/manifest.json"), FileAccess.WRITE).store_string(JSON.stringify(m))
+	var second := _cli(["export", folder])
+	var header := _decode(FileAccess.get_file_as_bytes(TrenchDotTerrain3DCache.region_path(folder, Vector2i(-1, 2))))
+	t.check(second[0] == 0 and float(_manifest(folder).get("vertex_spacing", 0.0)) == 2.5 and header.get("spacing") == 2.5, "the CLI keeps the vertex spacing of the last manifest, got %s %s" % [second, header.get("spacing")])
+
+	var spaced := WORK.path_join("cli_spaced")
+	_clear(spaced)
+	DirAccess.make_dir_recursive_absolute(spaced)
+	DirAccess.copy_absolute("res://tests/terrain3d/v1_0_2/terrain3d_02-01.res", spaced.path_join("terrain3d_02-01.res"))
+	var third := _cli(["export", spaced])
+	header = _decode(FileAccess.get_file_as_bytes(TrenchDotTerrain3DCache.region_path(spaced, Vector2i(2, -1))))
+	t.check(third[0] == 0 and float(_manifest(spaced).get("vertex_spacing", 0.0)) == 2.0 and header.get("spacing") == 2.0, "without a manifest the CLI takes the vertex spacing of the region files, got %s %s" % [_manifest(spaced).get("vertex_spacing"), header.get("spacing")])
+
+	var missing := _cli(["export", WORK.path_join("nowhere")])
+	t.check(missing[0] == 1 and missing[1].get("ok") == false and str(missing[1].get("error")).contains("nowhere"), "the CLI refuses a missing folder, got %s" % [missing])
+	var usage := _cli(["apply"])
+	t.check(usage[0] == 1 and str(usage[1].get("error")).contains("usage"), "the CLI refuses an unknown command, got %s" % [usage])
