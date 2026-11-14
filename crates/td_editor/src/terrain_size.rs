@@ -1,11 +1,12 @@
 //! The Size block of the terrain Inspector. Everything typed there is a draft until Apply, which makes one undo step.
 
 use egui::{RichText, Ui};
-use td_core::NodeId;
+use td_core::{Aabb, NodeId};
 use td_doc::terrain_resize::{ResizePlan, TerrainResize, apply, plan_over};
 use td_geom::Terrain;
 use td_geom::heightfield::{MAX_CELL_SIZE, MIN_CELL_SIZE};
 use td_geom::terrain_resize::{EdgeFill, MAX_CELLS, Sides, resized_cells};
+use td_render::LineVertex;
 
 use crate::i18n::{en, msg, tr, tr_n, trf};
 use crate::state::EditorState;
@@ -74,6 +75,25 @@ pub fn height_range(state: &EditorState, id: NodeId, terrain: &Terrain) -> [f64;
 
 fn plan(state: &EditorState, id: NodeId, terrain: &Terrain, resize: &TerrainResize) -> Result<ResizePlan, String> {
     plan_over(&state.doc.map, id, resize, height_range(state, id, terrain))
+}
+
+/// Where the terrain's edges land if the pending draft were applied, none while it changes nothing, is refused or
+/// belongs to something other than the one selected node.
+pub fn footprint(state: &EditorState) -> Option<Aabb> {
+    let draft = state.terrain_resize?;
+    let terrain = state.doc.map.terrain(draft.id)?;
+    if draft.resize.is_noop(terrain) || !state.doc.selection.nodes.iter().eq([&draft.id]) {
+        return None;
+    }
+
+    // Scatter is left out of the plan, counting it every frame in every view is wasted work for a box.
+    plan(state, draft.id, terrain, &TerrainResize { drop_scatter: false, ..draft.resize }).ok().map(|p| p.bounds)
+}
+
+pub fn lines(state: &EditorState, out: &mut Vec<LineVertex>) {
+    if let Some(b) = footprint(state) {
+        crate::shape_bounds::box_lines(b, out);
+    }
 }
 
 fn fill_label(fill: EdgeFill) -> &'static str {

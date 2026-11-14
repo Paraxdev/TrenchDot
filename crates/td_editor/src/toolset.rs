@@ -1293,6 +1293,7 @@ impl ToolSet {
         }
 
         crate::shape_bounds::lines(state, &mut out);
+        crate::terrain_size::lines(state, &mut out);
 
         if let Some(id) = state.outliner_hover {
             outliner_hover_lines(state, id, &mut out);
@@ -1737,6 +1738,105 @@ mod tests {
             assert_eq!(of_color(&lines, crate::shape_bounds::color()), expected, "{:?}", cam.kind);
             assert_eq!(of_color(&lines, PREVIEW_COLOR).len(), 2, "the preview keeps its own color in {:?}", cam.kind);
         }
+    }
+
+    fn state_with_terrains() -> (EditorState, NodeId, NodeId) {
+        let mut state = EditorState::new(Default::default());
+        let layer = state.doc.map.default_layer();
+        let (a, b) = state.doc.edit("terrains", |m, s| {
+            let a = m.insert(layer, td_doc::NodeKind::Terrain(td_geom::Terrain::new(DVec3::new(-96.5, 12.0, 40.25), [17, 9], 32.0, "dev/grey")));
+            let b = m.insert(layer, td_doc::NodeKind::Terrain(td_geom::Terrain::new(DVec3::new(500.0, 0.0, 500.0), [5, 5], 64.0, "dev/grey")));
+            s.select_node(a);
+            (a, b)
+        });
+        (state, a, b)
+    }
+
+    fn draft(id: NodeId, resize: td_doc::terrain_resize::TerrainResize) -> Option<crate::terrain_size::TerrainResizeDraft> {
+        Some(crate::terrain_size::TerrainResizeDraft { id, resize })
+    }
+
+    #[test]
+    fn a_pending_terrain_size_is_outlined_in_every_view() {
+        use td_doc::terrain_resize::TerrainResize;
+        use td_geom::terrain_resize::Sides;
+        let (mut state, a, b) = state_with_terrains();
+        let tools = ToolSet::default();
+        let cams = [perspective(), view_2d(ViewKind::Top), view_2d(ViewKind::Front), view_2d(ViewKind::Side)];
+        let color = crate::shape_bounds::color();
+        let outline =
+            |state: &EditorState, cam: &Camera| tools.lines(cam, view_rect(), state).iter().filter(|v| v.color == color).map(|v| v.pos).collect::<Vec<_>>();
+        let nothing = |state: &EditorState, why: &str| {
+            for cam in &cams {
+                assert!(outline(state, cam).is_empty(), "{why} in {:?}", cam.kind);
+            }
+        };
+
+        nothing(&state, "no draft");
+        state.terrain_resize = draft(a, TerrainResize::default());
+        nothing(&state, "a draft that changes nothing");
+        state.terrain_resize = draft(a, TerrainResize { cell_size: Some(32.0), ..Default::default() });
+        nothing(&state, "the cell size it already has");
+
+        let wide = TerrainResize { sides: Sides { north: -2, south: 0, west: 1, east: 3 }, ..Default::default() };
+        let old = state.doc.map.terrain(a).unwrap().bounds();
+        let new = Aabb::new(DVec3::new(-128.5, old.min.y, 104.25), DVec3::new(-128.5 + 640.0, old.max.y, 104.25 + 192.0));
+        let corners = new.corners();
+        let expected: Vec<[f32; 3]> = Aabb::EDGES.iter().flat_map(|&(i, j)| [crate::scene::v3(corners[i]), crate::scene::v3(corners[j])]).collect();
+        state.terrain_resize = draft(a, wide);
+        for cam in &cams {
+            assert_eq!(outline(&state, cam), expected, "{:?}", cam.kind);
+        }
+
+        let rescaled = TerrainResize { cell_size: Some(64.0), ..Default::default() };
+        state.terrain_resize = draft(a, rescaled);
+        let half = Aabb::new(DVec3::new(-96.5, old.min.y, 40.25), DVec3::new(-96.5 + 512.0, old.max.y, 40.25 + 256.0));
+        let corners = half.corners();
+        let expected: Vec<[f32; 3]> = Aabb::EDGES.iter().flat_map(|&(i, j)| [crate::scene::v3(corners[i]), crate::scene::v3(corners[j])]).collect();
+        assert_eq!(outline(&state, &cams[1]), expected, "a new cell size keeps the extent");
+
+        state.terrain_resize = draft(b, wide);
+        nothing(&state, "a draft of a terrain that is not the selection");
+        state.doc.selection.clear();
+        state.terrain_resize = draft(a, wide);
+        nothing(&state, "a draft with nothing selected");
+        state.doc.selection.select_node(a);
+        state.doc.selection.select_node(b);
+        nothing(&state, "a draft over two selected nodes");
+    }
+
+    #[test]
+    fn a_refused_terrain_size_draws_nothing() {
+        use td_doc::terrain_resize::TerrainResize;
+        use td_geom::terrain_resize::{MAX_CELLS, Sides};
+        let (mut state, a, _) = state_with_terrains();
+        let tools = ToolSet::default();
+        let cam = view_2d(ViewKind::Top);
+        let color = crate::shape_bounds::color();
+        let drawn = |state: &EditorState| tools.lines(&cam, view_rect(), state).iter().filter(|v| v.color == color).count();
+        let with = |sides: Sides| TerrainResize { sides, ..Default::default() };
+
+        // The terrain is 16 x 8 cells, so these sit on both sides of every limit.
+        for (sides, kept) in [
+            (Sides { north: -7, ..Default::default() }, true),
+            (Sides { north: -8, ..Default::default() }, false),
+            (Sides { west: -8, east: -8, ..Default::default() }, false),
+            (Sides { east: MAX_CELLS as i32 - 16, ..Default::default() }, true),
+            (Sides { east: MAX_CELLS as i32 - 15, ..Default::default() }, false),
+        ] {
+            state.terrain_resize = draft(a, with(sides));
+            assert_eq!(drawn(&state), if kept { 24 } else { 0 }, "{sides:?}");
+        }
+
+        state.terrain_resize = draft(a, with(Sides { east: 4, ..Default::default() }));
+        assert_eq!(drawn(&state), 24);
+        state.doc.edit("lock", |m, _| td_doc::ops::set_locked(m, &[a], true));
+        assert_eq!(drawn(&state), 0, "a locked terrain cannot be resized");
+        state.doc.edit("unlock", |m, _| {
+            td_doc::ops::set_locked(m, &[a], false);
+            td_doc::ops::set_hidden(m, &[a], true);
+        });
+        assert_eq!(drawn(&state), 0, "neither can a hidden one");
     }
 
     #[test]

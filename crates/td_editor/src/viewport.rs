@@ -1107,11 +1107,16 @@ impl Viewport {
         if self.camera.kind.is_2d() {
             if !state.doc.selection.nodes.is_empty() {
                 let b = state.doc.map.bounds_of(state.doc.selection.nodes.iter().copied());
-                size_labels(&painter, &self.camera, self.rect, b, Color32::from_rgb(255, 120, 100));
+                size_labels(&painter, &self.camera, self.rect, b, Color32::from_rgb(255, 120, 100), false);
             }
 
             if let Some(b) = state.shape_bounds {
-                size_labels(&painter, &self.camera, self.rect, b, crate::theme::VIEW.shape_bounds());
+                size_labels(&painter, &self.camera, self.rect, b, crate::theme::VIEW.shape_bounds(), false);
+            }
+
+            // The pending size outlines the selected terrain, so its labels go on the other sides.
+            if let Some(b) = crate::terrain_size::footprint(state) {
+                size_labels(&painter, &self.camera, self.rect, b, crate::theme::VIEW.shape_bounds(), true);
             }
         }
 
@@ -1240,8 +1245,8 @@ pub(crate) fn cell_span(a: f64, b: f64, grid: f64, snap: bool) -> (f64, f64) {
     if (hi - lo).abs() < 1e-6 { (lo, lo + grid) } else { (lo, hi) }
 }
 
-/// Width and height of `b` beside it in a 2D view.
-fn size_labels(painter: &egui::Painter, camera: &Camera, rect: Rect, b: Aabb, color: Color32) {
+/// Width and height of `b` beside it in a 2D view, above and to the right, or below and to the left when `opposite`.
+fn size_labels(painter: &egui::Painter, camera: &Camera, rect: Rect, b: Aabb, color: Color32, opposite: bool) {
     if b.is_empty() {
         return;
     }
@@ -1252,8 +1257,13 @@ fn size_labels(painter: &egui::Painter, camera: &Camera, rect: Rect, b: Aabb, co
     let h = (size * u.abs()).element_sum();
     if let (Some(p0), Some(p1)) = (camera.project(rect, b.min), camera.project(rect, b.max)) {
         let sr = Rect::from_two_pos(p0, p1);
-        painter.text(Pos2::new(sr.center().x, sr.min.y - 4.0), Align2::CENTER_BOTTOM, crate::gizmos::fmt_num(w), FontId::monospace(11.0), color);
-        painter.text(Pos2::new(sr.max.x + 6.0, sr.center().y), Align2::LEFT_CENTER, crate::gizmos::fmt_num(h), FontId::monospace(11.0), color);
+        let (width_at, height_at) = if opposite {
+            ((Pos2::new(sr.center().x, sr.max.y + 4.0), Align2::CENTER_TOP), (Pos2::new(sr.min.x - 6.0, sr.center().y), Align2::RIGHT_CENTER))
+        } else {
+            ((Pos2::new(sr.center().x, sr.min.y - 4.0), Align2::CENTER_BOTTOM), (Pos2::new(sr.max.x + 6.0, sr.center().y), Align2::LEFT_CENTER))
+        };
+        painter.text(width_at.0, width_at.1, crate::gizmos::fmt_num(w), FontId::monospace(11.0), color);
+        painter.text(height_at.0, height_at.1, crate::gizmos::fmt_num(h), FontId::monospace(11.0), color);
     }
 }
 
@@ -1541,12 +1551,43 @@ mod tests {
         let painter = ctx.layer_painter(egui::LayerId::background());
         let rect = Rect::from_min_size(Pos2::new(20.0, 30.0), Vec2::new(600.0, 400.0));
         let b = Aabb::new(DVec3::new(-21.5, 3.0, 7.0), DVec3::new(15.8, 51.0, 19.25));
-        size_labels(&painter, &Camera::new(ViewKind::Front), rect, b, Color32::WHITE);
+        size_labels(&painter, &Camera::new(ViewKind::Front), rect, b, Color32::WHITE, false);
         let out = ctx.end_pass();
         let texts: Vec<String> =
             out.shapes.iter().filter_map(|c| if let egui::Shape::Text(t) = &c.shape { Some(t.galley.text().to_owned()) } else { None }).collect();
         out.drop_without_applying_deltas();
         assert_eq!(texts, ["37.3", "48"], "like the Shape Generator's fields");
+    }
+
+    #[test]
+    fn opposite_size_labels_keep_clear_of_the_usual_ones() {
+        let rect = Rect::from_min_size(Pos2::new(20.0, 30.0), Vec2::new(600.0, 400.0));
+        let camera = Camera::new(ViewKind::Side);
+        let b = Aabb::new(DVec3::new(5.0, -40.0, -90.5), DVec3::new(9.0, 61.0, 130.0));
+        let screen = Rect::from_two_pos(camera.project(rect, b.min).unwrap(), camera.project(rect, b.max).unwrap());
+        let labels = |opposite: bool| {
+            let ctx = egui::Context::default();
+            ctx.begin_pass(egui::RawInput::default());
+            size_labels(&ctx.layer_painter(egui::LayerId::background()), &camera, rect, b, Color32::WHITE, opposite);
+            let out = ctx.end_pass();
+            let texts: Vec<(String, Rect)> = out
+                .shapes
+                .iter()
+                .filter_map(|c| if let egui::Shape::Text(t) = &c.shape { Some((t.galley.text().to_owned(), t.visual_bounding_rect())) } else { None })
+                .collect();
+            out.drop_without_applying_deltas();
+            texts
+        };
+
+        let (usual, opposite) = (labels(false), labels(true));
+        let names = |l: &[(String, Rect)]| l.iter().map(|(t, _)| t.clone()).collect::<Vec<_>>();
+        assert_eq!(names(&usual), ["220.5", "101"]);
+        assert_eq!(names(&opposite), names(&usual));
+        assert!(usual[0].1.max.y <= screen.min.y && usual[1].1.min.x >= screen.max.x);
+        assert!(opposite[0].1.min.y >= screen.max.y && opposite[1].1.max.x <= screen.min.x);
+        for (a, b) in usual.iter().zip(&opposite) {
+            assert!(!a.1.intersects(b.1), "{} overlaps", a.0);
+        }
     }
 
     #[test]

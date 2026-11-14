@@ -15,7 +15,12 @@ pub fn color() -> [f32; 4] {
 }
 
 pub fn lines(state: &EditorState, out: &mut Vec<LineVertex>) {
-    let Some(b) = state.shape_bounds else { return };
+    if let Some(b) = state.shape_bounds {
+        box_lines(b, out);
+    }
+}
+
+pub fn box_lines(b: Aabb, out: &mut Vec<LineVertex>) {
     let corners = b.corners();
     for (i, j) in Aabb::EDGES {
         out.push(LineVertex { pos: v3(corners[i]), color: color() });
