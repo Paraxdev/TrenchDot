@@ -1,4 +1,4 @@
-use crate::heightfield::Terrain;
+use crate::heightfield::{MAX_CELL_SIZE, MIN_CELL_SIZE, Terrain};
 use td_core::DVec3;
 
 /// Most cells a terrain may have along one axis, 2049 vertices.
@@ -108,6 +108,102 @@ impl Terrain {
             chunk_cells: self.chunk_cells,
         })
     }
+
+    /// The cell counts with cells of `cell_size`, keeping the extent to the nearest cell. Refuses a cell size outside
+    /// the range and a result above [`MAX_CELLS`] cells on an axis.
+    pub fn rescaled_cells(&self, cell_size: f64) -> Result<[u32; 2], String> {
+        if !(MIN_CELL_SIZE..=MAX_CELL_SIZE).contains(&cell_size) {
+            return Err(format!("a terrain cell size has to be within {MIN_CELL_SIZE} to {MAX_CELL_SIZE}, got {cell_size}"));
+        }
+
+        let mut out = [0; 2];
+        for (k, axis) in ["x", "z"].into_iter().enumerate() {
+            let n = (self.cells()[k] as f64 * self.cell_size / cell_size).round().max(1.0);
+            if n > MAX_CELLS as f64 {
+                return Err(format!("a terrain has at most {MAX_CELLS} cells along each axis, this makes {n} along {axis}"));
+            }
+
+            out[k] = n as u32;
+        }
+
+        Ok(out)
+    }
+
+    /// True when cells of `cell_size` are coarser than the current ones, so the ground loses shape on resampling.
+    pub fn loses_detail(&self, cell_size: f64) -> bool {
+        cell_size > self.cell_size
+    }
+
+    /// Changes the cell size and keeps the origin and the extent to the nearest cell. Heights and paint are bilinear at
+    /// the new vertices, paint renormalized to 255 per vertex, and every new cell takes the hole of the old cell under
+    /// its center. Vertices past the old edge repeat it.
+    pub fn rescaled(&self, cell_size: f64) -> Result<Terrain, String> {
+        self.check_data()?;
+        let cells = self.rescaled_cells(cell_size)?;
+        if cell_size == self.cell_size {
+            return Ok(self.clone());
+        }
+
+        let res = [cells[0] + 1, cells[1] + 1];
+        let scale = cell_size / self.cell_size;
+        let old = self.cells();
+        let corners = |i: u32, j: u32| {
+            let u = (i as f64 * scale).min(old[0] as f64);
+            let v = (j as f64 * scale).min(old[1] as f64);
+            let (i0, j0) = ((u as u32).min(old[0] - 1), (v as u32).min(old[1] - 1));
+            let (fu, fv) = (u - i0 as f64, v - j0 as f64);
+            [(i0, j0, (1.0 - fu) * (1.0 - fv)), (i0 + 1, j0, fu * (1.0 - fv)), (i0, j0 + 1, (1.0 - fu) * fv), (i0 + 1, j0 + 1, fu * fv)]
+        };
+
+        let mut heights = Vec::with_capacity((res[0] * res[1]) as usize);
+        let mut splat = Vec::with_capacity(if self.splat.is_empty() { 0 } else { heights.capacity() * 4 });
+        for j in 0..res[1] {
+            for i in 0..res[0] {
+                let c = corners(i, j);
+                heights.push(c.iter().map(|&(a, b, w)| self.height(a, b) * w).sum::<f64>() as f32);
+                if !self.splat.is_empty() {
+                    let mut mix = [0.0f64; 4];
+                    for &(a, b, w) in &c {
+                        for (m, l) in mix.iter_mut().zip(self.weights(a, b)) {
+                            *m += l as f64 * w;
+                        }
+                    }
+
+                    splat.extend(to_bytes(mix));
+                }
+            }
+        }
+
+        let mut holes = Vec::new();
+        if self.holes.iter().any(|h| *h != 0) {
+            let near = |c: u32, k: usize| (((c as f64 + 0.5) * scale) as u32).min(old[k] - 1);
+            holes = (0..cells[1]).flat_map(|cj| (0..cells[0]).map(move |ci| (ci, cj))).map(|(ci, cj)| self.is_hole(near(ci, 0), near(cj, 1)) as u8).collect();
+            if holes.iter().all(|h| *h == 0) {
+                holes.clear();
+            }
+        }
+
+        Ok(Terrain { origin: self.origin, resolution: res, cell_size, heights, layers: self.layers.clone(), splat, holes, chunk_cells: self.chunk_cells })
+    }
+}
+
+/// Blend weights as bytes summing to exactly 255. Rounding the running sum keeps every byte within 1 of its weight.
+fn to_bytes(weights: [f64; 4]) -> [u8; 4] {
+    let total: f64 = weights.iter().sum();
+    if total <= 0.0 || total.is_nan() {
+        return [255, 0, 0, 0];
+    }
+
+    let mut out = [0u8; 4];
+    let (mut run, mut prev) = (0.0, 0u32);
+    for (k, w) in weights.iter().enumerate() {
+        run += w;
+        let at = if k == 3 { 255 } else { ((run / total * 255.0).round() as u32).clamp(prev, 255) };
+        out[k] = (at - prev) as u8;
+        prev = at;
+    }
+
+    out
 }
 
 #[cfg(test)]
@@ -361,5 +457,154 @@ mod tests {
         let bumpy_terrain = slanted([5, 4], &[]);
         let cropped = bumpy_terrain.resized(sides(0, 0, -1, 0), EdgeFill::Edge).unwrap();
         assert_edge_copy(&bumpy_terrain, &cropped, -1, 0);
+    }
+
+    /// A slanted plane of `cells` off the origin, unpainted so it can be long.
+    fn planar(cells: [u32; 2]) -> Terrain {
+        let mut t = Terrain::new(DVec3::new(-96.5, 12.0, 40.25), [cells[0] + 1, cells[1] + 1], 32.0, "grass");
+        t.layers.push(TerrainLayer::new("rock", 2.0));
+        t.chunk_cells = 16;
+        for j in 0..=cells[1] {
+            for i in 0..=cells[0] {
+                let k = t.index(i, j);
+                t.heights[k] = 2.5 * i as f32 - 1.25 * j as f32 + 7.0;
+            }
+        }
+
+        t
+    }
+
+    #[test]
+    fn halving_the_cell_doubles_the_cells_on_the_plane() {
+        let old = planar([4, 3]);
+        let new = old.rescaled(16.0).unwrap();
+        new.check_data().unwrap();
+        assert_eq!((new.origin, new.resolution, new.cell_size), (old.origin, [9, 7], 16.0));
+        assert_eq!((&new.layers, new.chunk_cells), (&old.layers, old.chunk_cells));
+        assert_eq!(new.size(), old.size());
+        let plane: Vec<f32> = (0..7).flat_map(|j| (0..9).map(move |i| 1.25 * i as f32 - 0.625 * j as f32 + 7.0)).collect();
+        assert_eq!(new.heights, plane);
+
+        let bumpy_terrain = slanted([4, 3], &[]);
+        let fine = bumpy_terrain.rescaled(16.0).unwrap();
+        for j in 0..=3 {
+            for i in 0..=4 {
+                assert_eq!(fine.height(2 * i, 2 * j), bumpy(i, j) as f64, "old vertex {i},{j} keeps its height");
+                assert!((fine.vertex(2 * i, 2 * j) - bumpy_terrain.vertex(i, j)).length() < 1e-9);
+            }
+        }
+
+        let mid = (bumpy(1, 2) + bumpy(2, 2) + bumpy(1, 3) + bumpy(2, 3)) as f64 / 4.0;
+        assert!((fine.height(3, 5) - mid).abs() < 1e-5, "a cell center is the mean of its corners");
+    }
+
+    #[test]
+    fn doubling_the_cell_rounds_half_away_from_zero() {
+        let old = planar([3, 5]);
+        assert_eq!(old.rescaled_cells(64.0), Ok([2, 3]));
+        let new = old.rescaled(64.0).unwrap();
+        new.check_data().unwrap();
+        assert_eq!((new.origin, new.resolution, new.cell_size), (old.origin, [3, 4], 64.0));
+        let expected: Vec<f32> = (0..4).flat_map(|j| (0..3).map(move |i| 2.5 * (2 * i).min(3) as f32 - 1.25 * (2 * j).min(5) as f32 + 7.0)).collect();
+        assert_eq!(new.heights, expected, "vertices past the old edge repeat it");
+        assert_eq!(old.rescaled_cells(1e5), Ok([1, 1]), "never below one cell");
+    }
+
+    #[test]
+    fn paint_mixes_bilinearly_and_sums_to_255() {
+        let mut old = slanted([2, 1], &[]);
+        let row = [[255, 0, 0, 0], [0, 0, 255, 0], [0, 100, 0, 155]];
+        let bottom = [[100, 50, 0, 0], [0, 0, 0, 0], [10, 20, 30, 40]];
+        old.splat = row.iter().chain(bottom.iter()).flatten().copied().collect();
+        let new = old.rescaled(16.0).unwrap();
+        new.check_data().unwrap();
+        assert_eq!(new.resolution, [5, 3]);
+        let px = |i: u32, j: u32| {
+            let k = new.index(i, j) * 4;
+            [new.splat[k], new.splat[k + 1], new.splat[k + 2], new.splat[k + 3]]
+        };
+
+        assert_eq!(px(0, 0), [255, 0, 0, 0]);
+        assert_eq!(px(1, 0), [128, 0, 127, 0], "midway between two painted vertices");
+        assert_eq!(px(4, 0), [0, 100, 0, 155]);
+        assert_eq!(px(0, 2), [170, 85, 0, 0], "an old vertex comes back renormalized");
+        assert_eq!(px(2, 2), [255, 0, 0, 0], "an unpainted vertex reads as the first layer");
+        for j in 0..3 {
+            for i in 0..5 {
+                let p = px(i, j);
+                assert_eq!(p.iter().map(|b| *b as u32).sum::<u32>(), 255, "vertex {i},{j}: {p:?}");
+                let (u, v) = (i as f64 / 2.0, j as f64 / 2.0);
+                let (i0, j0) = ((u as u32).min(1), 0);
+                let (fu, fv) = (u - i0 as f64, v - j0 as f64);
+                for l in 0..4 {
+                    let w = |a: u32, b: u32| old.weights(a, b)[l] as f64;
+                    let mix = (w(i0, j0) * (1.0 - fu) + w(i0 + 1, j0) * fu) * (1.0 - fv) + (w(i0, j0 + 1) * (1.0 - fu) + w(i0 + 1, j0 + 1) * fu) * fv;
+                    assert!((p[l] as f64 - mix * 255.0).abs() <= 1.0, "vertex {i},{j} layer {l}: {p:?} vs {mix}");
+                }
+            }
+        }
+
+        let bare = slanted([2, 1], &[]);
+        let bare = Terrain { splat: Vec::new(), ..bare };
+        assert!(bare.rescaled(16.0).unwrap().splat.is_empty(), "no paint stays no paint");
+    }
+
+    #[test]
+    fn holes_take_the_nearest_old_cell() {
+        let old = slanted([4, 3], &[(1, 0), (3, 2)]);
+        let fine = old.rescaled(16.0).unwrap();
+        assert_eq!(fine.holes, holes_at([8, 6], &[(2, 0), (3, 0), (2, 1), (3, 1), (6, 4), (7, 4), (6, 5), (7, 5)]));
+
+        let coarse = old.rescaled(64.0).unwrap();
+        assert_eq!(coarse.resolution, [3, 3]);
+        assert_eq!(coarse.holes, holes_at([2, 2], &[(1, 1)]));
+
+        let lost = slanted([4, 3], &[(0, 0)]).rescaled(64.0).unwrap();
+        assert!(lost.holes.is_empty(), "no hole left gives no holes");
+    }
+
+    #[test]
+    fn the_same_cell_size_changes_nothing() {
+        let old = slanted([4, 3], &[(1, 0)]);
+        assert_eq!(old.rescaled(32.0).unwrap(), old);
+        assert!(!old.loses_detail(32.0));
+        assert!(old.loses_detail(32.000001));
+        assert!(!old.loses_detail(31.5));
+    }
+
+    #[test]
+    fn the_cell_size_has_to_stay_in_range() {
+        let mut tiny = slanted([1, 1], &[]);
+        tiny.cell_size = 0.002;
+        assert_eq!(tiny.rescaled(MIN_CELL_SIZE).unwrap().resolution, [3, 3]);
+        let mut huge = slanted([2, 2], &[]);
+        huge.cell_size = 50000.0;
+        assert_eq!(huge.rescaled(MAX_CELL_SIZE).unwrap().resolution, [2, 2]);
+
+        for bad in [0.000999, 100000.1, 0.0, -32.0, f64::NAN, f64::INFINITY] {
+            let err = tiny.rescaled(bad).unwrap_err();
+            assert!(err.contains("0.001 to 100000"), "{bad}: {err}");
+            assert!(tiny.rescaled_cells(bad).is_err());
+        }
+    }
+
+    #[test]
+    fn the_cell_count_has_to_stay_under_the_limit() {
+        let strip = planar([683, 1]);
+        let full = strip.rescaled(10.671875).unwrap();
+        full.check_data().unwrap();
+        assert_eq!(full.resolution, [MAX_CELLS + 1, 4]);
+        let err = strip.rescaled(32.0 / 3.0).unwrap_err();
+        assert!(err.contains("at most 2048") && err.contains("2049 along x"), "{err}");
+        let err = planar([1, 683]).rescaled_cells(32.0 / 3.0).unwrap_err();
+        assert!(err.contains("2049 along z"), "{err}");
+    }
+
+    #[test]
+    fn a_broken_terrain_is_not_rescaled() {
+        let mut t = slanted([4, 3], &[]);
+        t.splat.pop();
+        assert!(t.rescaled(16.0).unwrap_err().contains("splat"));
+        assert!(t.rescaled(32.0).is_err());
     }
 }
