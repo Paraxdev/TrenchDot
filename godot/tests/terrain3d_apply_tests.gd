@@ -23,6 +23,7 @@ static func run(t) -> void:
 	_test_fixture_pending(t)
 	await _test_guards(t)
 	await _test_add_remove(t)
+	await _test_remove_then_edit(t)
 	await _test_bad_files(t)
 	await _test_instances_follow(t)
 	_test_cli(t)
@@ -197,6 +198,23 @@ static func _test_add_remove(t) -> void:
 	var again := TrenchDotTerrain3DCache.apply(terrain, folder)
 	t.check(Export._ints(again.accepted) == [[0, -1]] and again.problems.is_empty(), "removing a region that is already gone is accepted and harmless, got %s" % [again])
 	t.check(_pending_left(folder).is_empty(), "no pending file remains after adding and removing")
+	terrain.free()
+
+## Removing a region renumbers Terrain3D's regions until its maps update, the regions after it must still be found.
+static func _test_remove_then_edit(t) -> void:
+	var folder := WORK.path_join("remove_then_edit")
+	var terrain := await _world(t, "remove_then_edit")
+	var data: Object = terrain.get(&"data")
+	var west := Vector2i(-1, 0)
+	var south := Vector2i(3, -2)
+	var north := Vector2i(0, -1)
+	_pending(folder, west, Export._pattern(west, false), _hash(folder, west), REMOVE)
+	_pending(folder, south, { "height": _slanted(south, 2.0), "control": Export._pattern(south, false)["control"] }, _hash(folder, south))
+	_pending(folder, north, { "height": _slanted(north, -3.0), "control": Export._pattern(north, false)["control"] }, _hash(folder, north))
+	var result := TrenchDotTerrain3DCache.apply(terrain, folder)
+	t.check(Export._ints(result.accepted) == [[-1, 0], [0, -1], [3, -2]] and result.refused.is_empty(), "the regions after a removed one still apply, got %s" % [result])
+	t.check(not data.has_region(west) and data.get_region(south).get_map(TYPE_HEIGHT).get_data() == _slanted(south, 2.0).get_data() and data.get_region(north).get_map(TYPE_HEIGHT).get_data() == _slanted(north, -3.0).get_data(), "each edit lands in its own region")
+	t.check(Array(data.get_region_locations()).duplicate().map(func(l: Vector2i) -> Array: return [l.x, l.y]) == [[3, -2], [0, -1]], "only the removed region is gone, got %s" % [data.get_region_locations()])
 	terrain.free()
 
 static func _test_bad_files(t) -> void:
