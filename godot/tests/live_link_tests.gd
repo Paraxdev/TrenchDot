@@ -195,21 +195,26 @@ static func _test_project_settings(t) -> void:
 	link.free()
 
 static func _test_scene_tabs(t) -> void:
+	await run_editor(t, TABS_SCENE, "--td-live-link-tabs", "the live link follows scene tabs in a headless editor")
+
+## Opens [param scene] in a headless Godot editor with [param flag] and checks that it exits with 0, which says
+## [param what].
+static func run_editor(t, scene: String, flag: String, what: String) -> void:
 	var saved := {}
 	for path in EDITOR_STATE:
 		if FileAccess.file_exists(path):
 			saved[path] = FileAccess.get_file_as_bytes(path)
-	var args := ["--headless", "--editor", "--path", ProjectSettings.globalize_path("res://"), TABS_SCENE, "--", "--td-live-link-tabs"]
+	var args := ["--headless", "--editor", "--path", ProjectSettings.globalize_path("res://"), scene, "--", flag]
 	var pid := OS.create_process(OS.get_executable_path(), args)
 	var start := Time.get_ticks_msec()
 	while pid > 0 and OS.is_process_running(pid) and Time.get_ticks_msec() - start < TABS_TIMEOUT_MSEC:
 		await t.create_timer(0.2).timeout
 	if pid > 0 and OS.is_process_running(pid):
 		OS.kill(pid)
-		t.check(false, "the headless editor scene tab test timed out")
+		t.check(false, "%s, but the headless editor timed out" % what)
 	else:
 		var code := OS.get_process_exit_code(pid) if pid > 0 else -1
-		t.check(code == 0, "the live link follows scene tabs in a headless editor, exit code %d, see its output above" % code)
+		t.check(code == 0, "%s, exit code %d, see its output above" % [what, code])
 	for path in EDITOR_STATE:
 		if saved.has(path):
 			var file := FileAccess.open(path, FileAccess.WRITE)

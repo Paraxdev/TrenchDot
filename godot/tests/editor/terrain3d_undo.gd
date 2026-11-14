@@ -1,0 +1,176 @@
+@tool
+extends Node
+## Checks in a headless Godot editor that TrenchDot edits sent over the live link land in the Terrain3D of the edited
+## scene as one undo step, that undo and redo put the regions back and the cache follows each step, and that the
+## Terrain3D settings event and the other events behave. res://tests/terrain3d_apply_tests.gd starts it with
+## godot --headless --editor --path godot res://tests/editor/terrain3d_undo.tscn -- --td-terrain3d-undo
+## and it does nothing when the scene is opened any other way.
+
+const FLAG := "--td-terrain3d-undo"
+const Apply := preload("res://tests/terrain3d_apply_tests.gd")
+const NAME := "editor_undo"
+
+func _ready() -> void:
+	if not Engine.is_editor_hint() or not FLAG in OS.get_cmdline_user_args():
+		return
+	var base := EditorInterface.get_base_control()
+	if not base.has_node("Terrain3DUndoRunner"):
+		var runner := Runner.new()
+		runner.name = "Terrain3DUndoRunner"
+		base.add_child.call_deferred(runner)
+
+class Runner extends Node:
+	var failures := 0
+	var link: TrenchDotEditorIntegration
+	var folder := Apply.WORK.path_join(NAME)
+	var dir := ProjectSettings.globalize_path(Apply.WORK.path_join(NAME))
+	var seq := 0
+
+	func check(cond: bool, what: String) -> void:
+		if not cond:
+			failures += 1
+			printerr("  FAIL: ", what)
+
+	func frames(n: int) -> void:
+		for i in n:
+			await get_tree().process_frame
+
+	func send(msg: Dictionary) -> Dictionary:
+		seq += 1
+		msg["seq"] = seq
+		var reply: Dictionary = await link.handle_message(JSON.stringify(msg))
+		check(reply.get("seq") == seq, "the reply to %s echoes its seq, got %s" % [msg.get("event"), reply])
+		return reply
+
+	func hashes() -> Dictionary:
+		var out := {}
+		for entry in TrenchDotTerrain3DCache.read_manifest(folder).get("regions", []):
+			out[Vector2i(int(entry["loc"][0]), int(entry["loc"][1]))] = entry["hash"]
+		return out
+
+	func dirty() -> Array:
+		var status: Array = link.status()["terrain3d"]
+		return status[0]["dirty"] if status.size() == 1 else ["no single Terrain3D"]
+
+	func history(slot: Node) -> UndoRedo:
+		var undo := EditorInterface.get_editor_undo_redo()
+		return undo.get_history_undo_redo(undo.get_object_history_id(slot))
+
+	func _ready() -> void:
+		_run.call_deferred()
+
+	func _run() -> void:
+		print("TrenchDot Terrain3D editor undo tests")
+		await frames(5)
+		for n in get_tree().root.find_children("*", "TrenchDotEditorIntegration", true, false):
+			link = n
+		if not link or not ClassDB.class_exists("Terrain3D"):
+			printerr("  FAIL: the addon's live link or Terrain3D is missing")
+			get_tree().quit(1)
+			return
+		# The test calls the link directly, the port stays free for a Godot editor someone is working in.
+		link.stop_live_link()
+		var terrain: Node3D = await Apply._world(get_tree(), NAME)
+		var slot := TrenchDotTerrain3D.new()
+		terrain.get_parent().remove_child(terrain)
+		slot.add_child(terrain)
+		EditorInterface.get_edited_scene_root().add_child(slot)
+		await frames(5)
+		await _check_apply_undo_redo(slot, terrain)
+		await _check_settings(slot, terrain)
+		await _check_other_events()
+		slot.queue_free()
+		await frames(5)
+		get_tree().quit(1 if failures > 0 else 0)
+
+	func _check_apply_undo_redo(slot: TrenchDotTerrain3D, terrain: Node3D) -> void:
+		var data: Object = terrain.get(&"data")
+		var west := Vector2i(-1, 0)
+		var south := Vector2i(3, -2)
+		var gone := Vector2i(0, -1)
+		var new := Vector2i(5, 5)
+		var status: Array = link.status()["terrain3d"]
+		check(status == [{ "dir": dir, "version": "1.1.0", "dirty": [] }], "status lists the Terrain3D of the edited scene, got %s" % [status])
+		var before := hashes()
+		var west_point := Vector3((west.x * Apply.SIZE + 10) * Apply.SPACING, 0.0, 20 * Apply.SPACING)
+		var west_height: float = data.get_height(west_point)
+		var flat := Image.create(Apply.SIZE, Apply.SIZE, false, Image.FORMAT_RF)
+		Apply._pending(folder, west, { "height": Apply._slanted(west, 4.0), "control": flat }, before[west])
+		Apply._pending(folder, gone, { "height": flat, "control": flat }, before[gone], Apply.REMOVE)
+		Apply._pending(folder, new, { "height": Apply._slanted(new, -2.0), "control": flat }, Apply.NO_BASE)
+		Apply._pending(folder, south, { "height": Apply._slanted(south, 1.0), "control": flat }, Apply.NO_BASE)
+		var steps := history(slot).get_current_action()
+
+		var reply := await send({ "event": "terrain3d_apply", "dir": dir, "force": false })
+		check(reply.get("ok") == true and reply.get("accepted") == [[-1, 0], [0, -1], [5, 5]], "the apply event applies the regions whose base matches, got %s" % reply)
+		check(reply.get("refused") == [{ "loc": [3, -2], "reason": "changed" }], "and refuses the one that changed, got %s" % [reply.get("refused")])
+		check(history(slot).get_current_action() == steps + 1 and history(slot).get_current_action_name() == TrenchDotEditorIntegration.TERRAIN3D_EDIT, "it adds one undo step named %s, got %d steps, %s" % [TrenchDotEditorIntegration.TERRAIN3D_EDIT, history(slot).get_current_action() - steps, history(slot).get_current_action_name()])
+		var after := hashes()
+		check(after.has(new) and not after.has(gone) and after[west] != before[west] and after[south] == before[south], "the cache follows the apply, got %s" % [after])
+		check(is_equal_approx(data.get_height(west_point), Apply._slanted(west, 4.0).get_pixel(10, 20).r), "the west region has the sent heights")
+		check(dirty() == [], "an applied edit is saved at once, dirty %s" % [dirty()])
+
+		history(slot).undo()
+		check(hashes() == before, "an undo puts every region back in the cache, got %s, want %s" % [hashes(), before])
+		check(is_equal_approx(data.get_height(west_point), west_height) and data.has_region(gone) and not data.has_region(new), "and in Terrain3D")
+		check(dirty() == [[-1, 0], [0, -1]], "the regions an undo changed are unsaved, got %s" % [dirty()])
+		var listed: Array = TrenchDotTerrain3DCache.read_manifest(folder).get("dirty", []).map(func(l: Array) -> Array: return [int(l[0]), int(l[1])])
+		listed.sort()
+		check(listed == [[-1, 0], [0, -1]], "and the manifest lists them as dirty, got %s" % [listed])
+
+		history(slot).redo()
+		check(hashes() == after, "a redo puts the applied regions back in the cache, got %s, want %s" % [hashes(), after])
+		check(not data.has_region(gone) and data.has_region(new) and dirty() == [[-1, 0], [5, 5]], "and in Terrain3D, dirty %s" % [dirty()])
+
+		steps = history(slot).get_current_action()
+		reply = await send({ "event": "terrain3d_apply", "dir": dir })
+		check(reply.get("ok") == true and reply.get("accepted") == [] and history(slot).get_current_action() == steps, "an apply with nothing pending adds no undo step, got %s" % reply)
+		Apply._pending(folder, south, { "height": Apply._slanted(south, 1.0), "control": flat }, Apply.NO_BASE)
+		reply = await send({ "event": "terrain3d_apply", "dir": dir, "force": true })
+		check(reply.get("accepted") == [[3, -2]] and reply.get("refused") == [] and hashes()[south] != before[south], "force applies a region that changed, got %s" % reply)
+		history(slot).undo()
+		check(hashes()[south] == before[south], "and its undo puts it back")
+		reply = await send({ "event": "terrain3d_apply", "dir": dir.path_join("elsewhere") })
+		check(reply.get("ok") == false and str(reply.get("error")).contains("no open scene"), "another folder is refused, got %s" % reply)
+		DirAccess.remove_absolute(TrenchDotTerrain3DCache.region_path(folder, west))
+		reply = await send({ "event": "terrain3d_export", "dir": dir + "/", "regions": [[-1, 0]] })
+		check(reply.get("ok") == true and reply.get("written") == [[-1, 0]], "the export event exports the regions it names, got %s" % reply)
+
+	func _check_settings(slot: TrenchDotTerrain3D, terrain: Node3D) -> void:
+		var steps := history(slot).get_current_action()
+		var locs := Array(terrain.get(&"data").get_region_locations()).duplicate()
+		locs.sort()
+		var before := hashes()
+		for bad in [{ "region_size": 100 }, { "vertex_spacing": 0.2499 }, { "vertex_spacing": 100.01 }]:
+			var refused := await send(bad.merged({ "event": "terrain3d_settings", "dir": dir }))
+			check(refused.get("ok") == false and refused.has("error"), "settings %s are refused, got %s" % [bad, refused])
+		check(history(slot).get_current_action() == steps and int(terrain.get(&"region_size")) == Apply.SIZE, "a refused setting changes nothing")
+		var reply := await send({ "event": "terrain3d_settings", "dir": dir, "region_size": 128, "vertex_spacing": 100.0 })
+		var manifest := TrenchDotTerrain3DCache.read_manifest(folder)
+		check(reply == { "ok": true, "region_size": 128, "vertex_spacing": 100.0, "seq": seq }, "the settings event changes size and spacing, got %s" % reply)
+		check(int(manifest.get("region_size", 0)) == 128 and is_equal_approx(manifest.get("vertex_spacing", 0.0), 100.0), "and the cache follows, got %s, %s" % [manifest.get("region_size"), manifest.get("vertex_spacing")])
+		check(history(slot).get_current_action() == steps + 1 and history(slot).get_current_action_name() == TrenchDotEditorIntegration.TERRAIN3D_SETTINGS, "as one undo step, got %d steps, %s" % [history(slot).get_current_action() - steps, history(slot).get_current_action_name()])
+		var edge := Vector2i(15, 0)
+		terrain.get(&"data").add_region_blank(edge, false)
+		var crop := await send({ "event": "terrain3d_settings", "dir": dir, "region_size": 64 })
+		check(crop.get("ok") == false and str(crop.get("error")).contains("-16 to 15") and int(terrain.get(&"region_size")) == 128, "a region size that would crop the regions is refused, got %s" % crop)
+		check(history(slot).get_current_action() == steps + 1, "and adds no undo step")
+		terrain.get(&"data").remove_regionl(edge, false)
+		history(slot).undo()
+		manifest = TrenchDotTerrain3DCache.read_manifest(folder)
+		check(int(terrain.get(&"region_size")) == Apply.SIZE and is_equal_approx(terrain.get(&"vertex_spacing"), Apply.SPACING), "its undo puts the settings back")
+		check(int(manifest.get("region_size", 0)) == Apply.SIZE and is_equal_approx(manifest.get("vertex_spacing", 0.0), Apply.SPACING), "and the cache follows, got %s, %s" % [manifest.get("region_size"), manifest.get("vertex_spacing")])
+		var now := Array(terrain.get(&"data").get_region_locations()).duplicate()
+		now.sort()
+		check(now == locs and hashes() == before, "with the same regions as before, got %s, want %s" % [now, locs])
+		reply = await send({ "event": "terrain3d_settings", "dir": dir, "vertex_spacing": 0.25 })
+		check(reply.get("ok") == true and is_equal_approx(terrain.get(&"vertex_spacing"), 0.25), "the smallest spacing is taken, got %s" % reply)
+		history(slot).undo()
+
+	func _check_other_events() -> void:
+		var status: Dictionary = link.status()
+		check(status.has("maps") and status.has("scene") and status["terrain3d"].size() == 1, "the status keeps its other fields, got %s" % [status.keys()])
+		var reply := await send({ "event": "hello" })
+		check(reply.get("ok") == true, "hello still answers, got %s" % reply)
+		reply = await send({ "event": "terrain3d_sculpt", "dir": dir })
+		check(reply.get("ok") == false and reply.get("error") == "unknown event", "an unknown event is still refused, got %s" % reply)
