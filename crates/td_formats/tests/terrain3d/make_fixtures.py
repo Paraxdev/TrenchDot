@@ -1,8 +1,11 @@
 """Writes the Terrain3D cache fixtures the way the Godot addon lays them out, independent of the Rust writer.
 
-Needs Python 3.14 for compression.zstd. The patterns are repeated in tests/terrain3d_cache.rs, change both together.
+Needs Python 3.14 for compression.zstd. The patterns are repeated in tests/terrain3d_cache.rs and
+godot/tests/terrain3d_export_tests.gd, change all three together. A region hash is the sha256 of the uncompressed
+maps, as the addon computes it.
 """
 
+import hashlib
 import json
 import struct
 from compression import zstd
@@ -19,7 +22,7 @@ def stem(loc):
 
 
 def region_hash(loc):
-    return bytes((k * 37 + loc[0] * 11 + loc[1] * 5) & 0xFF for k in range(32))
+    return hashlib.sha256(maps(loc, 0.0, loc == (-1, 0))).digest()
 
 
 def maps(loc, lift, color):

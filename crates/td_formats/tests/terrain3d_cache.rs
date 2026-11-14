@@ -37,6 +37,17 @@ fn hash_of(loc: [i32; 2]) -> RegionHash {
     RegionHash(std::array::from_fn(|k| (k as i32 * 37 + loc[0] * 11 + loc[1] * 5) as u8))
 }
 
+/// The sha256 make_fixtures.py and the addon compute over a region's uncompressed maps.
+fn fixture_hash(loc: [i32; 2]) -> RegionHash {
+    match loc {
+        [-1, 0] => "b8875e9e03bdb23d5c592f294cc8f6a6f0a1485b831bc20b3413c398b8fb0e69",
+        [3, -2] => "7ba9c8194ef04bdcbadd0519fe1623c78e74eed9125822db0f52256d92386191",
+        _ => panic!("no fixture region at {loc:?}"),
+    }
+    .parse()
+    .unwrap()
+}
+
 fn files(dir: &Path) -> Vec<String> {
     let mut names: Vec<String> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
     names.sort();
@@ -62,8 +73,8 @@ fn manifest_fixture_reads_whole_and_ignores_unknown_keys() {
         map_transform_identity: false,
         editor_open: true,
         regions: vec![
-            ManifestRegion { loc: [-1, 0], hash: hash_of([-1, 0]), height_range: [-15.875, 7.75] },
-            ManifestRegion { loc: [3, -2], hash: hash_of([3, -2]), height_range: [15.125, 38.75] },
+            ManifestRegion { loc: [-1, 0], hash: fixture_hash([-1, 0]), height_range: [-15.875, 7.75] },
+            ManifestRegion { loc: [3, -2], hash: fixture_hash([3, -2]), height_range: [15.125, 38.75] },
         ],
         dirty: vec![[3, -2]],
         textures: vec![
@@ -73,7 +84,7 @@ fn manifest_fixture_reads_whole_and_ignores_unknown_keys() {
         applied: vec![Applied { seq: 7, accepted: vec![[-1, 0]], refused: vec![Refused { loc: [3, -2], reason: "dirty".into() }] }],
     };
     assert_eq!(m, expected);
-    assert_eq!(m.regions[0].hash.to_string(), "f51a3f6489aed3f81d42678cb1d6fb20456a8fb4d9fe23486d92b7dc01264b70");
+    assert_eq!(m.regions[0].hash.to_string(), "b8875e9e03bdb23d5c592f294cc8f6a6f0a1485b831bc20b3413c398b8fb0e69");
 }
 
 #[test]
@@ -108,18 +119,18 @@ fn manifest_refuses_other_formats_newer_versions_and_bad_values() {
     assert!(matches!(with("\"vertex_spacing\": 2.5", "\"vertex_spacing\": 0.2"), Err(CacheError::Invalid(m)) if m.contains("0.2")));
     assert!(with("\"vertex_spacing\": 2.5", "\"vertex_spacing\": 100.0").is_ok());
     assert!(matches!(with("[\n    [\n      3,\n      -2\n    ]\n  ]", "[[16, 0]]"), Err(CacheError::Invalid(m)) if m.contains("[16, 0]")));
-    assert!(matches!(with("\"hash\": \"f5", "\"hash\": \"zz"), Err(CacheError::Json(_))));
+    assert!(matches!(with("\"hash\": \"b8", "\"hash\": \"zz"), Err(CacheError::Json(_))));
     assert!(matches!(parse_manifest("{"), Err(CacheError::Json(_))));
 }
 
 #[test]
 fn region_fixtures_read_whole_and_the_second_keeps_nothing_of_the_first() {
     let first = read_region(&fixture(), [-1, 0], SIZE).unwrap();
-    assert_eq!(first, CachedRegion { region: pattern([-1, 0], 0.0, true), vertex_spacing: 2.5, hash: hash_of([-1, 0]) });
+    assert_eq!(first, CachedRegion { region: pattern([-1, 0], 0.0, true), vertex_spacing: 2.5, hash: fixture_hash([-1, 0]) });
     assert_eq!(first.region.control[..2], [0x7FC0_0001, 0xFF80_0001], "NaN control patterns keep their bits");
 
     let second = read_region(&fixture(), [3, -2], SIZE).unwrap();
-    assert_eq!(second, CachedRegion { region: pattern([3, -2], 0.0, false), vertex_spacing: 2.5, hash: hash_of([3, -2]) });
+    assert_eq!(second, CachedRegion { region: pattern([3, -2], 0.0, false), vertex_spacing: 2.5, hash: fixture_hash([3, -2]) });
     assert!(second.region.color.is_empty());
     assert_eq!(read_region(&fixture(), [-1, 0], SIZE).unwrap(), first);
 }
@@ -127,7 +138,7 @@ fn region_fixtures_read_whole_and_the_second_keeps_nothing_of_the_first() {
 #[test]
 fn pending_fixture_reads_whole() {
     let p = read_pending(&fixture(), [3, -2], SIZE).unwrap();
-    let expected = PendingRegion { region: pattern([3, -2], 1.0, false), vertex_spacing: 2.5, base: hash_of([3, -2]), force: true, remove: false };
+    let expected = PendingRegion { region: pattern([3, -2], 1.0, false), vertex_spacing: 2.5, base: fixture_hash([3, -2]), force: true, remove: false };
     assert_eq!(p, expected);
     assert_eq!(pending_locs(&fixture()).unwrap(), [[3, -2]]);
 }
