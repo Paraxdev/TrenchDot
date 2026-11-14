@@ -21,6 +21,8 @@ static func run(t) -> void:
 	await _test_large_region(t)
 	await _test_incremental(t)
 	await _test_data_versions(t)
+	await _test_triggers(t)
+	await _test_build_exports_in_editor_only(t)
 	_clear(WORK)
 
 static func _clear(dir: String) -> void:
@@ -246,3 +248,90 @@ static func _test_data_versions(t) -> void:
 	t.check(newer.ok and newer.problems.size() == 1 and newer.problems[0].contains("1.20") and newer.problems[0].contains("newer"), "data version 1.2 exports and is reported, got %s" % [newer.problems])
 	t.check(is_equal_approx(float(_manifest(folder)["data_version"]), 1.2), "the manifest carries the newer version")
 	terrain.free()
+
+static func _wait(t, seconds: float) -> void:
+	await t.create_timer(seconds).timeout
+
+## A slot holding a Terrain3D on [param folder] with regions [param locs], like the build makes, outside a map.
+static func _slot(t, folder: String, locs: Array) -> TrenchDotTerrain3D:
+	var terrain := await _terrain(t, folder, 64, 2.0)
+	terrain.get_parent().remove_child(terrain)
+	var slot := TrenchDotTerrain3D.new()
+	t.root.add_child(slot)
+	slot.add_child(terrain)
+	await t.process_frame
+	for loc in locs:
+		terrain.get(&"data").add_region_blank(loc, false)
+	return slot
+
+## Strokes export after half a second of quiet, once for the regions they touched, scene saves export what changed.
+static func _test_triggers(t) -> void:
+	TrenchDotTerrain3D.export_outside_editor = true
+	var folder := WORK.path_join("triggers")
+	var a := Vector2i(-2, 1)
+	var b := Vector2i(1, -1)
+	var c := Vector2i(3, 3)
+	var slot := await _slot(t, folder, [a, b, c])
+	var data: Object = slot.get_terrain().get(&"data")
+	var exports: Array = []
+	slot.cache_exported.connect(func(r): exports.append(r))
+	slot.export_cache()
+	exports.clear()
+	# One region is 64 vertices of 2 m.
+	var in_a := Vector3(-2 * 128 + 10.0, 0.0, 128 + 10.0)
+	var in_b := Vector3(128 + 6.0, 0.0, -128 + 100.0)
+	data.set_height(in_a, 3.0)
+	data.set_height(in_b, -4.0)
+	data.set_height(Vector3(3 * 128 + 1.0, 0.0, 3 * 128 + 1.0), 8.0)
+	data.emit_signal(&"maps_edited", AABB(in_a - Vector3(4, 0, 4), Vector3(8, 3, 8)))
+	await _wait(t, 0.3)
+	data.emit_signal(&"maps_edited", AABB(in_b, Vector3(1, 1, 1)))
+	await _wait(t, 0.35)
+	t.check(exports.is_empty(), "a stroke within half a second of the last waits, got %d exports" % exports.size())
+	await _wait(t, 0.35)
+	t.check(exports.size() == 1, "two strokes export once, got %d" % exports.size())
+	t.check(exports.size() == 1 and exports[0].written == [b, a], "the export writes the two stroked regions only, got %s" % [exports[0].written if exports else []])
+
+	var corner := AABB(Vector3(-0.5, 0.0, -0.5), Vector3(1.0, 1.0, 1.0))
+	data.add_region_blank(Vector2i(0, 0), false)
+	data.add_region_blank(Vector2i(-1, -1), false)
+	exports.clear()
+	data.emit_signal(&"maps_edited", corner)
+	await _wait(t, 0.7)
+	t.check(exports.size() == 1 and exports[0].written == [Vector2i(-1, -1), Vector2i(0, 0)], "a stroke over a region corner exports the regions it touches that exist, got %s" % [exports[0].written if exports else []])
+
+	exports.clear()
+	slot.notification(Node.NOTIFICATION_EDITOR_PRE_SAVE)
+	t.check(exports.size() == 1 and exports[0].written == [c], "saving the scene exports the region the strokes missed, got %s" % [exports[0].written if exports else []])
+	t.check(exports.size() == 1 and _manifest(folder).get("textures") == [], "saving refreshes the texture list")
+	t.check(_ints(_manifest(folder).get("dirty")).size() == 5, "unsaved regions are dirty before the save")
+	for loc in data.get_region_locations():
+		data.get_region(loc).set(&"modified", false)
+	exports.clear()
+	slot.notification(Node.NOTIFICATION_EDITOR_POST_SAVE)
+	t.check(exports.size() == 1 and exports[0].written == [] and _manifest(folder).get("dirty") == [], "after the save nothing is dirty and no region is rewritten, got %s" % [exports])
+	slot.free()
+	TrenchDotTerrain3D.export_outside_editor = false
+
+## Building a map writes the cache in the editor, never in a game or a headless tool.
+static func _test_build_exports_in_editor_only(t) -> void:
+	for editor in [false, true]:
+		TrenchDotTerrain3D.export_outside_editor = editor
+		var folder := WORK.path_join("build_%s" % editor)
+		_clear(folder)
+		DirAccess.make_dir_recursive_absolute(folder)
+		var map := Node3D.new()
+		t.root.add_child(map)
+		var report := TrenchDotBuildReport.new("res://tests/maps/basic.tdm")
+		var links: Array[Dictionary] = [{ "data": { "data_directory": folder } }]
+		var slot := TrenchDotTerrain3D.build(map, links, report)
+		await t.process_frame
+		slot.get_terrain().get(&"data").add_region_blank(Vector2i(-3, 2), false)
+		await _wait(t, 0.7)
+		var m := _manifest(folder)
+		if editor:
+			t.check(_ints(m.get("regions", []).map(func(r): return r["loc"])) == [[-3, 2]], "a build in the editor exports the cache, got %s" % [m])
+		else:
+			t.check(not DirAccess.dir_exists_absolute(TrenchDotTerrain3DCache.cache_dir(folder)), "a build outside the editor writes no cache")
+		map.free()
+	TrenchDotTerrain3D.export_outside_editor = false
