@@ -2402,6 +2402,11 @@ fn create_prefab(state: &mut EditorState) {
         return;
     }
 
+    if ops::holds_pinned(&state.doc.map, &roots) {
+        state.fail_status(msg!("Terrain3D cannot go in a prefab"));
+        return;
+    }
+
     let Some(map_path) = state.doc.path.clone() else {
         state.fail_status(msg!("Save the map first, prefab paths are stored relative to it"));
         return;

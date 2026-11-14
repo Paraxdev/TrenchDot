@@ -166,6 +166,10 @@ impl PrefabLibrary {
             return Err("nothing selected to add".into());
         }
 
+        if ops::holds_pinned(map, roots) {
+            return Err("Terrain3D cannot go in a prefab".into());
+        }
+
         let path = entry_path(project_root, category, name)?;
         if let Some(dir) = path.parent() {
             std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
@@ -337,6 +341,14 @@ mod tests {
         assert!(library.add(&map, &[], "x", "y", &root, false).is_err());
         library.add(&map, &[brush], "Office Rooms", "Kept", &root, true).unwrap();
         assert_eq!(library.find("kept").unwrap().bounds, Aabb::new(DVec3::new(100.0, 32.0, 200.0), DVec3::new(164.0, 96.0, 232.0)), "keeps its position");
+
+        let ground = map.add_layer("Ground");
+        let link = map.insert(ground, NodeKind::Terrain3D(td_doc::terrain3d::Terrain3DLink::new("res://terrain3d_data")));
+        for roots in [vec![link], vec![brush, link], vec![ground]] {
+            assert_eq!(library.add(&map, &roots, "Office Rooms", "Valley", &root, false), Err("Terrain3D cannot go in a prefab".to_string()));
+        }
+
+        assert!(!root.join("prefab_library/office_rooms/valley.tdm").exists());
         std::fs::remove_dir_all(&root).unwrap();
     }
 

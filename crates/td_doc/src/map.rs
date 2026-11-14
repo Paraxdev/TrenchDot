@@ -6,6 +6,7 @@ use td_geom::{Brush, Mesh, Terrain};
 
 use crate::entity::Entity;
 use crate::scatter::Scatter;
+use crate::terrain3d::Terrain3DLink;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Layer {
@@ -134,6 +135,7 @@ pub enum NodeKind {
     Mesh(Mesh),
     Terrain(Terrain),
     Scatter(Scatter),
+    Terrain3D(Terrain3DLink),
 }
 
 impl NodeKind {
@@ -147,6 +149,7 @@ impl NodeKind {
             NodeKind::Mesh(_) => "mesh",
             NodeKind::Terrain(_) => "terrain",
             NodeKind::Scatter(_) => "scatter",
+            NodeKind::Terrain3D(_) => "terrain3d",
         }
     }
 
@@ -158,6 +161,12 @@ impl NodeKind {
     /// Geometry leaves that can live in the world or inside brush entities.
     pub fn is_geometry(&self) -> bool {
         matches!(self, NodeKind::Brush(_) | NodeKind::Mesh(_) | NodeKind::Terrain(_))
+    }
+
+    /// Terrain3D sits at the world origin, one per map, directly under a layer, so its node is never moved, rotated,
+    /// copied, grouped or put in a prefab.
+    pub fn is_pinned(&self) -> bool {
+        matches!(self, NodeKind::Terrain3D(_))
     }
 }
 
@@ -247,6 +256,7 @@ impl Node {
             NodeKind::Mesh(_) => format!("mesh{}", self.id.0),
             NodeKind::Terrain(t) => format!("terrain {}x{}", t.resolution[0], t.resolution[1]),
             NodeKind::Scatter(s) => format!("scatter {} ({})", s.name, s.instances.len()),
+            NodeKind::Terrain3D(_) => "Terrain3D".into(),
         }
     }
 
@@ -725,7 +735,8 @@ impl Map {
         true
     }
 
-    /// Deep copies a subtree under a new parent with fresh ids. Returns the new root id.
+    /// Deep copies a subtree under a new parent with fresh ids. Returns the new root id, None for a pinned node, which
+    /// is never copied.
     pub fn duplicate_subtree(&mut self, id: NodeId, parent: NodeId) -> Option<NodeId> {
         let mut copies = BTreeMap::new();
         let new_id = self.duplicate_subtree_into(id, parent, &mut copies);
@@ -736,7 +747,7 @@ impl Map {
     /// [`Map::duplicate_subtree`] that records each original id and its copy, for copying several subtrees whose
     /// scatter sets may target each other. Finish with [`Map::retarget_scatter_copies`].
     pub fn duplicate_subtree_into(&mut self, id: NodeId, parent: NodeId, copies: &mut BTreeMap<NodeId, NodeId>) -> Option<NodeId> {
-        let node = self.get(id)?.clone();
+        let node = self.get(id).filter(|n| !n.kind.is_pinned())?.clone();
         let new_id = self.insert(parent, node.kind.clone());
         copies.insert(id, new_id);
         if let Some(n) = self.get_mut(new_id) {

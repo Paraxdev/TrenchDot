@@ -293,7 +293,7 @@ impl Collector<'_> {
                 let path = prefabs::resolve(&inst.path, map_path, self.prefabs.project_root.as_deref())?;
                 self.prefab(name, &path, &prefabs::instance_transform(inst), 0)
             }
-            NodeKind::Layer(_) | NodeKind::Group(_) => None,
+            NodeKind::Layer(_) | NodeKind::Group(_) | NodeKind::Terrain3D(_) => None,
         }
     }
 

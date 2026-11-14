@@ -11,9 +11,12 @@ use td_geom::{Brush, Mesh, Terrain};
 use crate::entity::Entity;
 use crate::map::{EditorData, Group, Instance, Layer, Map, Node, NodeKind};
 use crate::scatter::{Scatter, ScatterKind};
+use crate::terrain3d::Terrain3DLink;
 
 pub const FORMAT_NAME: &str = "trenchdot-map";
-pub const FORMAT_VERSION: u32 = 1;
+pub const FORMAT_VERSION: u32 = 2;
+/// What a map without a `terrain3d` node is written as, so the last release, which reads up to 1, still opens it.
+const PLAIN_VERSION: u32 = 1;
 
 #[derive(Debug, thiserror::Error)]
 pub enum FormatError {
@@ -158,6 +161,7 @@ enum FileKind {
     Mesh(Mesh),
     Terrain(Terrain),
     Scatter(Scatter),
+    Terrain3D(Terrain3DLink),
 }
 
 fn to_file_node(map: &Map, node: &Node) -> FileNode {
@@ -174,6 +178,7 @@ fn leaf_file_node(node: &Node) -> FileNode {
         NodeKind::Mesh(m) => FileKind::Mesh(m.clone()),
         NodeKind::Terrain(t) => FileKind::Terrain(t.clone()),
         NodeKind::Scatter(s) => FileKind::Scatter(s.clone()),
+        NodeKind::Terrain3D(t) => FileKind::Terrain3D(t.clone()),
     };
     FileNode { id: node.id.0, kind, label: node.label.clone(), graph: node.graph, hidden: node.hidden, locked: node.locked, children: Vec::new() }
 }
@@ -181,7 +186,7 @@ fn leaf_file_node(node: &Node) -> FileNode {
 pub fn to_value(map: &Map) -> Value {
     let file = FileMap {
         format: FORMAT_NAME.into(),
-        version: FORMAT_VERSION,
+        version: if map.has_terrain3d() { FORMAT_VERSION } else { PLAIN_VERSION },
         properties: map.properties.clone(),
         editor: map.editor.clone(),
         textures: map.textures.clone(),
@@ -270,7 +275,12 @@ pub fn node_to_json(map: &Map, id: NodeId) -> Option<Value> {
 /// Serializes only the given subtrees, for the clipboard. Parents are implied.
 pub fn nodes_to_string(map: &Map, ids: &[NodeId]) -> String {
     let nodes: Vec<FileNode> = ids.iter().filter_map(|id| map.get(*id)).map(|n| to_file_node(map, n)).collect();
-    let value = serde_json::json!({ "format": "trenchdot-clipboard", "version": FORMAT_VERSION, "nodes": nodes });
+    let terrain3d = ids
+        .iter()
+        .flat_map(|id| std::iter::once(*id).chain(map.descendants(*id)))
+        .any(|id| map.get(id).is_some_and(|n| matches!(n.kind, NodeKind::Terrain3D(_))));
+    let version = if terrain3d { FORMAT_VERSION } else { PLAIN_VERSION };
+    let value = serde_json::json!({ "format": "trenchdot-clipboard", "version": version, "nodes": nodes });
     crate::json_fmt::to_string(&value)
 }
 
@@ -339,6 +349,7 @@ fn file_kind_to_node(kind: FileKind) -> NodeKind {
         FileKind::Mesh(m) => NodeKind::Mesh(m),
         FileKind::Terrain(t) => NodeKind::Terrain(t),
         FileKind::Scatter(s) => NodeKind::Scatter(s),
+        FileKind::Terrain3D(t) => NodeKind::Terrain3D(t),
     }
 }
 
@@ -419,7 +430,7 @@ fn fill_defaults(node: &mut Value) {
 }
 
 fn migrate(value: &mut Value, version: u32) {
-    // Version 1 is the first format, future migrations go here in ascending order.
+    // Version 2 only adds the `terrain3d` node, future migrations go here in ascending order.
     let _ = (value, version);
 }
 
@@ -498,7 +509,12 @@ fn from_value(value: Value) -> Result<Map, FormatError> {
 }
 
 /// The map and whether its format name was the old one.
-fn read_value(mut value: Value) -> Result<(Map, bool), FormatError> {
+fn read_value(value: Value) -> Result<(Map, bool), FormatError> {
+    read_value_up_to(value, FORMAT_VERSION)
+}
+
+/// [`read_value`] for an editor that reads versions up to `newest`, to check what an older release makes of a map.
+pub(crate) fn read_value_up_to(mut value: Value, newest: u32) -> Result<(Map, bool), FormatError> {
     let format = value.get("format").and_then(|v| v.as_str()).unwrap_or_default().to_string();
     let old_format = format == crate::legacy::MAP_FORMAT;
     if format != FORMAT_NAME && !old_format {
@@ -506,7 +522,7 @@ fn read_value(mut value: Value) -> Result<(Map, bool), FormatError> {
     }
 
     let version = value.get("version").and_then(|v| v.as_u64()).unwrap_or(0) as u32;
-    if version > FORMAT_VERSION {
+    if version > newest {
         return Err(FormatError::TooNew(version));
     }
 
@@ -955,7 +971,8 @@ mod tests {
         let pasted = paste_nodes(&mut m, layer, &text).unwrap();
         assert_eq!(pasted.len(), ids.len());
         assert_eq!(m.nodes.len(), before + 4);
-        let newer = text.replacen(&format!("\"version\": {FORMAT_VERSION}"), &format!("\"version\": {}", FORMAT_VERSION + 1), 1);
+        let newer = text.replacen(&format!("\"version\": {PLAIN_VERSION}"), &format!("\"version\": {}", FORMAT_VERSION + 1), 1);
+        assert_ne!(newer, text);
         assert!(matches!(paste_nodes(&mut m, layer, &newer), Err(FormatError::TooNew(_))));
     }
 

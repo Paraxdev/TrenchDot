@@ -18,6 +18,7 @@ pub mod scatter;
 pub mod selection;
 pub mod symmetry;
 pub mod terrain;
+pub mod terrain3d;
 pub mod terrain_resize;
 pub mod textures;
 mod variant;

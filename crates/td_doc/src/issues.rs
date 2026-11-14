@@ -86,7 +86,7 @@ pub fn fill(template: &str, args: &[(&str, String)]) -> String {
 }
 
 /// Every template [`check_with`] builds an issue from, the editor translates each by its text.
-pub const TEMPLATES: [&str; 20] = [
+pub const TEMPLATES: [&str; 23] = [
     "{class} has no output '{output}'",
     "Output {output} calls input '{input}', which {class} '{target}' does not have",
     "Invalid brush: {error}",
@@ -107,6 +107,9 @@ pub const TEMPLATES: [&str; 20] = [
     "Scatter set targets a surface that no longer exists",
     "Group is empty",
     "targetname '{name}' is also used by {other}",
+    "Terrain3D has no data folder",
+    "Terrain3D must sit directly under a layer",
+    "The map links Terrain3D once, {other} already does",
 ];
 
 pub fn check(map: &Map) -> Vec<Issue> {
@@ -184,6 +187,7 @@ fn check_map(map: &Map, external: &BTreeSet<String>) -> Vec<Issue> {
     let mut names: BTreeSet<&str> = map.entities().filter_map(|(_, e)| e.targetname()).collect();
     names.extend(external.iter().map(String::as_str));
     let mut brush_keys: BTreeMap<Vec<[i64; 3]>, NodeId> = BTreeMap::new();
+    let mut terrain3d: Option<NodeId> = None;
 
     for (id, node) in map.nodes.iter() {
         match &node.kind {
@@ -286,6 +290,28 @@ fn check_map(map: &Map, external: &BTreeSet<String>) -> Vec<Issue> {
             }
             NodeKind::Group(_) if node.children.is_empty() => {
                 out.push(Issue::new(Some(*id), Severity::Info, "empty_group", "Group is empty", &[]));
+            }
+            NodeKind::Terrain3D(t) => {
+                if t.data_directory.trim().is_empty() {
+                    out.push(Issue::new(Some(*id), Severity::Error, "terrain3d_no_folder", "Terrain3D has no data folder", &[]));
+                }
+
+                if !node.parent.is_some_and(|p| map.layers.contains(&p)) {
+                    out.push(Issue::new(Some(*id), Severity::Error, "terrain3d_nested", "Terrain3D must sit directly under a layer", &[]));
+                }
+
+                match terrain3d {
+                    Some(first) => {
+                        out.push(Issue::new(
+                            Some(*id),
+                            Severity::Error,
+                            "terrain3d_second",
+                            "The map links Terrain3D once, {other} already does",
+                            &[("other", &first)],
+                        ));
+                    }
+                    None => terrain3d = Some(*id),
+                }
             }
             _ => {}
         }

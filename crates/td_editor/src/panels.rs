@@ -227,6 +227,7 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
                     NodeKind::Mesh(_) => (icons::MESH, theme::colors().pink),
                     NodeKind::Terrain(_) => (icons::TERRAIN, theme::colors().green),
                     NodeKind::Scatter(_) => (icons::SCATTER, theme::colors().teal),
+                    NodeKind::Terrain3D(_) => (icons::TERRAIN, theme::colors().orange),
                 };
                 let panel = theme::colors();
                 let open = matches!(node.kind, NodeKind::Group(_)) && state.open_groups.contains(id);

@@ -94,7 +94,7 @@ impl Selection {
             for c in consider {
                 let Some(n) = map.get(c) else { continue };
                 match &n.kind {
-                    crate::NodeKind::Layer(_) | crate::NodeKind::Group(_) => {}
+                    crate::NodeKind::Layer(_) | crate::NodeKind::Group(_) | crate::NodeKind::Terrain3D(_) => {}
                     _ => {
                         out.insert(c);
                     }

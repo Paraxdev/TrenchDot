@@ -72,6 +72,7 @@ pub(super) fn compact_node(map: &Map, id: NodeId) -> Value {
             v["origin"] = arr(i.origin);
         }
         NodeKind::Scatter(s) => v["instances"] = json!(s.instances.len()),
+        NodeKind::Terrain3D(t) => v["data_directory"] = json!(t.data_directory),
         NodeKind::Layer(_) | NodeKind::Group(_) => {}
     }
 

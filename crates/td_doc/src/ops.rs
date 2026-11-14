@@ -108,6 +108,11 @@ pub fn transform_nodes(map: &mut Map, ids: &[NodeId], m: &DMat4, opts: EditOptio
     }
 }
 
+/// Whether `roots` or anything under them is a node that must stay where it is, see [`NodeKind::is_pinned`].
+pub fn holds_pinned(map: &Map, roots: &[NodeId]) -> bool {
+    roots.iter().flat_map(|id| std::iter::once(*id).chain(map.descendants(*id))).any(|id| map.get(id).is_some_and(|n| n.kind.is_pinned()))
+}
+
 pub fn translate_selection(map: &mut Map, sel: &Selection, offset: DVec3, opts: EditOptions) {
     let ids = sel.transformables(map);
     translate_nodes(map, &ids, offset, opts);
@@ -466,7 +471,8 @@ pub fn create_brush(map: &mut Map, parent: NodeId, brush: Brush) -> NodeId {
 }
 
 pub fn group_selection(map: &mut Map, sel: &mut Selection, name: &str, parent: NodeId) -> Option<NodeId> {
-    let roots = selection_roots(map, sel);
+    let mut roots = selection_roots(map, sel);
+    roots.retain(|id| !holds_pinned(map, &[*id]));
     if roots.is_empty() {
         return None;
     }
@@ -997,6 +1003,12 @@ pub fn drop_plan(map: &Map, dragged: &[NodeId], target: NodeId, brush_entity: im
     let kept = |a: &NodeId| *a == dest || map.is_ancestor(*a, dest);
     let linked = |a: &NodeId| matches!(map.get(*a).map(|n| &n.kind), Some(NodeKind::Group(Group { link_id: Some(_), .. })));
     if dragged.iter().flat_map(|id| map.ancestors(*id)).any(|a| !kept(&a) && linked(&a) && empties(map, a, dragged)) {
+        return None;
+    }
+
+    let pinned = |id: &NodeId| map.get(*id).is_some_and(|n| n.kind.is_pinned());
+    let into_layer = matches!(plan, DropPlan::Into(p) if map.layers.contains(&p));
+    if (dragged.iter().any(pinned) && !into_layer) || matches!(plan, DropPlan::GroupWith(t) if pinned(&t)) {
         return None;
     }
 
