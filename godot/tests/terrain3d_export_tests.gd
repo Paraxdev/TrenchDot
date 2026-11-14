@@ -21,6 +21,7 @@ static func run(t) -> void:
 	await _test_large_region(t)
 	await _test_incremental(t)
 	await _test_data_versions(t)
+	await _test_textures(t)
 	await _test_triggers(t)
 	await _test_build_exports_in_editor_only(t)
 	_test_cli(t)
@@ -272,6 +273,52 @@ static func _test_data_versions(t) -> void:
 	var newer := TrenchDotTerrain3DCache.export(terrain, folder)
 	t.check(newer.ok and newer.problems.size() == 1 and newer.problems[0].contains("1.20") and newer.problems[0].contains("newer"), "data version 1.2 exports and is reported, got %s" % [newer.problems])
 	t.check(is_equal_approx(float(_manifest(folder)["data_version"]), 1.2), "the manifest carries the newer version")
+	terrain.free()
+
+## A texture with a block compressed albedo like an imported one gets a thumbnail of it. Terrain3D fills a texture
+## without an albedo with the checker it draws, so its thumbnail is that checker.
+static func _test_textures(t) -> void:
+	var folder := WORK.path_join("textures")
+	var terrain := await _terrain(t, folder, 64, 1.0)
+	terrain.get(&"data").add_region_blank(Vector2i(1, -2), false)
+	var rock: Resource = ClassDB.instantiate(&"Terrain3DTextureAsset")
+	rock.set(&"name", "Rock")
+	rock.set(&"albedo_color", Color(0.5, 0.25, 0.125, 1.0))
+	var assets: Resource = ClassDB.instantiate(&"Terrain3DAssets")
+	assets.call(&"set_texture_asset", 0, rock)
+	terrain.set(&"assets", assets)
+	await t.process_frame
+	var cache := TrenchDotTerrain3DCache.cache_dir(folder)
+	var first := TrenchDotTerrain3DCache.export(terrain, folder)
+	var textures: Array = _manifest(folder).get("textures", [])
+	t.check(first.ok and textures.size() == 1 and _ints(textures[0]["id"]) == 0 and textures[0]["name"] == "Rock" and textures[0]["albedo_color"] == [0.5, 0.25, 0.125, 1.0] and textures[0]["thumbnail"] == "textures/0.png", "a texture without an albedo is listed with its color and a thumbnail, got %s" % [textures])
+	var checker := Image.load_from_file(cache.path_join("textures/0.png"))
+	var corners := [Vector2i(0, 0), Vector2i(63, 0), Vector2i(0, 63), Vector2i(63, 63), Vector2i(31, 31)].map(func(p): return checker.get_pixelv(p) if checker else null)
+	t.check(checker and checker.get_size() == Vector2i(64, 64) and corners.any(func(c): return c != corners[0]), "its thumbnail is the 64 pixel checker, got %s" % [corners])
+
+	var image := Image.create_empty(128, 128, false, Image.FORMAT_RGBA8)
+	image.fill_rect(Rect2i(0, 0, 64, 128), Color8(200, 40, 30))
+	image.fill_rect(Rect2i(64, 0, 64, 128), Color8(20, 90, 220))
+	image.generate_mipmaps()
+	image.compress(Image.COMPRESS_S3TC)
+	var moss: Resource = ClassDB.instantiate(&"Terrain3DTextureAsset")
+	moss.set(&"name", "Moss")
+	moss.set(&"albedo_color", Color(0.75, 1.0, 0.5, 1.0))
+	moss.set(&"albedo_texture", ImageTexture.create_from_image(image))
+	assets.call(&"set_texture_asset", 1, moss)
+	await t.process_frame
+	var second := TrenchDotTerrain3DCache.export(terrain, folder)
+	textures = _manifest(folder).get("textures", [])
+	t.check(second.ok and textures.size() == 2, "both textures are listed, got %s %s" % [second, textures])
+	if textures.size() == 2:
+		t.check(_ints(textures[1]["id"]) == 1 and textures[1]["name"] == "Moss" and textures[1]["albedo_color"] == [0.75, 1.0, 0.5, 1.0] and textures[1]["thumbnail"] == "textures/1.png", "the textured one has its color and a thumbnail, got %s" % [textures[1]])
+		t.check(textures[0]["name"] == "Rock" and textures[0]["thumbnail"] == "textures/0.png", "the other keeps its checker, got %s" % [textures[0]])
+	var thumbnail := Image.load_from_file(cache.path_join("textures/1.png"))
+	t.check(thumbnail and thumbnail.get_size() == Vector2i(64, 64), "the thumbnail is 64 pixels square, got %s" % [thumbnail.get_size() if thumbnail else null])
+	if thumbnail:
+		var left := thumbnail.get_pixel(8, 40)
+		var right := thumbnail.get_pixel(56, 20)
+		t.check(left.r8 > 170 and left.b8 < 70 and right.b8 > 190 and right.r8 < 50, "the thumbnail shows the albedo halves, got %s %s" % [left, right])
 	terrain.free()
 
 static func _wait(t, seconds: float) -> void:
