@@ -2277,5 +2277,7 @@
   "The piece has too many faces to bend along a path this long": "パーツの面が多すぎて、この長さのパスに沿って曲げられません",
   "Recent messages": "最近のメッセージ",
   "No messages yet": "メッセージはまだありません",
-  "Drag in a 2D view to draw the box, or drag its sides": "2D ビューでドラッグしてボックスを描くか、辺をドラッグします"
+  "Drag in a 2D view to draw the box, or drag its sides": "2D ビューでドラッグしてボックスを描くか、辺をドラッグします",
+  "Resize Terrain": "地形のサイズを変更",
+  "Rename Scatter Set": "散布セットの名前を変更"
 }

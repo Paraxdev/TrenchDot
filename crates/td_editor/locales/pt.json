@@ -2277,5 +2277,7 @@
   "The piece has too many faces to bend along a path this long": "A peça tem faces demais para se curvar ao longo de um caminho tão longo",
   "Recent messages": "Mensagens recentes",
   "No messages yet": "Ainda não há mensagens",
-  "Drag in a 2D view to draw the box, or drag its sides": "Arrastar numa vista 2D desenha a caixa, arrastar os lados dela altera-a"
+  "Drag in a 2D view to draw the box, or drag its sides": "Arrastar numa vista 2D desenha a caixa, arrastar os lados dela altera-a",
+  "Resize Terrain": "Redimensionar terreno",
+  "Rename Scatter Set": "Renomear set de scatter"
 }

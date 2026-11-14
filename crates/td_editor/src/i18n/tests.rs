@@ -468,7 +468,7 @@ fn keys(src: &str) -> Vec<(Key, usize)> {
             }
 
             // An undo label, the History panel looks it up
-            "edit" | "edit_coalesced" | "begin" if is(&t, i.wrapping_sub(1), &Tok::Punct('.')) && is(&t, i + 1, &open) => {
+            "edit" | "edit_coalesced" | "try_edit" | "begin" if is(&t, i.wrapping_sub(1), &Tok::Punct('.')) && is(&t, i + 1, &open) => {
                 if let Some(k) = str_at(&t, i + 2) {
                     out.push((Key::Text(k.into()), *line));
                 }
