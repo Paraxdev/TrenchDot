@@ -61,6 +61,7 @@ pub mod state;
 pub mod status_line;
 pub mod sweep_dialog;
 pub mod symmetry;
+pub mod terrain3d;
 pub mod terrain_size;
 #[cfg(test)]
 mod test_ports;

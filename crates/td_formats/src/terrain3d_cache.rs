@@ -340,7 +340,8 @@ fn decode_maps(h: &Header, body: &[u8]) -> Result<Region3D> {
 }
 
 /// One level of a region's LOD pyramid: `side * side` vertices `stride` apart, heights in meters, `ids` the Terrain3D
-/// texture shown by each splat channel. `splat` (four bytes per vertex) and `holes` (one per vertex) may be empty.
+/// texture shown by each splat channel. `splat` (four bytes per vertex) and `holes` (one per vertex, or one per cell
+/// when `side` is the cell count, then laid out `side` wide) may be empty.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LodLevel {
     pub stride: u32,
