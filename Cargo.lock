@@ -3098,7 +3098,9 @@ dependencies = [
  "td_core",
  "td_doc",
  "td_geom",
+ "tempfile",
  "thiserror 2.0.20",
+ "zstd",
 ]
 
 [[package]]

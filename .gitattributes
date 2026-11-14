@@ -6,3 +6,5 @@
 *.ctex binary
 *.exe binary
 *.tdm binary diff=tdm
+*.td3r binary
+*.td3l binary

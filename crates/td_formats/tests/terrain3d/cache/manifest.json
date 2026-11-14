@@ -1,0 +1,99 @@
+{
+  "format": "trenchdot-terrain3d",
+  "version": 1,
+  "terrain3d": "1.1.0",
+  "godot": "4.7.2",
+  "data_version": 1.1,
+  "region_size": 64,
+  "vertex_spacing": 2.5,
+  "material": {
+    "world_background": 1,
+    "ground_level": -2.0,
+    "region_blend": 0.25,
+    "auto_shader": true,
+    "dual_scaling": true
+  },
+  "map_transform_identity": false,
+  "editor_open": true,
+  "regions": [
+    {
+      "loc": [
+        -1,
+        0
+      ],
+      "hash": "f51a3f6489aed3f81d42678cb1d6fb20456a8fb4d9fe23486d92b7dc01264b70",
+      "height_range": [
+        -15.875,
+        7.75
+      ],
+      "instances": 12
+    },
+    {
+      "loc": [
+        3,
+        -2
+      ],
+      "hash": "173c6186abd0f51a3f6489aed3f81d42678cb1d6fb20456a8fb4d9fe23486d92",
+      "height_range": [
+        15.125,
+        38.75
+      ]
+    }
+  ],
+  "dirty": [
+    [
+      3,
+      -2
+    ]
+  ],
+  "textures": [
+    {
+      "id": 0,
+      "name": "Grass",
+      "albedo_color": [
+        1,
+        1,
+        1,
+        1
+      ],
+      "thumbnail": "textures/0.png"
+    },
+    {
+      "id": 5,
+      "name": "Rock",
+      "albedo_color": [
+        0.5,
+        0.25,
+        0.125,
+        1
+      ],
+      "thumbnail": ""
+    }
+  ],
+  "applied": [
+    {
+      "seq": 7,
+      "accepted": [
+        [
+          -1,
+          0
+        ]
+      ],
+      "refused": [
+        {
+          "loc": [
+            3,
+            -2
+          ],
+          "reason": "dirty"
+        }
+      ]
+    }
+  ],
+  "future_key": {
+    "anything": [
+      1,
+      2
+    ]
+  }
+}

@@ -14,3 +14,7 @@ serde_json.workspace = true
 thiserror.workspace = true
 base64.workspace = true
 image.workspace = true
+zstd.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

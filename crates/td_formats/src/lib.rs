@@ -6,6 +6,7 @@ pub mod idmodel;
 pub mod nature;
 pub mod quake_map;
 pub mod quake_texture;
+pub mod terrain3d_cache;
 pub mod texture_import;
 pub mod vmf;
 pub mod vmt;
