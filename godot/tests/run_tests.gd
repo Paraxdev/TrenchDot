@@ -139,6 +139,7 @@ func _initialize() -> void:
 	await load("res://tests/overlay_tests.gd").run(self)
 	await load("res://tests/terrain3d_tests.gd").run(self)
 	await load("res://tests/terrain3d_export_tests.gd").run(self)
+	await load("res://tests/terrain3d_apply_tests.gd").run(self)
 	await load("res://tests/terrain3d_parity_tests.gd").run(self)
 	await load("res://tests/live_link_tests.gd").run(self)
 	await load("res://tests/nav_tests.gd").run(self)

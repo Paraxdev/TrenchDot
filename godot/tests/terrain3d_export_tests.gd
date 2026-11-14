@@ -445,7 +445,7 @@ static func _test_cli(t) -> void:
 
 	var missing := _cli(["export", WORK.path_join("nowhere")])
 	t.check(missing[0] == 1 and missing[1].get("ok") == false and str(missing[1].get("error")).contains("nowhere"), "the CLI refuses a missing folder, got %s" % [missing])
-	var usage := _cli(["apply"])
+	var usage := _cli(["import", folder])
 	t.check(usage[0] == 1 and str(usage[1].get("error")).contains("usage"), "the CLI refuses an unknown command, got %s" % [usage])
 
 	var cli: GDScript = load("res://addons/func_godot/src/trenchdot/terrain3d_cli.gd")
