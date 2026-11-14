@@ -110,6 +110,26 @@ fn with_rock_options(mut tool: Value, detail: bool) -> Value {
     tool
 }
 
+/// Split in two because one json! call for all of terrain_edit's arguments runs into the macro recursion limit.
+fn terrain_edit_schema() -> Value {
+    let mut schema = json!({ "type": "object", "properties": {
+                "op": { "type": "string" }, "id": { "type": "integer" }, "center": numbers(), "points": points_schema(), "mode": { "type": "string" },
+                "radius": { "type": "number" }, "strength": { "type": "number" }, "height": { "type": "number" }, "step": { "type": "number" }, "layer": { "type": "integer" },
+                "spacing": { "type": "number" }, "min": numbers(), "max": numbers(), "margin": { "type": "number" }, "from": vec3_schema("ramp start"),
+                "to": vec3_schema("ramp end"), "width": { "type": "number" }, "iterations": { "type": "integer" }, "talus": { "type": "number" },
+                "rock_slope": { "type": "number" }, "top_height": { "type": "number" }, "low_height": { "type": "number" },
+                "layers": { "type": "array", "items": { "type": "array", "items": { "type": ["string", "number"] }, "description": "[material, tile, detile, sharpen]" } },
+                "hole": { "type": "boolean" }, "probe": numbers(), "sea_level": { "type": "number" }, "seed": { "type": "integer" }
+    } });
+    let resize = json!({
+                "north": { "type": "integer" }, "south": { "type": "integer" }, "west": { "type": "integer" }, "east": { "type": "integer" },
+                "cells": { "type": "array", "items": { "type": "integer" }, "description": "resize: target cell counts [x, z]" }, "cell_size": { "type": "number", "description": "resize: new cell size" },
+                "fill": { "type": "string", "enum": ["edge", "zero"] }, "scatter": { "type": "string", "enum": ["drop", "keep"] }, "dry_run": { "type": "boolean" }
+    });
+    schema["properties"].as_object_mut().expect("properties is an object").extend(resize.as_object().expect("an object").clone());
+    schema
+}
+
 fn vec3_schema(desc: &str) -> Value {
     json!({ "type": "array", "items": { "type": "number" }, "minItems": 3, "maxItems": 3, "description": desc })
 }
@@ -614,16 +634,8 @@ pub fn tool_definitions() -> Vec<Value> {
         }),
         json!({
             "name": "terrain_edit",
-            "description": "Shapes a terrain (id, else the selected or first one). Unlike run_action sculpt, which takes the Sculpt tool's settings, the defaults here are fixed so a script replays the same: radius 256, strength 16, height 0, step 32, layer 1. ops: sculpt {center, mode: raise|lower|smooth|flatten|noise|terrace|paint_alpha|erase_alpha|paint_layer|hole|unhole, radius, strength, height, step, layer, seed (noise pattern, default 7, a path adds one per dab)}, sculpt_path {points, spacing (default radius / 2), ...}, paint_path {points, layer, radius, strength (default 1)}, flatten_rect {min [x, z], max [x, z], height, margin} (building pads), ramp {from [x, y, z], to [x, y, z], width, margin} (roads and slopes), erode {iterations, talus}, auto_paint {rock_slope, top_height, low_height} (world heights) or auto_paint {sea_level} (the default bands measured from sea_level, from the lowest point without it), set_layers {layers: [[material, tile, detile, sharpen]]} (detile 0..1 breaks up the repeat for paths, sharpen 0..1 keeps it crisp), holes {center, radius, hole} or holes {min [x, z], max [x, z], hole} for a rectangle, clear_layer {layer} (layer is required; removes that layer's paint everywhere, so a script that repaints an area gives the same result no matter how many times it runs). probe [x, z] returns the height there, after the op, or alone without op to only read it.",
-            "inputSchema": { "type": "object", "properties": {
-                "op": { "type": "string" }, "id": { "type": "integer" }, "center": numbers(), "points": points_schema(), "mode": { "type": "string" },
-                "radius": { "type": "number" }, "strength": { "type": "number" }, "height": { "type": "number" }, "step": { "type": "number" }, "layer": { "type": "integer" },
-                "spacing": { "type": "number" }, "min": numbers(), "max": numbers(), "margin": { "type": "number" }, "from": vec3_schema("ramp start"),
-                "to": vec3_schema("ramp end"), "width": { "type": "number" }, "iterations": { "type": "integer" }, "talus": { "type": "number" },
-                "rock_slope": { "type": "number" }, "top_height": { "type": "number" }, "low_height": { "type": "number" },
-                "layers": { "type": "array", "items": { "type": "array", "items": { "type": ["string", "number"] }, "description": "[material, tile, detile, sharpen]" } },
-                "hole": { "type": "boolean" }, "probe": numbers(), "sea_level": { "type": "number" }, "seed": { "type": "integer" }
-            } }
+            "description": "Shapes a terrain (id, else the selected or first one). Unlike run_action sculpt, which takes the Sculpt tool's settings, the defaults here are fixed so a script replays the same: radius 256, strength 16, height 0, step 32, layer 1. ops: sculpt {center, mode: raise|lower|smooth|flatten|noise|terrace|paint_alpha|erase_alpha|paint_layer|hole|unhole, radius, strength, height, step, layer, seed (noise pattern, default 7, a path adds one per dab)}, sculpt_path {points, spacing (default radius / 2), ...}, paint_path {points, layer, radius, strength (default 1)}, flatten_rect {min [x, z], max [x, z], height, margin} (building pads), ramp {from [x, y, z], to [x, y, z], width, margin} (roads and slopes), erode {iterations, talus}, auto_paint {rock_slope, top_height, low_height} (world heights) or auto_paint {sea_level} (the default bands measured from sea_level, from the lowest point without it), set_layers {layers: [[material, tile, detile, sharpen]]} (detile 0..1 breaks up the repeat for paths, sharpen 0..1 keeps it crisp), holes {center, radius, hole} or holes {min [x, z], max [x, z], hole} for a rectangle, clear_layer {layer} (layer is required; removes that layer's paint everywhere, so a script that repaints an area gives the same result no matter how many times it runs). resize {north, south, west, east (whole cells to add when positive or remove when negative on that side), or cells [x, z] (the target counts, resized around the center with an odd cell going east or south, not with the sides or cell_size), cell_size (the new spacing, resampled over the same area, applied after the sides), fill: edge|zero (what new ground gets, default edge repeats the edge height and paint), scatter: drop|keep (drop, the default, removes scatter on this terrain over ground that goes), dry_run} (grows, crops or resamples the terrain and keeps heights, paint and holes at the same world position; a terrain has 1 to 2048 cells along each axis and a cell size from 0.001 to 100000; replies {changed, resolution, cells, cell_size, origin, bounds, scatter_removed, scatter_moved, detail_lost}, a dry_run only the plan, and a resize that changes nothing is changed false with no undo step). probe [x, z] returns the height there, after the op, or alone without op to only read it.",
+            "inputSchema": terrain_edit_schema()
         }),
         json!({
             "name": "duplicate",

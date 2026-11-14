@@ -1623,6 +1623,19 @@ impl App {
             return err(format!("terrain {id} is hidden or locked"));
         }
 
+        if op == "resize" {
+            return match self.resize_terrain(id, args) {
+                Ok(mut v) => {
+                    if probe.is_some() {
+                        v["probe_height"] = json!(probe_height(self));
+                    }
+
+                    ok(v)
+                }
+                Err(e) => err(e),
+            };
+        }
+
         let a = args.clone();
         let result: Result<Value, String> = self.state.doc.try_edit(&format!("Terrain {op}"), |m, _| {
             let Some(t) = m.terrain_mut(id) else { return Err("terrain vanished".to_string()) };
@@ -1742,7 +1755,7 @@ impl App {
                 },
                 other => {
                     return Err(format!(
-                        "unknown terrain op {other}, use sculpt, sculpt_path, paint_path, flatten_rect, ramp, erode, auto_paint, set_layers, holes or clear_layer, or only probe"
+                        "unknown terrain op {other}, use sculpt, sculpt_path, paint_path, flatten_rect, ramp, erode, auto_paint, set_layers, holes, clear_layer or resize, or only probe"
                     ));
                 }
             };
@@ -1759,6 +1772,96 @@ impl App {
             }
             Err(e) => err(e),
         }
+    }
+
+    fn resize_terrain(&mut self, id: NodeId, args: &Value) -> Result<Value, String> {
+        use td_doc::terrain_resize::{TerrainResize, apply, plan};
+        use td_geom::terrain_resize::{EdgeFill, Sides};
+
+        let side = |key: &str| -> Result<Option<i32>, String> {
+            match &args[key] {
+                Value::Null => Ok(None),
+                v => v.as_i64().and_then(|n| i32::try_from(n).ok()).map(Some).ok_or_else(|| format!("{key} must be a whole number of cells, got {v}")),
+            }
+        };
+        let (north, south, west, east) = (side("north")?, side("south")?, side("west")?, side("east")?);
+        let cells = match &args["cells"] {
+            Value::Null => None,
+            v => match v.as_array().map(Vec::as_slice) {
+                Some([x, z]) => match (uint(x).filter(|n| *n >= 1), uint(z).filter(|n| *n >= 1)) {
+                    (Some(x), Some(z)) => Some([x, z]),
+                    _ => return Err(format!("cells must be [x, z], whole cells of 1 or more, got {v}")),
+                },
+                _ => return Err(format!("cells must be [x, z], whole cells of 1 or more, got {v}")),
+            },
+        };
+        let cell_size = match &args["cell_size"] {
+            Value::Null => None,
+            v => Some(v.as_f64().ok_or_else(|| format!("cell_size must be a number, got {v}"))?),
+        };
+        let fill = match args["fill"].as_str() {
+            _ if args["fill"].is_null() => EdgeFill::Edge,
+            Some("edge") => EdgeFill::Edge,
+            Some("zero") => EdgeFill::Zero,
+            _ => return Err(format!("fill must be edge or zero, got {}", args["fill"])),
+        };
+        let drop_scatter = match args["scatter"].as_str() {
+            _ if args["scatter"].is_null() => true,
+            Some("drop") => true,
+            Some("keep") => false,
+            _ => return Err(format!("scatter must be drop or keep, got {}", args["scatter"])),
+        };
+        let dry_run = bool_arg(args, "dry_run")?.unwrap_or(false);
+        let any_side = [north, south, west, east].iter().any(Option::is_some);
+        if cells.is_none() && cell_size.is_none() && !any_side {
+            return Err("resize needs north, south, west, east, cells or cell_size".to_string());
+        }
+
+        if cells.is_some() && any_side {
+            return Err("cells cannot be combined with north, south, west or east".to_string());
+        }
+
+        if cells.is_some() && cell_size.is_some() {
+            return Err("cells counts cells of the current size and cannot be combined with cell_size, resize in two calls".to_string());
+        }
+
+        let mut resize = TerrainResize { fill, drop_scatter, cell_size, ..TerrainResize::default() };
+        resize.sides = match cells {
+            Some(target) => {
+                let current = self.state.doc.map.terrain(id).ok_or("terrain vanished")?.cells();
+                let split = |axis: usize| {
+                    let delta = (target[axis] as i64 - current[axis] as i64).clamp(i32::MIN as i64, i32::MAX as i64) as i32;
+                    (delta / 2, delta - delta / 2)
+                };
+                let (west, east) = split(0);
+                let (north, south) = split(1);
+                Sides { north, south, west, east }
+            }
+            None => Sides { north: north.unwrap_or(0), south: south.unwrap_or(0), west: west.unwrap_or(0), east: east.unwrap_or(0) },
+        };
+
+        let planned = plan(&self.state.doc.map, id, &resize)?;
+        let noop = resize.is_noop(self.state.doc.map.terrain(id).ok_or("terrain vanished")?);
+        let (planned, moved) = if dry_run || noop {
+            (planned, None)
+        } else {
+            let report = self.state.doc.try_edit("Resize Terrain", |m, _| apply(m, id, &resize))?;
+            (report.plan, Some(report.scatter_moved))
+        };
+
+        let mut v = json!({
+            "id": id.0, "changed": moved.is_some(), "resolution": planned.resolution, "cells": planned.cells, "cell_size": planned.cell_size,
+            "origin": arr(planned.origin), "bounds": bounds_json(&planned.bounds), "scatter_removed": planned.scatter_removed, "detail_lost": planned.detail_lost,
+        });
+        if dry_run {
+            v["dry_run"] = json!(true);
+        }
+
+        if let Some(moved) = moved {
+            v["scatter_moved"] = json!(moved);
+        }
+
+        Ok(v)
     }
 
     pub(crate) fn tool_duplicate(&mut self, args: &Value) -> ToolResult {

@@ -1131,6 +1131,164 @@ fn terrain_sprinkle_cordon_tabs_bookmarks() {
     ed.call("run_action", json!({ "action": "next_tab" }));
     assert_eq!(ed.state()["map"]["terrains"], 1, "switching back keeps the first map");
 }
+#[test]
+#[ignore]
+fn terrain_resize_over_mcp() {
+    let ed = Editor::launch("terrain_resize");
+    let t = ed.call("create_terrain", json!({ "origin": [-100.5, 7, 40.25], "resolution": 17, "cell_size": 32, "shape": "flat" }));
+    let id = t["id"].as_u64().unwrap();
+    ed.call("terrain_edit", json!({ "id": id, "op": "ramp", "from": [-90, 40, 60], "to": [380, 150, 480], "width": 200, "margin": 96 }));
+    let set = ed.call("scatter", json!({ "op": "new_set", "preset": "grass", "name": "grass", "targets": [id] }))["id"].as_u64().unwrap();
+    ed.call("scatter", json!({ "op": "fill", "density": 3, "seed": 5 }));
+    let compact = |ed: &Editor, id: u64| ed.call("get_node", json!({ "id": id, "compact": true }));
+    let instances = |ed: &Editor| compact(ed, set)["instances"].as_u64().unwrap();
+    let before_count = instances(&ed);
+    assert!(before_count > 40, "scatter on the terrain, got {before_count}");
+
+    let height = |ed: &Editor, p: [f64; 2]| ed.call("terrain_edit", json!({ "id": id, "probe": p }))["probe_height"].as_f64().unwrap();
+    // Vertex positions, since an odd shift flips the cells' diagonals and moves the surface between vertices.
+    let probes = [[187.5, 296.25], [379.5, 488.25], [91.5, 72.25], [27.5, 232.25]];
+    let heights = |ed: &Editor| -> Vec<f64> { probes.iter().map(|p| height(ed, *p)).collect() };
+    let close = |a: &[f64], b: &[f64]| a.len() == b.len() && a.iter().zip(b).all(|(x, y)| (x - y).abs() < 1e-3);
+    let slope = heights(&ed);
+    assert!(slope[0] > slope[2] + 20.0, "the ramp made a slope {slope:?}");
+    let north_edge = height(&ed, [91.5, 40.25]);
+    let node_before = ed.call("get_node", json!({ "id": id }));
+    assert_eq!(compact(&ed, id)["resolution"], json!([17, 17]));
+    let revision = || ed.state()["map"]["revision"].clone();
+    let (rev_before, undo_before) = (revision(), ed.state()["undo"].clone());
+
+    // A dry run reports the plan and touches nothing.
+    let args = json!({ "id": id, "op": "resize", "north": 4, "west": -3 });
+    let mut dry_args = args.clone();
+    dry_args["dry_run"] = json!(true);
+    let dry = ed.call("terrain_edit", dry_args);
+    assert_eq!((dry["changed"].clone(), dry["dry_run"].clone()), (json!(false), json!(true)));
+    assert_eq!((dry["resolution"].clone(), dry["cells"].clone(), dry["cell_size"].clone()), (json!([14, 21]), json!([13, 20]), json!(32.0)));
+    assert_eq!(dry["origin"], json!([-4.5, 7.0, -87.75]));
+    assert_eq!((dry["bounds"]["min"][0].clone(), dry["bounds"]["max"][0].clone()), (json!(-4.5), json!(-4.5 + 13.0 * 32.0)));
+    assert_eq!((dry["bounds"]["min"][2].clone(), dry["bounds"]["max"][2].clone()), (json!(-87.75), json!(-87.75 + 20.0 * 32.0)));
+    assert_eq!(dry["detail_lost"], false);
+    assert!(dry.get("scatter_moved").is_none(), "a dry run builds nothing to move");
+    let removed = dry["scatter_removed"].as_u64().unwrap();
+    assert!(removed > 0 && removed < before_count, "the removed strip holds some of the {before_count} plants, got {removed}");
+    assert_eq!((revision(), ed.state()["undo"].clone(), instances(&ed)), (rev_before.clone(), undo_before.clone(), before_count));
+    assert_eq!(ed.call("get_node", json!({ "id": id })), node_before);
+
+    // The same call for real, with a probe in the grown strip.
+    let mut real_args = args.clone();
+    real_args["probe"] = json!([91.5, -50.0]);
+    let done = ed.call("terrain_edit", real_args);
+    assert_eq!((done["changed"].clone(), done["scatter_removed"].clone()), (json!(true), json!(removed)));
+    assert_eq!((done["resolution"].clone(), done["origin"].clone(), done["id"].clone()), (dry["resolution"].clone(), dry["origin"].clone(), json!(id)));
+    assert!(done["scatter_moved"].is_u64());
+    assert!((done["probe_height"].as_f64().unwrap() - north_edge).abs() < 1e-3, "new ground repeats the edge height, {done}");
+    assert_eq!(instances(&ed), before_count - removed);
+    let (rev_after, undo_after) = (revision(), ed.state()["undo"].clone());
+    assert_eq!((undo_after[0].clone(), undo_after[1].clone()), (json!("MCP: Resize Terrain"), undo_before[0].clone()), "one undo step");
+    let node_after = ed.call("get_node", json!({ "id": id }));
+    let shape = compact(&ed, id);
+    assert_eq!((shape["resolution"].clone(), shape["bounds"]["min"][0].clone()), (json!([14, 21]), json!(-4.5)));
+    let kept = heights(&ed);
+    assert!(close(&kept, &slope), "kept vertices keep their height, {kept:?} vs {slope:?}");
+
+    // Undo and redo are exact.
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!((ed.call("get_node", json!({ "id": id })), instances(&ed)), (node_before.clone(), before_count));
+    assert!(close(&heights(&ed), &slope));
+    assert_eq!(ed.state()["undo"], undo_before);
+    ed.call("run_action", json!({ "action": "redo" }));
+    assert_eq!((ed.call("get_node", json!({ "id": id })), instances(&ed)), (node_after.clone(), before_count - removed));
+    assert!(close(&heights(&ed), &kept));
+    assert_eq!(ed.state()["undo"], undo_after);
+    assert_ne!(rev_after, rev_before);
+
+    // cells resizes around the center and gives the odd cell to east or south.
+    let shrunk = ed.call("terrain_edit", json!({ "id": id, "op": "resize", "cells": [10, 15] }));
+    assert_eq!((shrunk["cells"].clone(), shrunk["origin"].clone()), (json!([10, 15]), json!([27.5, 7.0, -23.75])));
+    let grown = ed.call("terrain_edit", json!({ "id": id, "op": "resize", "cells": [13, 15], "fill": "zero", "scatter": "keep" }));
+    assert_eq!((grown["cells"].clone(), grown["origin"].clone(), grown["scatter_removed"].clone()), (json!([13, 15]), json!([-4.5, 7.0, -23.75]), json!(0)));
+    ed.call("run_action", json!({ "action": "undo", "args": { "steps": 2 } }));
+    assert_eq!(compact(&ed, id)["resolution"], json!([14, 21]));
+    ed.call("run_action", json!({ "action": "redo", "args": { "steps": 2 } }));
+    assert_eq!(compact(&ed, id)["resolution"], json!([14, 16]));
+
+    // A cell size change keeps the origin and rounds the counts half away from zero.
+    let finer = ed.call("terrain_edit", json!({ "id": id, "op": "resize", "cell_size": 16, "dry_run": true }));
+    assert_eq!((finer["cells"].clone(), finer["detail_lost"].clone(), finer["origin"].clone()), (json!([26, 30]), json!(false), json!([-4.5, 7.0, -23.75])));
+    let coarser = ed.call("terrain_edit", json!({ "id": id, "op": "resize", "cell_size": 64 }));
+    assert_eq!((coarser["cells"].clone(), coarser["cell_size"].clone(), coarser["detail_lost"].clone()), (json!([7, 8]), json!(64.0), json!(true)));
+    assert_eq!(coarser["origin"], json!([-4.5, 7.0, -23.75]));
+    assert!(coarser["scatter_moved"].is_u64());
+
+    // Nothing to change is not an edit.
+    let (rev, undo) = (revision(), ed.state()["undo"].clone());
+    for same in [json!({ "north": 0 }), json!({ "cell_size": 64 }), json!({ "cells": [7, 8] }), json!({ "east": 0, "south": 0, "cell_size": 64.0 })] {
+        let mut a = same.clone();
+        a["id"] = json!(id);
+        a["op"] = json!("resize");
+        let r = ed.call("terrain_edit", a);
+        assert_eq!((r["changed"].clone(), r["scatter_removed"].clone()), (json!(false), json!(0)), "{same}");
+        assert_eq!(r["cells"], json!([7, 8]), "{same}");
+    }
+
+    assert_eq!((revision(), ed.state()["undo"].clone()), (rev.clone(), undo.clone()), "no op leaves no undo step");
+
+    // Every guard refuses and leaves the map alone.
+    let refuse = |args: Value, text: &str| {
+        let mut a = args.clone();
+        a["id"] = json!(id);
+        a["op"] = json!("resize");
+        let e = ed.call_err("terrain_edit", a.clone());
+        assert!(e.contains(text), "{args}: {e}");
+        if args.get("dry_run").is_none() {
+            a["dry_run"] = json!(true);
+            let e = ed.call_err("terrain_edit", a);
+            assert!(e.contains(text), "dry run {args}: {e}");
+        }
+
+        assert_eq!((revision(), ed.state()["undo"].clone()), (rev.clone(), undo.clone()), "{args} changed the map");
+    };
+    refuse(json!({}), "resize needs north, south, west, east, cells or cell_size");
+    refuse(json!({ "cells": [8, 8], "north": 1 }), "cells cannot be combined");
+    refuse(json!({ "cells": [14, 16], "cell_size": 32 }), "cannot be combined with cell_size");
+    refuse(json!({ "west": 1.5 }), "west must be a whole number of cells");
+    refuse(json!({ "north": "two" }), "north must be a whole number of cells");
+    refuse(json!({ "south": 3000000000i64 }), "south must be a whole number of cells");
+    refuse(json!({ "cells": [8] }), "cells must be [x, z]");
+    refuse(json!({ "cells": [8.5, 8] }), "cells must be [x, z]");
+    refuse(json!({ "cells": [0, 8] }), "cells must be [x, z]");
+    refuse(json!({ "east": 1, "fill": "mid" }), "fill must be edge or zero");
+    refuse(json!({ "east": 1, "scatter": "move" }), "scatter must be drop or keep");
+    refuse(json!({ "east": 1, "dry_run": "yes" }), "dry_run must be true or false");
+    refuse(json!({ "west": -7 }), "at least 1 cell along each axis, this leaves 0 along x");
+    refuse(json!({ "south": -8 }), "at least 1 cell along each axis, this leaves 0 along z");
+    refuse(json!({ "east": 2042 }), "at most 2048 cells along each axis, this makes 2049 along x");
+    refuse(json!({ "north": 2041 }), "at most 2048 cells along each axis, this makes 2049 along z");
+    refuse(json!({ "north": -8, "south": 3 }), "crops away every cell along z");
+    refuse(json!({ "cells": [2049, 8] }), "this makes 2049 along x");
+    refuse(json!({ "cell_size": 0.0009 }), "0.001 to 100000");
+    refuse(json!({ "cell_size": 100001 }), "0.001 to 100000");
+    refuse(json!({ "cell_size": -1 }), "0.001 to 100000");
+    refuse(json!({ "cell_size": "big" }), "cell_size must be a number");
+    refuse(json!({ "cell_size": 0.001 }), "at most 2048 cells along each axis");
+
+    // The exact boundaries pass.
+    let widest = ed.call("terrain_edit", json!({ "id": id, "op": "resize", "cells": [2048, 8], "scatter": "keep" }));
+    assert_eq!(widest["resolution"], json!([2049, 9]));
+    assert!(ed.call_err("terrain_edit", json!({ "id": id, "op": "resize", "east": 1 })).contains("this makes 2049 along x"));
+    let narrowest = ed.call("terrain_edit", json!({ "id": id, "op": "resize", "cells": [1, 1] }));
+    assert_eq!(narrowest["resolution"], json!([2, 2]));
+    let tiny = ed.call("terrain_edit", json!({ "id": id, "op": "resize", "cell_size": 100000 }));
+    assert_eq!((tiny["cells"].clone(), tiny["cell_size"].clone()), (json!([1, 1]), json!(100000.0)));
+
+    // A locked terrain refuses, the same as the other terrain ops.
+    ed.call("hierarchy", json!({ "op": "set_flags", "ids": [id], "locked": true }));
+    let e = ed.call_err("terrain_edit", json!({ "id": id, "op": "resize", "east": 1 }));
+    assert!(e.contains("hidden or locked"), "{e}");
+    ed.call("hierarchy", json!({ "op": "set_flags", "ids": [id], "locked": false }));
+    assert_eq!(ed.call("terrain_edit", json!({ "id": id, "op": "resize", "east": 1 }))["changed"], true);
+}
 
 fn texel(uv: &Value, p: [f64; 3]) -> [f64; 2] {
     let axis = |k: &str| -> [f64; 3] {
