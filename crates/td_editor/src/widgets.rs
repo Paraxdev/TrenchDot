@@ -124,6 +124,26 @@ pub fn drag_field(ui: &mut Ui, value: &mut f64, width: f32, speed: f64, integer:
     .inner
 }
 
+/// A drag value in the dark field style, `width` wide.
+pub fn styled_drag(ui: &mut Ui, drag: egui::DragValue<'_>, width: f32) -> bool {
+    ui.scope(|ui| {
+        field_style(ui);
+        ui.add_sized([width.max(40.0), ROW_HEIGHT - 2.0], drag).changed()
+    })
+    .inner
+}
+
+/// A whole number field, written with its sign when `signed` so a count of cells to add reads +16.
+pub fn count_field(ui: &mut Ui, value: &mut i64, width: f32, signed: bool) -> bool {
+    ui.scope(|ui| {
+        field_style(ui);
+        let drag =
+            egui::DragValue::new(value).speed(0.25).custom_formatter(move |n, _| if signed { format!("{:+}", n as i64) } else { format!("{}", n as i64) });
+        ui.add_sized([width.max(40.0), ROW_HEIGHT - 2.0], drag).changed()
+    })
+    .inner
+}
+
 pub fn text_field(ui: &mut Ui, value: &mut String, width: f32) -> bool {
     ui.add_sized([width.max(40.0), ROW_HEIGHT - 2.0], egui::TextEdit::singleline(value)).changed()
 }

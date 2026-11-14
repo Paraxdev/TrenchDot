@@ -1892,8 +1892,19 @@ fn the_terrain_inspector_fits_a_narrow_panel_in_every_language() {
         let mut terrain = td_geom::Terrain::new(DVec3::new(-704.0, 48.0, 1312.0), [33, 17], 48.0, "dev/grey");
         terrain.layers.push(td_geom::TerrainLayer::new("nature/grass_meadow_long_name", 512.0));
         terrain.layers.push(td_geom::TerrainLayer { detile: 0.4, ..td_geom::TerrainLayer::new("rock/cliff", 1024.0) });
-        let id = f.state.doc.edit("terrain", |m, _| m.insert(layer, NodeKind::Terrain(terrain)));
+        let id = f.state.doc.edit("terrain", |m, _| {
+            let id = m.insert(layer, NodeKind::Terrain(terrain));
+            let mut set = td_doc::Scatter::new("rocks", td_doc::ScatterKind::Props, vec![td_doc::ScatterItem::new("res://rock.glb")]);
+            set.targets = vec![id];
+            set.instances.push(td_doc::scatter::ScatterInstance { item: 0, position: DVec3::new(-600.0, 48.0, 1330.0), angles: DVec3::ZERO, scale: 1.0 });
+            m.insert(layer, NodeKind::Scatter(set));
+            id
+        });
         f.state.doc.selection.select_node(id);
+        // Every row, the scatter checkbox, the preview and the warning draw.
+        let sides = td_geom::terrain_resize::Sides { north: -2, east: 16, ..Default::default() };
+        let resize = td_doc::terrain_resize::TerrainResize { sides, cell_size: Some(96.0), fill: td_geom::terrain_resize::EdgeFill::Zero, drop_scatter: true };
+        f.state.terrain_resize = Some(td_editor::terrain_size::TerrainResizeDraft { id, resize });
         let mut harness = Harness::builder()
             .with_size(egui::vec2(width, 700.0))
             .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
@@ -1901,6 +1912,12 @@ fn the_terrain_inspector_fits_a_narrow_panel_in_every_language() {
 
         let scatter = td_editor::i18n::tr("Scatter");
         assert!(harness.query_by_label(scatter).is_some(), "{lang:?} shows {scatter}");
+        for what in ["Apply", "Reset"] {
+            assert!(harness.query_by_label(td_editor::i18n::tr(what)).is_some(), "{lang:?} shows {what}");
+        }
+
+        assert!(harness.query_by_label_contains("24 x 7").is_some(), "{lang:?} shows the size after the change");
+
         let past: Vec<String> = harness
             .query_all(egui_kittest::kittest::By::new())
             .filter(|n| matches!(n.accesskit_node().role(), Role::Button | Role::Label | Role::SpinButton | Role::TextInput))
@@ -2032,4 +2049,317 @@ fn an_issue_without_a_template_shows_its_message_in_every_language() {
     let _scope = td_editor::i18n::scope(td_editor::i18n::Lang::De);
     assert_eq!(td_editor::validate::shown(&built), "Gruppe ist leer");
     assert_eq!(built.message, "Group is empty");
+}
+
+const SIZE_ORIGIN: DVec3 = DVec3::new(-96.5, 12.0, 40.25);
+// The Origin row takes the first three number fields, then Cells (x, z), North, South, West, East and Cell size.
+const CELLS_X: usize = 3;
+const CELLS_Z: usize = 4;
+const NORTH: usize = 5;
+const WEST: usize = 7;
+const EAST: usize = 8;
+const CELL_SIZE: usize = 9;
+
+/// A 16 x 8 cell terrain off the origin with a slope, and a scatter set on it with instances at the given x and z.
+fn sized_terrain(scatter_at: &[(f64, f64)]) -> (Fixture, td_core::NodeId) {
+    let mut f = Fixture::new();
+    let layer = f.state.doc.map.default_layer();
+    let mut terrain = td_geom::Terrain::new(SIZE_ORIGIN, [17, 9], 32.0, "dev/grey");
+    for j in 0..9 {
+        for i in 0..17 {
+            terrain.heights[j * 17 + i] = (4 * i + 2 * j) as f32;
+        }
+    }
+
+    let id = f.state.doc.edit("terrain", |m, s| {
+        let id = m.insert(layer, NodeKind::Terrain(terrain.clone()));
+        let mut set = td_doc::Scatter::new("rocks", td_doc::ScatterKind::Props, vec![td_doc::ScatterItem::new("res://rock.glb")]);
+        set.targets = vec![id];
+        for (x, z) in scatter_at {
+            let y = terrain.height_at(*x, *z).unwrap();
+            set.instances.push(td_doc::scatter::ScatterInstance { item: 0, position: DVec3::new(*x, y, *z), angles: DVec3::ZERO, scale: 1.0 });
+        }
+
+        m.insert(layer, NodeKind::Scatter(set));
+        s.select_node(id);
+        id
+    });
+    (f, id)
+}
+
+fn size_harness(f: Fixture) -> Harness<'static, Fixture> {
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(420.0, 900.0))
+        .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+    harness.run();
+    harness
+}
+
+fn type_number(harness: &mut Harness<'_, Fixture>, field: usize, text: &str) {
+    harness.get_all_by_role(egui::accesskit::Role::SpinButton).nth(field).unwrap().click();
+    harness.run();
+    harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+    harness.run();
+    harness.get_all_by_role(egui::accesskit::Role::SpinButton).nth(field).unwrap().type_text(text);
+    harness.run();
+    harness.key_press(egui::Key::Enter);
+    harness.run();
+}
+
+fn undo_steps(harness: &Harness<'_, Fixture>) -> usize {
+    harness.state().state.doc.history.undo_labels().count()
+}
+
+fn terrain_of(harness: &Harness<'_, Fixture>, id: td_core::NodeId) -> td_geom::Terrain {
+    harness.state().state.doc.map.terrain(id).unwrap().clone()
+}
+
+fn is_disabled(harness: &Harness<'_, Fixture>, label: &str) -> bool {
+    use egui_kittest::kittest::NodeT;
+    harness.get_by_label(label).accesskit_node().is_disabled()
+}
+
+fn instances_on(harness: &Harness<'_, Fixture>) -> usize {
+    harness.state().state.doc.map.scatters().map(|(_, s)| s.instances.len()).sum()
+}
+
+#[test]
+fn typing_cells_into_a_side_resizes_the_terrain_on_apply_in_one_undo_step() {
+    let (f, id) = sized_terrain(&[]);
+    let mut harness = size_harness(f);
+    let old = terrain_of(&harness, id);
+    let steps = undo_steps(&harness);
+    assert!(harness.query_by_label_contains("After:").is_none(), "an untouched Size block has no preview");
+    assert!(harness.query_by_label("Apply").is_none());
+
+    type_number(&mut harness, EAST, "2");
+    assert_eq!(terrain_of(&harness, id), old, "nothing changes before Apply");
+    assert_eq!(undo_steps(&harness), steps);
+    harness.get_by_label_contains("After: 18 x 8 cells, 576 x 256 units");
+    harness.get_by_label("Apply").click();
+    harness.run();
+
+    let grown = terrain_of(&harness, id);
+    assert_eq!(grown.resolution, [19, 9]);
+    assert_eq!(grown.origin, old.origin, "growing east leaves the origin");
+    assert_eq!(grown.heights[..17], old.heights[..17], "the first row keeps its heights");
+    assert_eq!(undo_steps(&harness), steps + 1);
+    assert_eq!(harness.state().state.doc.history.undo_labels().next(), Some("Resize Terrain"));
+    assert!(harness.state().state.status.contains("18 x 8 cells"), "{}", harness.state().state.status);
+    assert_eq!(harness.state().state.terrain_resize, None);
+    assert!(harness.query_by_label_contains("After:").is_none());
+
+    harness.state_mut().state.doc.undo();
+    harness.run();
+    assert_eq!(terrain_of(&harness, id), old, "undo restores the terrain");
+    harness.state_mut().state.doc.redo();
+    assert_eq!(terrain_of(&harness, id), grown, "redo repeats the resize");
+}
+
+#[test]
+fn west_and_north_move_the_origin_by_whole_cells() {
+    let (f, id) = sized_terrain(&[]);
+    let mut harness = size_harness(f);
+    type_number(&mut harness, WEST, "3");
+    type_number(&mut harness, NORTH, "-1");
+    harness.get_by_label("Apply").click();
+    harness.run();
+    let t = terrain_of(&harness, id);
+    assert_eq!(t.resolution, [20, 8]);
+    assert_eq!(t.origin, SIZE_ORIGIN + DVec3::new(-96.0, 0.0, 32.0));
+    // The first kept row is the old second row, its three new columns repeat the old first column.
+    assert_eq!(t.heights[..5], [2.0, 2.0, 2.0, 2.0, 6.0]);
+}
+
+#[test]
+fn reset_puts_the_draft_back_to_no_change() {
+    let (f, id) = sized_terrain(&[]);
+    let mut harness = size_harness(f);
+    let old = terrain_of(&harness, id);
+    let steps = undo_steps(&harness);
+    type_number(&mut harness, EAST, "2");
+    type_number(&mut harness, CELL_SIZE, "64");
+    assert!(harness.state().state.terrain_resize.is_some());
+    harness.get_by_label("Reset").click();
+    harness.run();
+    assert_eq!(harness.state().state.terrain_resize, None);
+    assert!(harness.query_by_label_contains("After:").is_none());
+    assert!(harness.query_by_label("Apply").is_none());
+    assert_eq!(terrain_of(&harness, id), old);
+    assert_eq!(undo_steps(&harness), steps);
+}
+
+#[test]
+fn typing_a_cell_total_splits_the_difference_and_the_odd_cell_goes_east_or_south() {
+    use td_geom::terrain_resize::Sides;
+    let (f, _) = sized_terrain(&[]);
+    let mut harness = size_harness(f);
+    let sides = |harness: &Harness<'_, Fixture>| harness.state().state.terrain_resize.map(|d| d.resize.sides);
+    type_number(&mut harness, CELLS_X, "21");
+    assert_eq!(sides(&harness), Some(Sides { west: 2, east: 3, ..Sides::default() }));
+    type_number(&mut harness, CELLS_Z, "5");
+    assert_eq!(sides(&harness), Some(Sides { west: 2, east: 3, north: -1, south: -2 }));
+    type_number(&mut harness, CELLS_X, "16");
+    assert_eq!(sides(&harness), Some(Sides { north: -1, south: -2, ..Sides::default() }), "typing the old total clears that axis");
+    type_number(&mut harness, WEST, "4");
+    assert_eq!(sides(&harness).map(|s| (s.west, s.east)), Some((4, 0)));
+    harness.get_by_label("Reset").click();
+    harness.run();
+    type_number(&mut harness, CELLS_Z, "8");
+    assert_eq!(sides(&harness), None, "the old total is no change");
+}
+
+#[test]
+fn a_draft_the_terrain_cannot_take_says_why_and_disables_apply() {
+    let (f, id) = sized_terrain(&[]);
+    let mut harness = size_harness(f);
+    let old = terrain_of(&harness, id);
+    type_number(&mut harness, CELLS_Z, "0");
+    harness.get_by_label_contains("at least 1 cell along each axis");
+    assert!(is_disabled(&harness, "Apply"));
+    type_number(&mut harness, CELLS_Z, "1");
+    assert!(harness.query_by_label_contains("at least 1 cell along each axis").is_none(), "1 cell is allowed");
+    harness.get_by_label_contains("After: 16 x 1 cells");
+    assert!(!is_disabled(&harness, "Apply"));
+
+    harness.get_by_label("Reset").click();
+    harness.run();
+    type_number(&mut harness, EAST, "2033");
+    harness.get_by_label_contains("at most 2048 cells");
+    assert!(is_disabled(&harness, "Apply"));
+    type_number(&mut harness, EAST, "2032");
+    harness.get_by_label_contains("After: 2048 x 8 cells");
+    assert!(!is_disabled(&harness, "Apply"), "exactly 2048 cells is allowed");
+
+    // Four cells are left by the count, but none of the old ones.
+    type_number(&mut harness, EAST, "4");
+    type_number(&mut harness, WEST, "-16");
+    harness.get_by_label_contains("keep at least 1 cell");
+    assert!(is_disabled(&harness, "Apply"));
+    type_number(&mut harness, WEST, "-15");
+    harness.get_by_label_contains("After: 5 x 8 cells");
+    assert!(!is_disabled(&harness, "Apply"));
+    assert_eq!(terrain_of(&harness, id), old);
+}
+
+#[test]
+fn removing_ground_names_the_scatter_it_takes_and_the_checkbox_keeps_it() {
+    // The terrain spans x from -96.5 to 415.5, so 4 cells off the east side remove everything past x 287.5.
+    let spots = [(300.0, 100.0), (400.0, 200.0), (0.0, 100.0)];
+    let (f, _) = sized_terrain(&spots);
+    let mut harness = size_harness(f);
+    type_number(&mut harness, EAST, "2");
+    assert!(harness.query_by_label_contains("scatter instance").is_none(), "growing removes nothing");
+    type_number(&mut harness, EAST, "-4");
+    harness.get_by_label_contains("Remove 2 scatter instances");
+    harness.get_by_label("Apply").click();
+    harness.run();
+    assert_eq!(instances_on(&harness), 1, "the two on the removed strip are gone");
+
+    let (f, _) = sized_terrain(&spots);
+    let mut harness = size_harness(f);
+    type_number(&mut harness, EAST, "-4");
+    harness.get_by_label_contains("Remove 2 scatter instances").click();
+    harness.run();
+    harness.get_by_label_contains("Remove 2 scatter instances");
+    harness.get_by_label("Apply").click();
+    harness.run();
+    assert_eq!(instances_on(&harness), 3, "unchecked keeps them");
+
+    let (f, _) = sized_terrain(&[(300.0, 100.0)]);
+    let mut harness = size_harness(f);
+    type_number(&mut harness, EAST, "-4");
+    harness.get_by_label_contains("Remove 1 scatter instance on");
+}
+
+#[test]
+fn apply_stays_put_while_the_rows_below_it_come_and_go() {
+    let (f, _) = sized_terrain(&[(300.0, 100.0)]);
+    let mut harness = size_harness(f);
+    let apply_y = |harness: &Harness<'_, Fixture>| harness.get_by_label("Apply").rect().top();
+    type_number(&mut harness, EAST, "-1");
+    assert!(harness.query_by_label_contains("scatter instance").is_none());
+    let y = apply_y(&harness);
+    type_number(&mut harness, EAST, "-4");
+    harness.get_by_label_contains("Remove 1 scatter instance on");
+    assert_eq!(apply_y(&harness), y);
+    type_number(&mut harness, CELL_SIZE, "36");
+    harness.get_by_label_contains("Fine detail is lost");
+    harness.get_by_label_contains("Whole cells");
+    assert_eq!(apply_y(&harness), y);
+}
+
+#[test]
+fn the_detail_warning_shows_only_when_the_cells_grow() {
+    let (f, id) = sized_terrain(&[]);
+    let mut harness = size_harness(f);
+    type_number(&mut harness, CELL_SIZE, "64");
+    harness.get_by_label_contains("Fine detail is lost, cells grow from 32 to 64 units");
+    harness.get_by_label_contains("After: 8 x 4 cells, 512 x 256 units");
+    assert!(harness.query_by_label_contains("Whole cells").is_none(), "64 fits the extent");
+    type_number(&mut harness, CELL_SIZE, "16");
+    assert!(harness.query_by_label_contains("Fine detail").is_none());
+    harness.get_by_label_contains("After: 32 x 16 cells, 512 x 256 units");
+    type_number(&mut harness, CELL_SIZE, "32");
+    assert_eq!(harness.state().state.terrain_resize, None, "the old cell size is no change");
+    type_number(&mut harness, CELL_SIZE, "33");
+    harness.get_by_label_contains("Fine detail is lost, cells grow from 32 to 33 units");
+    harness.get_by_label_contains("Whole cells change the size by +16 x +8 units");
+    type_number(&mut harness, CELL_SIZE, "36");
+    harness.get_by_label_contains("Whole cells change the size by -8 x -4 units");
+    type_number(&mut harness, CELL_SIZE, "33");
+    harness.get_by_label("Apply").click();
+    harness.run();
+    assert_eq!(terrain_of(&harness, id).cell_size, 33.0);
+}
+
+#[test]
+fn selecting_something_else_drops_the_draft() {
+    let pick = |harness: &mut Harness<'_, Fixture>, id: td_core::NodeId| {
+        let selection = &mut harness.state_mut().state.doc.selection;
+        selection.clear();
+        selection.select_node(id);
+        harness.run();
+    };
+    let (f, first) = sized_terrain(&[]);
+    let mut harness = size_harness(f);
+    let layer = harness.state().state.doc.map.default_layer();
+    let second =
+        harness.state_mut().state.doc.edit("terrain", |m, _| m.insert(layer, NodeKind::Terrain(td_geom::Terrain::new(DVec3::ZERO, [9, 9], 64.0, "dev/grey"))));
+    let brush = harness
+        .state_mut()
+        .state
+        .doc
+        .edit("brush", |m, _| m.insert(layer, NodeKind::Brush(Brush::from_aabb(&Aabb::new(DVec3::ZERO, DVec3::splat(32.0)), "wood").unwrap())));
+    type_number(&mut harness, EAST, "2");
+    assert_eq!(harness.state().state.terrain_resize.map(|d| d.id), Some(first));
+
+    pick(&mut harness, second);
+    assert_eq!(harness.state().state.terrain_resize, None, "another terrain starts clean");
+    assert!(harness.query_by_label_contains("After:").is_none());
+
+    pick(&mut harness, first);
+    type_number(&mut harness, EAST, "2");
+    pick(&mut harness, brush);
+    pick(&mut harness, first);
+    assert_eq!(harness.state().state.terrain_resize, None, "going back does not bring the draft back");
+    assert!(harness.query_by_label_contains("After:").is_none());
+}
+
+#[test]
+fn a_locked_terrain_cannot_be_resized() {
+    let (f, id) = sized_terrain(&[]);
+    let mut harness = size_harness(f);
+    harness.state_mut().state.doc.edit("lock", |m, _| m.get_mut(id).unwrap().locked = true);
+    type_number(&mut harness, EAST, "2");
+    harness.get_by_label_contains("hidden or locked");
+    assert!(is_disabled(&harness, "Apply"));
+    let old = terrain_of(&harness, id);
+    harness.get_by_label("Apply").click();
+    harness.run();
+    assert_eq!(terrain_of(&harness, id), old);
+
+    harness.state_mut().state.doc.edit("unlock", |m, _| m.get_mut(id).unwrap().locked = false);
+    harness.run();
+    assert!(!is_disabled(&harness, "Apply"));
 }

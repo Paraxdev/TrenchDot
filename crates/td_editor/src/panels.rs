@@ -604,6 +604,10 @@ pub fn inspector(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, acti
 
         let entities: Vec<NodeId> = state.doc.selection.nodes.iter().copied().filter(|id| state.doc.map.entity(*id).is_some()).collect();
         let single = (state.doc.selection.nodes.len() == 1).then(|| state.doc.selection.nodes.iter().next().copied()).flatten();
+        if single.is_none_or(|id| state.doc.map.terrain(id).is_none()) {
+            state.terrain_resize = None;
+        }
+
         if let Some(first) = entities.first().copied() {
             entity_inspector(ui, state, ps, first, actions);
         } else if let Some(id) = single.filter(|id| state.doc.map.terrain(*id).is_some()) {
@@ -950,6 +954,7 @@ fn terrain_inspector(ui: &mut Ui, state: &mut EditorState, id: NodeId, actions: 
             changed = true;
         }
     });
+    crate::terrain_size::size_ui(ui, state, id, &t);
     egui::Grid::new("terrain_props").num_columns(2).show(ui, |ui| {
         ui.label(tr("Chunk cells"));
         changed |= ui.add(egui::DragValue::new(&mut edited.chunk_cells).range(4..=256)).changed();
@@ -985,18 +990,6 @@ fn terrain_inspector(ui: &mut Ui, state: &mut EditorState, id: NodeId, actions: 
             edited.layers.pop();
             changed = true;
         }
-
-        let longest = t.resolution[0].max(t.resolution[1]);
-        ui.menu_button(tr("Resample"), |ui| {
-            for res in [65u32, 129, 257, 513].into_iter().filter(|r| *r != longest) {
-                if ui.button(tr_n!(res, "{n} vertex", "{n} vertices")).clicked() {
-                    edited = t.resample([res, res]);
-                    changed = true;
-                }
-            }
-        })
-        .response
-        .on_hover_text(tr("Rebuilds the grid with this many vertices along the longer side, keeping heights and paint"));
     });
     if changed {
         state.doc.edit_coalesced("Edit Terrain", |m, _| {

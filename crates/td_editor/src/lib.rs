@@ -51,6 +51,7 @@ pub mod spline_dialog;
 pub mod state;
 pub mod status_line;
 pub mod sweep_dialog;
+pub mod terrain_size;
 pub mod texture_convert;
 pub mod texture_ops;
 pub mod texture_tool;

@@ -625,6 +625,10 @@ pub struct EditorState {
     pub spline_preview: Vec<(DVec3, DVec3)>,
     /// The Shape Generator's own box while it is open with no brush or mesh selected, drawn and edited in the views.
     pub shape_bounds: Option<Aabb>,
+    /// The size change typed into the Inspector for a terrain, applied as one undo step.
+    pub terrain_resize: Option<crate::terrain_size::TerrainResizeDraft>,
+    /// The height range of the draft's terrain and the revision it was read at, see `terrain_size::height_range`.
+    pub terrain_heights: std::cell::Cell<Option<(NodeId, u64, [f64; 2])>>,
     pub walkable: crate::walkable::WalkableView,
     pub void_cull: crate::void_cull::VoidView,
     pub models: crate::models::ModelCache,
@@ -806,6 +810,8 @@ impl EditorState {
             array_preview: Vec::new(),
             spline_preview: Vec::new(),
             shape_bounds: None,
+            terrain_resize: None,
+            terrain_heights: Default::default(),
             walkable: Default::default(),
             void_cull: Default::default(),
             models: Default::default(),
@@ -1111,6 +1117,8 @@ impl EditorState {
         self.active_scatter = None;
         self.renaming = None;
         self.outliner_reveal = None;
+        self.terrain_resize = None;
+        self.terrain_heights.set(None);
     }
 
     /// Makes tab `index` (in tab order) the active map.
