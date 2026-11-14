@@ -17,6 +17,7 @@ pub mod shapes;
 pub mod spline;
 pub mod sweep;
 pub mod symmetry;
+pub mod terrain3d;
 pub mod terrain_resize;
 pub mod uv;
 
