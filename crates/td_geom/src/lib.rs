@@ -13,6 +13,7 @@ pub mod rock;
 pub mod shapes;
 pub mod spline;
 pub mod sweep;
+pub mod terrain_resize;
 pub mod uv;
 
 pub use brush::{Brush, BrushError, Face, FaceData, RayHit, Triangle};
