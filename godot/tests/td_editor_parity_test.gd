@@ -31,6 +31,9 @@ static func run(t) -> void:
 	_test_terrain_layers_use_normal_and_roughness_maps(t)
 	_test_terrain_layer_ambient_occlusion(t)
 	_test_terrain_height_at_follows_triangles(t)
+	_test_one_cell_terrain_matches_editor(t)
+	_test_non_square_terrain_matches_editor(t)
+	_test_terrain_without_cells_is_refused(t)
 	_test_brush_bad_index_is_skipped(t)
 	_test_property_values_read_like_the_editor(t)
 	_test_environment_sun_keys(t)
@@ -582,6 +585,139 @@ static func _test_terrain_height_at_follows_triangles(t) -> void:
 	t.check(t.near(terrain.height_at(0.5, 0.5), 5.0, 0.01), "the diagonal is followed, not a bilinear blend, got %s" % terrain.height_at(0.5, 0.5))
 	t.check(is_nan(terrain.height_at(-1.0, 0.0)), "height_at still returns NAN outside the grid")
 	terrain.free()
+
+static func _terrain_data(origin: Array, res: Vector2i, cell_size: float, heights: Array, chunk_cells: int, extra := {}) -> Dictionary:
+	var data := {
+		"origin": origin, "resolution": [res.x, res.y], "cell_size": cell_size, "chunk_cells": chunk_cells, "layers": [],
+		"heights": Marshalls.raw_to_base64(PackedFloat32Array(heights).to_byte_array()),
+	}
+	data.merge(extra)
+	return data
+
+static func _named_children(terrain: Node, type: String) -> Array:
+	return terrain.get_children().filter(func(n): return n.is_class(type)).map(func(n): return String(n.name))
+
+## Each sample is a local map unit offset from the terrain origin and the world height Terrain::height_at in
+## td_geom returns there for the same terrain. Godot reports it relative to the node and in meters.
+static func _check_heights(t, terrain: TrenchDotTerrain, origin_y: float, scale: float, rust: Array, what: String) -> void:
+	for sample in rust:
+		var got := terrain.height_at(sample[0] * scale, sample[1] * scale)
+		var want: float = (sample[2] - origin_y) * scale
+		t.check(t.near(got, want, 1e-5), "%s height at (%s, %s) is %s like the editor, got %s" % [what, sample[0], sample[1], want, got])
+
+## A resize can leave a terrain one cell wide, which no create dialog made before.
+static func _test_one_cell_terrain_matches_editor(t) -> void:
+	print("- one cell terrain matches the editor")
+	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var scale := settings.scale_factor
+	var data := _terrain_data([13.0, -4.5, -7.25], Vector2i(2, 2), 40.0, [2.0, -6.0, 10.0, 30.0], 64)
+	var terrain := TrenchDotTerrain.create(data, Vector3.ZERO, settings)
+	t.check(terrain != null, "a one cell terrain builds")
+	if not terrain:
+		return
+	t.check(t.near(terrain.position, Vector3(13.0, -4.5, -7.25) * scale, 1e-6), "the node sits at the terrain origin, got %s" % terrain.position)
+	t.check(terrain.resolution == Vector2i(2, 2), "two vertices per side, got %s" % terrain.resolution)
+	t.check(_named_children(terrain, "MeshInstance3D") == ["chunk_0_0"], "one chunk, got %s" % [_named_children(terrain, "MeshInstance3D")])
+	t.check(_named_children(terrain, "CollisionShape3D") == ["collision_0_0"], "one collision shape, got %s" % [_named_children(terrain, "CollisionShape3D")])
+	var shape := terrain.get_node_or_null("collision_0_0") as CollisionShape3D
+	var faces: PackedVector3Array = (shape.shape as ConcavePolygonShape3D).get_faces() if shape else PackedVector3Array()
+	t.check(faces.size() == 6, "the cell collides as two triangles, got %d verts" % faces.size())
+	# The cell is even, so its diagonal runs from (0,0) to (1,1) and its center is their midpoint.
+	_check_heights(t, terrain, -4.5, scale, [
+		[0.0, 0.0, -2.5], [40.0, 0.0, -10.5], [0.0, 40.0, 5.5], [40.0, 40.0, 25.5],
+		[20.0, 20.0, 11.5], [30.0, 10.0, 0.5], [10.0, 30.0, 8.5],
+	], "one cell terrain")
+	t.check(is_nan(terrain.height_at(40.01 * scale, 20.0 * scale)), "past the single cell is outside")
+	terrain.free()
+
+## A resize per side makes terrains of any width and depth. A 5 x 2 cell terrain off the grid, with a hole and
+## paint, must build the triangles, chunks and heights the editor draws for every chunk size, including chunks
+## larger than the terrain and one exactly its width.
+static func _test_non_square_terrain_matches_editor(t) -> void:
+	print("- non square terrain matches the editor")
+	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var scale := settings.scale_factor
+	var origin := [-37.5, 12.25, -101.75]
+	var heights := [0.0, 8.0, 20.0, 4.0, -6.0, 30.0, 3.0, 14.0, 40.0, -10.0, 2.0, 18.0, 7.0, -5.0, 25.0, 11.0, 9.0, 50.0]
+	var holes := PackedByteArray()
+	holes.resize(10)
+	holes[8] = 1 # cell (3, 1)
+	var splat := PackedByteArray()
+	for k in 18 * 4:
+		splat.append((k * 37 + 11) % 256)
+	var extra := { "holes": Marshalls.raw_to_base64(holes), "splat": Marshalls.raw_to_base64(splat) }
+	var cell := 24.0 * scale
+	var chunk_cases := {
+		64: [["chunk_0_0"], [54]],
+		5: [["chunk_0_0"], [54]],
+		4: [["chunk_0_0", "chunk_1_0"], [42, 12]],
+		2: [["chunk_0_0", "chunk_1_0", "chunk_2_0"], [24, 18, 12]],
+	}
+	for chunk_cells in chunk_cases:
+		var what := "chunk cells %d" % chunk_cells
+		var terrain := TrenchDotTerrain.create(_terrain_data(origin, Vector2i(6, 3), 24.0, heights, chunk_cells, extra), Vector3.ZERO, settings)
+		t.check(terrain != null, "%s: the terrain builds" % what)
+		if not terrain:
+			continue
+		var want_chunks: Array = chunk_cases[chunk_cells][0]
+		var want_collision := want_chunks.map(func(n): return n.replace("chunk", "collision"))
+		t.check(_named_children(terrain, "MeshInstance3D") == want_chunks, "%s: chunks %s, got %s" % [what, want_chunks, _named_children(terrain, "MeshInstance3D")])
+		t.check(_named_children(terrain, "CollisionShape3D") == want_collision, "%s: collision %s, got %s" % [what, want_collision, _named_children(terrain, "CollisionShape3D")])
+		var face_counts := []
+		var triangles_per_cell := {}
+		for name in want_collision:
+			var shape := terrain.get_node_or_null(name) as CollisionShape3D
+			var faces: PackedVector3Array = (shape.shape as ConcavePolygonShape3D).get_faces() if shape else PackedVector3Array()
+			face_counts.append(faces.size())
+			for f in range(0, faces.size(), 3):
+				var c := (faces[f] + faces[f + 1] + faces[f + 2]) / 3.0
+				var key := Vector2i(floori(c.x / cell), floori(c.z / cell))
+				triangles_per_cell[key] = triangles_per_cell.get(key, 0) + 1
+		t.check(face_counts == chunk_cases[chunk_cells][1], "%s: collision verts per chunk %s, got %s" % [what, chunk_cases[chunk_cells][1], face_counts])
+		var want_cells := {}
+		for cj in 2:
+			for ci in 5:
+				if Vector2i(ci, cj) != Vector2i(3, 1):
+					want_cells[Vector2i(ci, cj)] = 2
+		t.check(triangles_per_cell == want_cells, "%s: two triangles in every cell but the hole, got %s" % [what, triangles_per_cell])
+		terrain.free()
+
+	var built := TrenchDotTerrain.create(_terrain_data(origin, Vector2i(6, 3), 24.0, heights, 64, extra), Vector3.ZERO, settings)
+	if not built:
+		return
+	t.check(t.near(built.position, Vector3(-37.5, 12.25, -101.75) * scale, 1e-6), "the node sits at the off grid origin, got %s" % built.position)
+	var arrays := ((built.get_node("chunk_0_0") as MeshInstance3D).mesh as ArrayMesh).surface_get_arrays(0)
+	var verts: PackedVector3Array = arrays[Mesh.ARRAY_VERTEX]
+	var colors: PackedColorArray = arrays[Mesh.ARRAY_COLOR]
+	t.check(verts.size() == 18 and colors.size() == 18, "every vertex is in the mesh, got %d" % verts.size())
+	var mismatched := []
+	for k in mini(mini(verts.size(), colors.size()), 18):
+		var want := Color(splat[k * 4] / 255.0, splat[k * 4 + 1] / 255.0, splat[k * 4 + 2] / 255.0, splat[k * 4 + 3] / 255.0)
+		var at := Vector3((k % 6) * cell, heights[k] * scale, (k / 6) * cell)
+		if not colors[k].is_equal_approx(want) or not t.near(verts[k], at, 1e-6):
+			mismatched.append(k)
+	t.check(mismatched.is_empty(), "each vertex keeps its own position and paint, wrong at %s" % [mismatched])
+	# Cells (0,0) and (4,1) are even and (1,0) and the hole (3,1) odd, so every center follows its own diagonal.
+	# height_at ignores holes on both sides.
+	var rust := []
+	var rust_vertex := [12.25, 20.25, 32.25, 16.25, 6.25, 42.25, 15.25, 26.25, 52.25, 2.25, 14.25, 30.25, 19.25, 7.25, 37.25, 23.25, 21.25, 62.25]
+	for k in 18:
+		rust.append([(k % 6) * 24.0, (k / 6) * 24.0, rust_vertex[k]])
+	rust.append_array([[12.0, 12.0, 19.25], [36.0, 12.0, 29.25], [30.0, 5.0, 24.5], [108.0, 36.0, 25.75], [84.0, 36.0, 11.75], [100.0, 30.0, 18.66666666790843]])
+	_check_heights(t, built, 12.25, scale, rust, "5 x 2 terrain")
+	t.check(is_nan(built.height_at(60.0 * scale, 48.01 * scale)), "past the second row is outside")
+	t.check(is_nan(built.height_at(120.01 * scale, 24.0 * scale)), "past the fifth column is outside")
+	built.free()
+
+## Terrain::check_data refuses a terrain without a single cell, so the addon must too.
+static func _test_terrain_without_cells_is_refused(t) -> void:
+	print("- a terrain without cells is refused")
+	var settings: FuncGodotMapSettings = load(SETTINGS)
+	for res in [Vector2i(1, 3), Vector2i(3, 1)]:
+		var terrain := TrenchDotTerrain.create(_terrain_data([0.0, 0.0, 0.0], res, 24.0, [0.0, 0.0, 0.0], 64), Vector3.ZERO, settings)
+		t.check(terrain == null, "resolution %s builds nothing" % res)
+		if terrain:
+			terrain.free()
 
 ## Finding 10: an out of range vertex index in a hand edited brush must drop just that brush, not error out
 ## silently while leaving the rest of the map (parsed on a worker thread) intact.
