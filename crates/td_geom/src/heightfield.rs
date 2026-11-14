@@ -946,47 +946,6 @@ impl Terrain {
             }
         }
     }
-
-    /// Resizes the grid, resampling heights, weights and holes. Cells stay square, so `resolution` bounds the vertex
-    /// count per side: the axis that needs the larger cells sets the cell size and the other axis gets as many
-    /// vertices as keep its extent (to the nearest cell).
-    pub fn resample(&self, resolution: [u32; 2]) -> Terrain {
-        let size = self.size();
-        let cell = (size.x / (resolution[0].max(2) - 1) as f64).max(size.y / (resolution[1].max(2) - 1) as f64).max(1e-3);
-        let res = [((size.x / cell).round() as u32 + 1).max(2), ((size.y / cell).round() as u32 + 1).max(2)];
-        let mut out = Terrain::new(self.origin, res, cell, "");
-        out.layers = self.layers.clone();
-        out.chunk_cells = self.chunk_cells;
-        let values: Vec<f32> = self.heights.clone();
-        out.import_heightmap(&values, self.resolution, 1.0);
-        if !self.splat.is_empty() {
-            out.splat = vec![0; out.heights.len() * 4];
-            for j in 0..res[1] {
-                for i in 0..res[0] {
-                    let si = ((i as f64 / (res[0] - 1) as f64) * (self.resolution[0] - 1) as f64).round() as u32;
-                    let sj = ((j as f64 / (res[1] - 1) as f64) * (self.resolution[1] - 1) as f64).round() as u32;
-                    let (dst, src) = (out.index(i, j) * 4, self.index(si, sj) * 4);
-                    out.splat[dst..dst + 4].copy_from_slice(&self.splat[src..src + 4]);
-                }
-            }
-        }
-
-        if self.holes.iter().any(|h| *h != 0) {
-            let ([cw, cd], [ow, od]) = (out.cells(), self.cells());
-            out.holes = vec![0; (cw * cd) as usize];
-            for cj in 0..cd {
-                for ci in 0..cw {
-                    let si = (((ci as f64 + 0.5) / cw as f64 * ow as f64) as u32).min(ow - 1);
-                    let sj = (((cj as f64 + 0.5) / cd as f64 * od as f64) as u32).min(od - 1);
-                    if self.is_hole(si, sj) {
-                        out.holes[(cj * cw + ci) as usize] = 1;
-                    }
-                }
-            }
-        }
-
-        out
-    }
 }
 
 #[cfg(test)]
@@ -1218,8 +1177,6 @@ mod tests {
         assert!((moved.size() - t.size() * 2.0).length() < 1e-9);
         let c = |t: &Terrain| t.origin + DVec3::new(t.size().x * 0.5, 0.0, t.size().y * 0.5);
         assert!((c(&moved) - c(&t)).length() < 1e-9);
-        let r = t.resample([17, 17]);
-        assert!((r.size() - t.size()).length() < 1e-9);
     }
 
     #[test]
@@ -1235,17 +1192,5 @@ mod tests {
         let scaled = t.transformed(&td_core::DMat4::from_scale(DVec3::new(1e10, 1.0, 1e10)));
         assert_eq!(scaled.cell_size, MAX_CELL_SIZE);
         assert!(scaled.check_data().is_ok());
-    }
-
-    #[test]
-    fn resample_keeps_extents_and_holes() {
-        let mut t = Terrain::new(DVec3::ZERO, [33, 17], 20.0, "grass");
-        assert!(t.set_holes(DVec3::new(10.0, 0.0, 10.0), 5.0, true));
-        let r = t.resample([65, 65]);
-        assert_eq!(r.resolution, [65, 33]);
-        assert!((r.size() - t.size()).length() < 1e-9, "{:?} vs {:?}", r.size(), t.size());
-        assert_eq!(r.holes.len(), (64 * 32) as usize);
-        assert!(r.is_hole(0, 0) && r.is_hole(1, 1) && !r.is_hole(2, 2));
-        assert!(r.check_data().is_ok());
     }
 }
