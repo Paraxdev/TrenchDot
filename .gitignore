@@ -5,6 +5,8 @@
 *.tdm.autosave
 *.tdm.bak*
 godot/.godot/
+# Fetched by tools/fetch_terrain3d.py, never committed.
+godot/addons/terrain_3d/
 # The generated nature trees and bushes share the images in nature/textures. Godot writes the .import
 # files for them on the first import, they are regenerated, never authored.
 godot/trenchdot/nature/trees/*.import

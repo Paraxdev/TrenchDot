@@ -95,6 +95,17 @@ jobs:
           curl -sSL -o godot.zip "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
           unzip -q godot.zip
           echo "GODOT=$PWD/Godot_v${GODOT_VERSION}-stable_linux.x86_64" >> "$GITHUB_ENV"
+      - id: terrain3d
+        run: echo "sha=$(sed -n 's/^SHA256 = "\(.*\)"$/\1/p' tools/fetch_terrain3d.py)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: target/terrain3d
+          key: terrain3d-${{ steps.terrain3d.outputs.sha }}
+      - name: Fetch Terrain3D
+        run: |
+          python3 tools/test_fetch_terrain3d.py
+          python3 tools/fetch_terrain3d.py
+          python3 tools/fetch_terrain3d.py --check
       - name: Import project
         # With an empty cache the first pass only registers script classes.
         run: |
@@ -216,7 +227,7 @@ jobs:
           grep -qx "version=\"${TRENCHDOT_BUILD}\"" godot/addons/func_godot/plugin.cfg
           # The addon is a submodule, its .git file and git settings stay out of the zips.
           (cd godot && zip -qr "../dist/func_godot-trenchdot-addon.zip" addons/func_godot -x "addons/func_godot/.git*")
-          zip -qr dist/trenchdot-demo-project.zip godot -x "godot/.godot/*" "godot/addons/func_godot/.git*"
+          zip -qr dist/trenchdot-demo-project.zip godot -x "godot/.godot/*" "godot/addons/func_godot/.git*" "godot/addons/terrain_3d/*"
           # What the editor's content wizard downloads into a project, laid out as in the project. The folders must be the
           # ones crates/td_editor/src/content.rs accepts, its tests read these two lines.
           (cd godot && zip -qr "../dist/trenchdot-nature-pack.zip" trenchdot/nature -x "*.import")

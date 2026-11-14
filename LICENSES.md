@@ -32,6 +32,12 @@ some recoloured or rearranged by that script. The night shop sign sets its lette
 `trees_detailed` and `bushes` were generated for this project (MIT). Their textures in `godot/trenchdot/nature/textures` are
 the CC0 scans listed above, graded, and for the leaves composed into twig cards, by the out of repo generator.
 
+## Fetched for development, not shipped
+
+| Component | Where | License | Copyright |
+|-----------|-------|---------|-----------|
+| [Terrain3D](https://github.com/TokisanGames/Terrain3D) 1.1.0 | the GDExtension the Terrain3D bridge drives, fetched into the gitignored `godot/addons/terrain_3d` by `tools/fetch_terrain3d.py` for the tests and the showcase. Neither the repository nor the release zips contain it, a project that wants the bridge installs Terrain3D itself | MIT, full text in [`LICENSE.txt`](https://github.com/TokisanGames/Terrain3D/blob/v1.1.0-stable/LICENSE.txt) | 2023-2026 Cory Petkovsek, Roope Palmroos, and Contributors |
+
 ## Rust crates
 
 Crates compiled into or used to build the editor ("editor"), or only used by its tests ("tests"), across all platform targets. Most are
