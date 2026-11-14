@@ -132,6 +132,11 @@ impl Document {
         (self.uid, self.state, if loose { self.revision } else { 0 })
     }
 
+    /// Tells documents apart, also two that hold the same map.
+    pub fn uid(&self) -> u64 {
+        self.uid
+    }
+
     pub fn is_modified(&self) -> bool {
         self.revision != self.accounted_revision || self.saved_state != Some(self.state)
     }
@@ -382,6 +387,24 @@ impl Document {
             self.state = snap.state;
             self.bump();
         }
+    }
+
+    /// Runs `f` on the current map and on every map the history holds, outside the history itself: no undo step, no new
+    /// content state. For bookkeeping that is not part of the map file but has to hold in every undo step. Returns
+    /// whether `f` changed the current map, which then reads as modified.
+    pub fn rewrite_history(&mut self, mut f: impl FnMut(&mut Map) -> bool) -> bool {
+        let snapshots = self.history.undo.iter_mut().chain(self.history.redo.iter_mut()).chain(self.transaction.as_mut());
+        for snap in snapshots {
+            f(&mut snap.map);
+        }
+
+        f(&mut self.saved_map);
+        let changed = f(&mut self.map);
+        if changed {
+            self.revision += 1;
+        }
+
+        changed
     }
 
     pub fn undo(&mut self) -> Option<String> {
