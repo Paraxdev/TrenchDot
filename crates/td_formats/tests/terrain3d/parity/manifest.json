@@ -1,0 +1,68 @@
+{
+  "format": "trenchdot-terrain3d",
+  "version": 1,
+  "terrain3d": "1.1.0",
+  "godot": "4.7.2",
+  "data_version": 0.8,
+  "region_size": 64,
+  "vertex_spacing": 2.5,
+  "material": {
+    "world_background": 1,
+    "auto_shader": false,
+    "ground_level": -3.0,
+    "region_blend": 0.9
+  },
+  "map_transform_identity": true,
+  "editor_open": false,
+  "regions": [
+    {
+      "loc": [
+        -2,
+        1
+      ],
+      "hash": "fb28db371d255fbc70a03bb99ece9d33c906975841deb7b885dc64e8ef484d54",
+      "height_range": [
+        -63.0903434753418,
+        -25.2106838226318
+      ]
+    },
+    {
+      "loc": [
+        -1,
+        1
+      ],
+      "hash": "77968319a7d81e033f3ac38c7495d335cefbd74a8899b99728e813bb0cfbd018",
+      "height_range": [
+        -39.8605422973633,
+        -1.67368578910828
+      ]
+    },
+    {
+      "loc": [
+        -1,
+        2
+      ],
+      "hash": "1e9bd7b82d6511f623338804f203887c1fe2da66c0fc1dae74bcb10e97d8ae57",
+      "height_range": [
+        -52.4684371948242,
+        -12.7309980392456
+      ]
+    }
+  ],
+  "dirty": [
+    [
+      -2,
+      1
+    ],
+    [
+      -1,
+      1
+    ],
+    [
+      -1,
+      2
+    ]
+  ],
+  "textures": [],
+  "applied": []
+}
