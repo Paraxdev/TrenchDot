@@ -30,6 +30,9 @@ A convex solid, such as a box or a wedge, the basic building block of a level. Y
 ## brush entity
 An entity that takes its shape from brushes you built, such as a door, a button or a trigger. You draw the brushes first and then turn them into the entity, unlike a point entity, which sits at a single spot.
 
+## cell
+One square of a terrain's grid, between four neighboring vertices. A terrain is a whole number of cells along X and Z, and the cell size is the distance in map units between two vertices. Resizing a terrain adds or removes whole cells.
+
 ## convex
 Bulging outward everywhere, with no dents or hollows, like a box, a wedge or a cylinder. Every brush has to be convex, which is why the editor refuses vertex moves that would dent one. For concave shapes, convert the brush to a mesh.
 

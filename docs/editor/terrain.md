@@ -51,14 +51,66 @@ This page covers making one and shaping it with the Sculpt tool (G). Texturing i
 Nothing sits between two vertices, so the cell size is the finest detail the terrain can hold. A mountain range wants
 big cells, a garden small ones.
 
-Picked wrong? Select the terrain and open **Resample** in the Inspector. It rebuilds the grid at 65, 129, 257 or 513
-vertices along the longer side and keeps the heights, paint and holes. The terrain keeps its size, so more vertices
-means smaller cells.
-
-![The terrain's Inspector with the Resample menu open and 257 vertices hovered](../assets/terrain/inspector-resample.png)
+Picked wrong? You can [change the size](#changing-the-size) any time after creating the terrain.
 
 **Chunk cells** (32 by default) splits the terrain into square pieces for drawing and collision. Smaller chunks rebuild
 faster while sculpting, larger ones mean fewer nodes in Godot.
+
+## Changing the size
+
+A terrain isn't stuck at the size you made it. You can add cells on any side, crop them off, or change the cell size,
+and the ground you already sculpted stays exactly where it was in the map.
+
+1. Select the terrain
+
+    Click it in a view or in the Outliner. Its **Size** block sits in the Inspector under **Origin**.
+
+2. Type the change
+
+    **Cells** shows how many cells run along X and Z. Type a total there and both opposite sides grow or shrink evenly,
+    with the odd cell going to the east or south side. The **North (-Z)**, **South (+Z)**, **West (-X)** and **East
+    (+X)** fields change one side only. A positive number adds that many cells and a negative one removes them, so
+    `+8` on East adds 8 cells and `-2` on South crops 2.
+
+    ![The Size block with 8 cells added east and 2 removed south, and the After line showing the result](../assets/terrain/inspector-size.png)
+
+    Nothing changes yet. Your edits are a draft, drawn as an outline in the views, and the **After** line under
+    **Apply** tells you the cells and size you'd get.
+
+3. Pick what new ground gets
+
+    **New ground** shows up once a side grows. **Edge height** continues the nearest edge, both the height and the
+    paint, so the terrain simply gets longer. **Zero** gives the new cells height 0 and the first layer, for a flat
+    apron to build on. The first new cell still slopes from the old edge down to 0, so the flat part starts one cell
+    out.
+
+4. Click **Apply**
+
+    The terrain changes as one step, and Ctrl+Z puts it back exactly. **Reset** drops the draft instead.
+
+Everything that was kept shows at the same world position as before: heights, paint and holes of the cells that
+stay. If you add cells on the west or north side, the terrain's **Origin** moves out to match.
+
+**Cell size** works differently. It keeps the terrain's size in the map to the nearest whole cell and rebuilds the grid
+with the new spacing, so the cell count changes with it, and heights and paint are blended between the old vertices.
+When the size isn't a multiple of the new cell, the terrain grows or shrinks by up to half a cell, and **Whole cells
+change the size by** under **After** tells you how much. Changing the cell size back doesn't undo that rounding,
+Ctrl+Z does. Making the cells bigger throws detail away, and the Inspector warns you with **Fine detail is lost** before
+you apply. Making them smaller keeps the shape but can't add detail that was never there. The sides apply first, then
+the cell size.
+
+> [!NOTE]
+> A terrain has between 1 and 2048 cells along each axis, and a cell size between 0.001 and 100000 units. A change
+> that goes outside that, or that would crop away every cell, is refused with the reason shown in red, and **Apply**
+> stays grayed out.
+
+### Scatter on the terrain
+
+[Scatter](scatter.md) painted on the terrain stays on the ground. Instances over ground that is still there ride up or
+down with the new height, so nothing floats or sinks. Instances over cropped ground are removed by default, and when
+there are any, a **Remove n scatter instances on removed ground** checkbox appears under **Apply**. Untick it to keep
+them where they are, floating over nothing, if you plan to move them yourself. A scatter set that is locked or hidden,
+or sits in a locked or hidden layer, is left as it is.
 
 ## Sculpting
 
@@ -108,5 +160,10 @@ position, handy for placing things on the ground at runtime.
 
 The `terrain_edit` tool's `sculpt` op applies a single dab, and its strength is how far that dab moves the center, again
 whatever the radius. Holding a stroke for one second at strength 4 matches a dab of strength 32.
+
+The same size change is `terrain_edit` with `op: "resize"`, taking `north`, `south`, `west` and `east` in cells, or
+`cells: [x, z]`, and `cell_size`. Add `dry_run: true` to read the cells, bounds, `scatter_removed` and `detail_lost` of
+the result first. `fill` is `edge` or `zero` and `scatter` is `drop` or `keep`, as in the Inspector. See
+[MCP](../mcp.md) for the limits.
 
 </div>
