@@ -123,6 +123,7 @@ pub const PAGES: &[(Topic<'static>, &str, &str)] = &[
     (Section("Make Brush Entity"), "gameplay/placing", "placing-entities"),
     (Section("Mesh Operations"), "editor/meshes", ""),
     (Section("Terrain"), "editor/terrain-layers", ""),
+    (Section("Size"), "editor/terrain", "changing-the-size"),
     (Section("Scatter set"), "editor/scatter", "scatter-sets"),
     (Section("Properties"), "gameplay/entities/README", "reading-the-entries"),
     (Section("Outputs"), "gameplay/placing", "wiring"),
@@ -312,6 +313,13 @@ mod tests {
                 assert!(slugs.iter().any(|s| s == anchor), "{topic:?}: no heading on {page}.md has the anchor #{anchor}, it has {slugs:?}");
             }
         }
+    }
+
+    #[test]
+    fn terrain_size_block_opens_its_section_of_the_page() {
+        assert_eq!(url(Section("Size")).unwrap(), format!("{SITE}editor/terrain.html#changing-the-size"));
+        assert_eq!(url(Section("Terrain")).unwrap(), format!("{SITE}editor/terrain-layers.html"));
+        assert_eq!(url(Section("Sizes")), None);
     }
 
     #[test]

@@ -704,7 +704,7 @@ fn section<R>(ui: &mut Ui, title: &str, tip: &str, open: bool, add_contents: imp
 }
 
 /// Tooltip and manual page of an Inspector section or heading, found by the English `topic`. `tip` is an English key.
-fn section_help(response: &egui::Response, topic: &str, tip: &str) {
+pub(crate) fn section_help(response: &egui::Response, topic: &str, tip: &str) {
     let topic = crate::help::Topic::Section(topic);
     crate::help::register(response, topic);
     let manual = crate::help::page(topic).is_some();

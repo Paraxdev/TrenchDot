@@ -113,7 +113,8 @@ pub fn size_ui(ui: &mut Ui, state: &mut EditorState, id: NodeId, terrain: &Terra
     let cells = terrain.cells();
     let label_w = widgets::label_width(ui);
     ui.add_space(4.0);
-    ui.label(RichText::new(tr("Size")).strong());
+    let heading = ui.label(RichText::new(tr("Size")).strong());
+    crate::panels::section_help(&heading, "Size", "");
     let field_w = |ui: &Ui| ui.available_width() - widgets::TRAILING;
     widgets::row(ui, 0, tr("Cells"), tr("The cells along X and Z after the change, typing a total grows or crops both opposite sides evenly"), label_w, |ui| {
         let half = (field_w(ui) - 6.0) / 2.0;
@@ -301,5 +302,43 @@ mod tests {
         assert!(total_cells([16, 8], sides, 0) > MAX_CELLS as i64);
         set_total(&mut sides, [16, 8], 0, 0);
         assert_eq!(total_cells([16, 8], sides, 0), 0);
+    }
+
+    #[test]
+    fn f1_over_the_size_heading_opens_the_resize_section_and_over_its_rows_opens_nothing() {
+        use egui_kittest::kittest::Queryable;
+
+        struct Probe {
+            state: EditorState,
+            terrain: Terrain,
+            under_pointer: Option<String>,
+            opened: Vec<String>,
+        }
+
+        let state = EditorState::new(Default::default());
+        let terrain = Terrain::new(glam::DVec3::new(96.0, 0.0, -64.0), [9, 5], 24.0, "base/floor");
+        let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(500.0, 500.0)).build_ui_state(
+            |ui, p: &mut Probe| {
+                crate::help::open_on_f1(ui.ctx(), p.under_pointer.as_deref());
+                size_ui(ui, &mut p.state, NodeId(7), &p.terrain);
+                p.under_pointer = crate::help::take_hovered(ui.ctx());
+                p.opened.extend(crate::panels::take_open_urls(ui.ctx()));
+            },
+            Probe { state, terrain, under_pointer: None, opened: vec![] },
+        );
+        harness.run();
+        harness.get_by_label("Size").hover();
+        harness.run();
+        harness.key_press(egui::Key::F1);
+        harness.run();
+        let page = crate::help::url(crate::help::Topic::Section("Size")).unwrap();
+        assert!(page.ends_with("editor/terrain.html#changing-the-size"), "{page}");
+        assert_eq!(harness.state().opened, [page]);
+
+        harness.get_by_label("Cell size").hover();
+        harness.run();
+        harness.key_press(egui::Key::F1);
+        harness.run();
+        assert_eq!(harness.state().opened.len(), 1, "a row under the heading has no page of its own");
     }
 }
