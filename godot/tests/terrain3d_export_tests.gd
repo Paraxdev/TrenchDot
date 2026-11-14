@@ -237,6 +237,30 @@ static func _test_data_versions(t) -> void:
 	t.check(_ints(m["regions"][0]["loc"]) == [-1, 2] and m["regions"][0]["height_range"] == [0.0, 12.5], "its height range holds the probe's 12.5 m, got %s" % [m["regions"]])
 	loaded.free()
 
+	# Saved by Terrain3D 1.0.2 at region size 64 and spacing 2: heights 0.5 x - 0.25 z + 3, a hole at pixel (10, 20)
+	# and base texture 3 at (30, 5).
+	var older := WORK.path_join("v1_0_2")
+	DirAccess.make_dir_recursive_absolute(older)
+	DirAccess.copy_absolute("res://tests/terrain3d/v1_0_2/terrain3d_02-01.res", older.path_join("terrain3d_02-01.res"))
+	loaded = ClassDB.instantiate(&"Terrain3D") as Node3D
+	loaded.set(&"vertex_spacing", 2.0)
+	loaded.set(&"data_directory", older)
+	t.root.add_child(loaded)
+	await t.process_frame
+	var exported := TrenchDotTerrain3DCache.export(loaded, older)
+	m = _manifest(older)
+	t.check(exported.ok and exported.written == [Vector2i(2, -1)] and exported.problems.is_empty(), "a region Terrain3D 1.0.2 saved exports, got %s" % [exported])
+	t.check(m.get("region_size") == 64 and _ints(m.get("dirty")) == [[2, -1]] and is_equal_approx(float(m.get("data_version", 0.0)), 1.1), "it keeps region size 64, and Terrain3D upgrades its data version 0.93 to 1.10 on load, so it stays dirty until Godot saves it, got %s %s %s" % [m.get("region_size"), m.get("dirty"), m.get("data_version")])
+	var file := _decode(FileAccess.get_file_as_bytes(TrenchDotTerrain3DCache.region_path(older, Vector2i(2, -1))))
+	var payload: PackedByteArray = file.get("payload", PackedByteArray())
+	var at := func(x: int, z: int, offset: int) -> int: return offset + (z * 64 + x) * 4
+	t.check(file.get("hash_ok", false) and file.get("size") == 64 and is_equal_approx(file.get("spacing", 0.0), 2.0) and not file.get("color", true), "its file holds a 64 vertex region at spacing 2 without color, got %s" % [[file.get("hash_ok"), file.get("size"), file.get("spacing"), file.get("color")]])
+	t.check(payload.size() == 64 * 64 * 8 and is_equal_approx(payload.decode_float(at.call(5, 3, 0)), 4.75) and is_equal_approx(payload.decode_float(at.call(63, 63, 0)), 18.75), "its heights survive, got %s %s" % [payload.decode_float(at.call(5, 3, 0)), payload.decode_float(at.call(63, 63, 0))])
+	var control := 64 * 64 * 4
+	t.check(payload.decode_u32(at.call(10, 20, control)) & HOLE_BIT and not payload.decode_u32(at.call(11, 20, control)) & HOLE_BIT, "its hole stays on its vertex")
+	t.check(payload.decode_u32(at.call(30, 5, control)) >> 27 == 3 and payload.decode_u32(at.call(31, 5, control)) >> 27 == 0, "its base texture stays on its vertex")
+	loaded.free()
+
 	var folder := WORK.path_join("versions")
 	var terrain := await _terrain(t, folder, 64, 1.0)
 	var data: Object = terrain.get(&"data")
