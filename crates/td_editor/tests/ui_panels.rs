@@ -3723,6 +3723,16 @@ fn the_terrain3d_inspector_says_why_godot_is_out_of_reach() {
     harness.state_mut().state.godot.exe = Some(root.join("godot.exe"));
     harness.run();
     harness.get_by_label("Godot: not running, a save applies edits with a headless Godot");
+    assert!(harness.query_by_label("Export from Godot").is_none());
+
+    std::fs::remove_file(td_formats::terrain3d_cache::manifest_path(&root.join("terrain").join(td_formats::terrain3d_cache::DIR_NAME))).unwrap();
+    harness.state_mut().state.terrain3d.recheck();
+    harness.run();
+    harness.get_by_label("Godot has not exported this folder yet, so TrenchDot shows none of it");
+    harness.state_mut().state.prefs.live_link = false;
+    harness.get_by_label("Export from Godot").click();
+    harness.run();
+    assert!(harness.state().state.terrain3d.manifest(&root.join("terrain").join(td_formats::terrain3d_cache::DIR_NAME)).is_none());
 }
 
 #[test]

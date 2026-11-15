@@ -271,6 +271,15 @@ pub fn inspector(ui: &mut Ui, state: &mut EditorState, id: NodeId, actions: &mut
         ui.colored_label(theme::colors().warning(), error.to_string());
     }
 
+    if manifest.is_none() {
+        ui.colored_label(theme::colors().warning(), tr("Godot has not exported this folder yet, so TrenchDot shows none of it"));
+        if ui.add_enabled(!state.restricted(), egui::Button::new(tr("Export from Godot"))).clicked()
+            && let Err(e) = state.export_terrain3d_cache(&cache)
+        {
+            state.fail_status(e);
+        }
+    }
+
     ui.separator();
     settings(ui, state, id, &cache);
     regions(ui, state, id, &cache);

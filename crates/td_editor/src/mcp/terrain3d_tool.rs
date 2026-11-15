@@ -175,7 +175,7 @@ impl EditorState {
         self.terrain3d.recheck();
         self.terrain3d.refresh(&cache);
         if self.terrain3d.source(&cache).is_none() {
-            return Err("Godot has not exported this Terrain3D folder yet, open the project in Godot once or link a new folder".into());
+            self.export_terrain3d_cache(&cache)?;
         }
 
         Ok(cache)

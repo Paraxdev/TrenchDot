@@ -129,9 +129,11 @@ impl EditorState {
         self.terrain3d.upm = self.game.units_per_meter;
         self.terrain3d.recheck();
         self.terrain3d.refresh(&cache);
-        let Some(grid) = self.terrain3d.grid(&cache) else {
-            return Err("Godot has not exported this Terrain3D folder yet, open the project in Godot once or link a new folder".into());
-        };
+        if self.terrain3d.grid(&cache).is_none() {
+            self.export_terrain3d_cache(&cache)?;
+        }
+
+        let grid = self.terrain3d.grid(&cache).ok_or(crate::terrain3d::bridge::NOT_EXPORTED)?;
         let (lo, hi) = grid.vgrid_rect(min, max, 2);
         let need: Vec<Loc> = {
             let source = self.terrain3d.source(&cache).ok_or("no Terrain3D cache")?;

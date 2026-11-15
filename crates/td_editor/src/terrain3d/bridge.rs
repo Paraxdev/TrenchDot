@@ -275,6 +275,14 @@ fn ask(request: &Apply) -> Outcome {
 
 fn headless(request: &Apply) -> Outcome {
     let Some(exe) = &request.godot else { return Outcome::default() };
+    match run_cli(exe, request, "apply") {
+        Err(e) => Outcome::failed(Route::Headless, e),
+        Ok(reply) => Outcome::from_reply(Route::Headless, &reply),
+    }
+}
+
+/// Runs the Terrain3D CLI of the addon on the request's folder and returns the JSON result it printed last.
+fn run_cli(exe: &Path, request: &Apply, command: &str) -> Result<Value, String> {
     let mut cmd = Command::new(exe);
     cmd.arg("--headless")
         .arg("--path")
@@ -282,7 +290,7 @@ fn headless(request: &Apply) -> Outcome {
         .arg("--script")
         .arg(CLI_SCRIPT)
         .arg("--")
-        .arg("apply")
+        .arg(command)
         .arg(live_link::godot_path(&request.folder));
     let (code, stdout) = run_capture(cmd, HEADLESS_TIMEOUT)?;
     if let Some(reply) = stdout.lines().rev().find(|l| !l.trim().is_empty()).and_then(|l| serde_json::from_str::<Value>(l).ok()) {
@@ -733,6 +741,25 @@ mod tests {
         }
 
         assert!(args.contains(&live_link::godot_path(&req.project)) && args.trim_end().ends_with(&live_link::godot_path(&req.folder)), "{args}");
+    }
+
+    #[test]
+    fn an_export_goes_to_the_open_editor_first_then_to_a_headless_godot() {
+        let dir = tempfile::tempdir().unwrap();
+        let (port, seen) = fake_editor(vec![("terrain3d_export", json!({ "ok": true, "written": [], "problems": [] }))]);
+        assert_eq!(export(&request(dir.path(), Some(port), None)), Ok(()));
+        assert_eq!(seen.lock().unwrap()[0]["event"], "terrain3d_export");
+
+        let (port, _) = fake_editor(vec![("terrain3d_export", json!({ "ok": false, "error": format!("{NO_SCENE}res://terrain") }))]);
+        let (exe, args) = fake_godot(dir.path(), r#"{"ok":true,"written":[[0,0]],"removed":0,"problems":[]}"#);
+        let req = request(dir.path(), Some(port), Some(exe));
+        assert_eq!(export(&req), Ok(()));
+        let args = std::fs::read_to_string(&args).unwrap();
+        assert!(args.contains(" -- export ") && args.trim_end().ends_with(&live_link::godot_path(&req.folder)), "{args}");
+
+        let (exe, _) = fake_godot(dir.path(), r#"{"ok":false,"error":"Terrain3D is not installed in this project"}"#);
+        assert_eq!(export(&request(dir.path(), None, Some(exe))), Err("Terrain3D is not installed in this project".to_string()));
+        assert_eq!(export(&request(dir.path(), None, None)), Err(NOT_EXPORTED.to_string()));
     }
 
     #[test]

@@ -2868,5 +2868,7 @@
   "Its instances are put back on the Terrain3D surface after every stroke, fill and change made in Godot": "Seine Instanzen werden nach jedem Pinselstrich, jeder Füllung und jeder Änderung in Godot wieder auf die Terrain3D-Oberfläche gesetzt",
   "Terrain3D edits wait in the data folder, the project is in Restricted Mode. Click Restricted Mode in the status bar to trust it": "Terrain3D-Änderungen warten im Datenordner, das Projekt ist im Eingeschränkten Modus. In der Statusleiste auf Eingeschränkter Modus klicken, um ihm zu vertrauen",
   "Terrain3D edits were not sent, the data in {folder} has not loaded yet, save again once it shows": "Terrain3D-Änderungen wurden nicht gesendet, die Daten in {folder} sind noch nicht geladen, erneut speichern, sobald sie erscheinen",
-  "Terrain3D edits made after the last save are not in the autosave": "Terrain3D-Änderungen nach dem letzten Speichern sind nicht in der Autospeicherung"
+  "Terrain3D edits made after the last save are not in the autosave": "Terrain3D-Änderungen nach dem letzten Speichern sind nicht in der Autospeicherung",
+  "Godot has not exported this folder yet, so TrenchDot shows none of it": "Godot hat diesen Ordner noch nicht exportiert, deshalb zeigt TrenchDot nichts davon",
+  "Export from Godot": "Aus Godot exportieren"
 }

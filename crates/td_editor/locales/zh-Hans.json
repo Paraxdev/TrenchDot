@@ -2868,5 +2868,7 @@
   "Its instances are put back on the Terrain3D surface after every stroke, fill and change made in Godot": "每次笔触、填充以及在 Godot 中所做的更改之后，其实例都会重新贴回 Terrain3D 表面",
   "Terrain3D edits wait in the data folder, the project is in Restricted Mode. Click Restricted Mode in the status bar to trust it": "Terrain3D 修改留在数据文件夹中，项目处于受限模式。点击状态栏的受限模式以信任它",
   "Terrain3D edits were not sent, the data in {folder} has not loaded yet, save again once it shows": "Terrain3D 修改未发送，{folder} 中的数据尚未加载，加载出来后请再次保存",
-  "Terrain3D edits made after the last save are not in the autosave": "上次保存之后的 Terrain3D 编辑不在自动保存中"
+  "Terrain3D edits made after the last save are not in the autosave": "上次保存之后的 Terrain3D 编辑不在自动保存中",
+  "Godot has not exported this folder yet, so TrenchDot shows none of it": "Godot 尚未导出此文件夹，因此 TrenchDot 无法显示其中任何内容",
+  "Export from Godot": "从 Godot 导出"
 }
