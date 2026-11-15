@@ -1,6 +1,7 @@
 //! Scatter that follows a Terrain3D node: its instances are cast onto the tiles TrenchDot draws, which are not quite
 //! the surface Godot samples, so they are put back on `surface_height` after a stroke or a fill.
 
+use std::collections::{BTreeSet, HashSet};
 use std::path::PathBuf;
 
 use super::tiles::region_rect;
@@ -8,12 +9,38 @@ use crate::state::EditorState;
 use td_core::{DVec3, NodeId};
 use td_doc::Map;
 use td_doc::terrain3d::{RegionSource, reground_scatter};
+use td_geom::terrain3d::Loc;
 
 impl EditorState {
     /// The Terrain3D node a set follows and the cache of its folder: the node its targets name, and nothing else.
     pub(crate) fn terrain3d_followed(&self, targets: &[NodeId]) -> Option<(NodeId, PathBuf)> {
         let [node] = targets else { return None };
         self.terrain3d_links().into_iter().find(|(id, _)| id == node)
+    }
+}
+
+impl EditorState {
+    /// Puts the scatter that follows a node back on the regions that changed in Godot, as one undo step, once they are
+    /// loaded. A pass that moves nothing leaves no step. While there are steps to redo it waits, a new step would end
+    /// them.
+    pub(crate) fn reground_owed(&mut self, links: &[(NodeId, PathBuf)], live: &BTreeSet<NodeId>) {
+        if self.doc.in_transaction() || self.doc.history.can_redo() {
+            return;
+        }
+
+        for (id, cache) in links.iter().filter(|(id, _)| live.contains(id)) {
+            let (Some(link), Some(source), Some(owed)) = (self.doc.map.terrain3d(*id), self.terrain3d.source(cache), self.terrain3d_owed.get_mut(id)) else {
+                continue;
+            };
+            let exists: HashSet<Loc> = link.locs(&source).into_iter().collect();
+            let ready: Vec<Loc> = owed.iter().copied().filter(|l| !exists.contains(l) || link.region(&source, *l).is_some()).collect();
+            if ready.is_empty() {
+                continue;
+            }
+
+            owed.retain(|l| !ready.contains(l));
+            let _ = self.doc.try_edit("Follow Terrain3D", |m, _| if reground_scatter(m, *id, &source, &ready) > 0 { Ok(()) } else { Err(()) });
+        }
     }
 }
 
@@ -45,6 +72,7 @@ mod tests {
     use td_doc::terrain3d::RegionSource;
     use td_geom::terrain3d::{Loc, surface_height};
 
+    use super::ground_followers;
     use crate::scatter_tool;
     use crate::state::EditorState;
     use crate::terrain3d::brush::Texture;
@@ -182,5 +210,148 @@ mod tests {
         assert!(state.terrain3d_followed(&[set]).is_none(), "only a Terrain3D node is followed");
         assert_eq!(scatter_tool::eyedrop_target(&mut state, id), Ok(false));
         assert!(state.doc.map.scatter(set).unwrap().targets.is_empty());
+    }
+
+    /// What Godot does when it saves a region: new heights in the file, a new hash in the manifest.
+    fn rewrite(cache: &Path, loc: Loc, lift: f32, hash: u8) {
+        use td_formats::terrain3d_cache::{self, RegionHash};
+        let mut manifest = terrain3d_cache::read_manifest(cache).unwrap();
+        let mut cached = terrain3d_cache::read_region(cache, loc, 64).unwrap();
+        cached.region.heights.iter_mut().for_each(|h| *h += lift);
+        cached.hash = RegionHash([hash; 32]);
+        terrain3d_cache::write_region(cache, &cached).unwrap();
+        manifest.regions.iter_mut().find(|r| r.loc == loc).unwrap().hash = cached.hash;
+        terrain3d_cache::write_manifest(cache, &manifest).unwrap();
+    }
+
+    fn y_of(state: &EditorState, set: NodeId) -> f64 {
+        state.doc.map.scatter(set).unwrap().instances[0].position.y
+    }
+
+    /// Runs the per frame update until `done`, the way the app does between Godot saving and the user looking.
+    fn update_until(state: &mut EditorState, views: &[View], what: &str, done: impl Fn(&EditorState) -> bool) {
+        let start = Instant::now();
+        while !done(state) {
+            assert!(start.elapsed().as_secs() < 10, "{what}");
+            state.terrain3d.recheck();
+            state.update_terrain3d_tiles(views, std::time::Duration::from_secs(5));
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    }
+
+    fn rock_at(state: &mut EditorState, id: NodeId, x: f64, y: f64, z: f64) -> NodeId {
+        let set = rocks(state, id);
+        state.doc.edit("seed", |m, _| {
+            m.scatter_mut(set).unwrap().instances.push(td_doc::scatter::ScatterInstance {
+                item: 0,
+                position: DVec3::new(x, y, z),
+                angles: DVec3::ZERO,
+                scale: 1.0,
+            })
+        });
+        set
+    }
+
+    const LABEL: &str = "Follow Terrain3D";
+
+    #[test]
+    fn opening_a_map_does_not_move_instances_or_dirty_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, _) = state_over(dir.path(), &[[0, 0], [1, 0]]);
+        let set = rock_at(&mut state, id, 21.3 * UPM, 5.0, 17.9 * UPM);
+        let (revision, undo) = (state.doc.revision, state.doc.history.undo_labels().count());
+        let everywhere = [View::Flat { min: DVec2::splat(-1.0e7), max: DVec2::splat(1.0e7), zoom: 1.0 }];
+        build_tiles(&mut state);
+        for _ in 0..20 {
+            state.terrain3d.recheck();
+            state.update_terrain3d_tiles(&everywhere, std::time::Duration::from_secs(5));
+        }
+
+        assert_eq!(y_of(&state, set), 5.0, "the instance is off the surface and stays where the map put it");
+        assert_eq!((state.doc.revision, state.doc.history.undo_labels().count()), (revision, undo), "the map is not edited");
+    }
+
+    #[test]
+    fn a_region_changed_in_godot_puts_following_scatter_back_on_it_in_one_undo_step() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, cache) = state_over(dir.path(), &[[0, 0], [1, 0]]);
+        let everywhere = [View::Flat { min: DVec2::splat(-1.0e7), max: DVec2::splat(1.0e7), zoom: 1.0 }];
+        build_tiles(&mut state);
+        let (x, z) = (21.3 * UPM, 17.9 * UPM);
+        let set = rock_at(&mut state, id, x, 0.0, z);
+        let other = rock_at(&mut state, id, 9120.0, 0.0, 700.0);
+        state.doc.edit("ground", |m, _| {
+            ground_followers(m, id, &state.terrain3d.source(&cache).unwrap(), None);
+        });
+        let (before, untouched) = (y_of(&state, set), y_of(&state, other));
+        let undo = state.doc.history.undo_labels().count();
+
+        rewrite(&cache, [0, 0], 0.5, 11);
+        update_until(&mut state, &everywhere, "the instance never followed the region", |s| y_of(s, set) != before);
+        assert!((y_of(&state, set) - (before + 0.5 * UPM)).abs() < 1e-3, "half a meter up, now {} from {before}", y_of(&state, set));
+        assert_eq!(y_of(&state, other), untouched, "an instance over the region that stayed does not move");
+        assert_eq!(state.doc.history.undo_labels().count(), undo + 1);
+        assert_eq!(state.doc.history.undo_labels().next(), Some(LABEL));
+        for _ in 0..10 {
+            state.terrain3d.recheck();
+            state.update_terrain3d_tiles(&everywhere, std::time::Duration::from_secs(5));
+        }
+
+        assert_eq!(state.doc.history.undo_labels().count(), undo + 1, "one change in Godot is one step");
+
+        // A save that changed nothing the surface shows moves nothing and leaves no step.
+        rewrite(&cache, [0, 0], 0.0, 12);
+        for _ in 0..10 {
+            state.terrain3d.recheck();
+            state.update_terrain3d_tiles(&everywhere, std::time::Duration::from_secs(5));
+        }
+
+        assert_eq!(state.doc.history.undo_labels().count(), undo + 1);
+    }
+
+    #[test]
+    fn a_change_in_godot_waits_for_the_redo_steps_before_it_moves_scatter() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, cache) = state_over(dir.path(), &[[0, 0], [1, 0]]);
+        let everywhere = [View::Flat { min: DVec2::splat(-1.0e7), max: DVec2::splat(1.0e7), zoom: 1.0 }];
+        build_tiles(&mut state);
+        let set = rock_at(&mut state, id, 5120.0 + 21.3 * UPM, 0.0, 17.9 * UPM);
+        state.doc.edit("ground", |m, _| {
+            ground_followers(m, id, &state.terrain3d.source(&cache).unwrap(), None);
+        });
+        let before = y_of(&state, set);
+        state.doc.edit("Rename", |m, _| m.scatter_mut(set).unwrap().name = "Boulders".into());
+        state.doc.undo();
+
+        let first = |s: &EditorState| s.terrain3d.region(&cache, [1, 0]).map(|r| r.heights[0]);
+        let old = first(&state);
+        rewrite(&cache, [1, 0], 0.5, 11);
+        update_until(&mut state, &everywhere, "the region never reloaded", |s| first(s).is_some_and(|h| Some(h) != old));
+        for _ in 0..10 {
+            state.terrain3d.recheck();
+            state.update_terrain3d_tiles(&everywhere, std::time::Duration::from_secs(5));
+        }
+
+        assert_eq!(y_of(&state, set), before, "the instance waits while a step can be redone");
+        assert_eq!(state.doc.history.redo_labels().collect::<Vec<_>>(), ["Rename"]);
+
+        state.doc.redo();
+        update_until(&mut state, &everywhere, "the instance never followed the region", |s| y_of(s, set) != before);
+        assert!((y_of(&state, set) - (before + 0.5 * UPM)).abs() < 1e-3);
+        assert_eq!(state.doc.history.undo_labels().take(2).collect::<Vec<_>>(), [LABEL, "Rename"]);
+    }
+
+    #[test]
+    fn a_changed_region_nobody_looks_at_is_loaded_for_the_instances_on_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, cache) = state_over(dir.path(), &[[0, 0], [1, 0]]);
+        // Only region [0, 0] is in view, [1, 0] lies 5120 units east of it.
+        let west = [View::Flat { min: DVec2::new(0.0, 0.0), max: DVec2::new(2000.0, 2000.0), zoom: 0.001 }];
+        let set = rock_at(&mut state, id, 5120.0 + 21.3 * UPM, 0.0, 17.9 * UPM);
+        update_until(&mut state, &west, "the first region never loaded", |s| s.terrain3d.region(&cache, [0, 0]).is_some());
+        let before = y_of(&state, set);
+        rewrite(&cache, [1, 0], 0.5, 11);
+        update_until(&mut state, &west, "the instance never followed the region", |s| y_of(s, set) != before);
+        assert!(state.terrain3d.region(&cache, [1, 0]).is_some(), "the region was loaded to read the surface");
     }
 }

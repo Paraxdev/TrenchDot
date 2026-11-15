@@ -698,6 +698,8 @@ pub struct EditorState {
     pub terrain3d: crate::terrain3d::store::Terrain3DStore,
     pub terrain3d_bridge: crate::terrain3d::bridge::Bridge,
     pub terrain3d_tiles: crate::terrain3d::tiles::Tiles,
+    /// Regions that changed in Godot, per node, whose following scatter waits to be put back on them.
+    pub terrain3d_owed: std::collections::BTreeMap<NodeId, std::collections::BTreeSet<td_geom::terrain3d::Loc>>,
     /// Data folders whose untested Terrain3D version was already mentioned.
     pub terrain3d_noted: std::collections::HashSet<PathBuf>,
     /// The Edit Regions toggle of the Terrain3D Inspector.
@@ -973,6 +975,7 @@ impl EditorState {
             terrain3d: Default::default(),
             terrain3d_bridge: Default::default(),
             terrain3d_tiles: Default::default(),
+            terrain3d_owed: Default::default(),
             terrain3d_noted: Default::default(),
             terrain3d_edit_regions: false,
             terrain3d_texture: crate::terrain3d::brush::Texture { id: 0, spray: false },

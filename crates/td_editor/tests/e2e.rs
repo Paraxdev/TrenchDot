@@ -8925,3 +8925,54 @@ fn terrain3d_scatter_follows_the_surface_after_a_fill_and_a_stroke() {
         check("dab", lone_instance(&ed, &set).unwrap());
     }
 }
+
+/// Godot saving a change to the Terrain3D folder puts the scatter that follows the node back on the new surface, and
+/// opening the map does not move it.
+#[test]
+#[ignore]
+fn terrain3d_scatter_follows_a_change_made_in_godot() {
+    use td_formats::terrain3d_cache::{self, RegionHash};
+
+    let (ed, node) = launch_world("terrain3d_follow_godot", None);
+    let cache = artifacts().join("terrain3d_follow_godot").join("terrain").join(terrain3d_cache::DIR_NAME);
+    ed.call("set_camera", json!({ "view": "top", "center": [512, 0, 512], "zoom": 0.4 }));
+    let item = json!({ "source": "res://rock.glb", "spacing": 1.0e6, "scale": 1 });
+    let set = ed.call("scatter", json!({ "op": "new_set", "name": "rocks", "items": [item], "targets": [node] }))["id"].clone();
+    let deadline = Instant::now() + Duration::from_secs(30);
+    while ed.call("scatter", json!({ "op": "paint", "center": [250.0, 250.0], "radius": 36, "density": 8, "seed": 1 }))["placed"] != 1 {
+        assert!(Instant::now() < deadline, "the dab never found the tiles");
+        ed.call("scatter", json!({ "op": "clear", "id": set }));
+        std::thread::sleep(Duration::from_millis(200));
+    }
+
+    let before = lone_instance(&ed, &set).unwrap();
+    assert!((before[1] - surface_at(&cache, before[0], before[2])).abs() < 0.01);
+    std::thread::sleep(Duration::from_millis(2500));
+    assert_eq!(lone_instance(&ed, &set).unwrap(), before, "the editor read the folder again and nothing moved");
+
+    // Godot saves every region half a meter higher.
+    let mut manifest = terrain3d_cache::read_manifest(&cache).unwrap();
+    for entry in manifest.regions.iter_mut() {
+        let mut cached = terrain3d_cache::read_region(&cache, entry.loc, 64).unwrap();
+        cached.region.heights.iter_mut().for_each(|h| *h += 0.5);
+        cached.hash = RegionHash([9; 32]);
+        terrain3d_cache::write_region(&cache, &cached).unwrap();
+        entry.hash = cached.hash;
+    }
+
+    terrain3d_cache::write_manifest(&cache, &manifest).unwrap();
+    let want = before[1] + 0.5 * 32.0;
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        let now = lone_instance(&ed, &set).unwrap();
+        if (now[1] - want).abs() < 0.01 {
+            break;
+        }
+
+        assert!(Instant::now() < deadline, "the instance stands at {} and never followed the surface to {want}", now[1]);
+        std::thread::sleep(Duration::from_millis(200));
+    }
+
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert!((lone_instance(&ed, &set).unwrap()[1] - before[1]).abs() < 0.01, "one undo takes the instance back");
+}

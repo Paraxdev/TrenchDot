@@ -42,6 +42,9 @@ struct Folder {
     failed: HashMap<(Loc, bool), RegionHash>,
     /// Regions whose hash changed, appeared or went since the last `take_changed`.
     changed: BTreeSet<Loc>,
+    /// Like `changed`, but without what the first read of the manifest found.
+    news: BTreeSet<Loc>,
+    read_before: bool,
     seen_seq: Option<u64>,
     applied: Vec<Applied>,
     refused: BTreeMap<Loc, String>,
@@ -148,6 +151,12 @@ impl Terrain3DStore {
     /// The regions whose cache changed since the last call, for the views that draw them.
     pub fn take_changed(&mut self, cache: &Path) -> Vec<Loc> {
         self.folders.get_mut(cache).map(|f| std::mem::take(&mut f.changed).into_iter().collect()).unwrap_or_default()
+    }
+
+    /// The regions that changed on disk since the last call, for what must follow them. The regions the first read of the
+    /// folder found are not news, so opening a map changes nothing.
+    pub fn take_news(&mut self, cache: &Path) -> Vec<Loc> {
+        self.folders.get_mut(cache).map(|f| std::mem::take(&mut f.news).into_iter().collect()).unwrap_or_default()
     }
 
     /// What Godot reported applying since the last call.
@@ -353,7 +362,12 @@ fn apply_manifest(folder: &mut Folder, manifest: Manifest) {
     let resized = folder.manifest.as_ref().is_some_and(|m| m.region_size != manifest.region_size || m.vertex_spacing != manifest.vertex_spacing);
     folder.regions.retain(|loc, l| !resized && new.get(loc) == Some(&l.hash));
     folder.lods.retain(|loc, entry| !resized && new.get(loc) == Some(&entry.0));
-    folder.changed.extend(old.keys().chain(new.keys()).copied().filter(|loc| resized || old.get(loc) != new.get(loc)));
+    let moved: Vec<Loc> = old.keys().chain(new.keys()).copied().filter(|loc| resized || old.get(loc) != new.get(loc)).collect();
+    folder.changed.extend(moved.iter().copied());
+    if std::mem::replace(&mut folder.read_before, true) {
+        folder.news.extend(moved);
+    }
+
     if resized {
         folder.inflight.clear();
         folder.failed.clear();
@@ -615,6 +629,29 @@ mod tests {
 
         store.recheck();
         assert!(!store.refresh(&cache), "an unchanged manifest changes nothing");
+    }
+
+    #[test]
+    fn the_news_leave_out_what_the_first_read_listed_and_keep_each_folder_apart() {
+        let dir = tempfile::tempdir().unwrap();
+        let (one, two) = (dir.path().join("one").join(terrain3d_cache::DIR_NAME), dir.path().join("two").join(terrain3d_cache::DIR_NAME));
+        write_world(&one, &[(A, 1), (B, 2)]);
+        write_world(&two, &[(A, 5), (B, 6)]);
+        let mut store = Terrain3DStore::default();
+        assert!(store.take_news(&one).is_empty(), "a folder nobody read has no news");
+        store.refresh(&one);
+        store.refresh(&two);
+        assert!(store.take_news(&one).is_empty(), "the regions the first read found are not news");
+        assert!(store.take_news(&one).is_empty());
+
+        write_world(&one, &[(A, 9), (B, 2), ([0, 0], 4)]);
+        write_world(&two, &[(A, 5), (B, 7)]);
+        store.recheck();
+        store.refresh(&one);
+        store.refresh(&two);
+        assert_eq!(store.take_news(&one), vec![A, [0, 0]], "a changed and an added region, not the one that stayed");
+        assert!(store.take_news(&one).is_empty(), "news come once");
+        assert_eq!(store.take_news(&two), vec![B], "the second folder has its own news");
     }
 
     #[test]
