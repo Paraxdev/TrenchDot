@@ -8538,7 +8538,7 @@ fn terrain3d_world(name: &str, pending_base: Option<u8>) -> (PathBuf, PathBuf) {
     use td_formats::terrain3d_cache::{self, CachedRegion, Manifest, ManifestRegion, ManifestTexture, PendingRegion, RegionHash};
     use td_geom::terrain3d::{Control, Region3D};
 
-    let dir = linked_project(name, json!([]));
+    let dir = linked_project(name, json!([{ "classname": "marker", "type": "point" }]));
     let cache = dir.join("terrain").join(terrain3d_cache::DIR_NAME);
     let hash = RegionHash([7; 32]);
     let locs = [[0, 0], [1, 0], [0, 1]];
@@ -8643,4 +8643,42 @@ fn terrain3d_regions_are_drawn_with_their_textures() {
     ed.call("hierarchy", json!({ "op": "set_flags", "ids": [node], "hidden": false }));
     let back = world_colors(&shot(&ed, args, "shown"));
     assert!(back.0 > 500 && back.1 > 500, "shown again: {back:?}");
+}
+
+/// A click selects the Terrain3D node where a tile is, an entity placed by x and z lands on the tile at its height, and a
+/// hidden node takes neither.
+#[test]
+#[ignore]
+fn terrain3d_tiles_are_picked_and_ground_entities() {
+    let (ed, node) = launch_world("terrain3d_pick", None);
+    ed.call("set_camera", json!({ "view": "top", "center": [672, 0, 56], "zoom": 1.0 }));
+    let (x, z) = (672.0, 56.0);
+    let want = world_height([1, 0], 20, 7);
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let ground = |ed: &Editor| ed.call("gameplay", json!({ "op": "place", "classname": "marker", "origin": [x, z] }))["id"].clone();
+    let height_at = |ed: &Editor, id: &Value| ed.call("get_node", json!({ "id": id }))["origin"][1].as_f64().unwrap();
+    loop {
+        let id = ground(&ed);
+        let y = height_at(&ed, &id);
+        ed.call("run_action", json!({ "action": "undo" }));
+        if (y - want).abs() < 0.01 {
+            break;
+        }
+
+        assert!(Instant::now() < deadline, "an entity at the vertex stood at {y}, not {want}");
+        std::thread::sleep(Duration::from_millis(200));
+    }
+
+    ed.call("run_action", json!({ "action": "select_none" }));
+    ed.input("top", json!([{ "type": "click", "world": [x, 0.0, z] }]));
+    assert_eq!(ed.state()["selection"]["nodes"], json!([node]), "a click on a tile selects the node");
+    ed.call("run_action", json!({ "action": "select_none" }));
+    ed.input("top", json!([{ "type": "click", "world": [x, 0.0, -40.0] }]));
+    assert_eq!(ed.state()["selection"]["nodes"], json!([]), "a click beside every tile selects nothing");
+
+    ed.call("hierarchy", json!({ "op": "set_flags", "ids": [node], "hidden": true }));
+    ed.input("top", json!([{ "type": "click", "world": [x, 0.0, z] }]));
+    assert_eq!(ed.state()["selection"]["nodes"], json!([]), "a hidden node is not picked");
+    let id = ground(&ed);
+    assert_eq!(height_at(&ed, &id), 0.0, "a hidden node is no ground");
 }

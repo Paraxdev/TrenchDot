@@ -47,10 +47,17 @@ pub fn pick_all(state: &EditorState, ray: &Ray) -> Vec<Hit> {
             }
             NodeKind::Terrain(t) if map.is_editable(*id) && map.in_cordon(*id) => {
                 if let Some((dist, p)) = t.ray_cast(ray) {
-                    let local = (p - t.origin) / t.cell_size;
-                    let i = (local.x.round().max(0.0) as u32).min(t.resolution[0] - 1);
-                    let j = (local.z.round().max(0.0) as u32).min(t.resolution[1] - 1);
-                    hits.push(Hit { node: *id, face: None, distance: dist, point: p, normal: t.normal(i, j) });
+                    hits.push(Hit { node: *id, face: None, distance: dist, point: p, normal: terrain_normal(t, p) });
+                }
+            }
+            NodeKind::Terrain3D(_) if map.is_editable(*id) && map.in_cordon(*id) => {
+                let nearest = state
+                    .terrain3d_tiles
+                    .node(*id)
+                    .filter_map(|(_, entry)| entry.tile.terrain.ray_cast(ray).map(|(dist, p)| (dist, p, &entry.tile.terrain)))
+                    .min_by(|a, b| a.0.total_cmp(&b.0));
+                if let Some((dist, p, t)) = nearest {
+                    hits.push(Hit { node: *id, face: None, distance: dist, point: p, normal: terrain_normal(t, p) });
                 }
             }
             NodeKind::Entity(e) if node.children.is_empty() => {
@@ -205,6 +212,18 @@ impl<'a> SurfaceCaster<'a> {
         let mut surfaces = Vec::new();
         for (id, node) in map.nodes.iter() {
             let surface = match &node.kind {
+                NodeKind::Terrain3D(_) => {
+                    if !map.is_hidden(*id) && map.in_cordon(*id) {
+                        for (_, entry) in state.terrain3d_tiles.node(*id) {
+                            let b = entry.tile.terrain.bounds().expanded(1.0);
+                            if b.intersects(region) {
+                                surfaces.push((*id, b, Surface::Terrain(&entry.tile.terrain)));
+                            }
+                        }
+                    }
+
+                    continue;
+                }
                 NodeKind::Brush(b) if !b.faces.iter().all(|f| state.game.is_tool_texture(&f.data.material)) => Surface::Brush(b),
                 NodeKind::Mesh(m) => Surface::Mesh(m),
                 NodeKind::Terrain(t) => Surface::Terrain(t),
@@ -270,12 +289,7 @@ impl<'a> SurfaceCaster<'a> {
                     let n = m.face_normal(f);
                     (t, if n.dot(dir) > 0.0 { -n } else { n })
                 }),
-                Surface::Terrain(t) => t.ray_cast(&ray).map(|(dist, p)| {
-                    let local = (p - t.origin) / t.cell_size;
-                    let i = (local.x.round().max(0.0) as u32).min(t.resolution[0] - 1);
-                    let j = (local.z.round().max(0.0) as u32).min(t.resolution[1] - 1);
-                    (dist, t.normal(i, j))
-                }),
+                Surface::Terrain(t) => t.ray_cast(&ray).map(|(dist, p)| (dist, terrain_normal(t, p))),
                 Surface::Scatter(list) => list.iter().filter_map(|i| i.cast(&ray)).min_by(|a, b| a.0.total_cmp(&b.0)),
             };
             if let Some((t, normal)) = hit
@@ -288,6 +302,13 @@ impl<'a> SurfaceCaster<'a> {
 
         best.map(|(_, h)| h)
     }
+}
+
+fn terrain_normal(t: &td_geom::Terrain, p: DVec3) -> DVec3 {
+    let local = (p - t.origin) / t.cell_size;
+    let i = (local.x.round().max(0.0) as u32).min(t.resolution[0] - 1);
+    let j = (local.z.round().max(0.0) as u32).min(t.resolution[1] - 1);
+    t.normal(i, j)
 }
 
 fn box_normal(b: &Aabb, p: DVec3) -> DVec3 {
