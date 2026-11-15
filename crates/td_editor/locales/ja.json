@@ -2865,5 +2865,7 @@
   "Paint replaces the base texture under the brush": "ペイントはブラシの下のベーステクスチャを置き換えます",
   "Spray blends the texture over the base, a little with every dab": "スプレーは、ストロークごとに少しずつテクスチャをベースに重ねます",
   "Follows Terrain3D": "Terrain3Dに追従",
-  "Its instances are put back on the Terrain3D surface after every stroke, fill and change made in Godot": "ストローク、塗りつぶし、Godotでの変更のたびに、インスタンスがTerrain3Dの表面へ戻されます"
+  "Its instances are put back on the Terrain3D surface after every stroke, fill and change made in Godot": "ストローク、塗りつぶし、Godotでの変更のたびに、インスタンスがTerrain3Dの表面へ戻されます",
+  "Terrain3D edits wait in the data folder, the project is in Restricted Mode. Click Restricted Mode in the status bar to trust it": "Terrain3Dの変更はデータフォルダに残ります。プロジェクトは制限モードです。ステータスバーの制限モードをクリックして信頼してください",
+  "Terrain3D edits were not sent, the data in {folder} has not loaded yet, save again once it shows": "Terrain3Dの変更は送信されていません。{folder} のデータがまだ読み込まれていないため、表示されたらもう一度保存してください"
 }

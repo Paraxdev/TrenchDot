@@ -81,7 +81,16 @@ impl EditorState {
             self.terrain3d.recheck();
             self.terrain3d.refresh(&cache);
             let Some(link) = self.doc.map.terrain3d(id) else { continue };
-            let Some(source) = self.terrain3d.source(&cache) else { continue };
+            let Some(source) = self.terrain3d.source(&cache) else {
+                if !link.edits.is_empty() || !link.removed.is_empty() {
+                    let folder = link.data_directory.clone();
+                    self.fail_status(msg!("Terrain3D edits were not sent, the data in {folder} has not loaded yet, save again once it shows", folder));
+                    // The map file is written, but closing now would lose the edits that only live in the document.
+                    self.doc.mark_unsaved();
+                }
+
+                continue;
+            };
             let changes = link.changed_regions(&source);
             let sent = self.terrain3d_sent.entry((self.doc.uid(), cache.clone())).or_default();
             let ours = sent.keys().copied().collect();
@@ -114,6 +123,9 @@ impl EditorState {
 
             let Some(folder) = cache.parent().map(PathBuf::from) else { continue };
             if self.restricted() {
+                self.fail_status(msg!(
+                    "Terrain3D edits wait in the data folder, the project is in Restricted Mode. Click Restricted Mode in the status bar to trust it"
+                ));
                 continue;
             }
 

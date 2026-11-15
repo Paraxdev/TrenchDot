@@ -2865,5 +2865,7 @@
   "Paint replaces the base texture under the brush": "Malen ersetzt die Basistextur unter dem Pinsel",
   "Spray blends the texture over the base, a little with every dab": "Sprühen mischt die Textur mit jedem Pinselstrich ein wenig über die Basis",
   "Follows Terrain3D": "Folgt Terrain3D",
-  "Its instances are put back on the Terrain3D surface after every stroke, fill and change made in Godot": "Seine Instanzen werden nach jedem Pinselstrich, jeder Füllung und jeder Änderung in Godot wieder auf die Terrain3D-Oberfläche gesetzt"
+  "Its instances are put back on the Terrain3D surface after every stroke, fill and change made in Godot": "Seine Instanzen werden nach jedem Pinselstrich, jeder Füllung und jeder Änderung in Godot wieder auf die Terrain3D-Oberfläche gesetzt",
+  "Terrain3D edits wait in the data folder, the project is in Restricted Mode. Click Restricted Mode in the status bar to trust it": "Terrain3D-Änderungen warten im Datenordner, das Projekt ist im Eingeschränkten Modus. In der Statusleiste auf Eingeschränkter Modus klicken, um ihm zu vertrauen",
+  "Terrain3D edits were not sent, the data in {folder} has not loaded yet, save again once it shows": "Terrain3D-Änderungen wurden nicht gesendet, die Daten in {folder} sind noch nicht geladen, erneut speichern, sobald sie erscheinen"
 }
