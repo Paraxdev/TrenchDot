@@ -1054,7 +1054,7 @@ mod tests {
         assert_eq!(find_asset(&agent, &server.url, NATURE_PACK.asset), Err(Error::Status(403)));
         assert!(Error::Status(403).to_string().contains("Try again later"));
 
-        let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let closed = std::net::SocketAddr::from(([127, 0, 0, 1], crate::test_ports::CLOSED));
         let offline = find_asset(&agent, &format!("http://{closed}"), NATURE_PACK.asset);
         assert!(matches!(&offline, Err(Error::Offline(_))), "{offline:?}");
         assert!(offline.unwrap_err().to_string().starts_with("Could not reach GitHub"));
@@ -1079,7 +1079,7 @@ mod tests {
 
     #[test]
     fn a_worker_words_its_stage_in_the_language_it_started_under() {
-        let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let closed = std::net::SocketAddr::from(([127, 0, 0, 1], crate::test_ports::CLOSED));
         for (lang, shown) in [(i18n::Lang::De, "Suche "), (i18n::Lang::En, "Looking up ")] {
             let _lang = i18n::scope(lang);
             let root = project(&format!("lang_{}", lang.code()));

@@ -675,7 +675,7 @@ mod tests {
 
     #[test]
     fn a_worker_words_its_stage_and_outcome_in_the_language_it_started_under() {
-        let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+        let closed = std::net::SocketAddr::from(([127, 0, 0, 1], crate::test_ports::CLOSED));
         for (lang, stage, error) in [(i18n::Lang::De, "Suche ", "GitHub ist nicht erreichbar"), (i18n::Lang::En, "Looking up ", "Could not reach GitHub")] {
             let _lang = i18n::scope(lang);
             let root = project(&format!("lang_{}", lang.code()), "config_version=5\n");

@@ -970,11 +970,10 @@ fn allow_foreground(_pid: u32) {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::net::TcpListener;
 
     #[test]
     fn round_trip_with_fake_godot() {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
         std::thread::spawn(move || {
             let (stream, _) = listener.accept().unwrap();
@@ -1040,7 +1039,7 @@ mod tests {
 
     #[test]
     fn reports_missing_godot() {
-        let port = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let port = crate::test_ports::CLOSED;
         assert!(send(port, &json!({ "event": "hello" })).is_err());
     }
 
@@ -1059,7 +1058,7 @@ mod tests {
     /// Answers like the addon: status lists `map`, live messages are counted and acknowledged after `delay`. The replies
     /// to each event in `answers` carry its fields too.
     fn fake_godot_with(map: String, delay: Duration, answers: Value) -> (u16, Arc<Mutex<Vec<Value>>>) {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
         let seen = Arc::new(Mutex::new(Vec::new()));
         let log = seen.clone();
@@ -1306,18 +1305,20 @@ mod tests {
         let (port, log) = fake_godot(godot_path(&map_path), Duration::ZERO);
         let link = LiveLink::start(None);
         link.configure(port, true);
-        assert!(capture(&link, &map_path, Some(td_doc::Map::new())).is_ok());
-        assert!(capture(&link, &map_path, None).is_ok());
+        let first = capture(&link, &map_path, Some(td_doc::Map::new()));
+        assert!(first.is_ok(), "{first:?}");
+        let second = capture(&link, &map_path, None);
+        assert!(second.is_ok(), "{second:?}");
         let sent: Vec<Value> = log.lock().unwrap().iter().filter(|m| m["event"] == "capture").cloned().collect();
         assert_eq!(sent.len(), 2);
         assert!(sent[0]["text"].is_string() && sent[1]["text"].is_null(), "only the first capture carries the map to build");
         assert_eq!((sent[0]["width"].as_u64(), sent[0]["height"].as_u64()), (Some(64), Some(32)));
         assert_eq!(sent[0]["camera"]["forward"], json!([0, 0, -1]));
 
-        let dead = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let dead = crate::test_ports::CLOSED;
         link.configure(dead, true);
         let e = capture(&link, &map_path, None).unwrap_err();
-        assert!(e.contains("not running") && e.contains(&dead.to_string()), "{e}");
+        assert!(e.contains("not running") && e.contains(&format!("on port {dead},")), "{e}");
     }
 
     #[test]
@@ -1332,17 +1333,19 @@ mod tests {
             link.request(Request::Walkable { path: godot_path(&map_path), agent, build, done: Box::new(move |r| tx.send(r).unwrap()) });
             rx.recv_timeout(Duration::from_secs(10)).expect("walkable answered")
         };
-        assert!(walkable(&link, Some(td_doc::Map::new())).is_ok());
-        assert!(walkable(&link, None).is_ok());
+        let first = walkable(&link, Some(td_doc::Map::new()));
+        assert!(first.is_ok(), "{first:?}");
+        let second = walkable(&link, None);
+        assert!(second.is_ok(), "{second:?}");
         let sent: Vec<Value> = log.lock().unwrap().iter().filter(|m| m["event"] == "walkable").cloned().collect();
         assert_eq!(sent.len(), 2);
         assert!(sent[0]["text"].is_string() && sent[1]["text"].is_null(), "only the first request carries the map to build");
         assert_eq!(sent[0]["agent"]["radius"], 0.5);
 
-        let dead = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let dead = crate::test_ports::CLOSED;
         link.configure(dead, true);
         let e = walkable(&link, None).unwrap_err();
-        assert!(e.contains("not running") && e.contains(&dead.to_string()), "{e}");
+        assert!(e.contains("not running") && e.contains(&format!("on port {dead},")), "{e}");
     }
 
     #[test]
@@ -1369,7 +1372,7 @@ mod tests {
         wait_for("the status names the last scan done", || link.state().scanned == 3);
         let (old, _) = fake_godot_with("C:/x.tdm".into(), Duration::ZERO, json!({ "scan": { "ok": false, "error": "unknown event" } }));
         assert_eq!(scan(old), None);
-        let dead = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let dead = crate::test_ports::CLOSED;
         assert_eq!(scan(dead), None, "no Godot");
     }
 
@@ -1517,7 +1520,7 @@ mod tests {
 
     #[test]
     fn worker_statuses_keep_english_and_follow_the_editor_language() {
-        let dead = TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let dead = crate::test_ports::CLOSED;
         let link = LiveLink::start(None);
         link.configure(dead, true);
         link.set_language(Lang::De);
