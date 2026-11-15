@@ -3,15 +3,35 @@
 
 use std::collections::{BTreeSet, HashSet};
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
-use super::tiles::region_rect;
+use super::tiles::{View, region_rect};
 use crate::state::EditorState;
-use td_core::{DVec3, NodeId};
+use td_core::{DVec2, DVec3, NodeId};
 use td_doc::Map;
 use td_doc::terrain3d::{RegionSource, reground_scatter};
 use td_geom::terrain3d::Loc;
 
+/// A 2D view of the ground from `min` to `max` (x, z) that wants every region it covers whole.
+pub(crate) fn ground(min: DVec2, max: DVec2) -> View {
+    View::Flat { min, max, zoom: f64::INFINITY }
+}
+
 impl EditorState {
+    /// Loads and builds the Terrain3D tiles `views` need now. The app does it a little each frame, but a tool call that
+    /// casts onto the tiles right after a link or an edit, as a script does, has no frame in between.
+    pub(crate) fn build_terrain3d_tiles(&mut self, views: &[View]) {
+        if self.terrain3d_links().is_empty() {
+            return;
+        }
+
+        let start = Instant::now();
+        self.terrain3d.recheck();
+        while self.update_terrain3d_tiles(views, Duration::from_secs(5)) && start.elapsed() < Duration::from_secs(30) {
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+
     /// The Terrain3D node a set follows and the cache of its folder: the node its targets name, and nothing else.
     pub(crate) fn terrain3d_followed(&self, targets: &[NodeId]) -> Option<(NodeId, PathBuf)> {
         let [node] = targets else { return None };
@@ -72,7 +92,7 @@ mod tests {
     use td_doc::terrain3d::RegionSource;
     use td_geom::terrain3d::{Loc, surface_height};
 
-    use super::ground_followers;
+    use super::{ground, ground_followers};
     use crate::scatter_tool;
     use crate::state::EditorState;
     use crate::terrain3d::brush::Texture;
@@ -353,5 +373,21 @@ mod tests {
         rewrite(&cache, [1, 0], 0.5, 11);
         update_until(&mut state, &west, "the instance never followed the region", |s| y_of(s, set) != before);
         assert!(state.terrain3d.region(&cache, [1, 0]).is_some(), "the region was loaded to read the surface");
+    }
+
+    #[test]
+    fn building_for_a_patch_of_ground_builds_only_the_regions_under_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, _) = state_over(dir.path(), &[[-1, 0], [0, 0], [3, -2]]);
+        let built = |state: &EditorState| state.terrain3d_tiles.node(id).map(|(loc, _)| loc).collect::<Vec<Loc>>();
+        state.build_terrain3d_tiles(&[ground(DVec2::new(20000.0, -700.0), DVec2::new(20100.0, -650.0))]);
+        assert!(built(&state).is_empty(), "no region lies under the patch");
+        state.build_terrain3d_tiles(&[ground(DVec2::new(5000.0, 700.0), DVec2::new(5110.0, 930.0))]);
+        assert_eq!(built(&state), [[0, 0]]);
+        state.build_terrain3d_tiles(&[
+            ground(DVec2::new(-300.0, 700.0), DVec2::new(300.0, 900.0)),
+            ground(DVec2::new(16000.0, -9000.0), DVec2::new(16100.0, -8000.0)),
+        ]);
+        assert_eq!(built(&state), [[-1, 0], [0, 0], [3, -2]]);
     }
 }

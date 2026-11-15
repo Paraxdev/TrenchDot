@@ -73,6 +73,20 @@ pub(crate) fn symmetry_arg(v: &Value, missing: Symmetry) -> Result<Symmetry, Str
     }
 }
 
+/// The ground a scatter op can land on, for loading the Terrain3D tiles under it. Fill covers its whole target area.
+fn scatter_reach(op: &str, args: &Value, radius: f64) -> Option<crate::terrain3d::tiles::View> {
+    let points: Vec<DVec3> = match op {
+        "fill" => return Some(crate::terrain3d::follow::ground(DVec2::splat(-1.0e7), DVec2::splat(1.0e7))),
+        "stroke" => args["points"].as_array().into_iter().flatten().filter_map(point).collect(),
+        "paint" => point(&args["center"]).into_iter().collect(),
+        _ => return None,
+    };
+    let flat = |p: &DVec3| DVec2::new(p.x, p.z);
+    let first = flat(points.first()?);
+    let (min, max) = points.iter().map(flat).fold((first, first), |(lo, hi), p| (lo.min(p), hi.max(p)));
+    Some(crate::terrain3d::follow::ground(min - DVec2::splat(radius), max + DVec2::splat(radius)))
+}
+
 fn arr(v: DVec3) -> Value {
     json!([v.x, v.y, v.z])
 }
@@ -1096,6 +1110,12 @@ impl App {
             }
 
             self.state.active_scatter = Some(id);
+        }
+
+        if let Some(reach) = scatter_reach(op, args, self.state.prefs.scatter.radius) {
+            let mut views = crate::app::terrain3d_views(&self.viewports);
+            views.push(reach);
+            self.state.build_terrain3d_tiles(&views);
         }
 
         let mut rng = Rng::new(args["seed"].as_u64().unwrap_or_else(crate::commands::time_seed));
@@ -2634,6 +2654,20 @@ fn unknown_class(game: &td_formats::GameConfig, classname: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_scatter_call_loads_the_terrain3d_tiles_its_brush_can_reach() {
+        use crate::terrain3d::tiles::View;
+        let flat = |min: [f64; 2], max: [f64; 2]| Some(View::Flat { min: DVec2::from(min), max: DVec2::from(max), zoom: f64::INFINITY });
+        let stroke = json!({ "points": [[300, 40, -900], [-120, -2000], [700, 8, -1500]] });
+        assert_eq!(scatter_reach("stroke", &stroke, 64.0), flat([-184.0, -2064.0], [764.0, -836.0]));
+        assert_eq!(scatter_reach("paint", &json!({ "center": [-50, 12, 75] }), 10.0), flat([-60.0, 65.0], [-40.0, 85.0]));
+        assert_eq!(scatter_reach("fill", &json!({}), 64.0), flat([-1.0e7, -1.0e7], [1.0e7, 1.0e7]));
+        assert_eq!(scatter_reach("stroke", &json!({ "points": [] }), 64.0), None);
+        for op in ["erase", "palette", "new_set", "clear", "get"] {
+            assert_eq!(scatter_reach(op, &json!({ "center": [1, 2] }), 64.0), None, "{op}");
+        }
+    }
 
     #[test]
     fn an_unknown_classname_names_similar_known_ones() {

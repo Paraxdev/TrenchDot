@@ -907,7 +907,7 @@ fn view_closeable(tab: &Tab, views_open: usize) -> bool {
 }
 
 /// What the Terrain3D tiles are loaded for: every view that has been laid out.
-fn terrain3d_views(viewports: &[Viewport]) -> Vec<crate::terrain3d::tiles::View> {
+pub(crate) fn terrain3d_views(viewports: &[Viewport]) -> Vec<crate::terrain3d::tiles::View> {
     use crate::terrain3d::tiles::View;
     use td_core::DVec2;
 

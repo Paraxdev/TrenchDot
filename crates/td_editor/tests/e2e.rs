@@ -2907,6 +2907,30 @@ fn example_mcp_scripts_replay() {
     assert_eq!(image::load_from_memory(&png).unwrap().to_rgba8().dimensions(), (640, 360));
 }
 
+/// A script that links a new Terrain3D folder and fills a scatter set on it in the same call has no frame between the
+/// two, so the fill has to build the tiles it casts onto itself.
+#[test]
+#[ignore]
+fn terrain3d_scatter_fill_works_in_the_script_that_links_the_folder() {
+    let dir = linked_project("terrain3d_script_fill", json!([]));
+    let ed = Editor::launch_with("terrain3d_script_fill", &["--project", dir.to_str().unwrap()]);
+    let steps = json!([
+        { "tool": "terrain3d", "args": { "op": "link", "data_directory": "res://script_fill", "create": { "region_size": 64, "vertex_spacing": 1, "columns": 2, "rows": 1 } }, "save": "land" },
+        { "tool": "terrain_edit", "args": { "id": "$land.id", "op": "sculpt", "mode": "raise", "center": [300, 700], "radius": 400, "strength": 200 } },
+        { "tool": "scatter", "args": { "op": "install_models" } },
+        { "tool": "scatter", "args": { "op": "new_set", "name": "rocks", "targets": ["$land.id"], "preset": "boulders" }, "save": "rocks" },
+        { "tool": "scatter", "args": { "op": "fill", "id": "$rocks.id", "density": 0.5, "seed": 5, "slope": [0, 90] } },
+    ]);
+    let summary = ed.call("run_script", json!({ "steps": steps }));
+    assert_eq!(summary["errors"], json!([]));
+    let set = ed.call("scatter", json!({ "op": "get", "id": summary["vars"]["rocks"]["id"] }))["sets"][0].clone();
+    assert!(set["instances"].as_u64().unwrap() > 20, "{set}");
+    let (min, max) = (set["bounds"]["min"].clone(), set["bounds"]["max"].clone());
+    assert!(min[0].as_f64().unwrap() >= -2100.0 && max[0].as_f64().unwrap() <= 2100.0, "{set}");
+    assert!(min[2].as_f64().unwrap() >= -100.0 && max[2].as_f64().unwrap() <= 2100.0, "{set}");
+    assert!(max[1].as_f64().unwrap() > 150.0, "some rocks stand on the raised ground, {set}");
+}
+
 #[test]
 #[ignore]
 fn keyboard_shortcuts_and_views() {
