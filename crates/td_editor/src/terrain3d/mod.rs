@@ -22,8 +22,16 @@ use td_doc::terrain3d::{RegionHash, RegionSource, Settled};
 use td_formats::terrain3d_cache;
 use td_geom::terrain3d::{Loc, Region3D};
 
-use crate::i18n::msg;
-use crate::state::EditorState;
+use crate::i18n::{msg, tr};
+use crate::state::{EditorState, Prefs};
+
+/// The switch of the experimental bridge, the same in the setup wizard and the Preferences.
+pub fn experimental_toggle(ui: &mut egui::Ui, prefs: &mut Prefs) -> egui::Response {
+    let response =
+        ui.checkbox(&mut prefs.terrain3d, tr("Terrain3D bridge")).on_hover_text(tr("Edit the Terrain3D plugin's terrain, a Terrain3D update can break it"));
+    crate::help::register(&response, crate::help::Topic::Section("Experimental"));
+    response
+}
 
 /// One region of a send, kept until Godot reports applying it.
 #[derive(Clone, Debug)]

@@ -126,6 +126,7 @@ pub const PAGES: &[(Topic<'static>, &str, &str)] = &[
     (Section("Mesh Operations"), "editor/meshes", ""),
     (Section("Terrain"), "editor/terrain-layers", ""),
     (Section("Size"), "editor/terrain", "changing-the-size"),
+    (Section("Experimental"), "godot/terrain3d", "experimental"),
     (Section("Scatter set"), "editor/scatter", "scatter-sets"),
     (Section("Properties"), "gameplay/entities/README", "reading-the-entries"),
     (Section("Outputs"), "gameplay/placing", "wiring"),

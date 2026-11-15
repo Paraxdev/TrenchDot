@@ -1330,7 +1330,8 @@ impl App {
             Action::ShowSplineDialog => self.spline_dialog.open = true,
             Action::ShowRandomFillDialog => self.fill_dialog.open = true,
             Action::ShowTerrainDialog => self.terrain_dialog.open = true,
-            Action::ShowTerrain3DDialog => self.terrain3d_dialog.open(&self.state),
+            Action::ShowTerrain3DDialog if self.state.prefs.terrain3d => self.terrain3d_dialog.open(&self.state),
+            Action::ShowTerrain3DDialog => self.state.set_status(msg!("Terrain3D is experimental, turn it on in File > Preferences")),
             Action::ExportGlb => self.export_dialog.open_for(crate::export3d::Format::Glb, &mut self.state),
             Action::ExportObj => self.export_dialog.open_for(crate::export3d::Format::Obj, &mut self.state),
             Action::BakeLighting => self.bake_dialog.open(&mut self.state),
@@ -1910,7 +1911,10 @@ impl App {
             menu(ui, en!("Terrain"), |ui| {
                 ui.set_min_width(MENU_WIDTH);
                 m.item(ui, Some(icons::TERRAIN), en!("Create Terrain…"), Action::ShowTerrainDialog);
-                m.item(ui, Some(icons::TERRAIN), en!("Link Terrain3D…"), Action::ShowTerrain3DDialog);
+                if self.state.prefs.terrain3d {
+                    m.item(ui, Some(icons::TERRAIN), en!("Link Terrain3D…"), Action::ShowTerrain3DDialog);
+                }
+
                 let linked = self.state.doc.map.has_terrain3d();
                 m.item_enabled(ui, None, en!("Send Terrain3D to Godot"), Action::SendTerrain3D, linked, tr("The map links no Terrain3D"));
                 ui.separator();
@@ -3096,6 +3100,9 @@ impl App {
                 ui.label(tr("New brush depth from selection"));
                 ui.checkbox(&mut p.draw_depth_from_selection, "")
                     .on_hover_text(tr("A brush drawn in a 2D view takes the depth of the selection, like in Hammer"));
+                ui.end_row();
+                ui.label(tr("Experimental"));
+                crate::terrain3d::experimental_toggle(ui, p);
                 ui.end_row();
             });
             ui.separator();

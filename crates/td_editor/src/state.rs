@@ -444,6 +444,9 @@ pub struct Prefs {
     pub walk_agent: crate::walkable::Agent,
     /// Show first steps in the views while the map is empty.
     pub start_hints: bool,
+    /// The experimental Terrain3D bridge: Link Terrain3D shows in the menus. A map that already links Terrain3D works
+    /// either way, and MCP clients reach it either way.
+    pub terrain3d: bool,
     /// Projects, by absolute path, whose content wizard a person has answered or closed. It opens by itself only for
     /// a project that is neither here nor among the recent projects.
     pub content_asked: std::collections::BTreeSet<PathBuf>,
@@ -563,6 +566,7 @@ impl Default for Prefs {
             preview_void_cull: false,
             walk_agent: Default::default(),
             start_hints: true,
+            terrain3d: false,
             content_asked: Default::default(),
             addon_dismissed: Default::default(),
             update_check: true,

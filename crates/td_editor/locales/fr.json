@@ -2873,5 +2873,11 @@
   "Export from Godot": "Exporter depuis Godot",
   "Terrain3D regions": "Régions Terrain3D",
   "Edit Terrain3D regions": "Modifier les régions Terrain3D",
-  "Follow Terrain3D": "Suivre Terrain3D"
+  "Follow Terrain3D": "Suivre Terrain3D",
+  "Experimental": "Expérimental",
+  "Terrain3D bridge": "Pont Terrain3D",
+  "Edit the Terrain3D plugin's terrain, a Terrain3D update can break it": "Modifie le terrain du plugin Terrain3D, une mise à jour de Terrain3D peut le casser",
+  "Show, sculpt and paint terrain made with the Terrain3D plugin. It relies on a third party plugin, so a new Terrain3D release can break it.": "Affiche, sculpte et peint le terrain créé avec le plugin Terrain3D. Il dépend d'un plugin tiers, une nouvelle version de Terrain3D peut donc le casser.",
+  "What this means": "Ce que cela signifie",
+  "Terrain3D is experimental, turn it on in File > Preferences": "Terrain3D est expérimental, activez-le dans Fichier > Préférences"
 }

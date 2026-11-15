@@ -2873,5 +2873,11 @@
   "Export from Godot": "Godot からエクスポート",
   "Terrain3D regions": "Terrain3D リージョン",
   "Edit Terrain3D regions": "Terrain3D リージョンを編集",
-  "Follow Terrain3D": "Terrain3D に追従"
+  "Follow Terrain3D": "Terrain3D に追従",
+  "Experimental": "実験的機能",
+  "Terrain3D bridge": "Terrain3D 連携",
+  "Edit the Terrain3D plugin's terrain, a Terrain3D update can break it": "Terrain3D プラグインの地形を編集します。Terrain3D の更新で動かなくなることがあります",
+  "Show, sculpt and paint terrain made with the Terrain3D plugin. It relies on a third party plugin, so a new Terrain3D release can break it.": "Terrain3D プラグインで作った地形を表示、スカルプト、ペイントします。サードパーティのプラグインに依存するため、Terrain3D の新しいリリースで動かなくなることがあります。",
+  "What this means": "これの意味",
+  "Terrain3D is experimental, turn it on in File > Preferences": "Terrain3D は実験的機能です。ファイル > 環境設定 でオンにしてください"
 }

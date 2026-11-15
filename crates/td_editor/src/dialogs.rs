@@ -332,6 +332,10 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
         }
     }
 
+    if !state.prefs.terrain3d {
+        out.retain(|(_, a)| !matches!(a, Action::ShowTerrain3DDialog));
+    }
+
     if !state.godot.found() {
         let runs = state.godot_has_project();
         out.retain(|(_, a)| !matches!(a, Action::OpenGodotEditor) && (runs || !matches!(a, Action::RunGodotProject)));
@@ -3115,6 +3119,15 @@ mod tests {
         }
 
         assert!(entries.iter().any(|(_, a)| *a == Action::ToggleEditMode));
+    }
+
+    #[test]
+    fn link_terrain3d_is_in_the_palette_only_with_the_experimental_bridge_on() {
+        let mut state = EditorState::new(crate::state::Prefs::default());
+        let has = |state: &EditorState| palette_entries(state).iter().any(|(_, a)| *a == Action::ShowTerrain3DDialog);
+        assert!(!has(&state), "off by default");
+        state.prefs.terrain3d = true;
+        assert!(has(&state));
     }
 
     #[test]

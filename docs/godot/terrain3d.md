@@ -13,6 +13,37 @@ own API. Whenever Terrain3D changes, the TrenchDot addon copies what it holds in
 TrenchDot reads that cache. When you edit in TrenchDot, the edit waits in the same folder until Godot applies it. So
 Terrain3D stays in charge of its data, and you can sculpt in either program.
 
+## Experimental
+
+> [!WARNING]
+> The Terrain3D bridge is experimental. Keep the data folder in version control, or make a copy, before you sculpt
+> it from TrenchDot.
+
+Terrain3D is made by other people, and the bridge depends on its files and its editor API. A new Terrain3D release
+can change either, and until TrenchDot catches up the ground may show wrong or edits may be refused. The bridge was
+tested with Terrain3D 1.1.0 on Godot 4.7. If something breaks, please
+[open an issue](https://github.com/Paraxdev/TrenchDot/issues) and name both versions.
+
+The bridge is off until you turn it on. Tick **Terrain3D bridge** under *Experimental* in either of two places:
+
+* The *Set up this project* window, which opens on a project's first start and from *Godot > Add Content to Project…*.
+  The section sits between *Gameplay entities* and *Ready made content*.
+
+    ![The Experimental section of the Set up this project window with Terrain3D bridge ticked](../assets/terrain3d/setup-experimental.png)
+
+* *File > Preferences…*, in the *Experimental* row at the bottom of the list.
+
+    ![The Experimental row in Preferences with Terrain3D bridge ticked](../assets/terrain3d/preferences-experimental.png)
+
+While it is off, *Terrain > Link Terrain3D…* and its command palette entry are hidden. A map that already links
+Terrain3D, say one a teammate made, still shows and edits its terrain, so turning the switch off never hides your data.
+
+<div class="td-mcp" markdown>
+
+MCP clients reach the `terrain3d` and `terrain_edit` tools whether the switch is on or not.
+
+</div>
+
 ## Installing Terrain3D
 
 TrenchDot does not ship Terrain3D. Install it into your Godot project the way its own documentation says, from the
@@ -36,8 +67,8 @@ scene.
 
 1. Open the dialog
 
-    Go to *Terrain > Link Terrain3D…* in the menu bar. You need a Godot project open in TrenchDot first, since the
-    data lives in one.
+    Go to *Terrain > Link Terrain3D…* in the menu bar. It shows once the bridge is on, see [Experimental](#experimental).
+    You need a Godot project open in TrenchDot first, since the data lives in one.
 
 2. Pick a folder
 

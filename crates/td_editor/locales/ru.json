@@ -2873,5 +2873,11 @@
   "Export from Godot": "Экспортировать из Godot",
   "Terrain3D regions": "Регионы Terrain3D",
   "Edit Terrain3D regions": "Править регионы Terrain3D",
-  "Follow Terrain3D": "Следовать за Terrain3D"
+  "Follow Terrain3D": "Следовать за Terrain3D",
+  "Experimental": "Экспериментальное",
+  "Terrain3D bridge": "Мост с Terrain3D",
+  "Edit the Terrain3D plugin's terrain, a Terrain3D update can break it": "Правит ландшафт плагина Terrain3D, обновление Terrain3D может его сломать",
+  "Show, sculpt and paint terrain made with the Terrain3D plugin. It relies on a third party plugin, so a new Terrain3D release can break it.": "Показывает, лепит и раскрашивает ландшафт плагина Terrain3D. Он опирается на сторонний плагин, поэтому новая версия Terrain3D может его сломать.",
+  "What this means": "Что это значит",
+  "Terrain3D is experimental, turn it on in File > Preferences": "Terrain3D экспериментальный, включите его в Файл > Настройки"
 }

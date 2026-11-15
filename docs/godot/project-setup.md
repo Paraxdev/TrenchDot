@@ -122,6 +122,12 @@ status bar and the Issues panel leave it out, and only a definition you wrote tw
 addon that came with this version of TrenchDot, an older one warns about overrides too. See
 [Override an entity](../gameplay/custom-entities.md#override-an-entity).
 
+## Experimental features
+
+The *Set up this project* window also has an *Experimental* section. What it holds leans on code TrenchDot does not
+control, so it stays off until you tick it. Today that is the [Terrain3D bridge](terrain3d.md#experimental). The same
+switch sits in *File > Preferences…*.
+
 ## Your own resources
 
 Three resources work together. The FGD file lists the entities your maps can use. The map settings tell a build where

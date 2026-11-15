@@ -212,6 +212,8 @@ impl ContentWizard {
                     return;
                 }
 
+                experimental_ui(ui, state);
+                ui.add_space(6.0);
                 ui.separator();
                 ui.label(RichText::new(tr("Ready made content")).strong());
             }
@@ -426,6 +428,24 @@ impl ContentWizard {
     }
 }
 
+/// Features that lean on code TrenchDot does not control, off until a person turns them on.
+fn experimental_ui(ui: &mut Ui, state: &mut EditorState) {
+    ui.separator();
+    ui.label(RichText::new(tr("Experimental")).strong());
+    crate::terrain3d::experimental_toggle(ui, &mut state.prefs);
+    ui.indent("terrain3d_experimental", |ui| {
+        ui.label(
+            RichText::new(tr(
+                "Show, sculpt and paint terrain made with the Terrain3D plugin. It relies on a third party plugin, so a new Terrain3D release can break it.",
+            ))
+            .weak(),
+        );
+        if let Some(url) = crate::help::url(crate::help::Topic::Section("Experimental")) {
+            ui.hyperlink_to(tr("What this means"), &url).on_hover_text(&url);
+        }
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use egui_kittest::kittest::Queryable;
@@ -465,6 +485,24 @@ mod tests {
         let mut out: Vec<String> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
         out.sort();
         out
+    }
+
+    #[test]
+    fn the_wizard_turns_the_experimental_terrain3d_bridge_on_and_off() {
+        let (mut fixture, root) = fresh("experimental");
+        fixture.wizard.open_for(root.clone(), Choice::Nothing, None, false);
+        let mut harness = harness(fixture);
+        harness.run();
+        assert!(!harness.state().state.prefs.terrain3d, "off until someone turns it on");
+        harness.get_by_label("Terrain3D bridge").click();
+        harness.run();
+        assert!(harness.state().state.prefs.terrain3d);
+        assert!(harness.query_by_label("What this means").is_some(), "the wizard links the page that explains the risk");
+
+        harness.state_mut().wizard.open_addon(root, false);
+        harness.state_mut().wizard.content = false;
+        harness.run();
+        assert!(harness.query_by_label("Terrain3D bridge").is_none(), "the addon alone keeps to the addon");
     }
 
     #[test]
