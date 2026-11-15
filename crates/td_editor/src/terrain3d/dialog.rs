@@ -27,7 +27,7 @@ impl LinkDialog {
 
     pub fn show(&mut self, ctx: &egui::Context, state: &mut EditorState) {
         let mut open = self.open;
-        widgets::window(en!("Link Terrain3D")).open(&mut open).resizable(false).show(ctx, |ui| {
+        widgets::centered_window(en!("Link Terrain3D"), ctx).open(&mut open).resizable(false).show(ctx, |ui| {
             let Some(root) = state.game.project_root.clone() else {
                 ui.label(tr("Open a Godot project first, Terrain3D data lives in one"));
                 return;
