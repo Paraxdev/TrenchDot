@@ -90,6 +90,18 @@ impl EditorState {
         }
     }
 
+    /// Has the open Godot editor change the region size and vertex spacing of the Terrain3D node `id` shows.
+    pub fn change_terrain3d_settings(&mut self, id: NodeId, region_size: u32, spacing: f64) {
+        let Some((_, cache)) = self.terrain3d_links().into_iter().find(|(node, _)| *node == id) else { return };
+        let Some(folder) = cache.parent().map(PathBuf::from) else { return };
+        if !self.godot_has_project() {
+            self.fail_status(msg!("Needs the Godot editor open with this scene"));
+            return;
+        }
+
+        self.terrain3d_bridge.send_settings(bridge::SettingsRequest { port: self.prefs.live_link_port, folder, region_size, spacing });
+    }
+
     /// Takes back the edits an earlier session saved and Godot has not applied yet, so the map shows them again.
     pub fn restore_terrain3d(&mut self) {
         let mut problems = Vec::new();

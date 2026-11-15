@@ -2855,5 +2855,10 @@
   "Shrinking by that much would remove every Terrain3D region": "缩小这么多会移除所有 Terrain3D 区域",
   "Terrain3D holds at most 32 regions per side": "Terrain3D 每边最多容纳 32 个区域",
   "{c} x {r} regions, {w} x {d} meters": "{c} x {r} 个区域，{w} x {d} 米",
-  "Grow Terrain3D": "扩展 Terrain3D"
+  "Grow Terrain3D": "扩展 Terrain3D",
+  "Needs the Godot editor open with this scene": "需要在 Godot 编辑器中打开此场景",
+  "Rewrite the {n} region file?": { "other": "重写全部 {n} 个区域文件？" },
+  "Change Settings": "更改设置",
+  "Godot changed the Terrain3D settings, save the scene in Godot to keep them": "Godot 已更改 Terrain3D 设置，请在 Godot 中保存场景以保留",
+  "Terrain3D settings were not changed: {problem}": "Terrain3D 设置未更改：{problem}"
 }

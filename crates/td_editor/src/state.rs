@@ -704,6 +704,8 @@ pub struct EditorState {
     pub terrain3d_edit_regions: bool,
     /// The Regions draft of the Terrain3D Inspector, for the node it was typed for.
     pub terrain3d_draft: Option<(NodeId, td_doc::terrain3d::Grow)>,
+    /// The Region Size and Vertex Spacing the Terrain3D Inspector waits to confirm, for the node they were typed for.
+    pub terrain3d_settings: Option<(NodeId, u32, f64)>,
     /// The region bounds the draft would leave, drawn in the 2D views.
     pub terrain3d_outline: Option<(NodeId, td_geom::terrain3d::Loc, td_geom::terrain3d::Loc)>,
     /// Brushes the open Sweep Faces dialog would create, drawn as lines.
@@ -972,6 +974,7 @@ impl EditorState {
             terrain3d_noted: Default::default(),
             terrain3d_edit_regions: false,
             terrain3d_draft: None,
+            terrain3d_settings: None,
             terrain3d_outline: None,
             sweep_preview: Vec::new(),
             shape_preview: Vec::new(),

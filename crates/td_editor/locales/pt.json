@@ -2855,5 +2855,10 @@
   "Shrinking by that much would remove every Terrain3D region": "Reduzir tanto removeria todas as regiões do Terrain3D",
   "Terrain3D holds at most 32 regions per side": "O Terrain3D comporta no máximo 32 regiões por lado",
   "{c} x {r} regions, {w} x {d} meters": "{c} x {r} regiões, {w} x {d} metros",
-  "Grow Terrain3D": "Ampliar Terrain3D"
+  "Grow Terrain3D": "Ampliar Terrain3D",
+  "Needs the Godot editor open with this scene": "Precisa do editor do Godot aberto com esta cena",
+  "Rewrite the {n} region file?": { "one": "Reescrever {n} arquivo de região?", "other": "Reescrever todos os {n} arquivos de região?" },
+  "Change Settings": "Alterar ajustes",
+  "Godot changed the Terrain3D settings, save the scene in Godot to keep them": "O Godot alterou os ajustes do Terrain3D, salve a cena no Godot para mantê-los",
+  "Terrain3D settings were not changed: {problem}": "Os ajustes do Terrain3D não foram alterados: {problem}"
 }

@@ -2855,5 +2855,10 @@
   "Shrinking by that much would remove every Terrain3D region": "それだけ縮めると Terrain3D のリージョンがすべて消えます",
   "Terrain3D holds at most 32 regions per side": "Terrain3D は 1 辺あたり最大 32 リージョンです",
   "{c} x {r} regions, {w} x {d} meters": "{c} x {r} リージョン、{w} x {d} m",
-  "Grow Terrain3D": "Terrain3D を拡張"
+  "Grow Terrain3D": "Terrain3D を拡張",
+  "Needs the Godot editor open with this scene": "このシーンを開いた Godot エディターが必要です",
+  "Rewrite the {n} region file?": { "other": "{n} 個のリージョンファイルをすべて書き換えますか？" },
+  "Change Settings": "設定を変更",
+  "Godot changed the Terrain3D settings, save the scene in Godot to keep them": "Godot が Terrain3D の設定を変更しました、保持するには Godot でシーンを保存してください",
+  "Terrain3D settings were not changed: {problem}": "Terrain3D の設定は変更されませんでした：{problem}"
 }

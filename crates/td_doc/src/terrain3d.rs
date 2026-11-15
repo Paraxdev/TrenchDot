@@ -307,6 +307,41 @@ impl Terrain3DLink {
         Ok(plan)
     }
 
+    /// Region map bounds, inclusive, once Godot reslices the terrain into regions of `region_size` vertices. Terrain3D
+    /// keeps every vertex where it is, so the bounds follow from the vertex span. None without regions.
+    pub fn resized_bounds(&self, source: &dyn RegionSource, region_size: u32) -> Result<Option<(Loc, Loc)>, String> {
+        let Some((lo, hi)) = self.bounds(source) else { return Ok(None) };
+        let (old, new) = (source.grid().region_size as i64, region_size.max(1) as i64);
+        let min = lo.map(|v| (v as i64 * old).div_euclid(new));
+        let max = hi.map(|v| ((v as i64 + 1) * old - 1).div_euclid(new));
+        let range = LOC_MIN as i64..=LOC_MAX as i64;
+        if !min.iter().chain(&max).all(|v| range.contains(v)) {
+            return Err(format!(
+                "Terrain3D holds at most 32 regions per side ({LOC_MIN} to {LOC_MAX}), at region size {region_size} the terrain would span {min:?} to {max:?}"
+            ));
+        }
+
+        Ok(Some((min.map(|v| v as i32), max.map(|v| v as i32))))
+    }
+
+    /// The surface height and the texture ids at `x`, `z` (map units) with TrenchDot's edits applied.
+    pub fn probe(&self, source: &dyn RegionSource, x: f64, z: f64) -> Probe {
+        let grid = source.grid();
+        let near = grid.vgrid_at(x, z);
+        let regions: HashMap<Loc, Arc<Region3D>> =
+            grid.regions_in([near[0] - 1, near[1] - 1], [near[0] + 2, near[1] + 2]).into_iter().filter_map(|l| Some((l, self.region(source, l)?))).collect();
+        let find = |l: Loc| regions.get(&l).map(|r| r.as_ref());
+        let h = surface_height(&grid, source.edge_blend(), find, (x / grid.upm) as f32, (z / grid.upm) as f32);
+        let cell = grid.cell();
+        let nearest = [(x / cell).round() as i64, (z / cell).round() as i64];
+        let loc = grid.region_of(near);
+        Probe {
+            height: h.is_finite().then_some(h as f64 * grid.upm),
+            region: find(loc).map(|_| loc),
+            control: grid.sample(find, nearest).map(|(r, k)| Control(r.control[k])),
+        }
+    }
+
     /// The regions a send has to write, row by row from the north west. An edit that already matches the cached
     /// region is left out, which is also how an applied send shows once Godot has exported again.
     pub fn changed_regions(&self, source: &dyn RegionSource) -> Vec<RegionChange> {
@@ -1219,6 +1254,18 @@ mod edit_tests {
         assert_eq!(link.edits[&L].base_hash, Some(hash(L, 5)));
         assert_eq!(link.region(&source, L).unwrap().heights[3], 40.0, "the stroke started from what Godot has");
         assert_eq!(changes(&link, &source), vec![(L, ChangeKind::Edit, Some(hash(L, 5)), false), ([3, -3], ChangeKind::Edit, Some(hash([3, -3], 1)), true)]);
+    }
+
+    #[test]
+    fn a_smaller_region_size_refuses_a_span_past_32_regions_per_side() {
+        let mut source = Fake::new(&[[-8, -8], [7, 7]]);
+        source.grid.region_size = 256;
+        let link = Terrain3DLink::new("res://t3d");
+        assert_eq!(link.resized_bounds(&source, 128), Ok(Some(([-16, -16], [15, 15]))));
+        assert_eq!(link.resized_bounds(&source, 512), Ok(Some(([-4, -4], [3, 3]))));
+        let err = link.resized_bounds(&source, 64).unwrap_err();
+        assert!(err.contains("at most 32 regions") && err.contains("[-32, -32] to [31, 31]"), "{err}");
+        assert_eq!(Terrain3DLink::new("res://t3d").resized_bounds(&Fake::new(&[]), 64), Ok(None));
     }
 
     #[test]

@@ -6,7 +6,7 @@ use egui::{Color32, RichText, Ui};
 use td_core::NodeId;
 use td_doc::terrain3d::{Grow, GrowPlan, RegionChange, Terrain3DLink};
 use td_formats::terrain3d_cache::ManifestTexture;
-use td_geom::terrain3d::{Grid, Loc};
+use td_geom::terrain3d::{Grid, Loc, MAX_VERTEX_SPACING, MIN_VERTEX_SPACING, REGION_SIZES};
 
 use super::bridge;
 use crate::commands::Action;
@@ -272,6 +272,7 @@ pub fn inspector(ui: &mut Ui, state: &mut EditorState, id: NodeId, actions: &mut
     }
 
     ui.separator();
+    settings(ui, state, id, &cache);
     regions(ui, state, id, &cache);
     ui.toggle_value(&mut state.terrain3d_edit_regions, tr("Edit Regions")).on_hover_text(tr("Click regions in the Top view to add or remove them"));
     if let Some(manifest) = &manifest {
@@ -425,5 +426,16 @@ mod tests {
         assert_ne!(problem("shrinking by that much would remove every Terrain3D region"), "shrinking by that much would remove every Terrain3D region");
         assert_ne!(problem("Terrain3D holds at most 32 regions per side (-16 to 15), the terrain would span [0, 0] to [40, 0]"), "");
         assert_eq!(problem("something else"), "something else");
+    }
+
+    #[test]
+    fn settings_differ_by_region_size_or_by_more_than_rounding_of_the_spacing() {
+        let grid = Grid { region_size: 128, spacing: 2.5, upm: 32.0 };
+        assert!(!settings_differ(&grid, 128, 2.5));
+        assert!(!settings_differ(&grid, 128, 2.5 + 1e-7));
+        assert!(settings_differ(&grid, 128, 2.5 + 1e-5));
+        assert!(settings_differ(&grid, 128, 0.25));
+        assert!(settings_differ(&grid, 64, 2.5));
+        assert!(settings_differ(&grid, 2048, 100.0));
     }
 }

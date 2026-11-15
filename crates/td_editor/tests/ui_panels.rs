@@ -3826,3 +3826,84 @@ fn the_terrain3d_outline_goes_when_something_else_is_selected() {
     harness.run();
     assert!(harness.state().state.terrain3d_outline.is_none());
 }
+
+fn connect_godot(state: &mut td_editor::state::EditorState) {
+    let root = state.game.project_root.clone().unwrap();
+    state.link_state.connected = true;
+    state.link_state.project = Some(td_editor::live_link::path_key(&td_editor::live_link::godot_path(&root)));
+}
+
+#[test]
+fn the_terrain3d_settings_wait_for_a_confirmation_that_only_the_open_godot_editor_can_give() {
+    use egui_kittest::kittest::NodeT;
+    let (mut f, id) = terrain3d_fixture("settings_confirm");
+    f.state.terrain3d_settings = Some((id, 128, 0.25));
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(420.0, 700.0))
+        .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+    harness.run();
+    harness.get_by_label("Region Size");
+    harness.get_by_label("Vertex Spacing");
+    harness.get_by_label("Rewrite the 1 region file?");
+    assert!(harness.get_by_label("Change Settings").accesskit_node().is_disabled(), "Godot is not open");
+    assert!(!harness.get_by_label("Cancel").accesskit_node().is_disabled());
+
+    connect_godot(&mut harness.state_mut().state);
+    harness.run();
+    assert!(!harness.get_by_label("Change Settings").accesskit_node().is_disabled());
+    harness.get_by_label("Cancel").click();
+    harness.run();
+    assert!(harness.state().state.terrain3d_settings.is_none());
+    assert!(harness.query_by_label("Rewrite the 1 region file?").is_none());
+}
+
+#[test]
+fn the_terrain3d_settings_stay_quiet_until_a_value_differs_from_the_terrain() {
+    for (spacing, differs) in [(0.25_f64, false), (0.25 + 1e-7, false), (0.2501, true), (0.5, true)] {
+        let (mut f, id) = terrain3d_fixture(&format!("settings_quiet_{differs}_{}", spacing.to_bits()));
+        f.state.terrain3d_settings = Some((id, 64, spacing));
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(420.0, 700.0))
+            .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+        harness.run();
+        assert_eq!(harness.query_by_label("Rewrite the 1 region file?").is_some(), differs, "spacing {spacing}");
+        assert_eq!(harness.state().state.terrain3d_settings.is_some(), differs, "spacing {spacing}");
+    }
+}
+
+#[test]
+fn confirming_the_terrain3d_settings_sends_them_and_reports_godots_answer() {
+    use std::io::{BufRead, BufReader, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = std::thread::spawn(move || {
+        let (stream, _) = listener.accept().unwrap();
+        let mut line = String::new();
+        BufReader::new(stream.try_clone().unwrap()).read_line(&mut line).unwrap();
+        writeln!(&stream, r#"{{"ok":true,"region_size":128,"vertex_spacing":0.5}}"#).unwrap();
+        line
+    });
+
+    let (mut f, id) = terrain3d_fixture("settings_send");
+    f.state.prefs.live_link_port = port;
+    f.state.terrain3d_settings = Some((id, 128, 0.5));
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(420.0, 700.0))
+        .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+    connect_godot(&mut harness.state_mut().state);
+    harness.run();
+    harness.get_by_label("Change Settings").click();
+    harness.run();
+    assert!(harness.state().state.terrain3d_settings.is_none(), "the confirmation is spent");
+    let sent: serde_json::Value = serde_json::from_str(&server.join().unwrap()).unwrap();
+    assert_eq!((sent["event"].as_str(), sent["region_size"].as_u64(), sent["vertex_spacing"].as_f64()), (Some("terrain3d_settings"), Some(128), Some(0.5)));
+
+    let state = &mut harness.state_mut().state;
+    let start = std::time::Instant::now();
+    while state.terrain3d_bridge.busy() && start.elapsed() < std::time::Duration::from_secs(5) {
+        state.poll_terrain3d();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+
+    assert!(state.status.starts_with("Godot changed the Terrain3D settings"), "{}", state.status);
+}

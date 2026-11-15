@@ -383,6 +383,39 @@ fn run_capture(mut cmd: Command, timeout: Duration) -> Result<(Option<i32>, Stri
     }
 }
 
+/// One request to change the region size and vertex spacing of the Terrain3D the open Godot editor shows.
+#[derive(Clone, Debug, PartialEq)]
+pub struct SettingsRequest {
+    pub port: u16,
+    pub folder: PathBuf,
+    pub region_size: u32,
+    pub spacing: f64,
+}
+
+const OLD_ADDON_SETTINGS: &str = "Update the TrenchDot addon in Godot to change Terrain3D settings";
+const NO_SCENE_SETTINGS: &str = "Open the scene that shows this Terrain3D in the Godot editor first";
+
+fn settings_message(folder: &Path, region_size: u32, spacing: f64) -> Value {
+    json!({ "event": "terrain3d_settings", "dir": live_link::godot_path(folder), "region_size": region_size, "vertex_spacing": spacing })
+}
+
+/// Asks the open Godot editor to change the Terrain3D settings, blocking. Godot rewrites its region files itself, so
+/// there is no headless fallback. The answer is the region size and vertex spacing Godot has now.
+pub fn settings(port: u16, folder: &Path, region_size: u32, spacing: f64) -> Result<(u32, f64), String> {
+    let reply = live_link::send_timeout(port, &settings_message(folder, region_size, spacing), LIVE_REPLY)?;
+    if reply["ok"].as_bool() == Some(true)
+        && let (Some(size), Some(spacing)) = (reply["region_size"].as_u64().and_then(|n| u32::try_from(n).ok()), reply["vertex_spacing"].as_f64())
+    {
+        return Ok((size, spacing));
+    }
+
+    Err(match reply["error"].as_str() {
+        Some(OLD_ADDON) => OLD_ADDON_SETTINGS.to_string(),
+        Some(error) if error.starts_with(NO_SCENE) => NO_SCENE_SETTINGS.to_string(),
+        _ => reply_error(&reply),
+    })
+}
+
 /// Runs the applies on a thread so a save never waits for Godot. A request that arrives while one runs replaces the
 /// one waiting, only the latest state matters.
 #[derive(Default)]
@@ -390,11 +423,13 @@ pub struct Bridge {
     running: Option<Receiver<Outcome>>,
     queued: Option<Apply>,
     told_old_addon: bool,
+    settings_running: Option<Receiver<Result<(u32, f64), String>>>,
+    settings_queued: Option<SettingsRequest>,
 }
 
 impl Bridge {
     pub fn busy(&self) -> bool {
-        self.running.is_some()
+        self.running.is_some() || self.settings_running.is_some()
     }
 
     pub fn applying(&self) -> bool {
@@ -412,6 +447,30 @@ impl Bridge {
         std::thread::spawn(move || {
             let _ = tx.send(apply(&request));
         });
+    }
+
+    pub fn send_settings(&mut self, request: SettingsRequest) {
+        if self.settings_running.is_some() {
+            self.settings_queued = Some(request);
+            return;
+        }
+
+        let (tx, rx) = mpsc::channel();
+        self.settings_running = Some(rx);
+        std::thread::spawn(move || {
+            let _ = tx.send(settings(request.port, &request.folder, request.region_size, request.spacing));
+        });
+    }
+
+    /// The answer of the settings change that finished, and starts the one that waited.
+    pub fn poll_settings(&mut self) -> Option<Result<(u32, f64), String>> {
+        let answer = self.settings_running.as_ref()?.try_recv().ok()?;
+        self.settings_running = None;
+        if let Some(next) = self.settings_queued.take() {
+            self.send_settings(next);
+        }
+
+        Some(answer)
     }
 
     /// The outcome of the apply that finished, and starts the one that waited. The addon notice is on the first outcome
@@ -813,5 +872,66 @@ exit 3
         );
         assert_eq!(out(vec![], vec![]).status().en, "Godot had no Terrain3D edits to apply");
         assert!(untested_version_note("1.2.0").en.starts_with("Terrain3D 1.2.0 was not tested"));
+    }
+
+    #[test]
+    fn the_settings_event_names_the_folder_and_both_values() {
+        let message = settings_message(Path::new("D:/proj/terrain"), 128, 2.5);
+        assert_eq!(
+            message,
+            json!({ "event": "terrain3d_settings", "dir": live_link::godot_path(Path::new("D:/proj/terrain")), "region_size": 128, "vertex_spacing": 2.5 })
+        );
+    }
+
+    #[test]
+    fn the_open_editor_changes_the_settings_and_answers_what_it_has_now() {
+        let dir = tempfile::tempdir().unwrap();
+        let (port, seen) = fake_editor(vec![("terrain3d_settings", json!({ "ok": true, "region_size": 512, "vertex_spacing": 0.75 }))]);
+        let folder = dir.path().join("terrain");
+        assert_eq!(settings(port, &folder, 512, 0.75), Ok((512, 0.75)));
+        let seen = seen.lock().unwrap();
+        assert_eq!(seen.len(), 1);
+        assert_eq!((seen[0]["region_size"].as_u64(), seen[0]["vertex_spacing"].as_f64()), (Some(512), Some(0.75)));
+    }
+
+    #[test]
+    fn a_refused_settings_change_says_why_in_plain_words() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("terrain");
+        let refused = |error: &'static str| {
+            let (port, _) = fake_editor(vec![("terrain3d_settings", json!({ "ok": false, "error": error }))]);
+            settings(port, &folder, 64, 1.0).unwrap_err()
+        };
+        assert_eq!(refused("unknown event"), OLD_ADDON_SETTINGS);
+        assert_eq!(refused("no open scene shows the Terrain3D data in res://terrain"), NO_SCENE_SETTINGS);
+        assert_eq!(refused("Terrain3D has no region size 100, use 64"), "Terrain3D has no region size 100, use 64");
+        let (port, _) = fake_editor(vec![("terrain3d_settings", json!({ "ok": true }))]);
+        assert_eq!(settings(port, &folder, 64, 1.0), Err("unexpected reply".to_string()), "a reply without the new values is not a success");
+        assert_eq!(settings(1, &folder, 64, 1.0), Err(live_link::NOT_RUNNING.to_string()));
+    }
+
+    #[test]
+    fn settings_run_on_a_thread_and_the_latest_waiting_request_wins() {
+        let dir = tempfile::tempdir().unwrap();
+        let (port, seen) = fake_editor(vec![("terrain3d_settings", json!({ "ok": true, "region_size": 64, "vertex_spacing": 1.0 }))]);
+        let mut bridge = Bridge::default();
+        let request = |region_size| SettingsRequest { port, folder: dir.path().join("terrain"), region_size, spacing: 1.0 };
+        assert!(bridge.poll_settings().is_none());
+        for size in [64, 128, 512] {
+            bridge.send_settings(request(size));
+        }
+
+        assert!(bridge.busy());
+        let mut answers = 0;
+        let start = Instant::now();
+        while answers < 2 && start.elapsed() < Duration::from_secs(5) {
+            answers += usize::from(bridge.poll_settings().is_some());
+            std::thread::sleep(Duration::from_millis(10));
+        }
+
+        assert_eq!(answers, 2);
+        let sizes: Vec<u64> = seen.lock().unwrap().iter().filter_map(|m| m["region_size"].as_u64()).collect();
+        assert_eq!(sizes, vec![64, 512], "the middle request was replaced");
+        assert!(!bridge.busy());
     }
 }
