@@ -2867,5 +2867,6 @@
   "Follows Terrain3D": "Следует за Terrain3D",
   "Its instances are put back on the Terrain3D surface after every stroke, fill and change made in Godot": "Его экземпляры возвращаются на поверхность Terrain3D после каждого мазка, заливки и изменения, сделанного в Godot",
   "Terrain3D edits wait in the data folder, the project is in Restricted Mode. Click Restricted Mode in the status bar to trust it": "Изменения Terrain3D ждут в папке данных, проект в ограниченном режиме. Щёлкните «Ограниченный режим» в строке состояния, чтобы доверять ему",
-  "Terrain3D edits were not sent, the data in {folder} has not loaded yet, save again once it shows": "Изменения Terrain3D не отправлены, данные в {folder} ещё не загружены, сохраните снова, когда они появятся"
+  "Terrain3D edits were not sent, the data in {folder} has not loaded yet, save again once it shows": "Изменения Terrain3D не отправлены, данные в {folder} ещё не загружены, сохраните снова, когда они появятся",
+  "Terrain3D edits made after the last save are not in the autosave": "Изменения Terrain3D после последнего сохранения не попали в автосохранение"
 }

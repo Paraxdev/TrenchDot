@@ -1662,6 +1662,10 @@ impl EditorState {
             _ => self.set_status(msg!("Opened {path}", path = path.display())),
         }
 
+        if self.doc.recovered_from.is_some() && self.doc.map.has_terrain3d() {
+            self.extend_status(". ", msg!("Terrain3D edits made after the last save are not in the autosave"));
+        }
+
         self.restore_terrain3d();
 
         // Maps of the open project, while it is trusted, are the person's own. Any other map may come from anyone.
@@ -2587,6 +2591,27 @@ mod tests {
         assert!(!autosave_path(&map_path).exists() && !legacy_autosave_path(&map_path).exists());
         assert_eq!(state.doc.title(), "church.tdm");
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_recovered_map_says_its_terrain3d_edits_are_not_in_the_autosave() {
+        let dir = tempfile::tempdir().unwrap();
+        let (plain, linked) = (dir.path().join("church.tdm"), dir.path().join("valley.tdm"));
+        let mut state = EditorState::new(Prefs::default());
+        state.prefs.live_link = false;
+        format::save(&state.doc.map, &autosave_path(&plain)).unwrap();
+        let layer = state.doc.map.default_layer();
+        state.doc.map.insert(layer, td_doc::NodeKind::Terrain3D(td_doc::terrain3d::Terrain3DLink::new("res://valley")));
+        format::save(&state.doc.map, &autosave_path(&linked)).unwrap();
+        format::save(&state.doc.map, &linked).unwrap();
+
+        let note = "not in the autosave";
+        state.open_map(&autosave_path(&linked)).unwrap();
+        assert!(state.status.contains("Recovered") && state.status.contains(note), "{}", state.status);
+        state.open_map(&linked).unwrap();
+        assert!(!state.status.contains(note), "the map itself is no recovery, {}", state.status);
+        state.open_map(&autosave_path(&plain)).unwrap();
+        assert!(state.status.contains("Recovered") && !state.status.contains(note), "a map without Terrain3D, {}", state.status);
     }
 
     #[test]
