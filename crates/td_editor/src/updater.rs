@@ -6,7 +6,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
 use std::sync::{OnceLock, mpsc};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use egui::{RichText, Ui};
 
@@ -38,6 +38,9 @@ const MAGIC: &[u8] = if cfg!(windows) {
 };
 const TAG: &str = "beta";
 const DAY: u64 = 24 * 3600;
+/// Names the download kept beside the executable until it is moved into place.
+const TEMP_PREFIX: &str = ".trenchdot-update-";
+const STALE: Duration = Duration::from_secs(3600);
 /// A download this big is not the editor.
 const MAX_EXE: u64 = 1 << 30;
 
@@ -136,13 +139,40 @@ pub fn previous(exe: &Path) -> PathBuf {
     exe.with_file_name(format!("{stem}-previous{ext}"))
 }
 
+/// Removes what an update killed mid-download left beside `exe`, returning how many files went.
+/// Only files older than an hour go, a newer one may be an update running in another editor.
+pub fn sweep(exe: &Path, now: SystemTime) -> usize {
+    let Some(dir) = exe.parent() else { return 0 };
+    let Ok(entries) = std::fs::read_dir(dir) else { return 0 };
+    let mut removed = 0;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path == exe || !entry.file_name().to_string_lossy().starts_with(TEMP_PREFIX) {
+            continue;
+        }
+
+        let Ok(meta) = std::fs::symlink_metadata(&path) else { continue };
+        let stale = meta.modified().ok().and_then(|m| now.duration_since(m).ok()).is_some_and(|age| age > STALE);
+        if !meta.is_file() || !stale {
+            continue;
+        }
+
+        match std::fs::remove_file(&path) {
+            Ok(()) => removed += 1,
+            Err(e) => eprintln!("TrenchDot: could not remove the old update file {}: {e}", path.display()),
+        }
+    }
+
+    removed
+}
+
 /// Downloads `release` and puts its executable in place of `exe`. Returns where the replaced one went.
 pub fn install(release: &Release, exe: &Path, report: &Reporter) -> Result<PathBuf, Error> {
     let dir = exe.parent().unwrap_or(Path::new("."));
     let agent = content::agent();
     let download = content::download(&agent, &release.asset, report)?;
     // Beside the executable, so it moves into place with a rename.
-    let mut new = tempfile::Builder::new().prefix(".trenchdot-update-").tempfile_in(dir).map_err(|e| io_error(e, dir))?;
+    let mut new = tempfile::Builder::new().prefix(TEMP_PREFIX).tempfile_in(dir).map_err(|e| io_error(e, dir))?;
     copy(download, new.as_file_mut(), dir)?;
     report.check()?;
     #[cfg(unix)]
@@ -288,6 +318,12 @@ impl Updater {
     /// like tests, MCP agents and CI, never look.
     pub fn startup(&mut self, prefs: &mut Prefs, automated: bool, repaint: egui::Context) {
         self.repaint = Some(repaint);
+        if !automated {
+            // Off the UI thread, the executable may sit in a large or network folder.
+            let exe = self.running().1;
+            std::thread::spawn(move || sweep(&exe, SystemTime::now()));
+        }
+
         let now = unix_now();
         if automated || !prefs.update_check || (prefs.update_checked..prefs.update_checked.saturating_add(DAY)).contains(&now) || self.skip().is_some() {
             return;
@@ -490,8 +526,6 @@ fn download_links(ui: &mut Ui) {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
     use egui_kittest::kittest::Queryable;
 
     use super::*;
@@ -520,6 +554,52 @@ mod tests {
 
     fn release_of(server: &Server) -> Release {
         check(&server.url, OLD).unwrap().unwrap()
+    }
+
+    const HOUR: u64 = 3600;
+
+    fn aged(path: &Path, now: SystemTime, secs: u64) {
+        std::fs::File::options().write(true).open(path).unwrap().set_modified(now - Duration::from_secs(secs)).unwrap();
+    }
+
+    #[test]
+    fn a_stale_update_temp_is_swept_but_a_fresh_one_and_other_files_stay() {
+        let dir = folder("sweep");
+        let exe = dir.join(EXE);
+        let now = SystemTime::now();
+        let write = |name: &str, secs: u64| {
+            let path = dir.join(name);
+            std::fs::write(&path, name).unwrap();
+            aged(&path, now, secs);
+            path
+        };
+        write(EXE, 9 * HOUR);
+        write(previous(&exe).file_name().unwrap().to_str().unwrap(), 9 * HOUR);
+        write("notes.txt", 9 * HOUR);
+        write("update-.trenchdot-update-old", 9 * HOUR);
+        let kept = [
+            write(".trenchdot-update-fresh", 5 * 60),
+            write(".trenchdot-update-edge", HOUR),
+            write(".trenchdot-swap-1", 9 * HOUR),
+            write(".trenchdot-updat", 9 * HOUR),
+        ];
+        let gone = [write(".trenchdot-update-abc123", HOUR + 1), write(".trenchdot-update-", 40 * HOUR), write(".trenchdot-update-.exe", 3 * HOUR)];
+        std::fs::create_dir(dir.join(".trenchdot-update-dir")).unwrap();
+        let own = write(".trenchdot-update-running", 9 * HOUR);
+
+        assert_eq!(sweep(&dir.join("missing").join(EXE), now), 0, "a folder that is not there is not an error");
+        assert_eq!(sweep(&own, now), 3, "the running executable stays even under a temp name");
+        for path in &gone {
+            assert!(!path.exists(), "{} should be swept", path.display());
+        }
+
+        for path in kept.iter().chain(&[own, dir.join(EXE), dir.join(".trenchdot-update-dir")]) {
+            assert!(path.exists(), "{} should stay", path.display());
+        }
+
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 10, "nothing else moved");
+        assert_eq!(sweep(&exe, now), 1, "the temp that was spared as the running executable goes once it is not");
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
