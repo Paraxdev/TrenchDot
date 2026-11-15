@@ -1,5 +1,5 @@
 use egui::{Align2, Color32, FontId, Key, PointerButton, Pos2, Rect, Response, Stroke, Ui, Vec2};
-use td_core::{Aabb, DMat4, DVec3, NodeId, Plane};
+use td_core::{Aabb, DMat4, DVec3, NodeId, Plane, Ray};
 use td_doc::ops;
 use td_geom::Brush;
 use td_render::LineVertex;
@@ -73,6 +73,8 @@ pub struct VertexTool {
 struct VertexDrag {
     start: DVec3,
     plane: Plane,
+    /// A 3D face dot only slides along this line through `start`, see [`pull_along`].
+    line: Option<DVec3>,
     base: Vec<DVec3>,
     /// Alt only moves a vertex vertically, a dot keeps its own plane.
     is_dot: bool,
@@ -90,6 +92,10 @@ impl VertexDot {
     /// Direction that leaves the brush: the face normal, or the normalized sum of both normals on an edge.
     pub fn out(&self) -> DVec3 {
         (self.normals[0] + self.normals[1]).try_normalize().unwrap_or(self.normals[0])
+    }
+
+    pub fn is_face(&self) -> bool {
+        self.normals[0] == self.normals[1]
     }
 }
 
@@ -743,8 +749,9 @@ impl ToolSet {
                 }
 
                 let plane = vertex_drag_plane(cam, &h, modifiers.alt);
+                let line = vertex_drag_line(cam, &h);
                 state.doc.begin(en!("Move Vertices"));
-                self.vertex.drag = Some(VertexDrag { start: v, plane, base: self.vertex.selected.clone(), is_dot });
+                self.vertex.drag = Some(VertexDrag { start: v, plane, line, base: self.vertex.selected.clone(), is_dot });
             }
         }
 
@@ -1548,8 +1555,47 @@ pub(crate) fn vertex_drag_plane(cam: &Camera, handle: &Handle, alt: bool) -> Pla
     }
 }
 
-/// The snapped offset a drag at `pos` asks for, if the pointer ray meets the drag plane.
+/// The line a handle is confined to while dragged: a face dot in 3D follows its face normal.
+pub(crate) fn vertex_drag_line(cam: &Camera, handle: &Handle) -> Option<DVec3> {
+    match handle {
+        Handle::Dot(d) if cam.kind == ViewKind::Perspective && d.is_face() => Some(d.out()),
+        _ => None,
+    }
+}
+
+/// A line closer than this (as a sine) to the view direction, or to the pointer ray, reads no pull from the pointer.
+const MIN_PULL_SIN: f64 = 0.25;
+
+/// How far along `dir` from `start` the pointer at `pos` pulls, or None while the line runs too close to the
+/// direction of sight for the pointer to tell. Holding still there beats a jump, a pixel is a long way along it.
+fn pull_along(cam: &Camera, rect: Rect, start: DVec3, dir: DVec3, pos: Pos2) -> Option<f64> {
+    if (start - cam.eye()).normalize_or_zero().cross(dir).length() < MIN_PULL_SIN {
+        return None;
+    }
+
+    closest_pull(&cam.ray(rect, pos), start, dir)
+}
+
+/// The parameter along the line `start + s * dir` (unit `dir`) at its closest point to `ray`, None when the ray runs
+/// nearly parallel to the line or the closest point lies behind the ray origin.
+fn closest_pull(ray: &Ray, start: DVec3, dir: DVec3) -> Option<f64> {
+    let ad = dir.dot(ray.dir);
+    let den = 1.0 - ad * ad;
+    if den < MIN_PULL_SIN * MIN_PULL_SIN {
+        return None;
+    }
+
+    let w = start - ray.origin;
+    let s = (ad * w.dot(ray.dir) - w.dot(dir)) / den;
+    (w.dot(ray.dir) + s * ad > 0.0).then_some(s)
+}
+
+/// The snapped offset a drag at `pos` asks for, if the pointer ray meets the drag plane or line.
 fn vertex_drag_delta(state: &EditorState, cam: &Camera, rect: Rect, drag: &VertexDrag, pos: Pos2, alt: bool) -> Option<DVec3> {
+    if let Some(dir) = drag.line {
+        return Some(state.snap(dir * pull_along(cam, rect, drag.start, dir, pos)?));
+    }
+
     let ray = cam.ray(rect, pos);
     let t = ray.intersect_plane(&drag.plane)?;
     let mut delta = ray.at(t) - drag.start;
@@ -1969,6 +2015,181 @@ mod tests {
         assert_eq!(vertex_drag_plane(&view_2d(ViewKind::Front), &Handle::Dot(*top), false).normal, DVec3::Z);
     }
 
+    fn dot_drag(cam: &Camera, d: &VertexDot) -> VertexDrag {
+        let handle = Handle::Dot(*d);
+        VertexDrag { start: d.pos, plane: vertex_drag_plane(cam, &handle, false), line: vertex_drag_line(cam, &handle), base: vec![d.pos], is_dot: true }
+    }
+
+    /// A camera `phi` degrees off the dot's normal, looking at the dot from 400 units, then turned by `yaw_off`
+    /// degrees so the dot sits away from the screen center.
+    fn camera_off_normal(dot: &VertexDot, phi: f64, yaw_off: f64) -> Camera {
+        let out = dot.out();
+        let side = out.cross(DVec3::Y).normalize();
+        let mut cam = Camera::new(ViewKind::Perspective);
+        cam.position = dot.pos + (out * phi.to_radians().cos() + side * phi.to_radians().sin()) * 400.0;
+        cam.look_at(dot.pos);
+        cam.yaw += yaw_off.to_radians();
+        cam
+    }
+
+    fn top_dot() -> VertexDot {
+        let (state, _) = state_with_wedge();
+        let (_, dots) = ToolSet::vertex_handles(&state);
+        *dots.iter().find(|d| (d.out() - top_normal()).length() < 1e-6).unwrap()
+    }
+
+    /// The pointer that sits `px` pixels from the dot, `deg` degrees turned from the projected normal.
+    fn pointer_from_dot(cam: &Camera, dot: &VertexDot, px: f32, deg: f32) -> Pos2 {
+        let rect = view_rect();
+        let at = cam.project(rect, dot.pos).unwrap();
+        let along = (cam.project(rect, dot.pos + dot.out() * 10.0).unwrap() - at).normalized();
+        let (sin, cos) = deg.to_radians().sin_cos();
+        at + Vec2::new(along.x * cos - along.y * sin, along.x * sin + along.y * cos) * px
+    }
+
+    fn unsnapped() -> EditorState {
+        let mut state = state_with_wedge().0;
+        state.snap = false;
+        state
+    }
+
+    #[test]
+    fn a_3d_face_dot_follows_its_normal_at_a_grazing_angle() {
+        let dot = top_dot();
+        let state = unsnapped();
+        let cam = camera_off_normal(&dot, 30.0, -38.0);
+        let drag = dot_drag(&cam, &dot);
+        let rect = view_rect();
+        assert!(rect.contains(cam.project(rect, dot.pos).unwrap()), "the dot is on screen");
+
+        // Whatever way the pointer drifts off the projected normal, the pull stays on the normal line and short.
+        let mut longest: f64 = 0.0;
+        for deg in [0.0, 15.0, -15.0, 90.0, -90.0, 135.0, 180.0] {
+            let delta = vertex_drag_delta(&state, &cam, rect, &drag, pointer_from_dot(&cam, &dot, 40.0, deg), false).unwrap();
+            assert!((delta - dot.out() * delta.dot(dot.out())).length() < 1e-6, "{deg} degrees off the normal leaves the normal line: {delta:?}");
+            longest = longest.max(delta.length());
+        }
+
+        let px_per_unit = ((cam.project(rect, dot.pos + dot.out() * 10.0).unwrap() - cam.project(rect, dot.pos).unwrap()).length() / 10.0) as f64;
+        assert!(longest < 1.5 * 40.0 / px_per_unit, "40 px moved the dot {longest} units at {px_per_unit} px per unit");
+        let on_normal = vertex_drag_delta(&state, &cam, rect, &drag, pointer_from_dot(&cam, &dot, 40.0, 0.0), false).unwrap();
+        assert!(on_normal.dot(dot.out()) > 30.0, "40 px along the normal pulls {on_normal:?}");
+    }
+
+    #[test]
+    fn a_3d_face_dot_pull_matches_the_pointer_head_on_and_off_center() {
+        let dot = top_dot();
+        let state = unsnapped();
+        let rect = view_rect();
+        for (phi, yaw_off) in [(60.0, 0.0), (60.0, -38.0), (-45.0, 20.0)] {
+            let cam = camera_off_normal(&dot, phi, yaw_off);
+            let drag = dot_drag(&cam, &dot);
+            for want in [7.0, 20.0, 64.0, 150.0] {
+                let pointer = cam.project(rect, dot.pos + dot.out() * want).unwrap();
+                let delta = vertex_drag_delta(&state, &cam, rect, &drag, pointer, false).unwrap();
+                assert!((delta - dot.out() * want).length() < 1e-3, "phi {phi} yaw {yaw_off}: wanted {want}, got {delta:?}");
+            }
+
+            let sideways = vertex_drag_delta(&state, &cam, rect, &drag, pointer_from_dot(&cam, &dot, 40.0, 90.0), false).unwrap();
+            assert!(sideways.length() < 25.0, "phi {phi} yaw {yaw_off}: a sideways move pulled {sideways:?}");
+        }
+    }
+
+    #[test]
+    fn a_3d_face_dot_pull_snaps_to_the_grid() {
+        let dot = top_dot();
+        let mut state = state_with_wedge().0;
+        state.snap = true;
+        state.grid = 16.0;
+        let cam = camera_off_normal(&dot, 60.0, -20.0);
+        let drag = dot_drag(&cam, &dot);
+        let pointer = cam.project(view_rect(), dot.pos + dot.out() * 50.0).unwrap();
+        let delta = vertex_drag_delta(&state, &cam, view_rect(), &drag, pointer, false).unwrap();
+        assert_eq!(delta, state.snap(dot.out() * 50.0));
+        assert!([delta.x, delta.y, delta.z].iter().all(|c| (c / 16.0 - (c / 16.0).round()).abs() < 1e-9), "{delta:?} is on the grid");
+    }
+
+    #[test]
+    fn a_3d_face_dot_holds_still_when_the_view_looks_along_its_normal() {
+        let dot = top_dot();
+        let state = unsnapped();
+        let rect = view_rect();
+        for phi in [0.0, 3.0, 10.0, 14.0] {
+            let cam = camera_off_normal(&dot, phi, 0.0);
+            let drag = dot_drag(&cam, &dot);
+            for px in [1.0, 40.0, 120.0, 240.0] {
+                for deg in (0..360).step_by(45) {
+                    let pointer = pointer_from_dot(&cam, &dot, px, deg as f32);
+                    assert_eq!(vertex_drag_delta(&state, &cam, rect, &drag, pointer, false), None, "phi {phi}, {px} px at {deg} degrees jumped");
+                }
+            }
+        }
+
+        // Past the limit (asin 0.25 is 14.5 degrees) the pull reads again.
+        let cam = camera_off_normal(&dot, 16.0, 0.0);
+        let drag = dot_drag(&cam, &dot);
+        let pointer = cam.project(rect, dot.pos + dot.out() * 40.0).unwrap();
+        assert!(vertex_drag_delta(&state, &cam, rect, &drag, pointer, false).is_some());
+    }
+
+    #[test]
+    fn a_3d_face_dot_holds_still_when_the_pointer_ray_runs_along_its_normal() {
+        let dot = top_dot();
+        let state = unsnapped();
+        let rect = view_rect();
+        let cam = camera_off_normal(&dot, 30.0, 0.0);
+        let drag = dot_drag(&cam, &dot);
+        // The vanishing point of the normal line, where the pointer ray is parallel to it.
+        let vanish = cam.project(rect, cam.position - dot.out() * 1000.0).unwrap();
+        assert!(rect.contains(vanish), "{vanish:?} is on screen");
+        assert_eq!(vertex_drag_delta(&state, &cam, rect, &drag, vanish, false), None);
+        let near = vanish + Vec2::new(8.0, 0.0);
+        assert_eq!(vertex_drag_delta(&state, &cam, rect, &drag, near, false), None, "still within the limit of a parallel ray");
+    }
+
+    #[test]
+    fn the_closest_pull_rejects_a_point_behind_the_ray_and_reads_one_in_front() {
+        let start = DVec3::new(0.0, 0.0, -100.0);
+        let ahead = Ray::new(DVec3::ZERO, DVec3::new(1.0, 0.0, -0.5));
+        assert!((closest_pull(&ahead, start, DVec3::X).unwrap() - 200.0).abs() < 1e-9);
+        let behind = Ray::new(DVec3::ZERO, DVec3::new(1.0, 0.0, 0.5));
+        assert_eq!(closest_pull(&behind, start, DVec3::X), None);
+        let inward = Ray::new(DVec3::ZERO, DVec3::new(-1.0, 0.0, -0.5));
+        assert!((closest_pull(&inward, start, DVec3::X).unwrap() + 200.0).abs() < 1e-9);
+        let nearly_parallel = Ray::new(DVec3::new(0.0, 0.0, 10.0), DVec3::new(1.0, 0.0, -0.1));
+        assert_eq!(closest_pull(&nearly_parallel, start, DVec3::X), None);
+    }
+
+    #[test]
+    fn only_a_3d_face_dot_drags_along_a_line() {
+        let (state, _) = state_with_wedge();
+        let (_, dots) = ToolSet::vertex_handles(&state);
+        let persp = perspective();
+        assert!(dots.iter().any(|d| d.is_face()) && dots.iter().any(|d| !d.is_face()));
+        for d in &dots {
+            let line = vertex_drag_line(&persp, &Handle::Dot(*d));
+            assert_eq!(line, d.is_face().then(|| d.out()), "dot at {:?}", d.pos);
+            assert_eq!(vertex_drag_line(&view_2d(ViewKind::Top), &Handle::Dot(*d)), None);
+            assert_eq!(vertex_drag_line(&persp, &Handle::Vertex(d.pos)), None);
+        }
+    }
+
+    #[test]
+    fn pulling_a_3d_face_dot_into_the_brush_is_refused() {
+        let dot = top_dot();
+        let mut state = unsnapped();
+        let cam = camera_off_normal(&dot, 60.0, -10.0);
+        let drag = dot_drag(&cam, &dot);
+        let pointer = cam.project(view_rect(), dot.pos - dot.out() * 40.0).unwrap();
+        let delta = vertex_drag_delta(&state, &cam, view_rect(), &drag, pointer, false).unwrap();
+        assert!((delta + dot.out() * 40.0).length() < 1e-3, "{delta:?}");
+        state.doc.begin("Move Vertices");
+        assert!(!move_vertices(&mut state, &[dot.pos], delta));
+        ToolSet::default().refuse(&mut state, &[dot.pos], dot.pos, delta);
+        state.doc.commit();
+        assert_eq!(state.status, DENT_REASON);
+    }
+
     /// Pulls every dot visible in `cam` outward with a pointer drag and checks that a vertex appears at the snapped
     /// target. `pull` is how far the pointer goes from the dot along its outward direction.
     fn pull_every_visible_dot(cam: &Camera, pull: f64) -> usize {
@@ -1979,8 +2200,7 @@ mod tests {
         let mut pulled = 0;
         for d in dots.iter().filter(|d| dot_visible(cam, d)) {
             let mut state = state_with_wedge().0;
-            let handle = Handle::Dot(*d);
-            let drag = VertexDrag { start: d.pos, plane: vertex_drag_plane(cam, &handle, false), base: vec![d.pos], is_dot: true };
+            let drag = dot_drag(cam, d);
             // The pointer travels in the drag plane: along the outward direction, or its part along the view plane in 2D.
             let dir = if cam.kind.is_2d() { (d.out() - cam.forward() * d.out().dot(cam.forward())).normalize() } else { d.out() };
             let pointer = cam.project(rect, d.pos + dir * pull).unwrap();
