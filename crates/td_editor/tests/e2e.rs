@@ -2931,6 +2931,86 @@ fn terrain3d_scatter_fill_works_in_the_script_that_links_the_folder() {
     assert!(max[1].as_f64().unwrap() > 150.0, "some rocks stand on the raised ground, {set}");
 }
 
+fn copy_dir(from: &std::path::Path, to: &std::path::Path) {
+    std::fs::create_dir_all(to).unwrap();
+    for entry in std::fs::read_dir(from).unwrap().flatten() {
+        let target = to.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            copy_dir(&entry.path(), &target);
+        } else {
+            std::fs::copy(entry.path(), target).unwrap();
+        }
+    }
+}
+
+/// Replays examples/mcp/terrain3d_valley.json in a copy of the demo project that has no Terrain3D folder yet, so the
+/// pending files its link creates never land in the repository, and checks the world it builds.
+#[test]
+#[ignore]
+fn example_terrain3d_valley_replays() {
+    use td_doc::{NodeKind, format};
+    use td_formats::terrain3d_cache::{DIR_NAME, pending_locs};
+
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let demo = root.join("godot");
+    let dir = linked_project("terrain3d_valley_replay", json!([]));
+    std::fs::copy(demo.join("trenchdot_game.json"), dir.join("trenchdot_game.json")).unwrap();
+    for sub in ["demo/textures/showcase", "demo/textures/special", "trenchdot/nature"] {
+        copy_dir(&demo.join(sub), &dir.join(sub));
+    }
+
+    let ed = Editor::launch_with("terrain3d_valley_replay", &["--project", dir.to_str().unwrap()]);
+    let path = root.join("examples/mcp/terrain3d_valley.json").canonicalize().unwrap();
+    let summary = ed.call("run_script", json!({ "path": path, "vars": { "save_dir": dir.join("maps") } }));
+    assert_eq!(summary["errors"], json!([]));
+    assert_eq!(summary["ran"], summary["steps"]);
+    let map = ed.state()["map"].clone();
+    assert_eq!(map["cameras"], json!([1, 2, 3]));
+    assert_eq!((map["brushes"].as_u64().unwrap() >= 40, map["entities"].as_u64().unwrap() >= 5), (true, true), "{map}");
+    let issues = ed.call("validate_map", json!({}));
+    let errors: Vec<&Value> = issues["issues"].as_array().unwrap().iter().filter(|i| i["severity"] == "error").collect();
+    assert!(errors.is_empty(), "{errors:?}");
+
+    let nodes = ed.call("list_nodes", json!({ "type": "terrain3d" }))["nodes"].clone();
+    assert_eq!(nodes.as_array().unwrap().len(), 1);
+    let land = nodes[0]["id"].clone();
+    assert_eq!(nodes[0]["regions"], json!(6));
+    let probe = |x: f64, z: f64| ed.call("terrain_edit", json!({ "id": land, "probe": [x, z] }));
+    let height = |x: f64, z: f64| probe(x, z)["probe_height"].as_f64().unwrap();
+    let base = |x: f64, z: f64| probe(x, z)["probe"]["base"].as_u64().unwrap();
+    assert!((height(4000.0, -1700.0) - 128.0).abs() < 0.01, "the village pad is flat at 128");
+    assert!((height(6200.0, -1000.0) - 40.0).abs() < 0.01, "the bridge approach is flat at 40");
+    assert!(height(5200.0, -6500.0) > 1200.0 && height(9000.0, 6500.0) > 900.0, "both ridges are high");
+    assert!(height(4800.0, 0.0) < -150.0 && height(12000.0, 0.0) < -100.0, "the river bed is cut");
+    assert!(height(-1000.0, 0.0).abs() < 0.01, "the valley floor is untouched ground level");
+    assert_eq!((base(5200.0, -6500.0), base(4800.0, 0.0), base(6200.0, 1300.0), base(-1000.0, 0.0)), (1, 3, 2, 0), "cliff, sand, dirt and grass");
+
+    let sets = ed.call("list_nodes", json!({ "type": "scatter" }));
+    assert_eq!(sets["total"], 2);
+    for set in sets["nodes"].as_array().unwrap() {
+        let got = ed.call("scatter", json!({ "op": "get", "id": set["id"] }))["sets"][0].clone();
+        assert_eq!(got["targets"], json!([land]), "{got}");
+        let count = got["instances"].as_u64().unwrap();
+        let name = got["name"].as_str().unwrap();
+        assert!(count > if name == "valley trees" { 800 } else { 300 }, "{name} has {count} instances");
+        let (min, max) = (got["bounds"]["min"].clone(), got["bounds"]["max"].clone());
+        assert!(min[0].as_f64().unwrap() >= -8300.0 && max[0].as_f64().unwrap() <= 16500.0, "{name} stays on the ground, {min} {max}");
+        assert!(min[2].as_f64().unwrap() >= -8300.0 && max[2].as_f64().unwrap() <= 8300.0, "{name} stays on the ground, {min} {max}");
+    }
+
+    let saved = format::load(&dir.join("maps/terrain3d_valley.tdm")).unwrap();
+    assert!(saved.problems.is_empty(), "{:?}", saved.problems);
+    let links: Vec<_> =
+        saved.map.nodes.values().filter_map(|n| if let NodeKind::Terrain3D(link) = &n.kind { Some(link.data_directory.clone()) } else { None }).collect();
+    assert_eq!(links, vec!["res://terrain3d_valley".to_string()]);
+    let cache = dir.join("terrain3d_valley").join(DIR_NAME);
+    assert_eq!(
+        pending_locs(&cache).unwrap(),
+        vec![[-1, -1], [-1, 0], [0, -1], [0, 0], [1, -1], [1, 0]],
+        "no Godot ran, so the six regions wait as pending files"
+    );
+}
+
 #[test]
 #[ignore]
 fn keyboard_shortcuts_and_views() {
