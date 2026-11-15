@@ -580,7 +580,7 @@ impl ToolSet {
         let sculpting = state.tool == ToolKind::Sculpt;
         let tiles = sculpting && state.sculpt.mode.is_tile();
         let faces = if sculpting && !tiles { scope.displacements(state) } else { Vec::new() };
-        let (targets, terrains) = (scope.brushes, scope.terrains);
+        let (targets, terrains, terrain3d) = (scope.brushes, scope.terrains, scope.terrain3d);
         // Every visible view runs this with the one global pointer, only the view the stroke started in may dab.
         if self.stroke.stroking && self.stroke.view != Some(response.id) {
             return;
@@ -595,7 +595,8 @@ impl ToolSet {
                 let disp = td_doc::terrain::ray_cast(&state.doc.map, &faces, &ray)
                     .map(|(d, p, id, face)| (d, p, state.doc.map.brush(id).map(|b| b.faces[face].plane.normal).unwrap_or(DVec3::Y)));
                 let terrain = td_doc::terrain::sculpt_ray_cast(&state.doc.map, &terrains, &ray).map(|(d, p, _)| (d, p, DVec3::Y));
-                [disp, terrain].into_iter().flatten().min_by(|a, b| a.0.total_cmp(&b.0)).map(|(_, p, n)| (p, n))
+                let t3d = state.terrain3d_ray(&terrain3d, &ray).map(|(d, p, _)| (d, p, DVec3::Y));
+                [disp, terrain, t3d].into_iter().flatten().min_by(|a, b| a.0.total_cmp(&b.0)).map(|(_, p, n)| (p, n))
             } else {
                 // Vertex paint only reaches brush faces, a mesh or anything else in front shows no brush ring.
                 picking::pick(state, &ray).filter(|h| h.face.is_some() && targets.contains(&h.node)).map(|h| (h.point, h.normal))
@@ -667,6 +668,11 @@ impl ToolSet {
                             td_doc::terrain::paint_vertices(m, &targets, p, radius, color, (strength * seconds).min(1.0));
                         }
                     });
+                    if sculpting {
+                        let texture = state.terrain3d_texture;
+                        state.sculpt_terrain3d(&terrain3d, p, &brush, texture);
+                    }
+
                     self.stroke.last_dab = Some(p);
                     ui.ctx().request_repaint();
                 }
@@ -1708,7 +1714,7 @@ impl ToolSet {
                 );
             }
             ToolKind::Sculpt => {
-                let has_terrain = state.doc.map.terrains().next().is_some();
+                let has_terrain = state.doc.map.terrains().next().is_some() || state.doc.map.has_terrain3d();
                 // An empty list is the whole map here: the hint is about the map having nothing to sculpt at all.
                 let hint = if !has_terrain && td_doc::terrain::displacement_faces(&state.doc.map, &[]).is_empty() {
                     trf!("Sculpt: no terrain or displacements. Terrain > Create Terrain, or select quad faces and use Brush > Displacement")

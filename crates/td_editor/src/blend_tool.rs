@@ -31,6 +31,7 @@ impl BlendTargets {
 pub struct StrokeScope {
     pub brushes: Vec<NodeId>,
     pub terrains: Vec<NodeId>,
+    pub terrain3d: Vec<NodeId>,
 }
 
 impl StrokeScope {
@@ -46,9 +47,11 @@ impl StrokeScope {
             brushes.dedup();
             (brushes, sel.terrains(map))
         };
+        let terrain3d: Vec<NodeId> = if sel.is_empty() { map.nodes.keys().copied().collect() } else { sel.nodes.iter().copied().collect() };
         Self {
             brushes: brushes.into_iter().filter(|id| map.is_editable(*id)).collect(),
             terrains: terrains.into_iter().filter(|id| map.is_editable(*id)).collect(),
+            terrain3d: terrain3d.into_iter().filter(|id| map.terrain3d(*id).is_some() && map.is_editable(*id)).collect(),
         }
     }
 

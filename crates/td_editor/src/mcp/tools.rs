@@ -1826,11 +1826,19 @@ impl App {
                 let scope = crate::blend_tool::StrokeScope::of(&self.state);
                 let faces = if mode.is_tile() { Vec::new() } else { scope.displacements(&self.state) };
                 let terrains = scope.terrains;
-                let changed = self.state.doc.edit("Sculpt", |m, _| {
+                let mut changed = self.state.doc.edit("Sculpt", |m, _| {
                     let mirror = symmetry.for_faces(m, &faces);
                     td_doc::terrain::sculpt(m, &faces, center, &brush, &mirror) | td_doc::terrain::sculpt_terrains(m, &terrains, center, &brush, &symmetry)
                 });
-                return ok(json!({ "changed": changed, "faces": faces.len(), "terrains": terrains.len() }));
+                let texture = crate::terrain3d::brush::Texture {
+                    id: a["texture"].as_u64().map_or(self.state.terrain3d_texture.id, |t| t.min(31) as u8),
+                    spray: a["spray"].as_bool().unwrap_or(self.state.terrain3d_texture.spray),
+                };
+                let regions = self.state.sculpt_terrain3d(&scope.terrain3d, center, &brush, texture);
+                changed |= regions > 0;
+                return ok(
+                    json!({ "changed": changed, "faces": faces.len(), "terrains": terrains.len(), "terrain3d": scope.terrain3d.len(), "regions": regions }),
+                );
             }
             "sprinkle" => {
                 let Some(center) = vec3(&a["center"]) else { return err("center required") };

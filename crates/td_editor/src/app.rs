@@ -2513,7 +2513,14 @@ impl App {
                             }
                         });
                         if self.state.sculpt.mode == SculptMode::PaintLayer {
-                            ui.add(egui::DragValue::new(&mut self.state.sculpt.layer).range(0..=3).prefix(prefix(en!("layer"))));
+                            let terrain3d = crate::blend_tool::StrokeScope::of(&self.state).terrain3d;
+                            if terrain3d.is_empty() || self.state.doc.map.terrains().next().is_some() {
+                                ui.add(egui::DragValue::new(&mut self.state.sculpt.layer).range(0..=3).prefix(prefix(en!("layer"))));
+                            }
+
+                            if !terrain3d.is_empty() {
+                                crate::terrain3d::brush::texture_picker(ui, &mut self.state, &terrain3d);
+                            }
                         }
 
                         if self.state.sculpt.mode == SculptMode::Terrace {

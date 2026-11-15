@@ -2860,5 +2860,8 @@
   "Rewrite the {n} region file?": { "one": "Перезаписать {n} файл региона?", "few": "Перезаписать все {n} файла региона?", "many": "Перезаписать все {n} файлов региона?" },
   "Change Settings": "Изменить настройки",
   "Godot changed the Terrain3D settings, save the scene in Godot to keep them": "Godot изменил настройки Terrain3D, сохраните сцену в Godot, чтобы они остались",
-  "Terrain3D settings were not changed: {problem}": "Настройки Terrain3D не изменены: {problem}"
+  "Terrain3D settings were not changed: {problem}": "Настройки Terrain3D не изменены: {problem}",
+  "Spray": "Распыление",
+  "Paint replaces the base texture under the brush": "Рисование заменяет базовую текстуру под кистью",
+  "Spray blends the texture over the base, a little with every dab": "Распыление подмешивает текстуру поверх базовой, понемногу с каждым мазком"
 }

@@ -2860,5 +2860,8 @@
   "Rewrite the {n} region file?": { "one": "Reescrever {n} arquivo de região?", "other": "Reescrever todos os {n} arquivos de região?" },
   "Change Settings": "Alterar ajustes",
   "Godot changed the Terrain3D settings, save the scene in Godot to keep them": "O Godot alterou os ajustes do Terrain3D, salve a cena no Godot para mantê-los",
-  "Terrain3D settings were not changed: {problem}": "Os ajustes do Terrain3D não foram alterados: {problem}"
+  "Terrain3D settings were not changed: {problem}": "Os ajustes do Terrain3D não foram alterados: {problem}",
+  "Spray": "Pulverizar",
+  "Paint replaces the base texture under the brush": "Pintar substitui a textura base sob o pincel",
+  "Spray blends the texture over the base, a little with every dab": "Pulverizar mistura a textura sobre a base, um pouco a cada passada"
 }

@@ -8759,3 +8759,65 @@ fn terrain3d_conflicting_regions_are_outlined_in_the_top_view() {
     assert!(clean < 20, "{clean} warning colored pixels without a conflict");
     assert!(conflicting >= 200, "{conflicting} warning colored pixels with a conflict");
 }
+
+/// The height of the ground at `x`, `z`, found by standing a marker entity on it and taking the marker away again.
+fn ground_height(ed: &Editor, x: f64, z: f64) -> f64 {
+    let id = ed.call("gameplay", json!({ "op": "place", "classname": "marker", "origin": [x, z] }))["id"].clone();
+    let y = ed.call("get_node", json!({ "id": id }))["origin"][1].as_f64().unwrap();
+    ed.call("run_action", json!({ "action": "undo" }));
+    y
+}
+
+/// A Sculpt click on the border of two regions raises both sides by the same amount and nothing outside the brush, and
+/// Paint and Spray set the texture ids, all as edits of the node that a send writes as pending files.
+#[test]
+#[ignore]
+fn terrain3d_sculpt_and_paint_edit_the_regions_under_the_brush() {
+    let (ed, _) = launch_world("terrain3d_sculpt", None);
+    ed.call("set_camera", json!({ "view": "top", "center": [512, 0, 128], "zoom": 0.6 }));
+    ed.call("set_editor", json!({ "tool": "sculpt", "sculpt_mode": "raise", "brush_radius": 64 }));
+    let z = 128.0;
+    let spots = [504.0, 520.0, 640.0];
+    let before = spots.map(|x| ground_height(&ed, x, z));
+    assert!((before[0] - world_height([0, 0], 63, 16)).abs() < 0.01 && (before[1] - world_height([1, 0], 1, 16)).abs() < 0.01);
+
+    ed.input("top", json!([{ "type": "click", "world": [512.0, 0.0, z] }]));
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let raised = loop {
+        let now = spots.map(|x| ground_height(&ed, x, z));
+        if now[0] > before[0] + 0.5 {
+            break now;
+        }
+
+        assert!(Instant::now() < deadline, "the click did not raise the ground {before:?} {now:?}");
+        std::thread::sleep(Duration::from_millis(200));
+    };
+    let rose = [raised[0] - before[0], raised[1] - before[1]];
+    assert!((rose[0] - rose[1]).abs() < 0.01, "both sides of the border rose alike, {rose:?}");
+    assert_eq!(raised[2], before[2], "a point outside the brush stays");
+
+    let paint = |mode: &str, center: [f64; 3], texture: u64, spray: bool, strength: f64| {
+        ed.call(
+            "run_action",
+            json!({ "action": "sculpt", "args": { "center": center, "mode": mode, "radius": 64, "strength": strength, "texture": texture, "spray": spray } }),
+        )
+    };
+    let reply = paint("paint_layer", [700.0, 0.0, z], 1, false, 1.0);
+    assert_eq!(reply["terrain3d"], 1);
+    assert_eq!(reply["regions"], 1);
+    paint("paint_layer", [256.0, 0.0, 256.0], 2, true, 0.5);
+    ed.call("run_action", json!({ "action": "send_terrain3d" }));
+
+    use td_formats::terrain3d_cache::read_pending;
+    use td_geom::terrain3d::Control;
+    let cache = artifacts().join("terrain3d_sculpt").join("terrain").join(td_formats::terrain3d_cache::DIR_NAME);
+    let (a, b) = (read_pending(&cache, [0, 0], 64).unwrap(), read_pending(&cache, [1, 0], 64).unwrap());
+    let control = |p: &td_formats::terrain3d_cache::PendingRegion, px: usize, py: usize| Control(p.region.control[py * 64 + px]);
+    assert_eq!((control(&b, 23, 16).base(), control(&b, 23, 16).overlay()), (1, 1), "Paint set the base and the overlay");
+    assert_eq!(control(&b, 60, 60).base(), 2, "outside the brush the texture stays");
+    let sprayed = control(&a, 32, 32);
+    assert_eq!((sprayed.base(), sprayed.overlay()), (1, 2), "Spray sets the overlay and keeps the base");
+    assert!(sprayed.blend() > 0);
+    assert!(a.region.heights[16 * 64 + 63] > world_height([0, 0], 63, 16) as f32 / 32.0 + 0.005, "the sculpt is in the pending region");
+    assert_eq!(a.base, td_formats::terrain3d_cache::RegionHash([7; 32]));
+}

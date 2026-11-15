@@ -702,6 +702,8 @@ pub struct EditorState {
     pub terrain3d_noted: std::collections::HashSet<PathBuf>,
     /// The Edit Regions toggle of the Terrain3D Inspector.
     pub terrain3d_edit_regions: bool,
+    /// The texture the Paint brush sets on a Terrain3D node, and whether it sprays the overlay instead.
+    pub terrain3d_texture: crate::terrain3d::brush::Texture,
     /// The Regions draft of the Terrain3D Inspector, for the node it was typed for.
     pub terrain3d_draft: Option<(NodeId, td_doc::terrain3d::Grow)>,
     /// The Region Size and Vertex Spacing the Terrain3D Inspector waits to confirm, for the node they were typed for.
@@ -973,6 +975,7 @@ impl EditorState {
             terrain3d_tiles: Default::default(),
             terrain3d_noted: Default::default(),
             terrain3d_edit_regions: false,
+            terrain3d_texture: crate::terrain3d::brush::Texture { id: 0, spray: false },
             terrain3d_draft: None,
             terrain3d_settings: None,
             terrain3d_outline: None,

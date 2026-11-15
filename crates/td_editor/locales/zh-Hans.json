@@ -2860,5 +2860,8 @@
   "Rewrite the {n} region file?": { "other": "重写全部 {n} 个区域文件？" },
   "Change Settings": "更改设置",
   "Godot changed the Terrain3D settings, save the scene in Godot to keep them": "Godot 已更改 Terrain3D 设置，请在 Godot 中保存场景以保留",
-  "Terrain3D settings were not changed: {problem}": "Terrain3D 设置未更改：{problem}"
+  "Terrain3D settings were not changed: {problem}": "Terrain3D 设置未更改：{problem}",
+  "Spray": "喷涂",
+  "Paint replaces the base texture under the brush": "绘制会替换笔刷下的基础纹理",
+  "Spray blends the texture over the base, a little with every dab": "喷涂会随每次笔触把纹理少量混合到基础纹理之上"
 }
