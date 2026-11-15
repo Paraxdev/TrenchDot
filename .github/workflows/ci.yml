@@ -227,11 +227,12 @@ jobs:
           grep -qx "version=\"${TRENCHDOT_BUILD}\"" godot/addons/func_godot/plugin.cfg
           # The addon is a submodule, its .git file and git settings stay out of the zips.
           (cd godot && zip -qr "../dist/func_godot-trenchdot-addon.zip" addons/func_godot -x "addons/func_godot/.git*")
-          zip -qr dist/trenchdot-demo-project.zip godot -x "godot/.godot/*" "godot/addons/func_godot/.git*" "godot/addons/terrain_3d/*"
+          # The Terrain3D valley needs the Terrain3D addon, which is fetched for development and never shipped.
+          zip -qr dist/trenchdot-demo-project.zip godot -x "godot/.godot/*" "godot/addons/func_godot/.git*" "godot/addons/terrain_3d/*" "godot/terrain3d_valley/*" "godot/demo/*terrain3d_valley.*"
           # What the editor's content wizard downloads into a project, laid out as in the project. The folders must be the
           # ones crates/td_editor/src/content.rs accepts, its tests read these two lines.
           (cd godot && zip -qr "../dist/trenchdot-nature-pack.zip" trenchdot/nature -x "*.import")
-          (cd godot && zip -qr "../dist/trenchdot-demo-content.zip" demo models)
+          (cd godot && zip -qr "../dist/trenchdot-demo-content.zip" demo models -x "demo/*terrain3d_valley.*")
       - uses: actions/upload-artifact@v4
         with:
           name: godot-zips

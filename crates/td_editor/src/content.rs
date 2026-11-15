@@ -1215,14 +1215,43 @@ mod tests {
         let folders: Vec<&str> = folders.trim().trim_end_matches(')').split_whitespace().collect();
         assert_eq!(folders, download.folders, "ci.yml zips the folders the installer accepts");
         assert!(excluded.contains("*.import") == (download == &NATURE_PACK), "{line}");
+        let excluded: Vec<&str> = excluded.trim_end_matches(')').split_whitespace().map(|p| p.trim_matches('"')).collect();
         let mut out = Vec::new();
         for folder in download.folders {
             out.extend(files(&repo().join("godot").join(folder)).into_iter().map(|f| format!("{folder}/{f}")));
         }
 
-        // A fresh checkout, which the publish job works from, has none of the ignored files Godot writes on import.
-        out.retain(|f| !(download == &NATURE_PACK && f.ends_with(".import")));
+        out.retain(|f| !excluded.iter().any(|p| zip_matches(p, f)));
         out
+    }
+
+    /// Whether zip's -x pattern `pattern` takes out `path`. Its `*` matches any run of characters, slashes included.
+    fn zip_matches(pattern: &str, path: &str) -> bool {
+        let mut parts = pattern.split('*');
+        let first = parts.next().unwrap_or_default();
+        let Some(mut rest) = path.strip_prefix(first) else { return false };
+        let parts: Vec<&str> = parts.collect();
+        for (i, part) in parts.iter().enumerate() {
+            if i + 1 == parts.len() {
+                return rest.ends_with(part);
+            }
+
+            let Some(at) = rest.find(part) else { return false };
+            rest = &rest[at + part.len()..];
+        }
+
+        rest.is_empty()
+    }
+
+    #[test]
+    fn zip_patterns_match_as_zip_does() {
+        assert!(zip_matches("*.import", "trenchdot/nature/rocks/rock_a.glb.import"));
+        assert!(!zip_matches("*.import", "trenchdot/nature/rocks/rock_a.glb"));
+        assert!(zip_matches("demo/*terrain3d_valley.*", "demo/maps/showcase/terrain3d_valley.tdm.import"));
+        assert!(zip_matches("demo/*terrain3d_valley.*", "demo/terrain3d_valley.scn"));
+        assert!(!zip_matches("demo/*terrain3d_valley.*", "models/terrain3d_valley.scn"));
+        assert!(!zip_matches("demo/*terrain3d_valley.*", "demo/showcase/church_school.scn"));
+        assert!(zip_matches("demo/readme.md", "demo/readme.md") && !zip_matches("demo/readme.md", "demo/readme.md.bak"));
     }
 
     #[test]
