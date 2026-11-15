@@ -3753,3 +3753,76 @@ fn the_terrain3d_inspector_fits_a_narrow_panel_in_every_language() {
         assert!(past.is_empty(), "{lang:?} draws past the {width} wide panel: {past:#?}");
     }
 }
+
+#[test]
+fn the_terrain3d_regions_draft_plans_outlines_and_applies_in_one_undo_step() {
+    use td_doc::terrain3d::Grow;
+    let (mut f, id) = terrain3d_fixture("grow");
+    let steps = f.state.doc.history.undo_labels().count();
+    f.state.terrain3d_draft = Some((id, Grow { north: 1, south: 0, west: 0, east: 2 }));
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(420.0, 700.0))
+        .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+    harness.run();
+    harness.get_by_label("3 x 2 regions, 48 x 32 meters");
+    assert_eq!(harness.state().state.terrain3d_outline, Some((id, [0, -1], [2, 0])));
+    assert_eq!(harness.state().state.doc.history.undo_labels().count(), steps, "a draft changes nothing yet");
+
+    harness.get_by_label("Apply").click();
+    harness.run();
+    let state = &harness.state().state;
+    assert_eq!(state.doc.map.terrain3d(id).unwrap().edits.keys().copied().collect::<Vec<_>>(), [[0, -1], [1, -1], [1, 0], [2, -1], [2, 0]]);
+    assert_eq!(state.doc.history.undo_labels().count(), steps + 1);
+    assert_eq!(state.doc.history.undo_labels().next(), Some("Grow Terrain3D"));
+    assert!(state.terrain3d_draft.is_none() && state.terrain3d_outline.is_none(), "the draft is spent");
+}
+
+#[test]
+fn the_terrain3d_regions_draft_refuses_at_the_boundary_and_resets() {
+    use egui_kittest::kittest::NodeT;
+    use td_doc::terrain3d::Grow;
+    let (_, id) = terrain3d_fixture("grow_limits");
+    let run = |grow: Grow, mut f: Fixture| {
+        f.state.terrain3d_draft = Some((id, grow));
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(420.0, 700.0))
+            .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+        harness.run();
+        harness
+    };
+    let make = |name: &str| terrain3d_fixture(name).0;
+    let none = run(Grow::default(), make("grow_none"));
+    assert!(none.state().state.terrain3d_outline.is_none());
+    assert!(none.query_by_label("Reset").is_some_and(|b| b.accesskit_node().is_disabled()));
+    assert!(none.query_by_label("Apply").is_some_and(|b| b.accesskit_node().is_disabled()));
+
+    let last = run(Grow { east: 15, ..Default::default() }, make("grow_last"));
+    assert_eq!(last.state().state.terrain3d_outline, Some((id, [0, 0], [15, 0])), "region 15 is the last Terrain3D takes");
+    last.get_by_label("16 x 1 regions, 256 x 16 meters");
+
+    let past = run(Grow { east: 16, ..Default::default() }, make("grow_past"));
+    assert!(past.state().state.terrain3d_outline.is_none());
+    past.get_by_label("Terrain3D holds at most 32 regions per side");
+    assert!(past.query_by_label("Apply").is_some_and(|b| b.accesskit_node().is_disabled()));
+
+    let everything = run(Grow { north: -1, ..Default::default() }, make("grow_all"));
+    everything.get_by_label("Shrinking by that much would remove every Terrain3D region");
+    assert!(everything.state().state.terrain3d_outline.is_none());
+
+    let mut reset = run(Grow { west: 2, ..Default::default() }, make("grow_reset"));
+    reset.get_by_label("Reset").click();
+    reset.run();
+    assert!(reset.state().state.terrain3d_draft.is_none() && reset.state().state.terrain3d_outline.is_none());
+}
+
+#[test]
+fn the_terrain3d_outline_goes_when_something_else_is_selected() {
+    let (mut f, id) = terrain3d_fixture("outline_gone");
+    f.state.terrain3d_outline = Some((id, [0, 0], [1, 1]));
+    f.state.doc.selection.clear();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(420.0, 400.0))
+        .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+    harness.run();
+    assert!(harness.state().state.terrain3d_outline.is_none());
+}

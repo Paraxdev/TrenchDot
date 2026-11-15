@@ -723,6 +723,10 @@ pub fn inspector(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, acti
             state.terrain_resize = None;
         }
 
+        if single.is_none_or(|id| state.doc.map.terrain3d(id).is_none()) {
+            state.terrain3d_outline = None;
+        }
+
         if let Some(first) = entities.first().copied() {
             entity_inspector(ui, state, ps, first, actions);
         } else if let Some(id) = single.filter(|id| state.doc.map.terrain(*id).is_some()) {

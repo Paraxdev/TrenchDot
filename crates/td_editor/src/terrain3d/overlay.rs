@@ -19,6 +19,10 @@ pub enum Mark {
     Region { rect: Rect, conflict: bool, label: Option<(Pos2, String)> },
     /// A region border seen from the side, running the height of the view.
     Border { x: f32, conflict: bool },
+    /// The footprint the Inspector's Regions draft would leave, seen from above.
+    Plan { rect: Rect },
+    /// An outer border of that footprint seen from the side.
+    PlanBorder { x: f32 },
 }
 
 /// The marks of `locs` and of the conflicting regions in `conflicts` in a view whose screen area is `view`. Top views get
@@ -66,6 +70,21 @@ pub fn marks(camera: &Camera, view: Rect, grid: &Grid, locs: &[Loc], conflicts: 
     out
 }
 
+/// The footprint of the regions `min` to `max` (inclusive) a draft would leave, one box from above and its two outer
+/// borders from the side.
+pub fn outline(camera: &Camera, view: Rect, grid: &Grid, min: Loc, max: Loc) -> Vec<Mark> {
+    let (lo, hi) = (region_rect(grid, min).0, region_rect(grid, max).1);
+    let (Some(a), Some(b)) = (camera.project(view, DVec3::new(lo.x, 0.0, lo.y)), camera.project(view, DVec3::new(hi.x, 0.0, hi.y))) else {
+        return Vec::new();
+    };
+    let (_, up, _) = camera.kind.axes();
+    if up.x != 0.0 || up.z != 0.0 {
+        return vec![Mark::Plan { rect: Rect::from_two_pos(a, b) }];
+    }
+
+    [a.x, b.x].into_iter().filter(|x| (view.min.x..=view.max.x).contains(x)).map(|x| Mark::PlanBorder { x }).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -89,6 +108,8 @@ mod tests {
                     }
             }
             (Mark::Border { x, conflict: c }, Mark::Border { x: y, conflict: d }) => close(*x, *y) && c == d,
+            (Mark::Plan { rect: r }, Mark::Plan { rect: s }) => pos(r.min, s.min) && pos(r.max, s.max),
+            (Mark::PlanBorder { x }, Mark::PlanBorder { x: y }) => close(*x, *y),
             _ => false,
         }
     }
@@ -190,5 +211,35 @@ mod tests {
         let at = |z: f32| 500.0 - (z - 300.0) * 0.25;
         let want = [0.0, 512.0, 1024.0].map(|z| Mark::Border { x: at(z), conflict: false });
         assert_marks(&got, &want);
+    }
+
+    #[test]
+    fn the_outline_boxes_the_footprint_from_above_and_borders_it_from_the_side() {
+        // Regions are 512 units wide, so [-1, 0] to [1, 2] spans x -512 to 1024 and z 0 to 1536.
+        let top = camera(ViewKind::Top, DVec3::new(300.0, 0.0, 500.0), 0.25);
+        let at = |x: f32, z: f32| Pos2::new(500.0 + (x - 300.0) * 0.25, 350.0 + (z - 500.0) * 0.25);
+        let got = outline(&top, view(), &grid(), [-1, 0], [1, 2]);
+        assert_marks(&got, &[Mark::Plan { rect: Rect::from_two_pos(at(-512.0, 0.0), at(1024.0, 1536.0)) }]);
+
+        let front = camera(ViewKind::Front, DVec3::new(300.0, 0.0, 0.0), 0.25);
+        let got = outline(&front, view(), &grid(), [-1, 0], [1, 2]);
+        let x = |world: f32| 500.0 + (world - 300.0) * 0.25;
+        assert_marks(&got, &[Mark::PlanBorder { x: x(-512.0) }, Mark::PlanBorder { x: x(1024.0) }]);
+
+        let side = camera(ViewKind::Side, DVec3::new(0.0, 0.0, 500.0), 0.25);
+        let got = outline(&side, view(), &grid(), [-1, 0], [1, 2]);
+        let z = |world: f32| 500.0 - (world - 500.0) * 0.25;
+        assert_marks(&got, &[Mark::PlanBorder { x: z(0.0) }, Mark::PlanBorder { x: z(1536.0) }]);
+    }
+
+    #[test]
+    fn the_outline_leaves_out_a_side_border_off_screen_and_covers_one_region() {
+        let front = camera(ViewKind::Front, DVec3::new(300.0, 0.0, 0.0), 0.25);
+        let got = outline(&front, view(), &grid(), [0, 0], [40, 0]);
+        assert_marks(&got, &[Mark::PlanBorder { x: 500.0 + (0.0 - 300.0) * 0.25 }]);
+        let top = camera(ViewKind::Top, DVec3::new(300.0, 0.0, 500.0), 0.25);
+        let one = outline(&top, view(), &grid(), [1, 1], [1, 1]);
+        let Mark::Plan { rect } = &one[0] else { panic!("{one:?}") };
+        assert!(close(rect.width(), 128.0) && close(rect.height(), 128.0), "{rect:?}");
     }
 }

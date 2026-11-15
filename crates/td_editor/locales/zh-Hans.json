@@ -2850,5 +2850,10 @@
   "Godot: not reached, the project is in Restricted Mode. Click Restricted Mode in the status bar to trust it": "Godot：未连接，项目处于受限模式。点击状态栏的受限模式以信任它",
   "Use Godot's": "采用 Godot 的",
   "Keep Mine": "保留我的",
-  "Use Godot's Terrain3D region": "采用 Godot 的 Terrain3D 区域"
+  "Use Godot's Terrain3D region": "采用 Godot 的 Terrain3D 区域",
+  "The Terrain3D data folder has no regions to grow from": "Terrain3D 数据文件夹没有可扩展的区域",
+  "Shrinking by that much would remove every Terrain3D region": "缩小这么多会移除所有 Terrain3D 区域",
+  "Terrain3D holds at most 32 regions per side": "Terrain3D 每边最多容纳 32 个区域",
+  "{c} x {r} regions, {w} x {d} meters": "{c} x {r} 个区域，{w} x {d} 米",
+  "Grow Terrain3D": "扩展 Terrain3D"
 }

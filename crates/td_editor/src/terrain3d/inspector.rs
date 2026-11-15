@@ -4,9 +4,9 @@ use std::collections::BTreeSet;
 
 use egui::{Color32, RichText, Ui};
 use td_core::NodeId;
-use td_doc::terrain3d::{RegionChange, Terrain3DLink};
+use td_doc::terrain3d::{Grow, GrowPlan, RegionChange, Terrain3DLink};
 use td_formats::terrain3d_cache::ManifestTexture;
-use td_geom::terrain3d::Loc;
+use td_geom::terrain3d::{Grid, Loc};
 
 use super::bridge;
 use crate::commands::Action;
@@ -272,6 +272,7 @@ pub fn inspector(ui: &mut Ui, state: &mut EditorState, id: NodeId, actions: &mut
     }
 
     ui.separator();
+    regions(ui, state, id, &cache);
     ui.toggle_value(&mut state.terrain3d_edit_regions, tr("Edit Regions")).on_hover_text(tr("Click regions in the Top view to add or remove them"));
     if let Some(manifest) = &manifest {
         ui.label(RichText::new(tr("Textures")).weak());
@@ -406,5 +407,23 @@ mod tests {
         let texture = |albedo_color| ManifestTexture { id: 3, name: String::new(), albedo_color, thumbnail: String::new() };
         assert_eq!(swatch(&texture([0.1, 0.2, 0.9, 0.5])), Color32::from_rgb(26, 51, 230));
         assert_eq!(swatch(&texture([-1.0, 2.0, 1.0, 1.0])), Color32::from_rgb(0, 255, 255));
+    }
+
+    #[test]
+    fn a_footprint_counts_regions_and_meters_from_the_slanted_grid() {
+        let grid = Grid { region_size: 128, spacing: 2.5, upm: 32.0 };
+        let plan = |min, max| GrowPlan { min, max, add: Vec::new(), remove: Vec::new() };
+        assert_eq!(footprint(&plan([0, 0], [0, 0]), &grid), Footprint { columns: 1, rows: 1, width: 320.0, depth: 320.0 });
+        assert_eq!(footprint(&plan([-3, 2], [-1, 3]), &grid), Footprint { columns: 3, rows: 2, width: 960.0, depth: 640.0 });
+    }
+
+    #[test]
+    fn a_grow_refusal_is_translated_by_what_it_says_and_an_unknown_one_stays() {
+        use crate::i18n::{Lang, scope};
+        let _german = scope(Lang::De);
+        assert_ne!(problem("the Terrain3D data folder has no regions to grow from"), "the Terrain3D data folder has no regions to grow from");
+        assert_ne!(problem("shrinking by that much would remove every Terrain3D region"), "shrinking by that much would remove every Terrain3D region");
+        assert_ne!(problem("Terrain3D holds at most 32 regions per side (-16 to 15), the terrain would span [0, 0] to [40, 0]"), "");
+        assert_eq!(problem("something else"), "something else");
     }
 }

@@ -2850,5 +2850,10 @@
   "Godot: not reached, the project is in Restricted Mode. Click Restricted Mode in the status bar to trust it": "Godot: sin conexión, el proyecto está en Modo restringido. Hacer clic en Modo restringido en la barra de estado para confiar en él",
   "Use Godot's": "Usar la de Godot",
   "Keep Mine": "Conservar la mía",
-  "Use Godot's Terrain3D region": "Usar la región Terrain3D de Godot"
+  "Use Godot's Terrain3D region": "Usar la región Terrain3D de Godot",
+  "The Terrain3D data folder has no regions to grow from": "La carpeta de datos de Terrain3D no tiene regiones que ampliar",
+  "Shrinking by that much would remove every Terrain3D region": "Reducir tanto quitaría todas las regiones de Terrain3D",
+  "Terrain3D holds at most 32 regions per side": "Terrain3D admite como máximo 32 regiones por lado",
+  "{c} x {r} regions, {w} x {d} meters": "{c} x {r} regiones, {w} x {d} metros",
+  "Grow Terrain3D": "Ampliar Terrain3D"
 }

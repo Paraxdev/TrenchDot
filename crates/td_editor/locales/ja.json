@@ -2850,5 +2850,10 @@
   "Godot: not reached, the project is in Restricted Mode. Click Restricted Mode in the status bar to trust it": "Godot: 接続していません。プロジェクトは制限モードです。ステータスバーの制限モードをクリックして信頼してください",
   "Use Godot's": "Godot 側を使う",
   "Keep Mine": "自分の変更を残す",
-  "Use Godot's Terrain3D region": "Terrain3D リージョンを Godot 側に戻す"
+  "Use Godot's Terrain3D region": "Terrain3D リージョンを Godot 側に戻す",
+  "The Terrain3D data folder has no regions to grow from": "Terrain3D のデータフォルダーに広げるリージョンがありません",
+  "Shrinking by that much would remove every Terrain3D region": "それだけ縮めると Terrain3D のリージョンがすべて消えます",
+  "Terrain3D holds at most 32 regions per side": "Terrain3D は 1 辺あたり最大 32 リージョンです",
+  "{c} x {r} regions, {w} x {d} meters": "{c} x {r} リージョン、{w} x {d} m",
+  "Grow Terrain3D": "Terrain3D を拡張"
 }

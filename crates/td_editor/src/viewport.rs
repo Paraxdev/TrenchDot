@@ -1612,7 +1612,7 @@ pub(crate) fn cell_span(a: f64, b: f64, grid: f64, snap: bool) -> (f64, f64) {
 }
 
 fn paint_terrain3d_marks(painter: &egui::Painter, camera: &Camera, rect: Rect, state: &EditorState) {
-    use crate::terrain3d::overlay::{Mark, marks};
+    use crate::terrain3d::overlay::{Mark, marks, outline};
 
     let border = Color32::from_rgba_unmultiplied(150, 150, 150, 120);
     let warning = crate::theme::colors().warning();
@@ -1632,7 +1632,23 @@ fn paint_terrain3d_marks(painter: &egui::Painter, camera: &Camera, rect: Rect, s
                     let (color, width) = if conflict { (warning, 2.0) } else { (border, 1.0) };
                     painter.line_segment([Pos2::new(x, rect.min.y), Pos2::new(x, rect.max.y)], egui::Stroke::new(width, color));
                 }
+                Mark::Plan { .. } | Mark::PlanBorder { .. } => {}
             }
+        }
+    }
+
+    let Some((id, min, max)) = state.terrain3d_outline else { return };
+    let Some(layout) = state.terrain3d_tiles.layouts.get(&id) else { return };
+    let stroke = egui::Stroke::new(2.0, crate::theme::colors().info());
+    for mark in outline(camera, rect, &layout.grid, min, max) {
+        match mark {
+            Mark::Plan { rect: area } => {
+                painter.rect_stroke(area, 0.0, stroke, egui::StrokeKind::Inside);
+            }
+            Mark::PlanBorder { x } => {
+                painter.line_segment([Pos2::new(x, rect.min.y), Pos2::new(x, rect.max.y)], stroke);
+            }
+            _ => {}
         }
     }
 }
