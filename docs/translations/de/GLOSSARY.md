@@ -1,5 +1,5 @@
 ---
-source: 62dc81f5978f85583c7c7cd6083e20459a306923
+source: e3326b9777032691f677054bc413bd0ecfee025c
 ---
 
 # Glossar { #glossary }
@@ -33,6 +33,9 @@ Ein konvexer Körper, etwa ein Quader oder ein Keil, der Grundbaustein eines Lev
 
 ## Brush-Entität { #brush-entity data-forms="Brush-Entitäten" }
 Eine Entität, die ihre Form von Brushes bekommt, die du gebaut hast, etwa eine Tür, ein Knopf oder ein Trigger. Du zeichnest zuerst die Brushes und machst dann die Entität daraus, anders als bei einer Punkt-Entität, die an einer einzelnen Stelle sitzt.
+
+## Zelle { #cell data-forms="Zellen" }
+Ein Quadrat im Raster eines Terrains, zwischen vier benachbarten Vertices. Ein Terrain hat entlang X und Z eine ganze Zahl von Zellen, und die Zellgröße ist der Abstand in Karteneinheiten zwischen zwei Vertices. Wenn du die Größe eines Terrains änderst, kommen ganze Zellen hinzu oder fallen weg.
 
 ## konvex { #convex data-forms="konvexe|konvexen|konvexer|konvexes" }
 Überall nach außen gewölbt, ohne Dellen oder Mulden, wie ein Quader, ein Keil oder ein Zylinder. Jeder Brush muss konvex sein, deshalb lehnt der Editor Vertex-Verschiebungen ab, die ihn eindellen würden. Für konkave Formen wandelst du den Brush in ein Mesh um.

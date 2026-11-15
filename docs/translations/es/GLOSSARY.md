@@ -1,5 +1,5 @@
 ---
-source: 62dc81f5978f85583c7c7cd6083e20459a306923
+source: e3326b9777032691f677054bc413bd0ecfee025c
 ---
 
 # Glosario { #glossary }
@@ -33,6 +33,9 @@ Un sólido convexo, como una caja o una cuña, el bloque básico de construcció
 
 ## entidad brush { #brush-entity data-forms="entidades brush" }
 Una entidad que toma su forma de brushes que construiste, como una puerta, un botón o un trigger. Primero dibujas los brushes y luego los conviertes en la entidad, al contrario que una entidad punto, que está en un único lugar.
+
+## celda { #cell data-forms="celdas" }
+Un cuadrado de la cuadrícula de un terreno, entre cuatro vértices vecinos. Un terreno tiene un número entero de celdas a lo largo de X y de Z, y el tamaño de celda es la distancia en unidades de mapa entre dos vértices. Al cambiar el tamaño de un terreno se añaden o se quitan celdas enteras.
 
 ## convexa { #convex data-forms="convexo|convexos|convexas" }
 Abultada hacia fuera por todas partes, sin hendiduras ni huecos, como una caja, una cuña o un cilindro. Todo brush tiene que ser convexo, por eso el editor rechaza los movimientos de vértices que lo abollarían. Para formas cóncavas, convierte el brush en malla.

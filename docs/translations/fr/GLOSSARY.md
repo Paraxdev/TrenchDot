@@ -1,5 +1,5 @@
 ---
-source: 62dc81f5978f85583c7c7cd6083e20459a306923
+source: e3326b9777032691f677054bc413bd0ecfee025c
 ---
 
 # Glossaire { #glossary }
@@ -33,6 +33,9 @@ Un solide convexe, comme une boîte ou un coin, la brique de base d'un niveau. V
 
 ## entité brush { #brush-entity data-forms="entités brush" }
 Une entité dont la forme vient de brushes que vous avez construits, comme une porte, un bouton ou un déclencheur. Vous dessinez d'abord les brushes, puis vous en faites l'entité, contrairement à une entité point, qui se trouve à un seul endroit.
+
+## cellule { #cell data-forms="cellules" }
+Un carré de la grille d'un terrain, entre quatre sommets voisins. Un terrain compte un nombre entier de cellules le long de X et de Z, et la taille de cellule est la distance en unités de carte entre deux sommets. Redimensionner un terrain ajoute ou retire des cellules entières.
 
 ## convexe { #convex data-forms="convexes" }
 Bombé vers l'extérieur partout, sans creux ni bosses rentrantes, comme une boîte, un coin ou un cylindre. Chaque brush doit être convexe, c'est pourquoi l'éditeur refuse les déplacements de sommets qui en feraient un creux. Pour les formes concaves, convertissez le brush en mesh.
