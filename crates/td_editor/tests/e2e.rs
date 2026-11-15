@@ -8596,6 +8596,8 @@ fn terrain3d_project(name: &str) -> (PathBuf, PathBuf) {
         dirty: Vec::new(),
         textures: Vec::new(),
         applied: Vec::new(),
+        ocean: None,
+        resources: None,
     };
     terrain3d_cache::write_manifest(&cache, &manifest).unwrap();
 
@@ -8708,10 +8710,12 @@ fn terrain3d_world(name: &str, pending_base: Option<u8>) -> (PathBuf, PathBuf) {
         regions: locs.iter().map(|loc| ManifestRegion { loc: *loc, hash, height_range: [0.0, 20.0] }).collect(),
         dirty: Vec::new(),
         textures: vec![
-            ManifestTexture { id: 1, name: "red".into(), albedo_color: [1.0; 4], thumbnail: "textures/1.png".into() },
-            ManifestTexture { id: 2, name: "blue".into(), albedo_color: [0.1, 0.2, 0.9, 1.0], thumbnail: String::new() },
+            ManifestTexture { id: 1, name: "red".into(), thumbnail: "textures/1.png".into(), ..Default::default() },
+            ManifestTexture { id: 2, name: "blue".into(), albedo_color: [0.1, 0.2, 0.9, 1.0], ..Default::default() },
         ],
         applied: Vec::new(),
+        ocean: None,
+        resources: None,
     };
     terrain3d_cache::write_manifest(&cache, &manifest).unwrap();
     if let Some(base) = pending_base {

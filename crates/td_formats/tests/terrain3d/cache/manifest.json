@@ -11,7 +11,7 @@
     "ground_level": -2.0,
     "region_blend": 0.25,
     "auto_shader": true,
-    "dual_scaling": true
+    "future_flag": true
   },
   "map_transform_identity": false,
   "editor_open": true,

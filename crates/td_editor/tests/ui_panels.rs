@@ -3645,10 +3645,12 @@ fn terrain3d_fixture(name: &str) -> (Fixture, td_core::NodeId) {
         regions: vec![ManifestRegion { loc: [0, 0], hash, height_range: [0.0, 0.0] }],
         dirty: Vec::new(),
         textures: vec![
-            ManifestTexture { id: 1, name: "rock".into(), albedo_color: [0.5; 4], thumbnail: String::new() },
-            ManifestTexture { id: 4, name: String::new(), albedo_color: [0.1, 0.2, 0.9, 1.0], thumbnail: String::new() },
+            ManifestTexture { id: 1, name: "rock".into(), albedo_color: [0.5; 4], ..Default::default() },
+            ManifestTexture { id: 4, albedo_color: [0.1, 0.2, 0.9, 1.0], ..Default::default() },
         ],
         applied: Vec::new(),
+        ocean: None,
+        resources: None,
     };
     terrain3d_cache::write_manifest(&cache, &manifest).unwrap();
 

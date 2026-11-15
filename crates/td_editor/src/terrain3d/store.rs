@@ -562,6 +562,8 @@ mod tests {
             dirty: Vec::new(),
             textures: Vec::new(),
             applied: Vec::new(),
+            ocean: None,
+            resources: None,
         }
     }
 

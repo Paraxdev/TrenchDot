@@ -177,6 +177,8 @@ impl EditorState {
                 dirty: Vec::new(),
                 textures: Vec::new(),
                 applied: Vec::new(),
+                ocean: None,
+                resources: None,
             };
             terrain3d_cache::write_manifest(&cache, &manifest).map_err(|e| e.to_string())?;
             locs = new.locs();

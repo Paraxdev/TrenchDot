@@ -13,6 +13,7 @@ Godot's FileSystem dock and exports skip it, and Terrain3D only reads `terrain3d
 | `manifest.json` | Godot | The settings, region list, hashes and texture list |
 | `regions/terrain3d_XX_YY.td3r` | Godot | What Terrain3D holds in memory for each region |
 | `textures/<id>.png` | Godot | A thumbnail of each Terrain3D texture asset |
+| `textures/<id>_albedo.png` | Godot | The albedo of each texture asset at 512 px, for drawing the terrain |
 | `pending/terrain3d_XX_YY.td3r` | TrenchDot | A region edit waiting for Godot, deleted once Godot applied or refused it |
 | `lod/terrain3d_XX_YY.<hash>.td3l` | TrenchDot | Coarser copies of a region for the 3D view, safe to delete |
 
@@ -31,12 +32,22 @@ negative coordinate is written `-01` and a positive one `_02`, so region (-1, 2)
   "data_version": 1.1,
   "region_size": 256,
   "vertex_spacing": 1.0,
-  "material": { "world_background": 0, "ground_level": 0.0, "region_blend": 0.0, "auto_shader": false },
+  "material": {
+    "world_background": 2, "ground_level": 0.0, "region_blend": 0.0, "auto_shader": true,
+    "world_noise": { "scale": 5.0, "height": 64.0, "offset": [0, 0, 0], "lod_distance": 7500.0, "max_octaves": 4, "min_octaves": 2, "fragment_normals": false },
+    "auto": { "slope": 1.0, "height_reduction": 0.1, "base_texture": 0, "overlay_texture": 1 },
+    "blend_sharpness": 0.5, "dual_scaling": true, "macro_variation": true, "projection": true
+  },
   "map_transform_identity": true,
   "editor_open": false,
   "regions": [ { "loc": [-1, 0], "hash": "a2642a6b...", "height_range": [-6.89, 29.4] } ],
   "dirty": [],
-  "textures": [ { "id": 0, "name": "Grass", "albedo_color": [1, 1, 1, 1], "thumbnail": "textures/0.png" } ],
+  "textures": [ {
+    "id": 0, "name": "Grass", "albedo_color": [1, 1, 1, 1], "thumbnail": "textures/0.png",
+    "uv_scale": 0.1, "detiling_rotation": 0.0, "detiling_shift": 0.0, "albedo": "textures/0_albedo.png", "hash": "9a0364b9..."
+  } ],
+  "ocean": { "enabled": true, "sea_level": 5.0, "water_color": [0.1058, 0.1568, 0.2117, 1], "source": "res://water/M_ocean.tres" },
+  "resources": { "material": "res://data/M_terrain.tres", "assets": "res://data/assets.tres", "ocean_material": "res://water/M_ocean.tres" },
   "applied": [ { "seq": 7, "accepted": [[-1, 0]], "refused": [ { "loc": [0, 0], "reason": "dirty" } ] } ]
 }
 ```
@@ -46,14 +57,28 @@ negative coordinate is written `-01` and a positive one `_02`, so region (-1, 2)
 | `format`, `version` | Always `trenchdot-terrain3d` and `1`. Another format or a newer version is refused |
 | `terrain3d`, `godot`, `data_version` | The versions that wrote the cache, TrenchDot warns about a Terrain3D it has not been tested with |
 | `region_size`, `vertex_spacing` | Vertices per region side and meters between vertices |
-| `material` | The Terrain3D material settings the surface height depends on near region edges |
+| `material` | The Terrain3D material settings: those the surface height depends on near region edges, the world background beyond the regions (`world_background` 0 for none, 1 flat, 2 noise shaped by `world_noise`), the auto shader and texture blending |
 | `map_transform_identity` | `false` when the map node in the scene is not at the origin, Terrain3D ignores that transform |
 | `editor_open` | Whether a Godot editor had the scene open when this was written |
 | `regions` | One entry per region: `loc`, `hash` (sha256 as hex) and `height_range` in meters |
 | `dirty` | Regions with edits the Godot editor has not saved yet |
+| `textures` | One entry per texture asset: its `id`, `name`, `albedo_color`, uv scale and detiling, the paths of its `thumbnail` and full `albedo` relative to the cache folder, and a `hash` that changes with the image or the uv values |
 | `applied` | What Godot did with the last pending files, `reason` is `dirty`, `changed` or `size` |
+| `ocean` | The Terrain3D ocean: `enabled`, `sea_level` in meters, `water_color` and the res path of its material in `source` |
+| `resources` | The res paths of the node's `material`, `assets` and `ocean_material`, empty for none or a built in one |
 
-Unknown keys are ignored.
+Unknown keys are ignored, and only `format`, `version`, `region_size` and `vertex_spacing` are required, so caches
+written by an older addon still read. A missing key means:
+
+| Key | When missing |
+| --- | --- |
+| `material.world_noise` | No noise values are known. A key missing inside it takes the Terrain3D shader default: `scale` 5, `height` 32, `offset` 0, `lod_distance` 7500, `max_octaves` 4, `min_octaves` 2 |
+| `material.auto` | The Terrain3D shader defaults: `slope` 1, `height_reduction` 0.1, `base_texture` 0, `overlay_texture` 1 |
+| `material.blend_sharpness` | 0.5 |
+| `textures[].uv_scale`, `detiling_rotation`, `detiling_shift` | 0.1, 0 and 0 |
+| `textures[].albedo` | No full size image, the thumbnail stands in |
+| `ocean` | No water |
+| `resources` | Unknown, the addon is older than the key |
 
 ## Region files
 

@@ -69,7 +69,7 @@ fn manifest_fixture_reads_whole_and_ignores_unknown_keys() {
         data_version: 1.1,
         region_size: 64,
         vertex_spacing: 2.5,
-        material: ManifestMaterial { world_background: 1, ground_level: -2.0, region_blend: 0.25, auto_shader: true },
+        material: ManifestMaterial { world_background: 1, ground_level: -2.0, region_blend: 0.25, auto_shader: true, ..Default::default() },
         map_transform_identity: false,
         editor_open: true,
         regions: vec![
@@ -78,10 +78,12 @@ fn manifest_fixture_reads_whole_and_ignores_unknown_keys() {
         ],
         dirty: vec![[3, -2]],
         textures: vec![
-            ManifestTexture { id: 0, name: "Grass".into(), albedo_color: [1.0; 4], thumbnail: "textures/0.png".into() },
-            ManifestTexture { id: 5, name: "Rock".into(), albedo_color: [0.5, 0.25, 0.125, 1.0], thumbnail: String::new() },
+            ManifestTexture { id: 0, name: "Grass".into(), thumbnail: "textures/0.png".into(), ..Default::default() },
+            ManifestTexture { id: 5, name: "Rock".into(), albedo_color: [0.5, 0.25, 0.125, 1.0], ..Default::default() },
         ],
         applied: vec![Applied { seq: 7, accepted: vec![[-1, 0]], refused: vec![Refused { loc: [3, -2], reason: "dirty".into() }] }],
+        ocean: None,
+        resources: None,
     };
     assert_eq!(m, expected);
     assert_eq!(m.regions[0].hash.to_string(), "b8875e9e03bdb23d5c592f294cc8f6a6f0a1485b831bc20b3413c398b8fb0e69");
@@ -100,6 +102,200 @@ fn manifest_round_trips_and_minimal_one_takes_defaults() {
     let minimal = parse_manifest(r#"{"format":"trenchdot-terrain3d","version":1,"region_size":256,"vertex_spacing":0.25}"#).unwrap();
     assert!(minimal.map_transform_identity && !minimal.editor_open && minimal.regions.is_empty() && minimal.textures.is_empty());
     assert_eq!(minimal.material, ManifestMaterial::default());
+}
+
+/// A Terrain3D node with a noise background, an auto shader, a texture and an ocean, every key off its default.
+const LOOK: &str = r#"{
+  "format": "trenchdot-terrain3d",
+  "version": 1,
+  "region_size": 1024,
+  "vertex_spacing": 1.5,
+  "material": {
+    "world_background": 2,
+    "ground_level": -3.5,
+    "region_blend": 0.75,
+    "auto_shader": true,
+    "world_noise": { "scale": 7.25, "height": -64.5, "offset": [12.5, -3, 0.75], "lod_distance": 9000, "max_octaves": 9, "min_octaves": 3, "fragment_normals": true },
+    "auto": { "slope": 2.5, "height_reduction": 0.375, "base_texture": 3, "overlay_texture": 7 },
+    "blend_sharpness": 0.875,
+    "dual_scaling": true,
+    "macro_variation": true,
+    "projection": true
+  },
+  "regions": [ { "loc": [-3, 2], "hash": "b8875e9e03bdb23d5c592f294cc8f6a6f0a1485b831bc20b3413c398b8fb0e69", "height_range": [-12.5, 40.25] } ],
+  "textures": [
+    { "id": 2, "name": "Cliff", "albedo_color": [0.75, 0.5, 0.25, 0.5], "thumbnail": "textures/2.png", "uv_scale": 0.25, "detiling_rotation": 0.375, "detiling_shift": 0.125, "albedo": "textures/2_albedo.png", "hash": "5d41402abc4b2a76" }
+  ],
+  "ocean": { "enabled": true, "sea_level": 5.25, "water_color": [0.125, 0.25, 0.375, 0.5], "source": "res://water/M_ocean.tres" },
+  "resources": { "material": "res://data/M_terrain.tres", "assets": "res://data/assets.tres", "ocean_material": "res://water/M_ocean.tres" }
+}"#;
+
+fn look() -> Manifest {
+    Manifest {
+        format: FORMAT.into(),
+        version: 1,
+        terrain3d: String::new(),
+        godot: String::new(),
+        data_version: 0.0,
+        region_size: 1024,
+        vertex_spacing: 1.5,
+        material: ManifestMaterial {
+            world_background: 2,
+            ground_level: -3.5,
+            region_blend: 0.75,
+            auto_shader: true,
+            world_noise: Some(WorldNoise {
+                scale: 7.25,
+                height: -64.5,
+                offset: [12.5, -3.0, 0.75],
+                lod_distance: 9000.0,
+                max_octaves: 9,
+                min_octaves: 3,
+                fragment_normals: true,
+            }),
+            auto: Some(AutoShader { slope: 2.5, height_reduction: 0.375, base_texture: 3, overlay_texture: 7 }),
+            blend_sharpness: 0.875,
+            dual_scaling: true,
+            macro_variation: true,
+            projection: true,
+        },
+        map_transform_identity: true,
+        editor_open: false,
+        regions: vec![ManifestRegion { loc: [-3, 2], hash: fixture_hash([-1, 0]), height_range: [-12.5, 40.25] }],
+        dirty: Vec::new(),
+        textures: vec![ManifestTexture {
+            id: 2,
+            name: "Cliff".into(),
+            albedo_color: [0.75, 0.5, 0.25, 0.5],
+            thumbnail: "textures/2.png".into(),
+            uv_scale: 0.25,
+            detiling_rotation: 0.375,
+            detiling_shift: 0.125,
+            albedo: "textures/2_albedo.png".into(),
+            hash: "5d41402abc4b2a76".into(),
+        }],
+        applied: Vec::new(),
+        ocean: Some(ManifestOcean { enabled: true, sea_level: 5.25, water_color: [0.125, 0.25, 0.375, 0.5], source: "res://water/M_ocean.tres".into() }),
+        resources: Some(ManifestResources {
+            material: "res://data/M_terrain.tres".into(),
+            assets: "res://data/assets.tres".into(),
+            ocean_material: "res://water/M_ocean.tres".into(),
+        }),
+    }
+}
+
+/// Fails on any key of `value` that still holds the default, so an input that passes exercises every key.
+fn off_default<T: Default + serde::Serialize>(value: &T) {
+    let (value, default) = (serde_json::to_value(value).unwrap(), serde_json::to_value(T::default()).unwrap());
+    for (key, default) in default.as_object().unwrap() {
+        assert_ne!(value.get(key), Some(default), "{key} is still the default");
+    }
+}
+
+#[test]
+fn manifest_carries_the_terrain3d_look_off_every_default() {
+    let m = parse_manifest(LOOK).unwrap();
+    assert_eq!(m, look());
+
+    off_default(&m.material);
+    off_default(m.material.world_noise.as_ref().unwrap());
+    off_default(m.material.auto.as_ref().unwrap());
+    off_default(&m.textures[0]);
+    off_default(m.ocean.as_ref().unwrap());
+    off_default(m.resources.as_ref().unwrap());
+
+    let dir = tempfile::tempdir().unwrap();
+    write_manifest(dir.path(), &m).unwrap();
+    assert_eq!(read_manifest(dir.path()).unwrap(), m);
+
+    let floats = serde_json::to_string(&floated(serde_json::from_str(LOOK).unwrap())).unwrap();
+    assert!(floats.contains("\"max_octaves\":9.0") && floats.contains("\"overlay_texture\":7.0"), "{floats}");
+    assert_eq!(parse_manifest(&floats).unwrap(), m, "Godot writes every number as a float");
+}
+
+#[test]
+fn an_old_manifest_reads_with_the_new_defaults() {
+    let old = read_manifest(&fixture()).unwrap();
+    assert_eq!((&old.material.world_noise, &old.material.auto, old.material.blend_sharpness), (&None, &None, 0.5));
+    assert!(!old.material.dual_scaling && !old.material.macro_variation && !old.material.projection);
+    assert_eq!((&old.ocean, &old.resources), (&None, &None), "no ocean means no water");
+    let uv: Vec<_> = old.textures.iter().map(|t| (t.uv_scale, t.detiling_rotation, t.detiling_shift, t.albedo.as_str(), t.hash.as_str())).collect();
+    assert_eq!(uv, [(0.1, 0.0, 0.0, "", ""); 2]);
+
+    let head = r#""format":"trenchdot-terrain3d","version":1,"region_size":256,"vertex_spacing":0.25"#;
+    let empty =
+        parse_manifest(&format!(r#"{{{head},"material":{{"world_noise":{{}},"auto":{{}}}},"textures":[{{"id":4}}],"ocean":{{}},"resources":{{}}}}"#)).unwrap();
+    let noise = WorldNoise { scale: 5.0, height: 32.0, offset: [0.0; 3], lod_distance: 7500.0, max_octaves: 4, min_octaves: 2, fragment_normals: false };
+    assert_eq!(empty.material.world_noise, Some(noise.clone()), "the Terrain3D shader defaults");
+    assert_eq!(empty.material.auto, Some(AutoShader { slope: 1.0, height_reduction: 0.1, base_texture: 0, overlay_texture: 1 }));
+    let texture = ManifestTexture {
+        id: 4,
+        name: String::new(),
+        albedo_color: [1.0; 4],
+        thumbnail: String::new(),
+        uv_scale: 0.1,
+        detiling_rotation: 0.0,
+        detiling_shift: 0.0,
+        albedo: String::new(),
+        hash: String::new(),
+    };
+    assert_eq!(empty.textures, [texture]);
+    assert_eq!(empty.ocean, Some(ManifestOcean { enabled: false, sea_level: 0.0, water_color: [0.1058, 0.1568, 0.2117, 1.0], source: String::new() }));
+    assert_eq!(empty.resources, Some(ManifestResources { material: String::new(), assets: String::new(), ocean_material: String::new() }));
+
+    let some = parse_manifest(&format!(r#"{{{head},"material":{{"world_background":2,"world_noise":{{"height":64}}}}}}"#)).unwrap();
+    assert_eq!(some.material.world_noise, Some(WorldNoise { height: 64.0, ..noise }));
+}
+
+#[test]
+fn unknown_keys_inside_the_look_are_ignored() {
+    let mut value: serde_json::Value = serde_json::from_str(LOOK).unwrap();
+    let places = [
+        ("/material", "future"),
+        ("/material/world_noise", "ridges"),
+        ("/material/auto", "curve"),
+        ("/textures/0", "normal"),
+        ("/ocean", "waves"),
+        ("/resources", "shader"),
+    ];
+    for (path, key) in places {
+        value.pointer_mut(path).unwrap().as_object_mut().unwrap().insert(key.into(), serde_json::json!({ "anything": [1, 2.5] }));
+    }
+
+    let text = serde_json::to_string(&value).unwrap();
+    assert!(text.contains("\"waves\"") && text.contains("\"ridges\""), "{text}");
+    assert_eq!(parse_manifest(&text).unwrap(), look());
+}
+
+#[test]
+fn reading_an_old_manifest_after_a_new_one_keeps_nothing_of_the_new() {
+    let dir = tempfile::tempdir().unwrap();
+    write_manifest(dir.path(), &look()).unwrap();
+    assert!(read_manifest(dir.path()).unwrap().ocean.is_some());
+
+    std::fs::copy(fixture().join(MANIFEST), dir.path().join(MANIFEST)).unwrap();
+    let old = read_manifest(dir.path()).unwrap();
+    assert_eq!(old, read_manifest(&fixture()).unwrap());
+    assert_eq!((old.ocean, old.resources, old.material.world_noise, old.material.auto), (None, None, None, None));
+    assert!(old.textures.iter().all(|t| t.albedo.is_empty() && t.hash.is_empty() && t.uv_scale == 0.1));
+}
+
+#[test]
+fn two_texture_hashes_stay_distinct() {
+    let mut m = look();
+    let mut second = m.textures[0].clone();
+    second.id = 3;
+    second.hash = "5d41402abc4b2a77".into();
+    m.textures.push(second);
+    m.textures[0].id = 9;
+
+    let dir = tempfile::tempdir().unwrap();
+    write_manifest(dir.path(), &m).unwrap();
+    let back = read_manifest(dir.path()).unwrap();
+    let keys: Vec<_> = back.textures.iter().map(|t| (t.id, t.hash.as_str())).collect();
+    assert_eq!(keys, [(9, "5d41402abc4b2a76"), (3, "5d41402abc4b2a77")]);
+    assert_ne!(back.textures[0], back.textures[1]);
+    assert_eq!(back, m);
 }
 
 /// Every whole number as a float, the way a manifest comes back after Godot parsed it and wrote it again.

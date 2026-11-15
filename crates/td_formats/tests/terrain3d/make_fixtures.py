@@ -63,7 +63,7 @@ manifest = {
     "data_version": 1.1,
     "region_size": SIZE,
     "vertex_spacing": SPACING,
-    "material": {"world_background": 1, "ground_level": -2.0, "region_blend": 0.25, "auto_shader": True, "dual_scaling": True},
+    "material": {"world_background": 1, "ground_level": -2.0, "region_blend": 0.25, "auto_shader": True, "future_flag": True},
     "map_transform_identity": False,
     "editor_open": True,
     "regions": [

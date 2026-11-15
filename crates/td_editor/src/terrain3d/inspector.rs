@@ -410,7 +410,7 @@ mod tests {
 
     #[test]
     fn a_swatch_is_the_albedo_color_clamped_to_bytes() {
-        let texture = |albedo_color| ManifestTexture { id: 3, name: String::new(), albedo_color, thumbnail: String::new() };
+        let texture = |albedo_color| ManifestTexture { id: 3, albedo_color, ..Default::default() };
         assert_eq!(swatch(&texture([0.1, 0.2, 0.9, 0.5])), Color32::from_rgb(26, 51, 230));
         assert_eq!(swatch(&texture([-1.0, 2.0, 1.0, 1.0])), Color32::from_rgb(0, 255, 255));
     }

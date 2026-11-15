@@ -131,19 +131,111 @@ pub struct Manifest {
     /// What the last pending apply did with each region.
     #[serde(default)]
     pub applied: Vec<Applied>,
+    /// Absent when the Terrain3D node has no ocean or the addon is older than the key.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ocean: Option<ManifestOcean>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub resources: Option<ManifestResources>,
 }
 
 fn yes() -> bool {
     true
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ManifestMaterial {
+    /// Terrain3D's `WorldBackground`: 0 none, 1 flat, 2 noise.
     pub world_background: u32,
     pub ground_level: f64,
     pub region_blend: f64,
     pub auto_shader: bool,
+    /// Absent from caches written before the key, a noise background then draws flat.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub world_noise: Option<WorldNoise>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto: Option<AutoShader>,
+    pub blend_sharpness: f64,
+    pub dual_scaling: bool,
+    pub macro_variation: bool,
+    pub projection: bool,
+}
+
+impl Default for ManifestMaterial {
+    fn default() -> Self {
+        Self {
+            world_background: 0,
+            ground_level: 0.0,
+            region_blend: 0.0,
+            auto_shader: false,
+            world_noise: None,
+            auto: None,
+            blend_sharpness: 0.5,
+            dual_scaling: false,
+            macro_variation: false,
+            projection: false,
+        }
+    }
+}
+
+/// The `world_noise_*` parameters of the Terrain3D material, defaults are its shader's.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct WorldNoise {
+    pub scale: f64,
+    pub height: f64,
+    pub offset: [f64; 3],
+    pub lod_distance: f64,
+    pub max_octaves: u32,
+    pub min_octaves: u32,
+    pub fragment_normals: bool,
+}
+
+impl Default for WorldNoise {
+    fn default() -> Self {
+        Self { scale: 5.0, height: 32.0, offset: [0.0; 3], lod_distance: 7500.0, max_octaves: 4, min_octaves: 2, fragment_normals: false }
+    }
+}
+
+/// The `auto_*` parameters of the Terrain3D material, defaults are its shader's.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AutoShader {
+    pub slope: f64,
+    pub height_reduction: f64,
+    pub base_texture: u32,
+    pub overlay_texture: u32,
+}
+
+impl Default for AutoShader {
+    fn default() -> Self {
+        Self { slope: 1.0, height_reduction: 0.1, base_texture: 0, overlay_texture: 1 }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ManifestOcean {
+    pub enabled: bool,
+    pub sea_level: f64,
+    pub water_color: [f32; 4],
+    /// Res path of the ocean material, empty for a built in one.
+    pub source: String,
+}
+
+impl Default for ManifestOcean {
+    fn default() -> Self {
+        Self { enabled: false, sea_level: 0.0, water_color: [0.1058, 0.1568, 0.2117, 1.0], source: String::new() }
+    }
+}
+
+/// Res paths of the resources set on the Terrain3D node, empty for none or a built in one.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ManifestResources {
+    pub material: String,
+    pub assets: String,
+    pub ocean_material: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -164,10 +256,42 @@ pub struct ManifestTexture {
     /// Relative to the cache folder, empty when Godot made none.
     #[serde(default)]
     pub thumbnail: String,
+    #[serde(default = "uv_scale")]
+    pub uv_scale: f32,
+    #[serde(default)]
+    pub detiling_rotation: f32,
+    #[serde(default)]
+    pub detiling_shift: f32,
+    /// The full albedo relative to the cache folder, empty when Godot wrote none and the thumbnail stands in.
+    #[serde(default)]
+    pub albedo: String,
+    /// Changes whenever the image or uv values do, empty from caches written before the key.
+    #[serde(default)]
+    pub hash: String,
+}
+
+impl Default for ManifestTexture {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            name: String::new(),
+            albedo_color: white(),
+            thumbnail: String::new(),
+            uv_scale: uv_scale(),
+            detiling_rotation: 0.0,
+            detiling_shift: 0.0,
+            albedo: String::new(),
+            hash: String::new(),
+        }
+    }
 }
 
 fn white() -> [f32; 4] {
     [1.0; 4]
+}
+
+fn uv_scale() -> f32 {
+    0.1
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
