@@ -2870,5 +2870,8 @@
   "Terrain3D edits were not sent, the data in {folder} has not loaded yet, save again once it shows": "Terrain3D 修改未发送，{folder} 中的数据尚未加载，加载出来后请再次保存",
   "Terrain3D edits made after the last save are not in the autosave": "上次保存之后的 Terrain3D 编辑不在自动保存中",
   "Godot has not exported this folder yet, so TrenchDot shows none of it": "Godot 尚未导出此文件夹，因此 TrenchDot 无法显示其中任何内容",
-  "Export from Godot": "从 Godot 导出"
+  "Export from Godot": "从 Godot 导出",
+  "Terrain3D regions": "Terrain3D 区域",
+  "Edit Terrain3D regions": "编辑 Terrain3D 区域",
+  "Follow Terrain3D": "跟随 Terrain3D"
 }

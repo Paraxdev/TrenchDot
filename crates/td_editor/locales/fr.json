@@ -2870,5 +2870,8 @@
   "Terrain3D edits were not sent, the data in {folder} has not loaded yet, save again once it shows": "Modifications Terrain3D non envoyées, {folder} n'est pas encore chargé, réenregistrer dès qu'il apparaît",
   "Terrain3D edits made after the last save are not in the autosave": "Les modifications Terrain3D faites après le dernier enregistrement ne sont pas dans la sauvegarde auto",
   "Godot has not exported this folder yet, so TrenchDot shows none of it": "Godot n'a pas encore exporté ce dossier, TrenchDot n'en montre donc rien",
-  "Export from Godot": "Exporter depuis Godot"
+  "Export from Godot": "Exporter depuis Godot",
+  "Terrain3D regions": "Régions Terrain3D",
+  "Edit Terrain3D regions": "Modifier les régions Terrain3D",
+  "Follow Terrain3D": "Suivre Terrain3D"
 }
