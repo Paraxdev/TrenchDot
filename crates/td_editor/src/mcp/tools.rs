@@ -2449,6 +2449,10 @@ impl App {
         self.state.symmetry = symmetry;
         self.state.edit_symmetry = edit_symmetry;
 
+        if let Some(b) = args["terrain3d_edit_regions"].as_bool() {
+            self.state.terrain3d_edit_regions = b;
+        }
+
         if let Some(b) = args["uv_lock"].as_bool() {
             self.state.uv_lock = b;
         }

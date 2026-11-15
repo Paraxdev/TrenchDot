@@ -505,6 +505,7 @@ pub fn tool_definitions() -> Vec<Value> {
                 "sculpt_mode": { "type": "string" },
                 "symmetry": symmetry_schema(),
                 "edit_symmetry": edit_symmetry_schema(),
+                "terrain3d_edit_regions": { "type": "boolean", "description": "Edit Regions mode of the selected Terrain3D node, a click on a square of the Top view adds or removes a region" },
                 "theme": { "type": "string", "enum": ["dark", "light", "system"], "description": "Editor colors. system follows the OS app mode and falls back to dark." },
                 "keymap": { "type": "string", "enum": ["trenchbroom", "hammer", "blender"], "description": "Keyboard shortcut preset, get_state reports it as editor.keymap. In the hammer preset Select All in the Texture tool selects the faces of the selected brushes." },
                 "language": { "type": "string", "enum": ["en", "de", "fr", "es", "pt", "ru", "zh-Hans", "ja"], "description": "Language of the menus, panels and messages. Tool names, MCP replies and errors stay English." },

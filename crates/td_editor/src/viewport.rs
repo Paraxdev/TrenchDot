@@ -135,7 +135,14 @@ impl Viewport {
         let closing_menu = self.popup_open && self.drag.is_none();
         let passive = closing_menu;
         let extruding = cx.tools.extrude.active();
-        if !passive && extruding && !self.is_camera_drag() {
+        let region_mode = cx.state.terrain3d_region_mode().filter(|_| self.camera.kind == ViewKind::Top && !self.is_camera_drag());
+        if let Some(id) = region_mode.filter(|_| !passive) {
+            if response.clicked_by(PointerButton::Primary)
+                && let Some(pos) = response.interact_pointer_pos()
+            {
+                cx.state.click_terrain3d_region(id, &self.camera, self.rect, pos);
+            }
+        } else if !passive && extruding && !self.is_camera_drag() {
             cx.tools.extrude.input(ui, &response, &self.camera, rect, cx.state);
         } else if !passive && (draws_like_select(cx.state.tool) || self.is_camera_drag()) {
             self.handle_select_tool(ui, &response, cx);
@@ -1479,6 +1486,11 @@ impl Viewport {
             }
 
             paint_terrain3d_marks(&painter, &self.camera, self.rect, state);
+            if let (Some(id), Some(pos)) = (state.terrain3d_region_mode(), ui.ctx().pointer_hover_pos().filter(|_| self.hovered))
+                && let Some(square) = state.terrain3d_square(id, &self.camera, self.rect, pos)
+            {
+                paint_region_square(&painter, &square);
+            }
         }
 
         if state.prefs.godot_overlays {
@@ -1609,6 +1621,21 @@ pub(crate) fn cell_span(a: f64, b: f64, grid: f64, snap: bool) -> (f64, f64) {
     let eps = grid * 1e-3;
     let (lo, hi) = if snap { (((lo + eps) / grid).floor() * grid, ((hi - eps) / grid).ceil() * grid) } else { (lo, hi) };
     if (hi - lo).abs() < 1e-6 { (lo, lo + grid) } else { (lo, hi) }
+}
+
+/// The square an Edit Regions click would act on, dashed while empty and solid while a region fills it.
+fn paint_region_square(painter: &egui::Painter, square: &crate::terrain3d::click::Square) {
+    let colors = crate::theme::colors();
+    if square.exists {
+        let stroke = egui::Stroke::new(2.0, colors.warning());
+        painter.rect_filled(square.rect, 0.0, stroke.color.gamma_multiply(0.15));
+        painter.rect_stroke(square.rect, 0.0, stroke, egui::StrokeKind::Inside);
+    } else {
+        let stroke = egui::Stroke::new(2.0, colors.info());
+        let r = square.rect;
+        let outline = [r.left_top(), r.right_top(), r.right_bottom(), r.left_bottom(), r.left_top()];
+        painter.extend(egui::Shape::dashed_line(&outline, stroke, 8.0, 5.0));
+    }
 }
 
 fn paint_terrain3d_marks(painter: &egui::Painter, camera: &Camera, rect: Rect, state: &EditorState) {

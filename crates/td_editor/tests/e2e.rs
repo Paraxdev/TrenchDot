@@ -8821,3 +8821,32 @@ fn terrain3d_sculpt_and_paint_edit_the_regions_under_the_brush() {
     assert!(a.region.heights[16 * 64 + 63] > world_height([0, 0], 63, 16) as f32 / 32.0 + 0.005, "the sculpt is in the pending region");
     assert_eq!(a.base, td_formats::terrain3d_cache::RegionHash([7; 32]));
 }
+
+/// A click in Edit Regions mode adds a region on an empty square and removes the one on a filled square, and the
+/// pending files hold both after a send. With the mode off the same click only deselects.
+#[test]
+#[ignore]
+fn terrain3d_edit_regions_click_adds_and_removes_a_region() {
+    use td_formats::terrain3d_cache::{pending_locs, read_pending};
+
+    let (ed, node) = launch_world("terrain3d_regions", None);
+    let cache = artifacts().join("terrain3d_regions").join("terrain").join(td_formats::terrain3d_cache::DIR_NAME);
+    ed.call("set_camera", json!({ "view": "top", "center": [256, 0, 256], "zoom": 0.25 }));
+    ed.call("select", json!({ "ids": [node] }));
+
+    ed.input("top", json!([{ "type": "click", "world": [-300.0, 0.0, 700.0] }]));
+    assert_eq!(ed.state()["selection"]["nodes"], json!([]), "with the mode off a click on empty ground deselects");
+    ed.call("select", json!({ "ids": [node] }));
+    ed.call("set_editor", json!({ "terrain3d_edit_regions": true }));
+
+    ed.input("top", json!([{ "type": "click", "world": [-300.0, 0.0, 700.0] }]));
+    ed.input("top", json!([{ "type": "click", "world": [900.0, 0.0, 130.0] }]));
+    assert_eq!(ed.state()["selection"]["nodes"], json!([node]), "the clicks left the selection alone");
+    ed.call("run_action", json!({ "action": "send_terrain3d" }));
+
+    let added = read_pending(&cache, [-1, 1], 64).expect("the empty square got a region");
+    assert!(!added.remove);
+    let removed = read_pending(&cache, [1, 0], 64).expect("the filled square is marked for removal");
+    assert!(removed.remove);
+    assert_eq!(pending_locs(&cache).unwrap(), vec![[-1, 1], [1, 0]], "no other square changed");
+}

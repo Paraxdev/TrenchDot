@@ -94,7 +94,7 @@ impl EditorState {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::path::Path;
     use std::time::{Duration, Instant};
 
