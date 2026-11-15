@@ -21,7 +21,7 @@ use crate::terrain3d::inspector::{self, Connection};
 use crate::terrain3d::link::{NewFolder, Problem};
 
 /// Every op of the tool, the schema text and the unknown op error list them.
-pub(crate) const OPS: &[&str] = &["link", "info", "regions", "grow", "settings", "send", "resolve", "probe"];
+pub(crate) const OPS: &[&str] = &["link", "info", "regions", "grow", "settings", "send", "resolve", "probe", "export"];
 
 /// How long `send` waits for Godot when it should, a headless Godot may have to start first.
 const SEND_TIMEOUT: Duration = Duration::from_secs(180);
@@ -161,8 +161,7 @@ fn kind_name(kind: ChangeKind) -> &'static str {
 }
 
 impl EditorState {
-    /// The cache folder of Terrain3D node `id`, with its manifest looked at again.
-    fn terrain3d_cache_of(&mut self, id: NodeId) -> Result<PathBuf, String> {
+    fn terrain3d_cache_path(&self, id: NodeId) -> Result<PathBuf, String> {
         if self.doc.map.terrain3d(id).is_none() {
             return Err(match self.doc.map.nodes.get(&id) {
                 Some(_) => format!("node {id} is not a Terrain3D node, link one with the terrain3d tool"),
@@ -171,6 +170,12 @@ impl EditorState {
         }
 
         let (_, cache) = self.terrain3d_links().into_iter().find(|(node, _)| *node == id).ok_or("Open a Godot project first, Terrain3D data lives in one")?;
+        Ok(cache)
+    }
+
+    /// The cache folder of Terrain3D node `id`, with its manifest looked at again.
+    fn terrain3d_cache_of(&mut self, id: NodeId) -> Result<PathBuf, String> {
+        let cache = self.terrain3d_cache_path(id)?;
         self.terrain3d.upm = self.game.units_per_meter;
         self.terrain3d.recheck();
         self.terrain3d.refresh(&cache);
@@ -219,6 +224,7 @@ impl App {
             "send" => self.terrain3d_send(args),
             "resolve" => self.terrain3d_resolve(args),
             "probe" => self.terrain3d_probe(args),
+            "export" => self.terrain3d_export(args),
             other => Err(format!("unknown op {other:?}, use {}", OPS.join(", "))),
         };
         match done {
@@ -395,6 +401,14 @@ impl App {
             "old_addon": outcome.old_addon,
             "pending": pending(),
         }))
+    }
+
+    fn terrain3d_export(&mut self, args: &Value) -> Result<Value, String> {
+        let id = require_id(args, "id")?;
+        let cache = self.state.terrain3d_cache_path(id)?;
+        self.state.terrain3d.upm = self.state.game.units_per_meter;
+        let written = self.state.export_terrain3d_cache(&cache).map_err(|e| format!("Terrain3D cache was not exported: {e}"))?;
+        Ok(json!({ "id": id.0, "written": written, "regions": self.state.terrain3d_regions_json(id, &cache) }))
     }
 
     fn terrain3d_resolve(&mut self, args: &Value) -> Result<Value, String> {
@@ -595,6 +609,6 @@ mod tests {
     fn the_op_list_has_every_op_once() {
         let set: BTreeSet<_> = OPS.iter().collect();
         assert_eq!(set.len(), OPS.len());
-        assert_eq!(OPS.len(), 8);
+        assert_eq!(OPS.len(), 9);
     }
 }

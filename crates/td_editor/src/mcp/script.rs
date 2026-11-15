@@ -166,7 +166,7 @@ pub fn args_refusal(tool: &str, args: &Value) -> Option<String> {
         }
         "terrain3d" => {
             let op = args["op"].as_str().unwrap_or_default();
-            let reaches_godot = matches!(op, "settings" | "send") || (op == "resolve" && args["take"] == "mine");
+            let reaches_godot = matches!(op, "settings" | "send" | "export") || (op == "resolve" && args["take"] == "mine");
             reaches_godot.then(|| format!("terrain3d {op} cannot run inside scripts, it reaches Godot, a save sends the Terrain3D edits"))
         }
         "set_editor" => {
@@ -633,9 +633,12 @@ mod tests {
     #[test]
     fn terrain3d_steps_may_not_reach_godot() {
         assert!(tool_allowed("terrain3d"));
-        for args in
-            [json!({ "op": "settings", "id": 1 }), json!({ "op": "send", "id": 1 }), json!({ "op": "resolve", "id": 1, "region": [0, 0], "take": "mine" })]
-        {
+        for args in [
+            json!({ "op": "settings", "id": 1 }),
+            json!({ "op": "send", "id": 1 }),
+            json!({ "op": "export", "id": 1 }),
+            json!({ "op": "resolve", "id": 1, "region": [0, 0], "take": "mine" }),
+        ] {
             assert!(args_refusal("terrain3d", &args).unwrap().contains("reaches Godot"), "{args}");
         }
 

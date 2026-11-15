@@ -311,15 +311,16 @@ fn run_cli(exe: &Path, request: &Apply, command: &str) -> Result<Value, String> 
 pub const NOT_EXPORTED: &str = "Godot has not exported this Terrain3D folder yet, set the Godot executable in Preferences or open the project in Godot, then click Export from Godot in the Inspector";
 
 /// Has Godot write the cache of the request's data folder again, blocking: the open editor when a scene there shows
-/// the folder, else a headless Godot. The pending files and `force` play no part.
-pub fn export(request: &Apply) -> Result<(), String> {
+/// the folder, else a headless Godot. The pending files and `force` play no part. Returns the regions Godot wrote.
+pub fn export(request: &Apply) -> Result<Vec<Loc>, String> {
+    let written = |reply: &Value| reply["written"].as_array().into_iter().flatten().filter_map(loc_of).collect();
     if let Some(port) = request.port {
         let message = json!({ "event": "terrain3d_export", "dir": live_link::godot_path(&request.folder) });
         match live_link::send_timeout(port, &message, LIVE_REPLY) {
             Ok(reply) => match reply["error"].as_str() {
                 Some(OLD_ADDON) => {}
                 Some(error) if error.starts_with(NO_SCENE) => {}
-                _ if reply["ok"].as_bool() == Some(true) => return Ok(()),
+                _ if reply["ok"].as_bool() == Some(true) => return Ok(written(&reply)),
                 _ => return Err(reply_error(&reply)),
             },
             Err(e) if e == live_link::NOT_RUNNING => {}
@@ -329,7 +330,7 @@ pub fn export(request: &Apply) -> Result<(), String> {
 
     let Some(exe) = &request.godot else { return Err(NOT_EXPORTED.to_string()) };
     let reply = run_cli(exe, request, "export")?;
-    if reply["ok"].as_bool() == Some(true) { Ok(()) } else { Err(reply_error(&reply)) }
+    if reply["ok"].as_bool() == Some(true) { Ok(written(&reply)) } else { Err(reply_error(&reply)) }
 }
 
 impl crate::state::EditorState {
@@ -345,15 +346,15 @@ impl crate::state::EditorState {
     }
 
     /// Has Godot write the missing cache of a linked folder, blocking, and reads its manifest.
-    pub(crate) fn export_terrain3d_cache(&mut self, cache: &Path) -> Result<(), String> {
-        export(&self.terrain3d_export_request(cache)?)?;
+    pub(crate) fn export_terrain3d_cache(&mut self, cache: &Path) -> Result<Vec<Loc>, String> {
+        let written = export(&self.terrain3d_export_request(cache)?)?;
         self.terrain3d.recheck();
         self.terrain3d.refresh(cache);
         if self.terrain3d.manifest(cache).is_none() {
             return Err(self.terrain3d.error(cache).map_or_else(|| NOT_EXPORTED.to_string(), |e| format!("Godot exported the Terrain3D folder, but {e}")));
         }
 
-        Ok(())
+        Ok(written)
     }
 }
 
@@ -747,13 +748,13 @@ mod tests {
     fn an_export_goes_to_the_open_editor_first_then_to_a_headless_godot() {
         let dir = tempfile::tempdir().unwrap();
         let (port, seen) = fake_editor(vec![("terrain3d_export", json!({ "ok": true, "written": [], "problems": [] }))]);
-        assert_eq!(export(&request(dir.path(), Some(port), None)), Ok(()));
+        assert_eq!(export(&request(dir.path(), Some(port), None)), Ok(vec![]));
         assert_eq!(seen.lock().unwrap()[0]["event"], "terrain3d_export");
 
         let (port, _) = fake_editor(vec![("terrain3d_export", json!({ "ok": false, "error": format!("{NO_SCENE}res://terrain") }))]);
         let (exe, args) = fake_godot(dir.path(), r#"{"ok":true,"written":[[0,0]],"removed":0,"problems":[]}"#);
         let req = request(dir.path(), Some(port), Some(exe));
-        assert_eq!(export(&req), Ok(()));
+        assert_eq!(export(&req), Ok(vec![[0, 0]]));
         let args = std::fs::read_to_string(&args).unwrap();
         assert!(args.contains(" -- export ") && args.trim_end().ends_with(&live_link::godot_path(&req.folder)), "{args}");
 

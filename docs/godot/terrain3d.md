@@ -255,8 +255,9 @@ scene or builds the map once, which writes the texture list from the *Assets* of
 The `terrain3d` tool does everything the Inspector does. `op: "link"` takes a `data_directory` and, for a new folder,
 `create: {region_size, vertex_spacing, columns, rows}`. `info` and `probe` read the folder and the surface, `regions`
 and `grow` add and remove regions (`grow` takes `dry_run`), `send` and `resolve` talk to Godot and `settings` changes
-the region size and spacing. A script cannot call `send`, `settings` or `resolve` with `take: "mine"`, a save sends the
-edits anyway.
+the region size and spacing. `export` has Godot write the folder's cache again, like Export from Godot in the
+Inspector, and names the regions it wrote. A script cannot call `send`, `settings`, `export` or `resolve` with
+`take: "mine"`, a save sends the edits anyway.
 
 `terrain_edit` and `scatter` accept the id of the Terrain3D node. Its `paint_texture` op takes a `texture` id and
 `mode: "base"` or `"spray"`. The showcase [script](https://github.com/Paraxdev/TrenchDot/blob/main/examples/mcp/terrain3d_valley.json)
