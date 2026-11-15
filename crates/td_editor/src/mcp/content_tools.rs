@@ -191,6 +191,21 @@ fn link_name(given: Option<&str>, options: &[String], builtin: &[&str], what: &s
 }
 
 /// Default name for a new layer, matching the editor's Add Layer command.
+/// Why `id` is no scatter set, naming the set when `id` is the layer that holds one.
+fn not_a_scatter_set(map: &td_doc::Map, id: NodeId) -> String {
+    if !matches!(map.get(id).map(|n| &n.kind), Some(NodeKind::Layer(_))) {
+        return format!("{id} is not a scatter set");
+    }
+
+    let mut sets: Vec<NodeId> = map.nodes.iter().filter(|(s, n)| n.scatter().is_some() && map.layer_of(**s) == id).map(|(s, _)| *s).collect();
+    sets.sort();
+    match &sets[..] {
+        [] => format!("{id} is a layer with no scatter set in it"),
+        [set] => format!("{id} is the layer of scatter set {set}, pass {set} as id"),
+        _ => format!("{id} is a layer, pass one of its scatter sets {} as id", sets.iter().map(NodeId::to_string).collect::<Vec<_>>().join(", ")),
+    }
+}
+
 fn next_layer_name(map: &td_doc::Map) -> String {
     format!("Layer {}", map.layers.len() + 1)
 }
@@ -1106,7 +1121,7 @@ impl App {
         if let Some(id) = set_id {
             if self.state.doc.map.scatter(id).is_none() {
                 self.state.prefs.scatter = saved;
-                return err(format!("{id} is not a scatter set"));
+                return err(not_a_scatter_set(&self.state.doc.map, id));
             }
 
             self.state.active_scatter = Some(id);
@@ -2654,6 +2669,17 @@ fn unknown_class(game: &td_formats::GameConfig, classname: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_layer_id_given_for_a_scatter_set_names_the_set() {
+        let mut state = crate::state::EditorState::new(Default::default());
+        let set = crate::scatter_tool::new_set(&mut state, None);
+        let map = &state.doc.map;
+        let layer = map.layer_of(set);
+        assert_eq!(not_a_scatter_set(map, layer), format!("{layer} is the layer of scatter set {set}, pass {set} as id"));
+        let light = state.doc.edit("add", |m, _| ops::create_point_entity(m, layer, "light", DVec3::ZERO));
+        assert_eq!(not_a_scatter_set(&state.doc.map, light), format!("{light} is not a scatter set"));
+    }
 
     #[test]
     fn a_scatter_call_loads_the_terrain3d_tiles_its_brush_can_reach() {
