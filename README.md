@@ -90,6 +90,9 @@ this project couldn't exist with the work of: <br>
 [TrenchBroom](https://github.com/TrenchBroom/TrenchBroom) as it inspired the whole ui and features
 and [FuncGodot](https://github.com/func-godot), which the Godot addon started as a fork of.
 
+[Terrain3D](https://github.com/TokisanGames/Terrain3D) by Cory Petkovsek, Roope Palmroos and contributors (MIT), which the Terrain3D
+bridge drives. It is fetched for development and never shipped with TrenchDot.
+
 the toolbar, menu and outliner icons are from [Lucide](https://lucide.dev).
 
 # License
