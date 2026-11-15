@@ -30,6 +30,7 @@ const TOOLS: &[&str] = &[
     "texture",
     "create_terrain",
     "terrain_edit",
+    "terrain3d",
     "scatter",
     "prefab_library",
     "trim",
@@ -162,6 +163,11 @@ pub fn args_refusal(tool: &str, args: &Value) -> Option<String> {
                 }
                 _ => (!ACTIONS.contains(&action)).then(|| format!("run_action {action} cannot run inside scripts, only actions that edit the map can")),
             }
+        }
+        "terrain3d" => {
+            let op = args["op"].as_str().unwrap_or_default();
+            let reaches_godot = matches!(op, "settings" | "send") || (op == "resolve" && args["take"] == "mine");
+            reaches_godot.then(|| format!("terrain3d {op} cannot run inside scripts, it reaches Godot, a save sends the Terrain3D edits"))
         }
         "set_editor" => {
             ["live_mode", "live_link_port", "mcp"].into_iter().find(|k| !args[*k].is_null()).map(|k| format!("set_editor {k} cannot be set inside scripts"))
@@ -622,6 +628,27 @@ mod tests {
         }
 
         assert_eq!(args_refusal("run_action", &json!({ "action": "close_tab", "args": { "discard": false } })), None);
+    }
+
+    #[test]
+    fn terrain3d_steps_may_not_reach_godot() {
+        assert!(tool_allowed("terrain3d"));
+        for args in
+            [json!({ "op": "settings", "id": 1 }), json!({ "op": "send", "id": 1 }), json!({ "op": "resolve", "id": 1, "region": [0, 0], "take": "mine" })]
+        {
+            assert!(args_refusal("terrain3d", &args).unwrap().contains("reaches Godot"), "{args}");
+        }
+
+        for args in [
+            json!({ "op": "link", "data_directory": "res://w", "create": {} }),
+            json!({ "op": "info", "id": 1 }),
+            json!({ "op": "regions", "id": 1, "add": [[0, 0]] }),
+            json!({ "op": "grow", "id": 1, "east": 1 }),
+            json!({ "op": "resolve", "id": 1, "region": [0, 0], "take": "godot" }),
+            json!({ "op": "probe", "id": 1, "points": [[0, 0]] }),
+        ] {
+            assert_eq!(args_refusal("terrain3d", &args), None, "{args}");
+        }
     }
 
     #[test]
