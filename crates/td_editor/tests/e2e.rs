@@ -8522,3 +8522,125 @@ fn terrain3d_edits_pending_from_an_earlier_save_are_sent_on_save() {
     assert_eq!(pending.base, td_formats::terrain3d_cache::RegionHash([7; 32]));
     assert_eq!(pending.region.heights[64 * 5 + 9] - pending.region.heights[64 * 5 + 8], 3.5 + 0.25);
 }
+
+/// The height in map units `terrain3d_world` gives the vertex at pixel `px`, `py` of region `loc`. Slanted and different
+/// on every region so a wrong region or a flipped axis shows.
+fn world_height(loc: [i32; 2], px: u32, py: u32) -> f64 {
+    (0.5 + 0.03125 * px as f64 + 0.0625 * py as f64 + 1.5 * loc[0] as f64 - 0.75 * loc[1] as f64) * 32.0
+}
+
+/// A project whose map links a Terrain3D folder of three 64 vertex regions, [0, 0] textured with texture 1 (a red
+/// thumbnail), [1, 0] with texture 2 (a blue albedo color, no thumbnail) and [0, 1] with texture 1. `pending_base` is
+/// the hash an edit left by an earlier save was made against, the manifest holds [7; 32] for every region.
+fn terrain3d_world(name: &str, pending_base: Option<u8>) -> (PathBuf, PathBuf) {
+    use td_doc::terrain3d::Terrain3DLink;
+    use td_doc::{Map, NodeKind, format};
+    use td_formats::terrain3d_cache::{self, CachedRegion, Manifest, ManifestRegion, ManifestTexture, PendingRegion, RegionHash};
+    use td_geom::terrain3d::{Control, Region3D};
+
+    let dir = linked_project(name, json!([]));
+    let cache = dir.join("terrain").join(terrain3d_cache::DIR_NAME);
+    let hash = RegionHash([7; 32]);
+    let locs = [[0, 0], [1, 0], [0, 1]];
+    let mut regions = Vec::new();
+    for loc in locs {
+        let mut region = Region3D::blank(loc, 64);
+        let texture = if loc == [1, 0] { 2 } else { 1 };
+        for (k, (h, c)) in region.heights.iter_mut().zip(region.control.iter_mut()).enumerate() {
+            *h = (world_height(loc, (k % 64) as u32, (k / 64) as u32) / 32.0) as f32;
+            *c = Control(0).with_base(texture).0;
+        }
+
+        terrain3d_cache::write_region(&cache, &CachedRegion { region: region.clone(), vertex_spacing: 0.25, hash }).unwrap();
+        regions.push(region);
+    }
+
+    std::fs::create_dir_all(cache.join("textures")).unwrap();
+    image::RgbaImage::from_pixel(8, 8, image::Rgba([220, 30, 30, 255])).save(cache.join("textures/1.png")).unwrap();
+    let manifest = Manifest {
+        format: terrain3d_cache::FORMAT.into(),
+        version: terrain3d_cache::VERSION,
+        terrain3d: "1.1.0".into(),
+        godot: "4.7.2".into(),
+        data_version: 1.1,
+        region_size: 64,
+        vertex_spacing: 0.25,
+        material: Default::default(),
+        map_transform_identity: true,
+        editor_open: false,
+        regions: locs.iter().map(|loc| ManifestRegion { loc: *loc, hash, height_range: [0.0, 20.0] }).collect(),
+        dirty: Vec::new(),
+        textures: vec![
+            ManifestTexture { id: 1, name: "red".into(), albedo_color: [1.0; 4], thumbnail: "textures/1.png".into() },
+            ManifestTexture { id: 2, name: "blue".into(), albedo_color: [0.1, 0.2, 0.9, 1.0], thumbnail: String::new() },
+        ],
+        applied: Vec::new(),
+    };
+    terrain3d_cache::write_manifest(&cache, &manifest).unwrap();
+    if let Some(base) = pending_base {
+        let mut edited = regions[1].clone();
+        edited.heights[64 * 5 + 9] += 3.5;
+        terrain3d_cache::write_pending(
+            &cache,
+            &PendingRegion { region: edited, vertex_spacing: 0.25, base: RegionHash([base; 32]), force: false, remove: false },
+        )
+        .unwrap();
+    }
+
+    let mut map = Map::new();
+    let layer = map.default_layer();
+    map.insert(layer, NodeKind::Terrain3D(Terrain3DLink::new("res://terrain")));
+    let path = dir.join("maps/world.tdm");
+    format::save(&map, &path).unwrap();
+    (dir, path)
+}
+
+/// Pixels that read red, blue and neither in a lit screenshot of `terrain3d_world`.
+fn world_colors(img: &image::RgbaImage) -> (usize, usize) {
+    let (mut red, mut blue) = (0, 0);
+    for p in img.pixels() {
+        let [r, g, b, _] = p.0.map(i32::from);
+        red += usize::from(r > g + 50 && r > b + 50);
+        blue += usize::from(b > r + 50 && b > g + 30);
+    }
+
+    (red, blue)
+}
+
+fn launch_world(name: &'static str, pending_base: Option<u8>) -> (Editor, Value) {
+    let (dir, map) = terrain3d_world(name, pending_base);
+    let ed = Editor::launch_with(name, &["--project", dir.to_str().unwrap()]);
+    ed.call("map_file", json!({ "op": "open", "path": map }));
+    let node = ed.call("list_nodes", json!({ "type": "terrain3d" }))["nodes"][0]["id"].clone();
+    assert!(node.is_u64(), "the map holds the Terrain3D node");
+    (ed, node)
+}
+
+/// The tiles of the regions in view are drawn in the lit 3D view, each with the thumbnail or color of its texture, and a
+/// hidden node draws nothing.
+#[test]
+#[ignore]
+fn terrain3d_regions_are_drawn_with_their_textures() {
+    let (ed, node) = launch_world("terrain3d_draw", None);
+    ed.call("set_editor", json!({ "shade": "lit", "tool": "select" }));
+    ed.call("set_camera", json!({ "view": "3d", "position": [512, 1500, 1500], "look_at": [512, 0, 400] }));
+    let args = json!({ "target": "3d", "width": 480, "height": 360 });
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let (red, blue) = loop {
+        let colors = world_colors(&shot(&ed, args.clone(), "lit"));
+        if colors.0 > 500 && colors.1 > 500 {
+            break colors;
+        }
+
+        assert!(Instant::now() < deadline, "regions never showed their textures: {colors:?}");
+        std::thread::sleep(Duration::from_millis(200));
+    };
+    assert!(red > 500 && blue > 500, "{red} red and {blue} blue pixels");
+
+    ed.call("hierarchy", json!({ "op": "set_flags", "ids": [node], "hidden": true }));
+    let gone = world_colors(&shot(&ed, args.clone(), "hidden"));
+    assert_eq!(gone, (0, 0), "a hidden Terrain3D node is not drawn");
+    ed.call("hierarchy", json!({ "op": "set_flags", "ids": [node], "hidden": false }));
+    let back = world_colors(&shot(&ed, args, "shown"));
+    assert!(back.0 > 500 && back.1 > 500, "shown again: {back:?}");
+}
