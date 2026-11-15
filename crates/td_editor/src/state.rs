@@ -697,6 +697,7 @@ pub struct EditorState {
     pub overlay_ghosts: crate::overlays::OverlayGhosts,
     pub terrain3d: crate::terrain3d::store::Terrain3DStore,
     pub terrain3d_bridge: crate::terrain3d::bridge::Bridge,
+    pub terrain3d_tiles: crate::terrain3d::tiles::Tiles,
     /// Data folders whose untested Terrain3D version was already mentioned.
     pub terrain3d_noted: std::collections::HashSet<PathBuf>,
     /// Brushes the open Sweep Faces dialog would create, drawn as lines.
@@ -961,6 +962,7 @@ impl EditorState {
             overlay_ghosts: Default::default(),
             terrain3d: Default::default(),
             terrain3d_bridge: Default::default(),
+            terrain3d_tiles: Default::default(),
             terrain3d_noted: Default::default(),
             sweep_preview: Vec::new(),
             shape_preview: Vec::new(),

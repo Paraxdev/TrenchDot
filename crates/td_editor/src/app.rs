@@ -904,6 +904,42 @@ fn view_closeable(tab: &Tab, views_open: usize) -> bool {
     !matches!(tab, Tab::View(_)) || views_open > 1
 }
 
+/// What the Terrain3D tiles are loaded for: every view that has been laid out.
+fn terrain3d_views(viewports: &[Viewport]) -> Vec<crate::terrain3d::tiles::View> {
+    use crate::terrain3d::tiles::View;
+    use td_core::DVec2;
+
+    viewports
+        .iter()
+        .filter(|v| v.rect.width() > 1.0 && v.rect.height() > 1.0)
+        .map(|v| {
+            let cam = &v.camera;
+            if !cam.kind.is_2d() {
+                return View::Eye { position: cam.position, focal: v.rect.height() as f64 * 0.5 / (cam.fov.to_radians() * 0.5).tan() };
+            }
+
+            let (r0, r1, u0, u1) = cam.visible_range(v.rect);
+            let (right, up, _) = cam.kind.axes();
+            let (mut min, mut max) = (DVec2::splat(f64::NEG_INFINITY), DVec2::splat(f64::INFINITY));
+            for (axis, lo, hi) in [(right, r0, r1), (up, u0, u1)] {
+                // The ground is x and z, an axis that points along y says nothing about which regions show.
+                let (index, sign) = if axis.x != 0.0 {
+                    (0, axis.x)
+                } else if axis.z != 0.0 {
+                    (1, axis.z)
+                } else {
+                    continue;
+                };
+                let (a, b) = if sign > 0.0 { (lo, hi) } else { (-hi, -lo) };
+                min[index] = a;
+                max[index] = b;
+            }
+
+            View::Flat { min, max, zoom: cam.zoom }
+        })
+        .collect()
+}
+
 /// Shows exactly `views` where the views were: one fills the area, two sit side by side, three put the second
 /// beside the other two stacked, four make the 2x2 grid of the default layout.
 fn set_views(dock: &mut DockState<Tab>, views: &[usize]) {
@@ -3558,6 +3594,11 @@ impl eframe::App for App {
         if std::mem::take(&mut self.state.scene_reset) {
             self.scene.invalidate();
             self.tools.reset();
+        }
+
+        let views = terrain3d_views(&self.viewports);
+        if self.state.update_terrain3d_tiles(&views, crate::terrain3d::TILE_BUDGET) {
+            ctx.request_repaint();
         }
 
         self.scene.update(&mut self.renderer, &mut self.state, self.project_generation);

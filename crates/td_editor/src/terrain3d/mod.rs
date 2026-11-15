@@ -2,9 +2,11 @@
 
 pub mod bridge;
 pub mod store;
+pub mod tiles;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 use td_core::NodeId;
@@ -15,11 +17,19 @@ use td_geom::terrain3d::Loc;
 use crate::i18n::msg;
 use crate::state::EditorState;
 
+/// The material name the tiles use for Terrain3D texture `id`.
+pub fn material_name(id: u8) -> String {
+    format!("terrain3d/{id}")
+}
+
+/// How long one frame may spend building tiles.
+pub const TILE_BUDGET: Duration = Duration::from_millis(12);
+
 /// How often an idle editor looks at the manifests of the linked folders.
 pub const POLL_EVERY: Duration = Duration::from_secs(1);
 
 impl EditorState {
-    fn terrain3d_links(&self) -> Vec<(NodeId, PathBuf)> {
+    pub(crate) fn terrain3d_links(&self) -> Vec<(NodeId, PathBuf)> {
         let Some(root) = self.game.project_root.as_deref() else { return Vec::new() };
         links_in(&self.doc.map, root)
     }
