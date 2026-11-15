@@ -3721,6 +3721,10 @@ impl eframe::App for App {
         self.state.tick_autosave();
         self.state.poll_live_link();
         commands::poll_play(&mut self.state);
+        if self.state.poll_terrain3d() {
+            ctx.request_repaint_after(crate::terrain3d::POLL_EVERY);
+        }
+
         self.finish_input_script(&ctx);
         self.ui_had_focus = ctx.egui_wants_keyboard_input();
         self.manual_under_pointer = help::take_hovered(&ctx);

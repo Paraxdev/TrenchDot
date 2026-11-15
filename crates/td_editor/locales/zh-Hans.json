@@ -2805,5 +2805,6 @@
   "Godot applied {applied} Terrain3D region(s)": "Godot 已应用 {applied} 个 Terrain3D 区域",
   "Godot had no Terrain3D edits to apply": "Godot 没有需要应用的 Terrain3D 修改",
   "Update the TrenchDot addon in Godot to send Terrain3D edits to the open editor": "请更新 Godot 中的 TrenchDot 插件，以便向已打开的编辑器发送 Terrain3D 修改",
-  "Terrain3D {version} was not tested with this editor, edits still go through Godot": "Terrain3D {version} 未在此编辑器上测试过，修改仍通过 Godot 进行"
+  "Terrain3D {version} was not tested with this editor, edits still go through Godot": "Terrain3D {version} 未在此编辑器上测试过，修改仍通过 Godot 进行",
+  "Terrain3D edits saved earlier could not be read: {problem}": "无法读取之前保存的 Terrain3D 修改：{problem}"
 }

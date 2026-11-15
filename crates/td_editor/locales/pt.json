@@ -2805,5 +2805,6 @@
   "Godot applied {applied} Terrain3D region(s)": "O Godot aplicou {applied} região(ões) do Terrain3D",
   "Godot had no Terrain3D edits to apply": "O Godot não tinha alterações do Terrain3D para aplicar",
   "Update the TrenchDot addon in Godot to send Terrain3D edits to the open editor": "Atualize o addon do TrenchDot no Godot para enviar alterações do Terrain3D ao editor aberto",
-  "Terrain3D {version} was not tested with this editor, edits still go through Godot": "O Terrain3D {version} não foi testado com este editor, as alterações continuam passando pelo Godot"
+  "Terrain3D {version} was not tested with this editor, edits still go through Godot": "O Terrain3D {version} não foi testado com este editor, as alterações continuam passando pelo Godot",
+  "Terrain3D edits saved earlier could not be read: {problem}": "Não foi possível ler as alterações do Terrain3D guardadas antes: {problem}"
 }

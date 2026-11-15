@@ -236,6 +236,14 @@ fn status_shape(en: &str) -> String {
     shape
 }
 
+/// What tells Godot a map was saved, see [`crate::live_link::Request::MapSaved`].
+struct SavedNotice {
+    path: PathBuf,
+    game_port: Option<u16>,
+    live: Option<td_doc::Map>,
+    users: Vec<(String, td_doc::Map)>,
+}
+
 /// When the live map was last handed to the link.
 struct LiveTick {
     revision: u64,
@@ -651,6 +659,8 @@ pub struct EditorState {
     /// The Gameplay entities pack in the open project, checked when it loads and after an install.
     pub gameplay_pack: crate::entity_pack::Status,
     live_link_status: Option<std::sync::mpsc::Receiver<Msg>>,
+    /// Saves whose build notice waits for the Terrain3D apply they started.
+    held_saves: Vec<SavedNotice>,
     /// The scan Godot runs for an installed Gameplay pack, until it is done, see [`crate::live_link::scan`].
     pub godot_scan: Option<u64>,
     /// Godot's answer to Run Project, see [`crate::commands::poll_play`].
@@ -685,6 +695,10 @@ pub struct EditorState {
     pub instance_bounds: std::collections::HashMap<NodeId, Aabb>,
     /// Godot overlay content of the open map, from its `.overlay.json` sidecar.
     pub overlay_ghosts: crate::overlays::OverlayGhosts,
+    pub terrain3d: crate::terrain3d::store::Terrain3DStore,
+    pub terrain3d_bridge: crate::terrain3d::bridge::Bridge,
+    /// Data folders whose untested Terrain3D version was already mentioned.
+    pub terrain3d_noted: std::collections::HashSet<PathBuf>,
     /// Brushes the open Sweep Faces dialog would create, drawn as lines.
     pub sweep_preview: Vec<td_geom::Brush>,
     /// Edges of what the open Shape Generator would create, drawn as lines.
@@ -923,6 +937,7 @@ impl EditorState {
             code_scans: crate::code_scan::Scans::default(),
             gameplay_pack: Default::default(),
             live_link_status: None,
+            held_saves: Vec::new(),
             godot_scan: None,
             play_reply: None,
             unopened_links: std::sync::mpsc::channel(),
@@ -944,6 +959,9 @@ impl EditorState {
             prefabs: Default::default(),
             instance_bounds: Default::default(),
             overlay_ghosts: Default::default(),
+            terrain3d: Default::default(),
+            terrain3d_bridge: Default::default(),
+            terrain3d_noted: Default::default(),
             sweep_preview: Vec::new(),
             shape_preview: Vec::new(),
             array_preview: Vec::new(),
@@ -1618,6 +1636,8 @@ impl EditorState {
             _ => self.set_status(msg!("Opened {path}", path = path.display())),
         }
 
+        self.restore_terrain3d();
+
         // Maps of the open project, while it is trusted, are the person's own. Any other map may come from anyone.
         let inside = |root: &PathBuf| path.starts_with(root) || crate::trust::real_path(path).starts_with(crate::trust::real_path(root));
         let own = !self.restricted() && self.game.project_root.as_ref().is_some_and(inside);
@@ -1669,20 +1689,44 @@ impl EditorState {
         }
 
         self.set_status(msg!("Saved {path}", path = path.display()));
+        self.send_terrain3d(&Default::default());
         self.live.sent.remove(path);
         if self.prefs.live_link {
             let game_port = self.prefs.hot_reload.then_some(self.prefs.hot_reload_port);
             let users = self.maps_using(path);
-            match &self.link {
-                Some(link) if self.link_state.connected => {
-                    let live = self.live_active().then(|| self.doc.map.clone());
-                    link.request(crate::live_link::Request::MapSaved { path: crate::live_link::godot_path(path), game_port, live, users })
-                }
-                _ => self.live_link_status = Some(crate::live_link::notify_saved_all(self.prefs.live_link_port, game_port, path)),
+            let live = self.live_active().then(|| self.doc.map.clone());
+            let notice = SavedNotice { path: path.to_path_buf(), game_port, live, users };
+            if self.terrain3d_bridge.applying() {
+                // Godot would build the map before the Terrain3D edits land and stand its scatter on the old ground.
+                self.held_saves.retain(|n| n.path != notice.path);
+                self.held_saves.push(notice);
+            } else {
+                self.tell_saved(notice);
             }
         }
 
         Ok(())
+    }
+
+    fn tell_saved(&mut self, notice: SavedNotice) {
+        let SavedNotice { path, game_port, live, users } = notice;
+        match &self.link {
+            Some(link) if self.link_state.connected => {
+                link.request(crate::live_link::Request::MapSaved { path: crate::live_link::godot_path(&path), game_port, live, users })
+            }
+            _ => self.live_link_status = Some(crate::live_link::notify_saved_all(self.prefs.live_link_port, game_port, &path)),
+        }
+    }
+
+    /// Has Godot build the maps saved while a Terrain3D apply ran, once it has answered.
+    pub(crate) fn tell_held_saves(&mut self) {
+        if self.terrain3d_bridge.applying() {
+            return;
+        }
+
+        for notice in std::mem::take(&mut self.held_saves) {
+            self.tell_saved(notice);
+        }
     }
 
     /// The maps in other tabs that Godot shows and that instance the file at `path`, directly or through other prefabs,
@@ -2070,6 +2114,7 @@ impl EditorState {
 
     /// Watches the project's game config from now on, waking `repaint` when it changes on disk.
     pub fn watch_game_config(&mut self, repaint: egui::Context) {
+        self.terrain3d = crate::terrain3d::store::Terrain3DStore::new(Some(repaint.clone()));
         self.repaint = Some(repaint);
         self.restart_game_watch();
     }

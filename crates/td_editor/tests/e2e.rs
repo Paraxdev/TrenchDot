@@ -8451,3 +8451,74 @@ fn override_entity_asks_to_close_a_godot_with_an_old_addon() {
     assert_eq!(sent_events(&sent, "project_settings").len(), 1);
     assert!(sent_events(&sent, "scan").is_empty());
 }
+
+/// A project whose map links the Terrain3D data folder `terrain` that holds one 64 vertex region at [0, 0], and a pending
+/// file for it TrenchDot left on an earlier save.
+fn terrain3d_project(name: &str) -> (PathBuf, PathBuf) {
+    use td_doc::terrain3d::Terrain3DLink;
+    use td_doc::{Map, NodeKind, format};
+    use td_formats::terrain3d_cache::{self, CachedRegion, Manifest, ManifestRegion, PendingRegion, RegionHash};
+    use td_geom::terrain3d::Region3D;
+
+    let dir = linked_project(name, json!([]));
+    let cache = dir.join("terrain").join(terrain3d_cache::DIR_NAME);
+    let mut base = Region3D::blank([0, 0], 64);
+    base.heights.iter_mut().enumerate().for_each(|(k, h)| *h = (k % 64) as f32 * 0.25 - (k / 64) as f32 * 0.5);
+    let hash = RegionHash([7; 32]);
+    terrain3d_cache::write_region(&cache, &CachedRegion { region: base.clone(), vertex_spacing: 2.0, hash }).unwrap();
+    let manifest = Manifest {
+        format: terrain3d_cache::FORMAT.into(),
+        version: terrain3d_cache::VERSION,
+        terrain3d: "1.1.0".into(),
+        godot: "4.7.2".into(),
+        data_version: 1.1,
+        region_size: 64,
+        vertex_spacing: 2.0,
+        material: Default::default(),
+        map_transform_identity: true,
+        editor_open: false,
+        regions: vec![ManifestRegion { loc: [0, 0], hash, height_range: [-31.5, 15.75] }],
+        dirty: Vec::new(),
+        textures: Vec::new(),
+        applied: Vec::new(),
+    };
+    terrain3d_cache::write_manifest(&cache, &manifest).unwrap();
+
+    let mut edited = base;
+    edited.heights[64 * 5 + 9] += 3.5;
+    terrain3d_cache::write_pending(&cache, &PendingRegion { region: edited, vertex_spacing: 2.0, base: hash, force: false, remove: false }).unwrap();
+
+    let mut map = Map::new();
+    let layer = map.default_layer();
+    map.insert(layer, NodeKind::Terrain3D(Terrain3DLink::new("res://terrain")));
+    let path = dir.join("maps/world.tdm");
+    format::save(&map, &path).unwrap();
+    (dir, path)
+}
+
+/// Edits an earlier save left pending come back when the map opens, and the next save sends them to the Godot editor
+/// with the data folder named, whose answer the status line reports.
+#[test]
+#[ignore]
+fn terrain3d_edits_pending_from_an_earlier_save_are_sent_on_save() {
+    let (dir, map) = terrain3d_project("terrain3d_send");
+    let answers = json!({ "terrain3d_apply": { "accepted": [[0, 0]], "refused": [], "problems": [] } });
+    let (godot, sent) = fake_godot_editor_with(&dir, &[&map], answers);
+    let ed = Editor::launch_with("terrain3d_send", &["--project", dir.to_str().unwrap()]);
+    ed.call("set_editor", json!({ "live_link_port": godot }));
+    wait_state(&ed, "the live link", |s| s["godot"]["project_open"] == true);
+    ed.call("map_file", json!({ "op": "open", "path": map }));
+    assert!(sent_events(&sent, "terrain3d_apply").is_empty());
+
+    ed.call("map_file", json!({ "op": "save", "path": map }));
+    let state = wait_state(&ed, "the apply reply", |s| s["status"].as_str().is_some_and(|t| t.contains("Terrain3D")));
+    assert!(state["status"].as_str().unwrap().contains("Godot applied 1 Terrain3D region(s)"), "{state}");
+    let events = sent_events(&sent, "terrain3d_apply");
+    assert_eq!(events.len(), 1);
+    assert!(events[0]["dir"].as_str().unwrap().ends_with("/terrain"), "{}", events[0]);
+    assert_eq!(events[0]["force"], false);
+    let cache = dir.join("terrain").join(td_formats::terrain3d_cache::DIR_NAME);
+    let pending = td_formats::terrain3d_cache::read_pending(&cache, [0, 0], 64).unwrap();
+    assert_eq!(pending.base, td_formats::terrain3d_cache::RegionHash([7; 32]));
+    assert_eq!(pending.region.heights[64 * 5 + 9] - pending.region.heights[64 * 5 + 8], 3.5 + 0.25);
+}

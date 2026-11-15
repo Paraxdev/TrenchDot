@@ -397,6 +397,10 @@ impl Bridge {
         self.running.is_some()
     }
 
+    pub fn applying(&self) -> bool {
+        self.running.is_some()
+    }
+
     pub fn send(&mut self, request: Apply) {
         if self.running.is_some() {
             self.queued = Some(request);
