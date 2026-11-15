@@ -14,6 +14,21 @@ use crate::state::EditorState;
 /// What the preview was built from, so it is only rebuilt when one of them changes.
 type PreviewKey = (Sweep, Vec<(NodeId, usize)>, Option<NodeId>, u64);
 
+/// What the picked faces and the curve were found from, so the brushes are only cloned and the map only walked when one
+/// of them changes.
+type PickKey = (Vec<(NodeId, usize)>, Option<NodeId>, bool, u64);
+
+struct Picked {
+    key: PickKey,
+    faces: Vec<(NodeId, SweepFace)>,
+    curve: Option<PointChain>,
+}
+
+#[cfg(test)]
+thread_local! {
+    static WALKS: std::cell::Cell<(usize, usize)> = const { std::cell::Cell::new((0, 0)) };
+}
+
 #[derive(Default)]
 pub struct SweepDialog {
     pub open: bool,
@@ -21,6 +36,7 @@ pub struct SweepDialog {
     /// First entity of the chain a curve runs through, None picks the chain that starts nearest the faces.
     pub chain: Option<NodeId>,
     preview: Option<(PreviewKey, Result<usize, SweepError>)>,
+    picked: Option<Picked>,
 }
 
 /// Point entities linked one to the next by target, like the path_corner chains the Path tool places.
@@ -35,6 +51,8 @@ pub struct PointChain {
 /// Every chain in the map. A chain is entities of one classname where each targets the next. It starts at one no
 /// other entity of its classname targets, and a closed loop starts at its lowest id.
 pub fn point_chains(map: &Map) -> Vec<PointChain> {
+    #[cfg(test)]
+    WALKS.with(|w| w.set((w.get().0 + 1, w.get().1)));
     let entities: BTreeMap<NodeId, &td_doc::Entity> = map.entities().collect();
     let mut by_name: BTreeMap<(&str, &str), NodeId> = BTreeMap::new();
     for (id, e) in &entities {
@@ -87,6 +105,8 @@ pub fn pick_chain(map: &Map, faces: &[SweepFace], chain: Option<NodeId>) -> Opti
 
 /// The selected brush faces, each with the brush it belongs to.
 pub fn selected_faces(map: &Map, selection: &Selection) -> Vec<(NodeId, SweepFace)> {
+    #[cfg(test)]
+    WALKS.with(|w| w.set((w.get().0, w.get().1 + 1)));
     selection
         .faces
         .iter()
@@ -131,6 +151,7 @@ fn error_text(e: SweepError) -> String {
 impl SweepDialog {
     pub fn show(&mut self, ctx: &egui::Context, state: &mut EditorState) {
         if !self.open {
+            self.picked = None;
             if self.preview.take().is_some() {
                 state.sweep_preview.clear();
             }
@@ -141,6 +162,7 @@ impl SweepDialog {
         let s = &mut self.sweep;
         let chain = &mut self.chain;
         let preview = &mut self.preview;
+        let cached = &mut self.picked;
         let mut open = self.open;
         let mut create = None;
         crate::widgets::window(en!("Sweep Faces")).open(&mut open).resizable(false).show(ctx, |ui| {
@@ -154,9 +176,19 @@ impl SweepDialog {
                     }
                 }
             });
-            let picked = selected_faces(&state.doc.map, &state.doc.selection);
-            let faces: Vec<SweepFace> = picked.iter().map(|(_, f)| f.clone()).collect();
-            let curve = (s.path == SweepPath::Curve).then(|| pick_chain(&state.doc.map, &faces, *chain)).flatten();
+            let pick_key = (state.doc.selection.faces.iter().copied().collect(), *chain, s.path == SweepPath::Curve, state.doc.revision);
+            if cached.as_ref().is_none_or(|p| p.key != pick_key) {
+                let faces = selected_faces(&state.doc.map, &state.doc.selection);
+                let curve = if pick_key.2 {
+                    let sweep_faces: Vec<SweepFace> = faces.iter().map(|(_, f)| f.clone()).collect();
+                    pick_chain(&state.doc.map, &sweep_faces, *chain)
+                } else {
+                    None
+                };
+                *cached = Some(Picked { key: pick_key, faces, curve });
+            }
+
+            let Some(Picked { faces: picked, curve, .. }) = cached.as_ref() else { return };
             egui::Grid::new("sweep_options").num_columns(2).show(ui, |ui| {
                 match s.path {
                     SweepPath::Arc => {
@@ -228,10 +260,11 @@ impl SweepDialog {
                 return;
             }
 
-            let points = curve.map(|c| c.points).unwrap_or_default();
+            let points = curve.as_ref().map(|c| c.points.as_slice()).unwrap_or_default();
             let key = (*s, state.doc.selection.faces.iter().copied().collect(), *chain, state.doc.revision);
             if preview.as_ref().is_none_or(|(k, _)| *k != key) {
-                let built = s.brushes_through(&faces, &points);
+                let faces: Vec<SweepFace> = picked.iter().map(|(_, f)| f.clone()).collect();
+                let built = s.brushes_through(&faces, points);
                 let count = built.as_ref().map(Vec::len).map_err(|e| *e);
                 state.sweep_preview = built.unwrap_or_default();
                 *preview = Some((key, count));
@@ -241,7 +274,7 @@ impl SweepDialog {
                 Some(Ok(n)) => {
                     ui.label(RichText::new(tr_n!(n, "{n} brush", "{n} brushes")).weak());
                     if ui.button(tr("Create")).clicked() {
-                        create = Some((picked, points));
+                        create = Some((picked.clone(), points.to_vec()));
                     }
                 }
                 Some(Err(e)) => _ = ui.colored_label(ui.visuals().warn_fg_color, error_text(e)),
@@ -297,5 +330,56 @@ mod tests {
         assert_eq!(chains[0].points[2].z, 300.0);
         assert_eq!((chains[1].start, chains[1].points.len()), (x, 2));
         assert!(chains.iter().all(|ch| ch.start != c));
+    }
+
+    fn frame(dialog: &mut SweepDialog, ctx: &egui::Context, state: &mut EditorState) -> (usize, usize) {
+        WALKS.with(|w| w.set((0, 0)));
+        ctx.begin_pass(egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))), ..Default::default() });
+        dialog.show(ctx, state);
+        ctx.end_pass().drop_without_applying_deltas();
+        WALKS.with(|w| w.get())
+    }
+
+    #[test]
+    fn faces_and_chains_are_only_looked_up_when_the_selection_or_the_document_changes() {
+        let mut state = EditorState::new(Default::default());
+        let layer = state.doc.map.default_layer();
+        let bounds = td_core::Aabb::new(DVec3::new(40.0, -24.0, 8.0), DVec3::new(168.0, 40.0, 72.0));
+        let brush = state.doc.map.insert(layer, NodeKind::Brush(td_geom::Brush::from_aabb(&bounds, "dev/grey").unwrap()));
+        let first = corner(&mut state.doc.map, "a", "b", DVec3::new(300.0, 10.0, 20.0));
+        corner(&mut state.doc.map, "b", "", DVec3::new(500.0, 90.0, 60.0));
+        let second = corner(&mut state.doc.map, "x", "y", DVec3::new(-300.0, 50.0, 10.0));
+        corner(&mut state.doc.map, "y", "", DVec3::new(-500.0, 70.0, 30.0));
+        state.doc.selection.faces.insert((brush, 0));
+
+        let ctx = egui::Context::default();
+        let mut dialog = SweepDialog { open: true, ..Default::default() };
+        dialog.sweep.path = SweepPath::Curve;
+        assert_eq!(frame(&mut dialog, &ctx, &mut state), (1, 1), "the first frame looks everything up");
+        let built = state.sweep_preview.len();
+        assert!(built > 0);
+        assert_eq!(dialog.picked.as_ref().and_then(|p| p.curve.as_ref()).map(|c| c.start), Some(first), "the chain nearest the faces");
+
+        assert_eq!(frame(&mut dialog, &ctx, &mut state), (0, 0), "a cache hit looks nothing up");
+        assert_eq!(frame(&mut dialog, &ctx, &mut state), (0, 0));
+        assert_eq!(state.sweep_preview.len(), built);
+
+        state.doc.selection.faces.insert((brush, 1));
+        assert_eq!(frame(&mut dialog, &ctx, &mut state), (1, 1), "another face is a miss");
+        assert_eq!(frame(&mut dialog, &ctx, &mut state), (0, 0));
+
+        dialog.chain = Some(second);
+        assert_eq!(frame(&mut dialog, &ctx, &mut state), (1, 1), "another chain is a miss");
+        assert_eq!(dialog.picked.as_ref().and_then(|p| p.curve.as_ref()).map(|c| c.start), Some(second));
+        assert_eq!(frame(&mut dialog, &ctx, &mut state), (0, 0));
+
+        state.doc.revision += 1;
+        assert_eq!(frame(&mut dialog, &ctx, &mut state), (1, 1), "an edit is a miss");
+        assert_eq!(frame(&mut dialog, &ctx, &mut state), (0, 0));
+
+        dialog.sweep.path = SweepPath::Straight;
+        assert_eq!(frame(&mut dialog, &ctx, &mut state), (0, 1), "a straight sweep looks up no chain");
+        assert!(dialog.picked.as_ref().is_some_and(|p| p.curve.is_none() && p.faces.len() == 2));
+        assert_eq!(frame(&mut dialog, &ctx, &mut state), (0, 0));
     }
 }
