@@ -49,6 +49,17 @@ live link without a window, see [Live link protocol](godot/live-link.md#testing-
 > `godot --headless --script` renders nothing (screenshots and rendered checks come out black) and doesn't
 > run project autoloads, only the script itself. Write tests against data and nodes, not pixels or autoload state.
 
+The Terrain3D showcase has a rendered check too. It needs a window, a GPU or xvfb with software Vulkan, and Terrain3D
+fetched with `python tools/fetch_terrain3d.py`. Run it once per renderer and check the exit code, it prints
+`0 failures` and exits 1 when the terrain, its textures, the scatter or the picture is missing. It skips itself
+without Terrain3D or without a window.
+
+```sh
+godot --path godot --rendering-method forward_plus --script res://tests/terrain3d_render.gd
+godot --path godot --rendering-method mobile --script res://tests/terrain3d_render.gd
+godot --path godot --rendering-method gl_compatibility --script res://tests/terrain3d_render.gd
+```
+
 To time map builds, run `godot --headless --path godot --script res://tests/bench_build.gd -- runs=5 threaded=1`.
 Don't use `build_showcase.gd` for that, it overwrites the committed showcase scenes.
 

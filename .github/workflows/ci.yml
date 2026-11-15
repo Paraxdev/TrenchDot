@@ -117,6 +117,13 @@ jobs:
       - name: Build showcase scenes
         run: |
           "$GODOT" --headless --path godot --script res://tests/build_showcase.gd
+      - name: Render the Terrain3D showcase
+        # Headless renders nothing, so this runs a window on xvfb with software Vulkan, and Mesa GL for Compatibility.
+        run: |
+          sudo apt-get update && sudo apt-get install -y $LINUX_DEPS libgl1 libgl1-mesa-dri libxinerama1
+          for method in forward_plus mobile gl_compatibility; do
+            timeout 400 xvfb-run -a -s "-screen 0 1280x720x24" "$GODOT" --path godot --rendering-method "$method" --script res://tests/terrain3d_render.gd
+          done
 
   stamp:
     name: Build stamp
