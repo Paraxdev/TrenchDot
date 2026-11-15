@@ -2,6 +2,7 @@
 
 pub mod bridge;
 pub mod dialog;
+pub mod inspector;
 pub mod link;
 pub mod overlay;
 pub mod store;

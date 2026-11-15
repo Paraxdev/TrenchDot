@@ -8667,6 +8667,30 @@ fn terrain3d_regions_are_drawn_with_their_textures() {
     assert!(back.0 > 500 && back.1 > 500, "shown again: {back:?}");
 }
 
+/// Selecting the Terrain3D node fills the Inspector with the textures of the folder, each with a swatch of its color.
+#[test]
+#[ignore]
+fn terrain3d_inspector_shows_the_texture_swatches_of_the_selected_node() {
+    let (ed, node) = launch_world("terrain3d_inspector", None);
+    let swatches = |label: &str| {
+        let window = shot(&ed, json!({ "target": "window" }), label);
+        window.pixels().filter(|p| p.0[..3].iter().zip([26u8, 51, 230]).all(|(a, b)| a.abs_diff(b) <= 3)).count()
+    };
+    ed.call("select", json!({ "ids": [] }));
+    let before = swatches("deselected");
+    ed.call("select", json!({ "ids": [node] }));
+    let deadline = Instant::now() + Duration::from_secs(8);
+    loop {
+        let after = swatches("selected");
+        if after >= before + 100 {
+            break;
+        }
+
+        assert!(Instant::now() < deadline, "the Inspector never drew the blue texture swatch, {before} blue pixels before and {after} after");
+        std::thread::sleep(Duration::from_millis(200));
+    }
+}
+
 /// A click selects the Terrain3D node where a tile is, an entity placed by x and z lands on the tile at its height, and a
 /// hidden node takes neither.
 #[test]

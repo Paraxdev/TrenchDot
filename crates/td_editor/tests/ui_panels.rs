@@ -3619,3 +3619,137 @@ fn outliner_hover_says_which_linked_copy_is_the_open_group() {
     harness.run_steps(60);
     harness.get_by_label(OPEN);
 }
+
+/// A project folder with a Terrain3D cache of one region and two textures, and a map that links it.
+fn terrain3d_fixture(name: &str) -> (Fixture, td_core::NodeId) {
+    use td_doc::terrain3d::Terrain3DLink;
+    use td_formats::terrain3d_cache::{self, CachedRegion, Manifest, ManifestRegion, ManifestTexture, RegionHash};
+    use td_geom::terrain3d::Region3D;
+
+    let dir = std::env::temp_dir().join(format!("td_t3d_inspector_{name}_{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let cache = dir.join("terrain").join(terrain3d_cache::DIR_NAME);
+    let hash = RegionHash([7; 32]);
+    terrain3d_cache::write_region(&cache, &CachedRegion { region: Region3D::blank([0, 0], 64), vertex_spacing: 0.25, hash }).unwrap();
+    let manifest = Manifest {
+        format: terrain3d_cache::FORMAT.into(),
+        version: terrain3d_cache::VERSION,
+        terrain3d: "1.1.0".into(),
+        godot: "4.7.2".into(),
+        data_version: 1.1,
+        region_size: 64,
+        vertex_spacing: 0.25,
+        material: Default::default(),
+        map_transform_identity: true,
+        editor_open: false,
+        regions: vec![ManifestRegion { loc: [0, 0], hash, height_range: [0.0, 0.0] }],
+        dirty: Vec::new(),
+        textures: vec![
+            ManifestTexture { id: 1, name: "rock".into(), albedo_color: [0.5; 4], thumbnail: String::new() },
+            ManifestTexture { id: 4, name: String::new(), albedo_color: [0.1, 0.2, 0.9, 1.0], thumbnail: String::new() },
+        ],
+        applied: Vec::new(),
+    };
+    terrain3d_cache::write_manifest(&cache, &manifest).unwrap();
+
+    let mut f = Fixture::new();
+    f.state.game.project_root = Some(dir);
+    let layer = f.state.doc.map.default_layer();
+    let id = f.state.doc.edit("link", |m, _| m.insert(layer, NodeKind::Terrain3D(Terrain3DLink::new("res://terrain"))));
+    f.state.doc.selection.select_node(id);
+    (f, id)
+}
+
+fn edit_at(loc: [i32; 2], base: Option<[u8; 32]>) -> td_doc::terrain3d::RegionEdit {
+    let mut region = td_geom::terrain3d::Region3D::blank(loc, 64);
+    region.heights[5] = 2.5;
+    td_doc::terrain3d::RegionEdit::new(std::sync::Arc::new(region), base)
+}
+
+#[test]
+fn the_terrain3d_inspector_lists_textures_and_settles_a_conflict_in_one_undo_step() {
+    let (mut f, id) = terrain3d_fixture("conflict");
+    f.state.doc.edit("edits", |m, _| {
+        let link = m.terrain3d_mut(id).unwrap();
+        link.edits.insert([0, 0], edit_at([0, 0], Some([8; 32])));
+        link.edits.insert([-2, 3], edit_at([-2, 3], None));
+    });
+    let steps = f.state.doc.history.undo_labels().count();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(420.0, 700.0))
+        .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+    harness.run();
+    harness.get_by_label("Terrain3D");
+    harness.get_by_label("res://terrain");
+    harness.get_by_label("1 rock");
+    harness.get_by_label("Texture 4");
+    harness.get_by_label("2 regions changed here, not in Godot yet");
+    harness.get_by_label("Region 0, 0 changed in Godot too");
+    assert!(harness.query_by_label("Region -2, 3 changed in Godot too").is_none(), "an added region has nothing to conflict with");
+
+    harness.get_by_label("Send to Godot").click();
+    harness.run();
+    assert!(matches!(harness.state().actions.as_slice(), [Action::SendTerrain3D]));
+
+    harness.get_by_label("Use Godot's").click();
+    harness.run();
+    let state = &harness.state().state;
+    let link = state.doc.map.terrain3d(id).unwrap();
+    assert_eq!(link.edits.keys().copied().collect::<Vec<_>>(), [[-2, 3]]);
+    assert_eq!(state.doc.history.undo_labels().count(), steps + 1);
+    assert_eq!(state.doc.history.undo_labels().next(), Some("Use Godot's Terrain3D region"));
+    harness.get_by_label("1 region changed here, not in Godot yet");
+    assert!(harness.query_by_label("Use Godot's").is_none());
+}
+
+#[test]
+fn the_terrain3d_inspector_says_why_godot_is_out_of_reach() {
+    let (f, _) = terrain3d_fixture("status");
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(420.0, 500.0))
+        .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+    harness.run();
+    harness.get_by_label("Terrain3D is not installed in this project");
+    harness.get_by_label("Edit Regions");
+
+    let root = harness.state().state.game.project_root.clone().unwrap();
+    std::fs::create_dir_all(root.join("addons").join("terrain_3d")).unwrap();
+    harness.state_mut().state.godot.exe = None;
+    harness.run();
+    harness.get_by_label("Godot: not reached, the project is in Restricted Mode. Click Restricted Mode in the status bar to trust it");
+    harness.state_mut().state.trust_project(&root, false);
+    harness.run();
+    harness.get_by_label("No Godot found, edits wait in the data folder");
+    harness.state_mut().state.godot.exe = Some(root.join("godot.exe"));
+    harness.run();
+    harness.get_by_label("Godot: not running, a save applies edits with a headless Godot");
+}
+
+#[test]
+fn the_terrain3d_inspector_fits_a_narrow_panel_in_every_language() {
+    use egui::accesskit::Role;
+    use egui_kittest::kittest::NodeT;
+    use td_editor::i18n::{Lang, scope};
+    let width = 340.0;
+    for lang in [Lang::En, Lang::De, Lang::Ru, Lang::Ja] {
+        let _lang = scope(lang);
+        let (mut f, id) = terrain3d_fixture(&format!("narrow_{lang:?}"));
+        f.state.doc.edit("edits", |m, _| {
+            let link = m.terrain3d_mut(id).unwrap();
+            link.edits.insert([0, 0], edit_at([0, 0], Some([8; 32])));
+        });
+        let mut harness = Harness::builder()
+            .with_size(egui::vec2(width, 700.0))
+            .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+        harness.run();
+        harness.get_by_label(td_editor::i18n::tr("Edit Regions"));
+        harness.get_by_label(td_editor::i18n::tr("Use Godot's"));
+        let past: Vec<String> = harness
+            .query_all(egui_kittest::kittest::By::new())
+            .filter(|n| matches!(n.accesskit_node().role(), Role::Button | Role::Label | Role::SpinButton | Role::TextInput))
+            .filter(|n| n.rect().max.x > width + 0.5)
+            .map(|n| format!("{:?} {:?} ends at {}", n.accesskit_node().role(), n.accesskit_node().label(), n.rect().max.x))
+            .collect();
+        assert!(past.is_empty(), "{lang:?} draws past the {width} wide panel: {past:#?}");
+    }
+}
