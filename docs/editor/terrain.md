@@ -14,6 +14,10 @@ Inspector ([Changing the size](#changing-the-size)) or by dragging its edge in a
 Since the ground is a heightfield, it cannot fold over itself, see [Caves and overhangs](caves-overhangs.md) for what to
 do instead.
 
+> [!TIP]
+> For a world much bigger than one grid, link a Terrain3D landscape instead, the Sculpt tool works on it too. See
+> [Terrain3D](../godot/terrain3d.md).
+
 ## Creating a terrain
 
 1. Open the dialog

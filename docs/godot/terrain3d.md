@@ -1,0 +1,273 @@
+# Terrain3D
+
+A [TrenchDot terrain](../editor/terrain.md) is one grid of heights, which is plenty for an island or a level. When the
+world is a valley a kilometer wide, or a map that streams in square after square, you want
+[Terrain3D](https://github.com/TokisanGames/Terrain3D) instead. It is a free Godot add-on that stores the land in
+region files, draws it with level of detail and has its own sculpting tools. TrenchDot can link a Terrain3D data folder,
+show the ground in every view, sculpt and paint it with the tools you already know, and stand scatter on it.
+
+![The Terrain3D valley showcase in the 3D view, ridges, foothills and a river over six regions](../assets/terrain3d/valley.jpg)
+
+The pieces work like this. Godot is the only program that reads and writes Terrain3D's own files, through Terrain3D's
+own API. Whenever Terrain3D changes, the TrenchDot addon copies what it holds into a cache next to the files, and
+TrenchDot reads that cache. When you edit in TrenchDot, the edit waits in the same folder until Godot applies it. So
+Terrain3D stays in charge of its data, and you can sculpt in either program.
+
+## Installing Terrain3D
+
+TrenchDot does not ship Terrain3D. Install it into your Godot project the way its own documentation says, from the
+AssetLib tab in Godot or from the release zip, then turn it on under *Project > Project Settings > Plugins*.
+
+It was tested with Terrain3D 1.1.0 on Godot 4.7, and data folders saved by 1.0.2 load too. TrenchDot says so in the
+status bar for a version it has not been tested with and keeps working, because every file goes through Terrain3D.
+
+> [!NOTE]
+> The map builds without Terrain3D installed, it just has no ground until you install it. TrenchDot says so in the
+> Inspector and in the build report, and your edits wait in the data folder.
+
+## Linking a data folder
+
+Godot creates the region files and reads the folder for TrenchDot, so check two things first. The project has to be
+trusted: when *Restricted Mode* shows in yellow at the right of the status bar, click it and trust the project, see
+[Project trust](running-godot.md#project-trust). TrenchDot also has to find Godot: when it does not, set
+*File > Preferences… > Godot executable*, see [Finding the executable](running-godot.md#finding-the-executable).
+Without both the link still works, but no ground shows and your edits wait in the data folder until Godot opens the
+scene.
+
+1. Open the dialog
+
+    Go to *Terrain > Link Terrain3D…* in the menu bar. You need a Godot project open in TrenchDot first, since the
+    data lives in one.
+
+2. Pick a folder
+
+    **Data Folder** lists every folder of your project that holds Terrain3D region files, and **New Folder**.
+    For a new folder you type the **Folder Name**, which is created under `res://`, pick the **Region Size**
+    (64 to 2048 vertices), the **Vertex Spacing** (meters between vertices, 1 by default) and how many **Regions** it
+    starts with, centered on the origin. The line under them shows the size in meters.
+
+    ![The Link Terrain3D dialog with New Folder chosen, the folder name, region size 256, spacing 1.00 m and 2 x 2 regions](../assets/terrain3d/link-dialog.png)
+
+3. Click **Link**
+
+    A node called **Terrain3D** appears in the current layer and the dialog closes. Saving the map has Godot build it,
+    and a new folder gets its blank region files then. A folder that already holds regions shows no ground until Godot
+    has read it, see [Without the Godot editor open](#without-the-godot-editor-open).
+
+A map has at most one Terrain3D node. It stays where it is: you cannot move, rotate, duplicate or group it, or put it
+in a prefab. Deleting it unlinks the folder and never deletes region files.
+
+> [!NOTE]
+> Godot builds a map only from a scene with a `FuncGodotMap` node set to that map. A project that holds just
+> `maps/hills.tdm` builds nothing, so no ground and no `TrenchDotTerrain3D` node appear, and the **Terrain3D** dock in
+> Godot has nothing to show. Add the map node as in [See it in Godot](../getting-started.md#6-see-it-in-godot), see
+> also [The FuncGodotMap node](building.md#the-funcgodotmap-node), then save the map again. Your edits reach the
+> region files without any scene when TrenchDot finds the Godot executable, from the `GODOT` environment variable or
+> *File > Preferences… > Godot executable*, since it then applies them with a headless Godot.
+
+## Adding textures
+
+A new folder has no textures. Godot draws the ground as a checkerboard, the Inspector says "No textures" and
+**Paint Layer** has nothing to pick. Terrain3D keeps its textures as texture assets, which you add in Godot:
+
+1. Select the Terrain3D node
+
+    Open the scene with the `FuncGodotMap` of this map in Godot, add one first if no scene has it, see the note under
+    [Linking a data folder](#linking-a-data-folder). Save the map in TrenchDot once so Godot builds it, then select the
+    `Terrain3D` node under `TrenchDotTerrain3D`.
+
+2. Add the texture assets
+
+    In the **Terrain3D** dock at the bottom of Godot, click the empty entry with the plus in the texture list, then set
+    its albedo and normal textures in the Inspector. Each asset gets the next id, starting at 0. Terrain3D's
+    [texture guide](https://terrain3d.readthedocs.io/en/stable/docs/texture_prep.html) says how to prepare the images.
+
+3. Save the assets to a file
+
+    In the Inspector of the `Terrain3D` node, open the menu next to **Assets** and pick *Save As…*, for example
+    `res://terrain3d_assets.tres`. Otherwise every build logs "free_editor_textures requires Assets be saved to a
+    file".
+
+4. Save the scene
+
+    Press Ctrl+S in Godot. The textures show in the TrenchDot Inspector and in the **Paint Layer** menu after this save
+    or after the next build of the map. Only opening the scene does not update them.
+
+## What Godot builds
+
+The next build of the map, from a save in TrenchDot or from *Build* on the `FuncGodotMap`, creates this:
+
+```
+FuncGodotMap
+    TrenchDotTerrain3D
+        Terrain3D
+```
+
+The `TrenchDotTerrain3D` [slot node](../GLOSSARY.md#slot-node) holds the `Terrain3D` node, whose *Data Directory* is your
+folder. Rebuilds, *Clear Map*, live mode, the chunk streamer and hot reload never free or move it, the same as an
+[overlay](overlays.md). If you already have a Terrain3D in a scene, add a `TrenchDotTerrain3D` as a child of the map by
+hand and drag your Terrain3D under it, the build then keeps yours.
+
+Terrain3D always sits at the world origin and ignores its parent's transform, so keep the map node at the origin. The
+build report warns when it is not.
+
+In the Godot editor the slot keeps the cache current: about half a second after a Terrain3D stroke, when you save
+the scene and after a build. You sculpt with Terrain3D's own tools as usual and the TrenchDot views follow, even before
+you save the Godot scene. Regions you changed on disk, say through version control, are reloaded too, unless they hold
+edits you have not saved.
+
+## Seeing and shaping the ground
+
+The 3D view draws the ground tinted by the colors of the Terrain3D textures, with holes cut out. The 2D views draw
+the region borders as thin lines with the region number in the corner, once a region is big enough on screen.
+
+Click the **Terrain3D** node in the Outliner, or click the ground, to open its Inspector.
+
+![The Terrain3D Inspector with the data folder, the Godot status, the Regions block, the texture list and a conflict](../assets/terrain3d/inspector.png)
+
+| In the Inspector | What it does |
+| --- | --- |
+| **Data Folder** and the line under it | The linked folder, and whether Godot is connected, not running, not found, or Terrain3D is not installed |
+| **Region Size** and **Vertex Spacing** | Rewrite every region file. They are greyed out unless the Godot editor is open with this scene, since Terrain3D rewrites the files and the scene |
+| **North (-Z)**, **South (+Z)**, **West (-X)**, **East (+X)** | How many regions to add (positive) or remove (negative) on each side. The new outline shows in every view, **Apply** makes it one undo step and **Reset** clears the draft |
+| **Edit Regions** | Click squares of the Top view instead: an empty square adds a region, a filled one removes it |
+| **Textures** | The texture assets of Terrain3D with their ids, the ids you paint with |
+
+New regions start blank, at height 0. Regions can be left out, so an L shaped world stays L shaped, and Terrain3D holds
+at most 32 regions per side.
+
+![The Top view with Edit Regions on, the empty square above the middle region outlined with a dashed line](../assets/terrain3d/edit-regions.png)
+
+With the node selected, the **Sculpt** tool (G) works on it with the same brush ring, radius and strength as on a TrenchDot
+terrain. Raise, Lower, Smooth, Flatten, Noise, Terrace, Hole and Unhole work, and strokes cross region borders without a
+seam. **Paint Layer** sets a texture id instead of one of four layers. Paint Alpha and Erase Alpha are for
+displacements and leave Terrain3D as it is. The mode menu scrolls, Paint Layer, Hole and Unhole sit at its bottom.
+
+> [!TIP]
+> Radius and strength are in map units, 32 to a meter. The defaults, radius 48 and strength 4, make a brush 1.5 m wide
+> that raises 1 m a second, which hardly shows on a landscape hundreds of meters wide. For hills try a radius of 1000 to
+> 3000 and a strength of 50 or more, and resize the brush with Ctrl+wheel as you go. Strength stops at 256, a larger
+> value you type becomes 256.
+>
+> The Top view starts zoomed in close, at zoom 0.50 in its corner label. Scroll out to about zoom 0.02 to see a 512 m
+> terrain whole.
+
+![The Sculpt tool in Paint Layer mode with the texture menu open, listing 0 Grass, 1 Cliff, 2 Dirt and 3 Sand](../assets/terrain3d/texture-picker.png)
+
+| Button | What a dab does |
+| --- | --- |
+| **Paint** | Replaces the base texture under the brush with the chosen id |
+| **Spray** | Sets the overlay texture to the chosen id and raises how much of it shows, a little with every dab |
+
+TrenchDot changes only the part of Terrain3D's data a stroke is about. The texture scale, rotation, the navigation and
+autoshader bits and the color map stay as they were.
+
+> [!NOTE]
+> The 3D view shows at most four textures per region, the ones used most there, so it can look simpler than Godot does.
+> The data keeps all of them.
+
+## Sending your edits to Godot
+
+Your edits live in the TrenchDot map until you send them. The Inspector says "3 regions changed here, not in Godot yet"
+and a save (Ctrl+S) sends them. *Terrain > Send Terrain3D to Godot* or the **Send to Godot** button does it without
+saving. What happens next depends on Godot:
+
+| Godot is | What happens |
+| --- | --- |
+| Open with this scene and the live link on | The edit lands in the open scene as one undo step called "TrenchDot terrain edit" and is saved to the region files at once |
+| Not running, but found | TrenchDot runs it headless for a few seconds to apply the edit. Set the **Godot executable** in Preferences if it is not found |
+| Not available | The edit waits in the data folder and Godot applies it the next time it opens the scene |
+
+A project in Restricted Mode is never handed to Godot. The edits wait in the data folder, and the Inspector says
+"Godot: not reached". Click **Restricted Mode** in the status bar to trust the project, then save again.
+
+An undo in TrenchDot after a send makes the region differ again, and the next save sends it back. An undo in Godot
+undoes the whole send.
+
+Region files that change on disk while Godot is closed, after a git pull for example, show in TrenchDot only once
+Godot opens the scene again and the next send reports those regions as changed in Godot.
+
+### When both sides changed a region
+
+Each region is the unit of conflict. Godot applies your edit only if the region is the one you started from and has no
+unsaved edits in the Godot editor. Otherwise it leaves that region alone and still applies the rest.
+
+When the Godot editor holds unsaved edits in the region, the Inspector says "Godot has unsaved changes in region 0, 0,
+save the scene there and send again". Save the scene in Godot, then click **Send Again** under that line.
+
+When Godot saved a different region than the one you started from, the Inspector shows a line like "Region 0, 0
+changed in Godot too", with the region outlined in the warning color in every view. Two buttons settle it:
+
+| Button | What it does |
+| --- | --- |
+| **Use Godot's** | Drops your edit of that region and takes the one from Godot, as one undo step |
+| **Keep Mine** | Sends your edit anyway, replacing what Godot has |
+
+So unsaved work in Godot is never overwritten behind your back, and edits in different regions never conflict.
+
+## Scatter on Terrain3D
+
+Pick the Terrain3D node as the only target of a [scatter set](../editor/scatter.md#targets). The Scatter panel then shows
+**Follows Terrain3D**. Instances land on the surface Godot samples, and when the ground changes, in TrenchDot or in
+Godot, they follow it. Godot puts each instance at Terrain3D's own height, so props never float or sink. An instance over
+a missing region or a hole keeps the height it had.
+
+## Without the Godot editor open
+
+TrenchDot needs Godot to read a folder it has never seen, since only Godot understands the region files. Until then
+the Inspector says "Godot has not exported this folder yet" and no ground shows. Click **Export from Godot** under that
+line: the open Godot editor, or a headless Godot when none is open, reads the folder, and the ground appears after
+about 10 seconds. You can run the same step by hand:
+
+```sh
+godot --headless --path path/to/project --script res://addons/func_godot/src/trenchdot/terrain3d_cli.gd -- export res://terrain3d_data
+```
+
+Use `apply` instead of `export` to apply the edits waiting in the folder. It exits with 0 on success and prints a JSON
+result on its last line. If it says the class is missing, open the project in Godot once so Terrain3D registers.
+
+The cache is `.trenchdot/` inside the data folder, see [Terrain3D cache](../format/terrain3d-cache.md). It is safe to
+delete, **Export from Godot** writes it again, and the terrain3d MCP tool does that on its own. Add it to your
+`.gitignore` if you do not want it in version control.
+
+A headless Godot reads the region files with a bare Terrain3D node, not the one in your scene, so it sees no textures.
+After a headless export the Inspector says "No textures" and the 3D view stays grey until the Godot editor saves the
+scene or builds the map once, which writes the texture list from the *Assets* of your Terrain3D.
+
+## Good to know
+
+| | |
+| --- | --- |
+| Renderers | The showcase scene is checked in Forward+, Mobile and Compatibility |
+| Maps | A map with a Terrain3D node is saved as [version 2](../format/nodes.md#terrain3d), so older editors and addons ask for an update instead of dropping the link |
+| Scale | Up to 32 x 32 regions of 2048 vertices. Far regions are drawn at a coarser level of detail in TrenchDot |
+| Running the game | Terrain3D picks its level of detail around the active camera. A scene without a `Camera3D` logs "Cannot find clipmap target or active camera. LODs won't be updated" |
+| Scatter models | A Godot that never imported the model files, such as a headless build of a fresh checkout, logs "scatter model res://... not found" and places nothing. Open the project in Godot once, or run `godot --headless --path path/to/project --import` |
+| Navigation | The navigation bake of TrenchDot reads collision from the map. Use Terrain3D's own navigation baking for the ground |
+| Not shown | The instancer meshes of Terrain3D are not drawn in TrenchDot, and their heights follow the ground when it changes |
+| Not painted | Color, roughness, navigation and autoshader are left as they are |
+| Units | Terrain3D works in meters, TrenchDot converts with the units per meter of your game, 32 by default |
+
+<div class="td-mcp" markdown>
+
+## MCP
+
+The `terrain3d` tool does everything the Inspector does. `op: "link"` takes a `data_directory` and, for a new folder,
+`create: {region_size, vertex_spacing, columns, rows}`. `info` and `probe` read the folder and the surface, `regions`
+and `grow` add and remove regions (`grow` takes `dry_run`), `send` and `resolve` talk to Godot and `settings` changes
+the region size and spacing. A script cannot call `send`, `settings` or `resolve` with `take: "mine"`, a save sends the
+edits anyway.
+
+`terrain_edit` and `scatter` accept the id of the Terrain3D node. Its `paint_texture` op takes a `texture` id and
+`mode: "base"` or `"spray"`. The showcase [script](https://github.com/Paraxdev/TrenchDot/blob/main/examples/mcp/terrain3d_valley.json)
+builds the valley from the picture above this way, see [MCP scripts](../mcp-scripts.md). Its description lists what
+the project needs: the showcase materials, the glTF nature pack for its trees, and texture assets 0 to 3 for the paint
+to show.
+
+</div>
+
+## See also
+
+* [Terrain](../editor/terrain.md) for TrenchDot's own terrain and the Sculpt tool.
+* [Scatter](../editor/scatter.md) for the sets that follow the ground.
+* [Overlays](overlays.md) for the other node that survives every build.

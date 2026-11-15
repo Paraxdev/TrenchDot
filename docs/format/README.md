@@ -31,7 +31,7 @@ Want to see working code? The reference implementation is
 | Key | Type | Written | Meaning |
 | --- | --- | --- | --- |
 | `format` | string | always | Always `"trenchdot-map"`. It tells a map apart from other JSON |
-| `version` | integer | always | Map version, currently 1 |
+| `version` | integer | always | Map version, `2` when the map has a [Terrain3D node](nodes.md#terrain3d) and `1` otherwise |
 | `properties` | object of string to string | when not empty | Worldspawn keys, sorted by name |
 | `editor` | object | when not all default | Editor view state. It is never exported to Godot |
 | `textures` | object | when any texture has settings | [Texture settings](geometry.md#texture-settings) by material name |

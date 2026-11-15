@@ -5,7 +5,7 @@ A map's content is a tree of nodes. Every node has the same outer shape, with it
 | Key | Type | Written | Meaning |
 | --- | --- | --- | --- |
 | `id` | integer | always | Unique in the map |
-| `type` | string | always | `layer`, `group`, `entity`, `brush`, `mesh`, `terrain`, `scatter` or `instance` |
+| `type` | string | always | `layer`, `group`, `entity`, `brush`, `mesh`, `terrain`, `terrain3d`, `scatter` or `instance` |
 | type fields | | | The keys of that node type, see below, [Geometry](geometry.md) and [Terrain and scatter](terrain-scatter.md) |
 | `label` | string | when set | Name given with *Rename*, see below |
 | `graph` | array of 2 numbers | when set | Where an entity's node sits in the [Logic graph](../gameplay/logic-graph.md) |
@@ -43,6 +43,7 @@ one prefab never share ids, however deep they're nested.
 | Layer | Top level only |
 | Group | Layer or group |
 | Brush, mesh, terrain, scatter set, point entity, instance | Layer or group |
+| Terrain3D | Layer only, and the map has at most one |
 | Brush or mesh of a brush entity | That entity |
 
 An entity with children is a brush entity, a door made of brushes for example. Brushes and meshes outside any entity
@@ -130,3 +131,18 @@ With a fixup of `p1`, `door` becomes `p1-door` in `targetname`, `target`, `desti
 the FGD declares as `target_source` or `target_destination`, and every output `target`. Values starting with `!`, `@`
 or `/` are left alone. Nested fixups add up from the outside in, so `b` inside `a` gives `a-b-door`, and *Explode
 Instance* in the editor gives the same names.
+
+## Terrain3D
+
+The link to a [Terrain3D](../godot/terrain3d.md) data folder in the Godot project. It has no children and holds no
+heights, the ground lives in the folder's region files.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `data_directory` | string | required | The folder as a `res://` path, for example `res://terrain3d_data` |
+
+A map with this node is written as version 2, every other map stays version 1. An editor or addon that only knows
+version 1 refuses such a map and asks for an update, instead of dropping the link on its next save. The editor reports
+a second Terrain3D node, one inside a group or an empty `data_directory` as an error, and still loads the file.
+
+Godot builds the node into a `TrenchDotTerrain3D` slot node, see [Terrain3D](../godot/terrain3d.md#what-godot-builds).

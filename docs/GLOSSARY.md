@@ -198,8 +198,17 @@ The box you drag on empty space in a 2D view with the Hammer preset. It waits fo
 ## signal
 Godot's name for an event a node announces, such as a button being pressed. Every entity output is a signal, and wiring an output connects that signal to an input method on the target.
 
+## slot node
+The `TrenchDotTerrain3D` node Godot builds as the first child of a map to hold its Terrain3D node. Builds, live mode and hot reload leave it alone, so the terrain keeps its state.
+
 ## targetname
 The name you give an entity so other entities can reach it, like main_door. Outputs, prefab fixups and keys such as fixture find entities by it.
+
+## Terrain3D
+A free Godot add-on, a GDExtension, for big landscapes: it draws them with level of detail, stores them in region files and has its own sculpting and painting tools. TrenchDot can link a Terrain3D data folder and edit it, see the Terrain3D page.
+
+## Terrain3D region
+One square tile of a Terrain3D landscape, stored in its own file. Every region has the same number of vertices on a side, 256 by default, and sits at a whole number position on a grid, like (-1, 0). Regions can be left out, so a landscape does not have to be a rectangle.
 
 ## texel
 One pixel of a texture as it lands on a surface. By default one texel covers one map unit, and the texel density, how many texels fit on an area, decides how sharp a texture looks. A light map has texels too, and its texel size says how many map units one covers.
@@ -233,6 +242,9 @@ A corner point of a shape. A terrain has one at every crossing of its grid, each
 
 ## VisGroup
 A named set of objects in Hammer that you show or hide together. TrenchDot's layers do the same job, but you fill them yourself.
+
+## vertex spacing
+The distance in meters between two neighboring vertices of a Terrain3D landscape. At 1 a region of 256 vertices covers 256 meters, at 2 it covers 512.
 
 ## worldspawn
 The map's root entity, which holds the world brushes. Its keys hold settings for the whole map, such as the sky, fog, sun and streaming, and the Inspector shows it when nothing is selected.

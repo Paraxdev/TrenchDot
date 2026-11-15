@@ -28,7 +28,7 @@ does.
 | Event | Fields | Reply |
 | --- | --- | --- |
 | `hello` | | `project` and `godot` (version), a quick check that the link answers |
-| `status` | | `project`, `godot` (version), `pid`, `scene` (the scene tab Godot shows) and `maps: [{path, epoch}]` for it |
+| `status` | | `project`, `godot` (version), `pid`, `scene` (the scene tab Godot shows) and `maps: [{path, epoch}]` for it, and `terrain3d: [{dir, version, dirty}]` for each Terrain3D of the scene, with its unsaved regions |
 | `map_saved` | `path` | `rebuilt`, the number of map nodes rebuilt from the file, `scene`, `waiting`, and the build's `missing_classes`, `settings` and `warnings` |
 | `build` | `path`, `text` | Like `map_saved`, built from `text` instead of the file |
 | `focus` | | Brings the Godot window to the front |
@@ -41,6 +41,9 @@ does.
 | `live_end` | `path`, `revert` | With `revert`, rebuilds from the saved file |
 | `inspect` | `path`, `ids` | `nodes` with name, class, child count and position per map node id, plus `live` and `pending` |
 | `capture` | `path`, `camera`, `width`, `height`, `text` | `png` (base64), `width`, `height` and `warnings`, the errors and warnings logged while building |
+| `terrain3d_apply` | `dir`, `force` | `accepted` and `refused` regions of the edits TrenchDot left pending in the Terrain3D data folder `dir`, applied to the open scene as one undo step. `force` also applies regions that changed in Godot |
+| `terrain3d_export` | `dir`, `regions` | Writes the [Terrain3D cache](../format/terrain3d-cache.md) of `dir`, only the listed regions with `regions` |
+| `terrain3d_settings` | `dir`, `region_size`, `vertex_spacing` | Changes the region size and vertex spacing of the Terrain3D that shows `dir`, and exports it again |
 | `walkable` | `path`, `agent`, `text` | `vertices` (flat x, y, z list), `polygons`, `islands` (polygon indices, largest first), `units_per_meter`, `agent` and `msec` |
 
 `capture` renders the world of the first map node using `path`. `camera` holds `position` and `forward` in map units

@@ -63,6 +63,9 @@ grows on boulders.
 
 ![The Targets section of the Scatter panel with the terrain as its target, the eyedropper at the top right](../assets/scatter/targets.png)
 
+A [Terrain3D](../godot/terrain3d.md#scatter-on-terrain3d) node works as a target too. With it as the only target, the
+set follows the Terrain3D ground when that changes.
+
 Ticking **Follow cursor** ignores the targets and paints on any surface or scattered prop under the brush.
 
 ## Painting
