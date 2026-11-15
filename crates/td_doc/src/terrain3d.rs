@@ -64,8 +64,8 @@ pub struct Settled {
     pub base_hash: Option<RegionHash>,
     /// The region before the edit that was sent, when known.
     pub before: Option<Arc<Region3D>>,
-    /// The hash Godot exported after applying it.
-    pub now: RegionHash,
+    /// The hash Godot exported after applying it, None once a removal took the region away.
+    pub now: Option<RegionHash>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -270,7 +270,7 @@ impl Terrain3DLink {
                 continue;
             }
 
-            let base_hash = self.removed.remove(&loc);
+            let base_hash = self.removed.remove(&loc).filter(|_| source.hash(loc).is_some());
             self.edits.insert(loc, RegionEdit::new(Arc::new(Region3D::blank(loc, size)), base_hash));
             added.push(loc);
         }
@@ -408,37 +408,41 @@ impl Terrain3DLink {
     /// has, and a state from before the first edit gets the old region back as an edit, so an undo past the send still
     /// sends it back on the next save. Returns whether the region reads differently now.
     pub fn settle(&mut self, s: &Settled) -> bool {
-        let now = Some(s.now);
         let sent = |r: &Arc<Region3D>| s.region.as_ref().is_some_and(|sent| Arc::ptr_eq(sent, r) || same_bits(sent, r));
         if let Some(edit) = self.edits.get_mut(&s.loc) {
             if sent(&edit.region) {
-                edit.base_hash = now;
+                edit.base_hash = s.now;
                 edit.base = Some(edit.region.clone());
-            } else if edit.base_hash == s.base_hash && s.region.is_some() {
-                edit.base_hash = now;
+            } else if edit.base_hash == s.base_hash {
+                edit.base_hash = s.now;
                 edit.base = s.region.clone();
             }
 
             return false;
         }
 
-        if let Some(hash) = self.removed.get_mut(&s.loc) {
-            if Some(*hash) == s.base_hash && s.region.is_some() {
-                *hash = s.now;
+        if let Some(&hash) = self.removed.get(&s.loc) {
+            if Some(hash) == s.base_hash {
+                match s.now {
+                    Some(now) => self.removed.insert(s.loc, now),
+                    None => self.removed.remove(&s.loc),
+                };
             }
 
             return false;
         }
 
-        let Some(region) = &s.region else { return false };
-        match (s.base_hash, &s.before) {
-            (None, _) => {
-                self.removed.insert(s.loc, s.now);
+        match (&s.region, s.base_hash, &s.before, s.now) {
+            (Some(_), None, _, Some(now)) => {
+                self.removed.insert(s.loc, now);
             }
-            (Some(_), Some(before)) => {
+            (Some(region), Some(_), Some(before), now) => {
                 self.edits.insert(s.loc, RegionEdit { region: before.clone(), base_hash: now, base: Some(region.clone()) });
             }
-            (Some(_), None) => return false,
+            (None, Some(_), Some(before), None) => {
+                self.edits.insert(s.loc, RegionEdit::new(before.clone(), None));
+            }
+            _ => return false,
         }
 
         true
@@ -1311,10 +1315,14 @@ mod edit_tests {
     fn apply_in_godot(link: &Terrain3DLink, source: &mut Fake, salt: u8) -> Vec<Settled> {
         let mut out = Vec::new();
         for change in link.changed_regions(source) {
-            let region = change.region.clone().unwrap();
+            let Some(region) = change.region.clone() else {
+                let before = source.regions.remove(&change.loc).map(|r| r.0);
+                out.push(Settled { loc: change.loc, region: None, base_hash: change.base_hash, before, now: None });
+                continue;
+            };
             source.export(round_trip(&region), salt);
             let before = link.edits[&change.loc].base.clone();
-            out.push(Settled { loc: change.loc, region: Some(region), base_hash: change.base_hash, before, now: hash(change.loc, salt) });
+            out.push(Settled { loc: change.loc, region: Some(region), base_hash: change.base_hash, before, now: Some(hash(change.loc, salt)) });
         }
 
         out
@@ -1458,11 +1466,74 @@ mod edit_tests {
         let mut link = Terrain3DLink::new("res://t3d");
         dab_on_l(&mut link, &source, 400.0);
         let before = link.clone();
-        let other = Settled { loc: L, region: Some(Arc::new(slanted(L))), base_hash: Some(hash(L, 9)), before: None, now: hash(L, 2) };
+        let other = Settled { loc: L, region: Some(Arc::new(slanted(L))), base_hash: Some(hash(L, 9)), before: None, now: Some(hash(L, 2)) };
         assert!(!link.settle(&other));
         assert_eq!(link, before, "an edit from another base is not this send");
-        let removal = Settled { loc: [3, -3], region: None, base_hash: Some(hash([3, -3], 1)), before: None, now: hash([3, -3], 2) };
+        let removal = Settled { loc: [3, -3], region: None, base_hash: Some(hash([3, -3], 1)), before: None, now: Some(hash([3, -3], 2)) };
         assert!(!link.settle(&removal));
         assert_eq!(link, before);
+    }
+
+    #[test]
+    fn an_accepted_removal_is_forgotten_so_adding_the_region_back_is_a_plain_add() {
+        let mut source = Fake::new(&[L, [3, -3]]);
+        let mut link = Terrain3DLink::new("res://t3d");
+        link.remove_regions(&source, &[L]);
+        let sent = apply_in_godot(&link, &mut source, 2);
+        assert_eq!(sent.len(), 1);
+        assert!(!link.settle(&sent[0]));
+        assert!(link.removed.is_empty() && changes(&link, &source).is_empty());
+
+        assert_eq!(link.add_regions(&source, &[L]).unwrap(), vec![L]);
+        assert_eq!(changes(&link, &source), vec![(L, ChangeKind::Add, None, false)]);
+        for s in apply_in_godot(&link, &mut source, 3) {
+            link.settle(&s);
+        }
+
+        assert!(changes(&link, &source).is_empty() && link.removed.is_empty());
+        assert_eq!(source.hash(L), Some(hash(L, 3)));
+    }
+
+    #[test]
+    fn a_region_added_back_before_godot_took_its_removal_becomes_a_plain_add() {
+        let mut source = Fake::new(&[L]);
+        let mut link = Terrain3DLink::new("res://t3d");
+        link.remove_regions(&source, &[L]);
+        let sent = apply_in_godot(&link, &mut source, 2);
+        link.add_regions(&source, &[L]).unwrap();
+        assert!(!link.settle(&sent[0]));
+        assert_eq!(changes(&link, &source), vec![(L, ChangeKind::Add, None, false)]);
+    }
+
+    #[test]
+    fn a_stale_removal_left_behind_does_not_turn_an_add_into_an_edit() {
+        let source = Fake::new(&[]);
+        let mut link = Terrain3DLink::new("res://t3d");
+        link.removed.insert(L, hash(L, 1));
+        link.add_regions(&source, &[L]).unwrap();
+        assert!(link.removed.is_empty());
+        assert_eq!(changes(&link, &source), vec![(L, ChangeKind::Add, None, false)]);
+    }
+
+    #[test]
+    fn undo_past_an_accepted_removal_adds_the_region_back() {
+        let mut source = Fake::new(&[L]);
+        let mut map = Map::new();
+        let layer = map.default_layer();
+        let id = map.insert(layer, NodeKind::Terrain3D(Terrain3DLink::new("res://t3d")));
+        let mut doc = Document::from_map(map, None);
+        doc.edit("Remove", |m, _| m.terrain3d_mut(id).unwrap().remove_regions(&source, &[L]));
+        doc.mark_saved();
+        let sent = apply_in_godot(doc.map.terrain3d(id).unwrap(), &mut source, 2);
+        assert!(!doc.rewrite_history(|m| m.terrain3d_mut(id).is_some_and(|l| l.settle(&sent[0]))));
+        assert!(!doc.is_modified());
+        assert!(doc.map.terrain3d(id).unwrap().removed.is_empty());
+
+        doc.undo();
+        let link = doc.map.terrain3d(id).unwrap();
+        assert!(same_bits(&link.region(&source, L).unwrap(), &slanted(L)), "the region as it was before the removal");
+        assert_eq!(changes(link, &source), vec![(L, ChangeKind::Add, None, false)]);
+        doc.redo();
+        assert!(changes(doc.map.terrain3d(id).unwrap(), &source).is_empty());
     }
 }

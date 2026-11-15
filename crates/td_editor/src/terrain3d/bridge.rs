@@ -47,12 +47,13 @@ pub fn write_pending(cache: &Path, changes: &[RegionChange], grid: &Grid, forced
     Ok(written)
 }
 
-/// Deletes the pending files of regions the link has an opinion about but no longer differs in, the ones an undo took
-/// back after the save. Files for regions the link knows nothing of belong to another map and stay.
-pub fn prune_pending(cache: &Path, link: &Terrain3DLink, changes: &[RegionChange]) -> std::io::Result<Vec<Loc>> {
+/// Deletes the pending files of regions that no longer differ, the ones an undo took back after the save: regions the
+/// link has an opinion about, and the regions in `ours`, whose files this editor wrote. Other files belong to another
+/// map and stay.
+pub fn prune_pending(cache: &Path, link: &Terrain3DLink, ours: &BTreeSet<Loc>, changes: &[RegionChange]) -> std::io::Result<Vec<Loc>> {
     let mut gone = Vec::new();
     for loc in terrain3d_cache::pending_locs(cache)? {
-        let known = link.edits.contains_key(&loc) || link.removed.contains_key(&loc);
+        let known = link.edits.contains_key(&loc) || link.removed.contains_key(&loc) || ours.contains(&loc);
         if known && !changes.iter().any(|c| c.loc == loc) {
             if let Some(path) = terrain3d_cache::pending_path(cache, loc) {
                 std::fs::remove_file(path)?;
@@ -578,18 +579,27 @@ mod tests {
     fn pruning_drops_only_regions_the_link_took_back() {
         let dir = tempfile::tempdir().unwrap();
         let cache = cache_of(&dir);
-        let all = [change(A, ChangeKind::Edit, Some(1), 1.0), change(B, ChangeKind::Edit, Some(2), 2.0), change([5, 5], ChangeKind::Edit, Some(3), 3.0)];
+        let c: Loc = [-2, 3];
+        let all = [
+            change(A, ChangeKind::Edit, Some(1), 1.0),
+            change(B, ChangeKind::Edit, Some(2), 2.0),
+            change(c, ChangeKind::Edit, Some(4), 4.0),
+            change([5, 5], ChangeKind::Edit, Some(3), 3.0),
+        ];
         write_pending(&cache, &all, &grid(), &BTreeSet::new()).unwrap();
 
-        // The link still edits A and B, B was undone since the save, [5, 5] belongs to another map's link.
+        // The link still edits A and B, B was undone since the save to what Godot has, the first stroke on c was undone
+        // so the link lost it, [5, 5] belongs to another map's link.
         let mut link = Terrain3DLink::new("res://terrain");
         link.edits.insert(A, RegionEdit::new(region(A, 1.0), Some([1; 32])));
         link.edits.insert(B, RegionEdit::new(region(B, 2.0), Some([2; 32])));
-        let gone = prune_pending(&cache, &link, &all[..1]).unwrap();
-        assert_eq!(gone, vec![B]);
+        let ours = BTreeSet::from([A, B, c]);
+        assert_eq!(prune_pending(&cache, &link, &BTreeSet::new(), &all[..1]).unwrap(), vec![B], "without ours only what the link knows");
+        assert_eq!(prune_pending(&cache, &link, &ours, &all[..1]).unwrap(), vec![c]);
         assert_eq!(terrain3d_cache::pending_locs(&cache).unwrap(), vec![A, [5, 5]]);
+        assert!(prune_pending(&cache, &link, &ours, &all[..1]).unwrap().is_empty(), "a second save finds nothing left to take back");
 
-        assert!(prune_pending(&dir.path().join("none"), &link, &[]).unwrap().is_empty(), "no folder, nothing to prune");
+        assert!(prune_pending(&dir.path().join("none"), &link, &ours, &[]).unwrap().is_empty(), "no folder, nothing to prune");
     }
 
     #[test]

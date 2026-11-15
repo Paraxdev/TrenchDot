@@ -12,17 +12,34 @@ pub mod store;
 pub mod tiles;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
 use td_core::NodeId;
 use td_doc::map::NodeKind;
+use td_doc::terrain3d::{RegionHash, RegionSource, Settled};
 use td_formats::terrain3d_cache;
-use td_geom::terrain3d::Loc;
+use td_geom::terrain3d::{Loc, Region3D};
 
 use crate::i18n::msg;
 use crate::state::EditorState;
+
+/// One region of a send, kept until Godot reports applying it.
+#[derive(Clone, Debug)]
+pub struct Sent {
+    /// None for a removal.
+    pub region: Option<Arc<Region3D>>,
+    pub base_hash: Option<RegionHash>,
+    /// The region before the edit, when the edit knows it.
+    pub before: Option<Arc<Region3D>>,
+}
+
+impl Sent {
+    pub fn settled(self, loc: Loc, now: Option<RegionHash>) -> Settled {
+        Settled { loc, region: self.region, base_hash: self.base_hash, before: self.before, now }
+    }
+}
 
 /// The material name the tiles use for Terrain3D texture `id`.
 pub fn material_name(id: u8) -> String {
@@ -66,12 +83,29 @@ impl EditorState {
             let Some(link) = self.doc.map.terrain3d(id) else { continue };
             let Some(source) = self.terrain3d.source(&cache) else { continue };
             let changes = link.changed_regions(&source);
-            let written = bridge::write_pending(&cache, &changes, &td_doc::terrain3d::RegionSource::grid(&source), forced)
+            let sent = self.terrain3d_sent.entry((self.doc.uid(), cache.clone())).or_default();
+            let ours = sent.keys().copied().collect();
+            let written = bridge::write_pending(&cache, &changes, &source.grid(), forced)
                 .map_err(|e| e.to_string())
-                .and_then(|_| bridge::prune_pending(&cache, link, &changes).map_err(|e| e.to_string()));
-            if let Err(problem) = written {
-                self.fail_status(msg!("Terrain3D edits were not applied: {problem}", problem));
-                continue;
+                .and_then(|_| bridge::prune_pending(&cache, link, &ours, &changes).map_err(|e| e.to_string()));
+            match written {
+                Ok(gone) => {
+                    for loc in gone {
+                        sent.remove(&loc);
+                    }
+
+                    for change in &changes {
+                        let before = match change.region {
+                            Some(_) => link.edits.get(&change.loc).and_then(|e| e.base.clone()),
+                            None => source.region(change.loc),
+                        };
+                        sent.insert(change.loc, Sent { region: change.region.clone(), base_hash: change.base_hash, before });
+                    }
+                }
+                Err(problem) => {
+                    self.fail_status(msg!("Terrain3D edits were not applied: {problem}", problem));
+                    continue;
+                }
             }
 
             if terrain3d_cache::pending_locs(&cache).map_or(true, |locs| locs.is_empty()) {
@@ -102,8 +136,30 @@ impl EditorState {
             }
         });
         let cache = self.terrain3d_links().into_iter().find(|(node, _)| *node == id).map(|(_, cache)| cache);
-        if let Some(path) = cache.and_then(|cache| terrain3d_cache::pending_path(&cache, loc)) {
+        let Some(cache) = cache else { return };
+        self.terrain3d.forget_refusal(&cache, loc);
+        if let Some(sent) = self.terrain3d_sent.get_mut(&(self.doc.uid(), cache.clone())) {
+            sent.remove(&loc);
+        }
+
+        if let Some(path) = terrain3d_cache::pending_path(&cache, loc) {
             let _ = std::fs::remove_file(path);
+        }
+    }
+
+    /// Takes in the regions Godot reported applying from this document's sends, on the map and its whole undo history.
+    fn settle_terrain3d(&mut self, id: NodeId, cache: &Path) {
+        let reports = self.terrain3d.take_applied(cache);
+        let key = (self.doc.uid(), cache.to_path_buf());
+        for loc in reports.iter().flat_map(|r| r.accepted.iter().copied()) {
+            let Some(now) = self.terrain3d.source(cache).map(|s| s.hash(loc)) else { continue };
+            let Some(sent) = self.terrain3d_sent.get_mut(&key).and_then(|s| s.remove(&loc)) else { continue };
+            if sent.region.is_some() != now.is_some() {
+                continue;
+            }
+
+            let settled = sent.settled(loc, now);
+            self.doc.rewrite_history(|m| m.terrain3d_mut(id).is_some_and(|l| l.settle(&settled)));
         }
     }
 
@@ -166,8 +222,14 @@ impl EditorState {
 
         self.restore_owed_terrain3d();
         let links = self.terrain3d_links();
-        for (_, cache) in &links {
+        let godot_open = self.godot_has_project();
+        for (id, cache) in &links {
             self.terrain3d.refresh(cache);
+            self.settle_terrain3d(*id, cache);
+            if !godot_open {
+                self.terrain3d.forget_unsaved_refusals(cache);
+            }
+
             let Some(manifest) = self.terrain3d.manifest(cache) else { continue };
             if store::untested_version(manifest) && self.terrain3d_noted.insert(cache.clone()) {
                 let note = bridge::untested_version_note(&manifest.terrain3d);

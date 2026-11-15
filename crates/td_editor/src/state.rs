@@ -700,6 +700,8 @@ pub struct EditorState {
     pub terrain3d_tiles: crate::terrain3d::tiles::Tiles,
     /// Regions that changed in Godot, per node, whose following scatter waits to be put back on them.
     pub terrain3d_owed: std::collections::BTreeMap<NodeId, std::collections::BTreeSet<td_geom::terrain3d::Loc>>,
+    /// What this editor sent to Godot and Godot has not reported applying yet, per document and cache folder.
+    pub terrain3d_sent: std::collections::HashMap<(u64, PathBuf), std::collections::BTreeMap<td_geom::terrain3d::Loc, crate::terrain3d::Sent>>,
     /// Data folders whose untested Terrain3D version was already mentioned.
     pub terrain3d_noted: std::collections::HashSet<PathBuf>,
     /// The Edit Regions toggle of the Terrain3D Inspector.
@@ -976,6 +978,7 @@ impl EditorState {
             terrain3d_bridge: Default::default(),
             terrain3d_tiles: Default::default(),
             terrain3d_owed: Default::default(),
+            terrain3d_sent: Default::default(),
             terrain3d_noted: Default::default(),
             terrain3d_edit_regions: false,
             terrain3d_texture: crate::terrain3d::brush::Texture { id: 0, spray: false },

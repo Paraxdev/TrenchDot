@@ -169,6 +169,13 @@ impl Terrain3DStore {
         self.folders.get(cache).map(|f| f.refused.clone()).unwrap_or_default()
     }
 
+    /// Drops the refusals for unsaved changes, which went with the Godot editor that had them.
+    pub fn forget_unsaved_refusals(&mut self, cache: &Path) {
+        if let Some(f) = self.folders.get_mut(cache) {
+            f.refused.retain(|_, why| why != crate::terrain3d::bridge::DIRTY);
+        }
+    }
+
     pub fn forget_refusal(&mut self, cache: &Path, loc: Loc) {
         if let Some(f) = self.folders.get_mut(cache) {
             f.refused.remove(&loc);
