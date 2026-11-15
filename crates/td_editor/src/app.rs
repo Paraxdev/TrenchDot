@@ -146,6 +146,7 @@ pub struct App {
     spline_dialog: crate::spline_dialog::SplineDialog,
     fill_dialog: crate::random_fill::RandomFillDialog,
     terrain_dialog: TerrainDialog,
+    terrain3d_dialog: crate::terrain3d::dialog::LinkDialog,
     keymap: KeymapWindow,
     pub(crate) hotspot_editor: crate::hotspot_editor::HotspotEditor,
     link_dialog: LinkDialog,
@@ -200,7 +201,7 @@ pub struct App {
     pub(crate) tool_options_rect: egui::Rect,
 }
 
-const WINDOW_TITLES: [&str; 20] = [
+const WINDOW_TITLES: [&str; 21] = [
     "Shape Generator",
     "Add Trim",
     "Sweep Faces",
@@ -213,6 +214,7 @@ const WINDOW_TITLES: [&str; 20] = [
     "Place Along Path",
     "Random Fill",
     "Create Terrain",
+    "Link Terrain3D",
     "Keyboard Shortcuts",
     "Link Entities",
     "Hotspot Editor",
@@ -1177,6 +1179,7 @@ impl App {
             spline_dialog: Default::default(),
             fill_dialog: Default::default(),
             terrain_dialog: TerrainDialog::default(),
+            terrain3d_dialog: Default::default(),
             keymap: KeymapWindow::default(),
             hotspot_editor: Default::default(),
             link_dialog: Default::default(),
@@ -1327,6 +1330,7 @@ impl App {
             Action::ShowSplineDialog => self.spline_dialog.open = true,
             Action::ShowRandomFillDialog => self.fill_dialog.open = true,
             Action::ShowTerrainDialog => self.terrain_dialog.open = true,
+            Action::ShowTerrain3DDialog => self.terrain3d_dialog.open(&self.state),
             Action::ExportGlb => self.export_dialog.open_for(crate::export3d::Format::Glb, &mut self.state),
             Action::ExportObj => self.export_dialog.open_for(crate::export3d::Format::Obj, &mut self.state),
             Action::BakeLighting => self.bake_dialog.open(&mut self.state),
@@ -1906,6 +1910,9 @@ impl App {
             menu(ui, en!("Terrain"), |ui| {
                 ui.set_min_width(MENU_WIDTH);
                 m.item(ui, Some(icons::TERRAIN), en!("Create Terrain…"), Action::ShowTerrainDialog);
+                m.item(ui, Some(icons::TERRAIN), en!("Link Terrain3D…"), Action::ShowTerrain3DDialog);
+                let linked = self.state.doc.map.has_terrain3d();
+                m.item_enabled(ui, None, en!("Send Terrain3D to Godot"), Action::SendTerrain3D, linked, tr("The map links no Terrain3D"));
                 ui.separator();
                 sub_menu(ui, Some(icons::SCULPT), en!("Sculpt"), |ui| {
                     m.item(ui, Some(icons::SCULPT), en!("Sculpt Tool"), Action::SetTool(ToolKind::Sculpt));
@@ -3675,6 +3682,7 @@ impl eframe::App for App {
         self.spline_dialog.show(&ctx, &mut self.state);
         self.fill_dialog.show(&ctx, &mut self.state);
         self.terrain_dialog.show(&ctx, &mut self.state);
+        self.terrain3d_dialog.show(&ctx, &mut self.state);
         self.keymap.show(&ctx, &mut self.state);
         self.hotspot_editor.show(&ctx, &mut self.state, &mut self.actions);
         self.link_dialog.show(&ctx, &mut self.state);

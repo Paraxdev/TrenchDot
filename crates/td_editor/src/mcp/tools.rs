@@ -1934,6 +1934,7 @@ impl App {
             "build_in_godot" => Action::BuildInGodot,
             "toggle_live_mode" => Action::ToggleLiveMode,
             "toggle_walkable" => Action::ToggleWalkable,
+            "send_terrain3d" => Action::SendTerrain3D,
             "toggle_void_preview" => Action::ToggleVoidPreview,
             "insert_prefab" => {
                 let Some(path) = a["path"].as_str() else { return err("path required") };

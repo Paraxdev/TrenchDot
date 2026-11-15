@@ -1,6 +1,8 @@
 //! Terrain3D worlds as the editor sees them: the cache Godot exports, and the edits TrenchDot sends back.
 
 pub mod bridge;
+pub mod dialog;
+pub mod link;
 pub mod overlay;
 pub mod store;
 pub mod tiles;

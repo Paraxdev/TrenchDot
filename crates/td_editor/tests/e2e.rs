@@ -8523,6 +8523,28 @@ fn terrain3d_edits_pending_from_an_earlier_save_are_sent_on_save() {
     assert_eq!(pending.region.heights[64 * 5 + 9] - pending.region.heights[64 * 5 + 8], 3.5 + 0.25);
 }
 
+/// The Send Terrain3D to Godot action sends what is pending without a save, and says so when the map links nothing.
+#[test]
+#[ignore]
+fn terrain3d_send_action_sends_without_a_save() {
+    let (dir, map) = terrain3d_project("terrain3d_send_action");
+    let answers = json!({ "terrain3d_apply": { "accepted": [[0, 0]], "refused": [], "problems": [] } });
+    let (godot, sent) = fake_godot_editor_with(&dir, &[&map], answers);
+    let ed = Editor::launch_with("terrain3d_send_action", &["--project", dir.to_str().unwrap()]);
+    ed.call("set_editor", json!({ "live_link_port": godot }));
+    wait_state(&ed, "the live link", |s| s["godot"]["project_open"] == true);
+    ed.call("run_action", json!({ "action": "new_map" }));
+    assert!(ed.call_err("run_action", json!({ "action": "send_terrain3d" })).contains("no Terrain3D"));
+    assert!(sent_events(&sent, "terrain3d_apply").is_empty());
+
+    ed.call("map_file", json!({ "op": "open", "path": map }));
+    ed.call("run_action", json!({ "action": "send_terrain3d" }));
+    wait_state(&ed, "the apply reply", |s| s["status"].as_str().is_some_and(|t| t.contains("Godot applied 1 Terrain3D region(s)")));
+    let events = sent_events(&sent, "terrain3d_apply");
+    assert_eq!(events.len(), 1);
+    assert!(events[0]["dir"].as_str().unwrap().ends_with("/terrain"), "{}", events[0]);
+}
+
 /// The height in map units `terrain3d_world` gives the vertex at pixel `px`, `py` of region `loc`. Slanted and different
 /// on every region so a wrong region or a flipped axis shows.
 fn world_height(loc: [i32; 2], px: u32, py: u32) -> f64 {

@@ -197,6 +197,8 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
         entry(en!("Mesh"), en!("Convert Meshes to Brushes"), Action::ConvertToBrushes),
         entry(en!("Mesh"), en!("Join Meshes"), Action::JoinMeshes),
         entry(en!("Terrain"), en!("Create Terrain"), Action::ShowTerrainDialog),
+        entry(en!("Terrain"), en!("Link Terrain3D"), Action::ShowTerrain3DDialog),
+        entry(en!("Terrain"), en!("Send Terrain3D to Godot"), Action::SendTerrain3D),
         entry(en!("Terrain"), en!("Flatten"), Action::TerrainFlatten),
         entry(en!("Terrain"), en!("Auto Paint Layers"), Action::TerrainAutoPaint),
         entry(en!("Scatter"), en!("New Empty Set"), Action::NewScatterSet),

@@ -172,6 +172,8 @@ pub enum Action {
     ShowTrimDialog,
     ShowRandomFillDialog,
     ShowTerrainDialog,
+    ShowTerrain3DDialog,
+    SendTerrain3D,
     ShowKeymap,
     ShowUvEditor,
     OpenGodotEditor,
@@ -425,6 +427,8 @@ impl Action {
             Action::ShowTrimDialog => en!("Add Trim"),
             Action::ShowRandomFillDialog => en!("Random Fill"),
             Action::ShowTerrainDialog => en!("Create Terrain"),
+            Action::ShowTerrain3DDialog => en!("Link Terrain3D"),
+            Action::SendTerrain3D => en!("Send Terrain3D to Godot"),
             Action::ShowKeymap => en!("Keyboard Shortcuts"),
             Action::ShowUvEditor => en!("UV Editor"),
             Action::OpenGodotEditor => en!("Open Project in Godot Editor"),
@@ -950,6 +954,8 @@ pub fn bindable_actions() -> Vec<Action> {
         Action::InsertPrefab,
         Action::ExplodeInstances,
         Action::ShowTerrainDialog,
+        Action::ShowTerrain3DDialog,
+        Action::SendTerrain3D,
         Action::ShowKeymap,
         Action::ShowUvEditor,
         Action::ImportVmf,
@@ -2000,6 +2006,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         | Action::ShowTrimDialog
         | Action::ShowRandomFillDialog
         | Action::ShowTerrainDialog
+        | Action::ShowTerrain3DDialog
         | Action::ShowKeymap
         | Action::ShowUvEditor
         | Action::MeshOp(_)
@@ -2056,6 +2063,13 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             let faces = td_doc::terrain::displacement_faces(&state.doc.map, &targets);
             let n = state.doc.edit("Sew Displacements", |m, _| td_doc::terrain::sew(m, &faces));
             state.set_status(msg!("Sewed {n} shared vertices", n));
+        }
+        Action::SendTerrain3D => {
+            if state.doc.map.has_terrain3d() {
+                state.send_terrain3d(&Default::default());
+            } else {
+                state.fail_status(msg!("The map has no Terrain3D to send"));
+            }
         }
         Action::TerrainFlatten => {
             let ids = state.doc.selection.terrains(&state.doc.map);
