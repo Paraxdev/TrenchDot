@@ -46,7 +46,7 @@ fn curve_points(
 }
 
 /// [x, z] or [x, y, z] as a world point with y from the second form only.
-fn point(v: &Value) -> Option<DVec3> {
+pub(super) fn point(v: &Value) -> Option<DVec3> {
     let a = v.as_array()?;
     match a.len() {
         2 => Some(DVec3::new(a[0].as_f64()?, 0.0, a[1].as_f64()?)),
@@ -1964,6 +1964,13 @@ impl App {
         };
         let map = &self.state.doc.map;
         let id = given.or_else(|| self.state.doc.selection.terrains(map).first().copied()).or_else(|| map.terrains().next().map(|(id, _)| id));
+        if let Some(link) =
+            given.or_else(|| id.is_none().then(|| map.nodes.iter().find(|(_, n)| matches!(n.kind, NodeKind::Terrain3D(_))).map(|(i, _)| *i)).flatten())
+            && map.terrain3d(link).is_some()
+        {
+            return self.terrain_edit_terrain3d(link, args);
+        }
+
         let Some(id) = id else { return err("no terrain, pass id or create one") };
         if map.terrain(id).is_none() {
             return err(match map.get(id) {

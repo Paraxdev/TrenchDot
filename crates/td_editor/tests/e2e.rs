@@ -8851,6 +8851,72 @@ fn terrain3d_edit_regions_click_adds_and_removes_a_region() {
     assert_eq!(pending_locs(&cache).unwrap(), vec![[-1, 1], [1, 0]], "no other square changed");
 }
 
+/// terrain_edit takes the Terrain3D node: ops reach across the region border, paint_texture sets ids, probe reads the
+/// surface and the ids, the refusals say what to use instead, and one undo takes an op back.
+#[test]
+#[ignore]
+fn terrain3d_terrain_edit_over_mcp() {
+    use td_formats::terrain3d_cache::{pending_locs, read_pending};
+    use td_geom::terrain3d::Control;
+
+    let (ed, node) = launch_world("terrain3d_edit_mcp", None);
+    let probe = |x: f64, z: f64| ed.call("terrain_edit", json!({ "id": node, "probe": [x, z] }));
+    let before = probe(504.0, 128.0);
+    assert!((before["probe_height"].as_f64().unwrap() - world_height([0, 0], 63, 16)).abs() < 0.01, "{before}");
+    assert_eq!((before["probe"]["base"].as_u64(), before["probe"]["region"].clone()), (Some(1), json!([0, 0])));
+    assert!((probe(520.0, 128.0)["probe_height"].as_f64().unwrap() - world_height([1, 0], 1, 16)).abs() < 0.01);
+    assert_eq!(probe(5000.0, 5000.0)["probe_height"], Value::Null, "no region there");
+
+    let flat =
+        ed.call("terrain_edit", json!({ "id": node, "op": "flatten_rect", "min": [440.0, 100.0], "max": [600.0, 180.0], "height": 400.0, "margin": 16.0 }));
+    assert_eq!(flat["regions"], json!([[0, 0], [1, 0]]), "{flat}");
+    for x in [504.0, 520.0, 592.0] {
+        assert!((probe(x, 128.0)["probe_height"].as_f64().unwrap() - 400.0).abs() < 0.01, "flat at {x}");
+    }
+
+    assert!((probe(48.0, 400.0)["probe_height"].as_f64().unwrap() - world_height([0, 0], 6, 50)).abs() < 0.01, "outside the rectangle");
+    assert!((ground_height(&ed, 520.0, 128.0) - 400.0).abs() < 0.01, "the tiles follow the edit");
+
+    let raised = ed.call("terrain_edit", json!({ "id": node, "op": "sculpt", "center": [512.0, 300.0], "mode": "raise", "radius": 40.0, "strength": 32.0 }));
+    assert_eq!(raised["regions"], json!([[0, 0], [1, 0]]));
+    assert!(probe(512.0, 300.0)["probe_height"].as_f64().unwrap() > world_height([0, 0], 63, 37) + 1.0);
+
+    let painted = ed.call(
+        "terrain_edit",
+        json!({ "id": node, "op": "paint_texture", "points": [[300.0, 380.0], [300.0, 420.0]], "radius": 40.0, "texture": 2, "mode": "spray", "strength": 1.0 }),
+    );
+    assert_eq!(painted["regions"], json!([[0, 0]]), "{painted}");
+    let sprayed = probe(300.0, 400.0)["probe"].clone();
+    assert_eq!((sprayed["base"].as_u64(), sprayed["overlay"].as_u64()), (Some(1), Some(2)));
+    ed.call("terrain_edit", json!({ "id": node, "op": "paint_texture", "center": [300.0, 100.0], "radius": 24.0, "texture": 7 }));
+    assert_eq!(probe(300.0, 100.0)["probe"]["base"], 7);
+    ed.call("terrain_edit", json!({ "id": node, "op": "holes", "center": [200.0, 200.0], "radius": 12.0 }));
+    assert_eq!(probe(200.0, 200.0)["probe"]["hole"], true);
+    assert_eq!(probe(200.0, 200.0)["probe_height"], Value::Null);
+
+    ed.call("terrain_edit", json!({ "id": node, "op": "ramp", "from": [20.0, 600.0, 20.0], "to": [20.0, 600.0, 120.0], "width": 24.0, "margin": 8.0 }));
+    assert!((probe(20.0, 70.0)["probe_height"].as_f64().unwrap() - 600.0).abs() < 0.01);
+
+    assert!(ed.call_err("terrain_edit", json!({ "id": node, "op": "sculpt", "center": [0.0, 0.0], "mode": "paint_layer" })).contains("paint_texture"));
+    assert!(ed.call_err("terrain_edit", json!({ "id": node, "op": "paint_texture", "center": [0.0, 0.0], "texture": 32 })).contains("0 to 31"));
+    assert!(ed.call_err("terrain_edit", json!({ "id": node, "op": "erode" })).contains("does not apply to Terrain3D"));
+    assert!(ed.call_err("terrain_edit", json!({ "id": node, "op": "holes", "min": [0, 0], "max": [8, 8] })).contains("center and radius"));
+    let nothing = ed.call("terrain_edit", json!({ "id": node, "op": "sculpt", "center": [9000.0, 9000.0], "mode": "raise" }));
+    assert_eq!((nothing["changed"].clone(), nothing["regions"].clone()), (json!(false), json!([])));
+
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert!((probe(24.0, 72.0)["probe_height"].as_f64().unwrap() - world_height([0, 0], 3, 9)).abs() < 0.01, "undo took the ramp back");
+    assert!((probe(520.0, 128.0)["probe_height"].as_f64().unwrap() - 400.0).abs() < 0.01, "an earlier op stays");
+
+    ed.call("run_action", json!({ "action": "send_terrain3d" }));
+    let cache = artifacts().join("terrain3d_edit_mcp").join("terrain").join(td_formats::terrain3d_cache::DIR_NAME);
+    assert_eq!(pending_locs(&cache).unwrap(), vec![[0, 0], [1, 0]], "the region nobody touched is not sent");
+    let a = read_pending(&cache, [0, 0], 64).unwrap();
+    let control = |px: usize, py: usize| Control(a.region.control[py * 64 + px]);
+    assert_eq!(control(38, 50).overlay(), 2, "spray reached the pending region");
+    assert!(control(25, 25).hole());
+}
+
 /// The height Godot samples at `x`, `z` in map units over the regions of `terrain3d_world` with the edits of the pending
 /// files, the surface a scatter instance is put on.
 fn surface_at(cache: &std::path::Path, x: f64, z: f64) -> f64 {

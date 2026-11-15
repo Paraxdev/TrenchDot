@@ -7,6 +7,7 @@ pub mod protocol;
 pub mod review_tools;
 pub mod script;
 pub mod switch;
+pub mod terrain3d_tools;
 pub mod token;
 pub mod tools;
 pub mod transport;
