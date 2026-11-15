@@ -102,6 +102,29 @@ fn manifest_round_trips_and_minimal_one_takes_defaults() {
     assert_eq!(minimal.material, ManifestMaterial::default());
 }
 
+/// Every whole number as a float, the way a manifest comes back after Godot parsed it and wrote it again.
+fn floated(value: serde_json::Value) -> serde_json::Value {
+    use serde_json::Value;
+    match value {
+        Value::Number(n) if n.is_i64() => Value::from(n.as_i64().unwrap() as f64),
+        Value::Array(items) => Value::Array(items.into_iter().map(floated).collect()),
+        Value::Object(map) => Value::Object(map.into_iter().map(|(k, v)| (k, floated(v))).collect()),
+        other => other,
+    }
+}
+
+#[test]
+fn manifest_written_back_by_godot_with_float_numbers_still_reads() {
+    let text = std::fs::read_to_string(fixture().join("manifest.json")).unwrap();
+    let floats = serde_json::to_string(&floated(serde_json::from_str(&text).unwrap())).unwrap();
+    assert!(floats.contains("\"loc\":[-1.0,0.0]") && floats.contains("\"seq\":7.0") && floats.contains("\"region_size\":64.0"), "{floats}");
+    assert_eq!(parse_manifest(&floats).unwrap(), parse_manifest(&text).unwrap());
+
+    let broken = floats.replacen("\"region_size\":64.0", "\"region_size\":64.5", 1);
+    assert!(matches!(parse_manifest(&broken), Err(CacheError::Json(_))), "a fraction is still no region size");
+    assert!(matches!(parse_manifest(&floats.replacen("\"seq\":7.0", "\"seq\":-7.0", 1)), Err(CacheError::Json(_))));
+}
+
 #[test]
 fn manifest_refuses_other_formats_newer_versions_and_bad_values() {
     let text = std::fs::read_to_string(fixture().join("manifest.json")).unwrap();

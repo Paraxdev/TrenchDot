@@ -205,15 +205,32 @@ pub fn parse_manifest(text: &str) -> Result<Manifest> {
         version: u32,
     }
 
-    let head: Head = serde_json::from_str(text)?;
+    let mut value: serde_json::Value = serde_json::from_str(text)?;
+    whole_floats_to_ints(&mut value);
+    let head = Head::deserialize(&value)?;
     if head.format != FORMAT {
         return Err(CacheError::Magic);
     }
 
     check_version(head.version)?;
-    let manifest: Manifest = serde_json::from_str(text)?;
+    let manifest: Manifest = serde_json::from_value(value)?;
     manifest.check()?;
     Ok(manifest)
+}
+
+/// Godot parses every JSON number as a float, so a manifest it read and wrote again holds `7.0` where it held `7`.
+fn whole_floats_to_ints(value: &mut serde_json::Value) {
+    use serde_json::Value;
+    match value {
+        Value::Number(n) => {
+            if let Some(f) = n.as_f64().filter(|f| n.is_f64() && f.fract() == 0.0 && f.abs() < 9.0e15) {
+                *value = Value::from(f as i64);
+            }
+        }
+        Value::Array(items) => items.iter_mut().for_each(whole_floats_to_ints),
+        Value::Object(map) => map.values_mut().for_each(whole_floats_to_ints),
+        _ => {}
+    }
 }
 
 /// One region as Godot exported it.
