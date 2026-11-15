@@ -5,7 +5,8 @@ use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use td_core::{DVec2, DVec3, NodeId};
+use td_core::{DVec2, DVec3, Mirror, NodeId};
+use td_geom::heightfield::Terrain;
 use td_geom::terrain3d::{EdgeBlend, Grid, LOC_MAX, LOC_MIN, Loc, Region3D, loc_in_range, surface_height};
 use td_geom::terrain3d_tile::{self, PaintMode};
 
@@ -196,17 +197,25 @@ impl Terrain3DLink {
             _ => {}
         }
 
-        let grid = source.grid();
         let c = DVec2::new(center.x, center.z);
         // Smooth and Terrace read one ring of neighbors past the brush.
-        let (min, max) = grid.vgrid_rect(c - DVec2::splat(brush.radius), c + DVec2::splat(brush.radius), 2);
+        self.edit_window(source, c - DVec2::splat(brush.radius), c + DVec2::splat(brush.radius), |terrain| {
+            sculpt_terrains_single(terrain, center, brush, &Mirror::NONE)
+        })
+    }
+
+    /// Runs a terrain edit on the heights between `min` and `max` (map units, x and z) gathered across regions, and
+    /// writes back the regions whose heights it moved. Returns those regions.
+    fn edit_window(&mut self, source: &dyn RegionSource, min: DVec2, max: DVec2, edit: impl FnOnce(&mut Terrain) -> bool) -> Vec<Loc> {
+        let grid = source.grid();
+        let (min, max) = grid.vgrid_rect(min, max, 2);
         let locs = grid.regions_in(min, max);
         let regions: HashMap<Loc, Arc<Region3D>> = locs.iter().filter_map(|l| Some((*l, self.region(source, *l)?))).collect();
         let Some(mut window) = terrain3d_tile::window(&grid, |l| regions.get(&l).map(|r| r.as_ref()), min, max) else { return Vec::new() };
         // Holding these Arcs would make every dab of a stroke copy its regions again.
         drop(regions);
         let before = window.terrain.heights.clone();
-        if !sculpt_terrains_single(&mut window.terrain, center, brush) {
+        if !edit(&mut window.terrain) {
             return Vec::new();
         }
 
@@ -216,6 +225,21 @@ impl Terrain3DLink {
             .map(|k| grid.region_of([min[0] + (k % w) as i64, min[1] + (k / w) as i64]))
             .collect();
         locs.into_iter().filter(|loc| touched.contains(loc) && self.modify(source, *loc, |r| terrain3d_tile::write_window(&grid, &window, r))).collect()
+    }
+
+    /// Sets the heights inside a rectangle (map units, x and z) to `height` and eases back to the old ground over
+    /// `margin`, like the terrain tool of the same name. Returns the regions that changed.
+    pub fn flatten_rect(&mut self, source: &dyn RegionSource, min: DVec2, max: DVec2, height: f64, margin: f64) -> Vec<Loc> {
+        let reach = DVec2::splat(margin.max(0.0));
+        self.edit_window(source, min.min(max) - reach, min.max(max) + reach, |t| t.flatten_rect(min, max, height, margin))
+    }
+
+    /// A straight ramp between two points (map units), `width` wide with soft `margin` sides. Returns the regions that
+    /// changed.
+    pub fn ramp(&mut self, source: &dyn RegionSource, from: DVec3, to: DVec3, width: f64, margin: f64) -> Vec<Loc> {
+        let reach = DVec2::splat((width * 0.5 + margin).max(0.0));
+        let (a, b) = (DVec2::new(from.x, from.z), DVec2::new(to.x, to.z));
+        self.edit_window(source, a.min(b) - reach, a.max(b) + reach, |t| t.ramp(from, to, width, margin))
     }
 
     /// One texture dab, Terrain3D's Paint or Spray. Returns the regions that changed.
@@ -882,6 +906,73 @@ mod edit_tests {
         assert!(link.edits.values().all(|e| e.base_hash == Some(hash(e.region.loc, 1))));
         assert_regions(&link, &source, &corner, |v| raised(v, center, 100.0, 4.0), |_| control());
         assert_regions(&link, &source, &[[3, 2]], ground, |_| control());
+    }
+
+    #[test]
+    fn a_flattened_rectangle_crosses_four_region_corners_and_eases_out_over_the_margin() {
+        let corner = [[-2, -1], [-1, -1], [-2, 0], [-1, 0]];
+        let source = Fake::new(&[corner[0], corner[1], corner[2], corner[3], [3, 2]]);
+        let mut link = Terrain3DLink::new("res://t3d");
+        let (min, max, margin) = (DVec2::new(-1100.0, -45.0), DVec2::new(-940.0, 61.0), 64.0);
+        let changed = link.flatten_rect(&source, min, max, 160.0, margin);
+        assert_eq!(changed, corner.to_vec());
+        let (mut inside, mut eased, mut outside) = (0, 0, 0);
+        for loc in corner {
+            let r = link.region(&source, loc).unwrap();
+            for (pixel, v) in vertices(loc) {
+                let p = grid().position(v);
+                let d = DVec2::new((min.x - p.x).max(p.x - max.x).max(0.0), (min.y - p.y).max(p.y - max.y).max(0.0)).length();
+                let h = r.heights[r.index(pixel)];
+                if d == 0.0 {
+                    inside += 1;
+                    assert!((h - 5.0).abs() < 1e-5, "inside {v:?} {h}");
+                } else if d < margin {
+                    eased += 1;
+                    let (old, new) = (ground(v), h);
+                    assert!((new - 5.0).abs() < (old - 5.0).abs() + 1e-6 && new != old, "eased {v:?}");
+                } else {
+                    outside += 1;
+                    assert_eq!(h.to_bits(), ground(v).to_bits(), "outside {v:?}");
+                }
+
+                assert_eq!(r.control[r.index(pixel)], control());
+            }
+        }
+
+        assert!(inside > 20 && eased > 20 && outside > 1000, "{inside} {eased} {outside}");
+        assert!(link.region(&source, [3, 2]).is_some() && !link.edits.contains_key(&[3, 2]));
+        assert!(Terrain3DLink::new("res://t3d").flatten_rect(&Fake::new(&[]), min, max, 160.0, margin).is_empty());
+    }
+
+    #[test]
+    fn a_ramp_follows_the_slanted_line_between_its_ends_and_stays_inside_its_regions() {
+        let source = Fake::new(&[[-2, -1], [-1, -1], [3, 2]]);
+        let mut link = Terrain3DLink::new("res://t3d");
+        let (a, b) = (DVec3::new(-1100.0, 320.0, -300.0), DVec3::new(-900.0, 64.0, -260.0));
+        let changed = link.ramp(&source, a, b, 48.0, 32.0);
+        assert_eq!(changed, vec![[-2, -1], [-1, -1]]);
+        let seg = DVec2::new(b.x - a.x, b.z - a.z);
+        let mut on_line = 0;
+        for loc in [[-2, -1], [-1, -1]] {
+            let r = link.region(&source, loc).unwrap();
+            for (pixel, v) in vertices(loc) {
+                let p = grid().position(v);
+                let rel = DVec2::new(p.x - a.x, p.y - a.z);
+                let t = (rel.dot(seg) / seg.length_squared()).clamp(0.0, 1.0);
+                let d = (rel - seg * t).length();
+                let h = r.heights[r.index(pixel)];
+                if d <= 24.0 {
+                    on_line += 1;
+                    let want = ((a.y + (b.y - a.y) * t) / UPM) as f32;
+                    assert!((h - want).abs() < 1e-4, "{v:?} {h} {want}");
+                } else if d >= 56.0 {
+                    assert_eq!(h.to_bits(), ground(v).to_bits(), "{v:?}");
+                }
+            }
+        }
+
+        assert!(on_line > 20);
+        assert!(!link.edits.contains_key(&[3, 2]));
     }
 
     #[test]
