@@ -704,6 +704,8 @@ pub struct EditorState {
     pub terrain3d_sent: std::collections::HashMap<(u64, PathBuf), std::collections::BTreeMap<td_geom::terrain3d::Loc, crate::terrain3d::Sent>>,
     /// Data folders whose untested Terrain3D version was already mentioned.
     pub terrain3d_noted: std::collections::HashSet<PathBuf>,
+    /// Terrain3D nodes, per document, whose edits an earlier session saved wait for their project or manifest to load.
+    pub terrain3d_unrestored: std::collections::HashSet<(u64, NodeId)>,
     /// The Edit Regions toggle of the Terrain3D Inspector.
     pub terrain3d_edit_regions: bool,
     /// The texture the Paint brush sets on a Terrain3D node, and whether it sprays the overlay instead.
@@ -980,6 +982,7 @@ impl EditorState {
             terrain3d_owed: Default::default(),
             terrain3d_sent: Default::default(),
             terrain3d_noted: Default::default(),
+            terrain3d_unrestored: Default::default(),
             terrain3d_edit_regions: false,
             terrain3d_texture: crate::terrain3d::brush::Texture { id: 0, spray: false },
             terrain3d_draft: None,

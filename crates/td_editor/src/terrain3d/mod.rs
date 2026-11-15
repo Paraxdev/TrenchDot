@@ -187,14 +187,34 @@ impl EditorState {
         self.terrain3d_bridge.send_settings(bridge::SettingsRequest { port: self.prefs.live_link_port, folder, region_size, spacing });
     }
 
-    /// Takes back the edits an earlier session saved and Godot has not applied yet, so the map shows them again.
+    /// Takes back the edits an earlier session saved and Godot has not applied yet, so the map shows them again. A node
+    /// whose project is still being switched to, or whose manifest has not loaded yet, gets them once it has.
     pub fn restore_terrain3d(&mut self) {
+        let uid = self.doc.uid();
+        let ids: Vec<NodeId> = self.doc.map.nodes.iter().filter(|(_, n)| matches!(n.kind, NodeKind::Terrain3D(_))).map(|(id, _)| *id).collect();
+        self.terrain3d_unrestored.extend(ids.into_iter().map(|id| (uid, id)));
+        self.terrain3d.recheck();
+        self.restore_owed_terrain3d();
+    }
+
+    fn restore_owed_terrain3d(&mut self) {
+        let uid = self.doc.uid();
+        let map = &self.doc.map;
+        self.terrain3d_unrestored.retain(|(u, id)| *u != uid || map.terrain3d(*id).is_some());
+        if !self.terrain3d_unrestored.iter().any(|(u, _)| *u == uid) {
+            return;
+        }
+
         let mut problems = Vec::new();
         for (id, cache) in self.terrain3d_links() {
-            self.terrain3d.recheck();
+            if !self.terrain3d_unrestored.contains(&(uid, id)) {
+                continue;
+            }
+
             self.terrain3d.refresh(&cache);
             let Some(size) = self.terrain3d.grid(&cache).map(|g| g.region_size) else { continue };
             let Some(link) = self.doc.map.terrain3d_mut(id) else { continue };
+            self.terrain3d_unrestored.remove(&(uid, id));
             problems.extend(bridge::restore_pending(&cache, size, link).problems);
         }
 
