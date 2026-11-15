@@ -93,6 +93,20 @@ impl EditorState {
         }
     }
 
+    /// Keeps Godot's version of region `loc` of node `id` as one undo step, and deletes the pending file that held the
+    /// edit, which no later apply may bring back.
+    pub fn use_godots_terrain3d(&mut self, id: NodeId, loc: Loc) {
+        self.doc.edit("Use Godot's Terrain3D region", |m, _| {
+            if let Some(link) = m.terrain3d_mut(id) {
+                inspector::use_godots(link, loc);
+            }
+        });
+        let cache = self.terrain3d_links().into_iter().find(|(node, _)| *node == id).map(|(_, cache)| cache);
+        if let Some(path) = cache.and_then(|cache| terrain3d_cache::pending_path(&cache, loc)) {
+            let _ = std::fs::remove_file(path);
+        }
+    }
+
     /// Has the open Godot editor change the region size and vertex spacing of the Terrain3D node `id` shows.
     pub fn change_terrain3d_settings(&mut self, id: NodeId, region_size: u32, spacing: f64) {
         let Some((_, cache)) = self.terrain3d_links().into_iter().find(|(node, _)| *node == id) else { return };

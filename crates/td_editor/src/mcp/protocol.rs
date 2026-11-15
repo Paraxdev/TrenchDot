@@ -237,9 +237,9 @@ pub fn tool_definitions() -> Vec<Value> {
         }),
         json!({
             "name": "list_nodes",
-            "description": "Lists map nodes (layers, groups, entities, brushes) with ids, names, parents and bounds. Filters combine: type, classname, layer (id or name), material (a face uses it), property ({key: value} on entities, * matches anything, so {\"model\": \"*crate*\"}; the matched keys are returned), box ({min, max}, nodes whose bounds touch it) and selected_only.",
+            "description": "Lists map nodes (layers, groups, entities, brushes, a terrain3d node with its region count) with ids, names, parents and bounds. Filters combine: type, classname, layer (id or name), material (a face uses it), property ({key: value} on entities, * matches anything, so {\"model\": \"*crate*\"}; the matched keys are returned), box ({min, max}, nodes whose bounds touch it) and selected_only.",
             "inputSchema": { "type": "object", "properties": {
-                "type": { "type": "string", "enum": ["layer", "group", "entity", "brush", "instance", "mesh", "terrain", "scatter"] },
+                "type": { "type": "string", "enum": ["layer", "group", "entity", "brush", "instance", "mesh", "terrain", "terrain3d", "scatter"] },
                 "classname": { "type": "string" },
                 "layer": { "type": ["integer", "string"] },
                 "material": { "type": "string" },
@@ -776,6 +776,28 @@ pub fn tool_definitions() -> Vec<Value> {
             "inputSchema": terrain_edit_schema()
         }),
         json!({
+            "name": "terrain3d",
+            "description": format!(
+                "The Terrain3D node, Terrain3D data of the open Godot project that Godot alone reads and writes. Ops: {}. link {{data_directory: res://folder, create: {{region_size (256), vertex_spacing (1), columns (2), rows (2)}}}} adds the map's one Terrain3D node for a folder Godot made, or with create makes a new folder (its blank regions are edits that send adds to Godot); info {{id}} reports settings, regions, textures, changed regions, conflicts (Godot changed a region you edited too), unsaved_in_godot (Godot refuses these regions until the scene is saved there, then send again), pending files, refusals, the Godot state (connected, not_running, no_godot, not_installed or restricted) and versions; regions {{id, add: [[x, y]], remove: [[x, y]]}} (locations -16 to 15, blank new ground, one undo step); grow {{id, north, south, west, east, dry_run}} adds regions on a side for a positive number and removes for a negative one, dry_run only returns the plan (min, max, add, remove, columns, rows, width_m, depth_m); settings {{id, region_size, vertex_spacing}} changes the grid in the open Godot editor (an error unless it has the project open, Godot rewrites the region files); send {{id, wait (true)}} writes the edited regions as pending files and has Godot apply them, the reply names the route (live_link, headless or waiting when nobody could be reached, the files stay pending) and the accepted and refused regions with the reason, unsaved_in_godot lists the ones refused as dirty; resolve {{id, region: [x, y], take: godot|mine}} settles a conflict, godot drops your edit, mine sends it over Godot's; probe {{id, points: [[x, z]]}} reads height (map units, null over a hole or no region) and base, overlay, blend, hole, navigation and auto per point. Sculpt, paint and flatten the node with terrain_edit and its id, and put scatter on it with the scatter tool. Replies are English.",
+                super::terrain3d_tool::OPS.join(", ")
+            ),
+            "inputSchema": { "type": "object", "properties": {
+                "op": { "type": "string", "enum": super::terrain3d_tool::OPS }, "id": { "type": "integer", "description": "the Terrain3D node, every op but link" },
+                "data_directory": { "type": "string", "description": "link: a res:// folder inside the Godot project" },
+                "create": { "type": "object", "description": "link: make the folder with these settings", "properties": {
+                    "region_size": { "type": "integer", "enum": [64, 128, 256, 512, 1024, 2048] }, "vertex_spacing": { "type": "number", "description": "meters, 0.25 to 100" },
+                    "columns": { "type": "integer" }, "rows": { "type": "integer" }
+                } },
+                "add": { "type": "array", "items": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 } },
+                "remove": { "type": "array", "items": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 } },
+                "north": { "type": "integer" }, "south": { "type": "integer" }, "west": { "type": "integer" }, "east": { "type": "integer" },
+                "fill": { "type": "string", "enum": ["zero"], "description": "new regions are blank" }, "dry_run": { "type": "boolean" },
+                "region_size": { "type": "integer", "enum": [64, 128, 256, 512, 1024, 2048] }, "vertex_spacing": { "type": "number" },
+                "wait": { "type": "boolean", "default": true }, "region": { "type": "array", "items": { "type": "integer" }, "minItems": 2, "maxItems": 2 },
+                "take": { "type": "string", "enum": ["godot", "mine"] }, "points": points_schema()
+            } }
+        }),
+        json!({
             "name": "duplicate",
             "description": "Array duplicate like Hammer's paste special, the Array Copies dialog: count (1 to 512) copies of ids (or the selection), each offset further (one grid step along X by default), turned by rotate [x, y, z] degrees per copy (Godot's rotation_degrees order, rotate_y is the older form for Y only) and scaled by scale (a number or [x, y, z], 1 keeps the size) about pivot, or about the selection's center carried along by the offsets when there is none, never snapped. Each copy is made from the previous one, so turning and scaling accumulate, and the whole run is one undo step. linked makes linked groups that stay in sync. Offsets are used as given, and textures stay locked to the copies while UV lock is on, the editor setting unless uv_lock is passed, like transform.",
             "inputSchema": { "type": "object", "properties": {
@@ -911,6 +933,12 @@ create_brush does not take segments, so it ignored them"));
 
         for preset in td_doc::scatter::PRESETS {
             assert!(text("scatter").contains(preset), "{preset}");
+        }
+
+        let terrain3d = tools.iter().find(|t| t["name"] == "terrain3d").unwrap();
+        for op in crate::mcp::terrain3d_tool::OPS {
+            assert!(text("terrain3d").contains(&format!("{op} {{")), "the terrain3d description explains {op}");
+            assert!(terrain3d["inputSchema"]["properties"]["op"]["enum"].as_array().unwrap().iter().any(|e| e == op), "{op}");
         }
     }
 

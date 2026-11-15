@@ -329,11 +329,7 @@ pub fn inspector(ui: &mut Ui, state: &mut EditorState, id: NodeId, actions: &mut
     }
 
     if let Some(loc) = godots {
-        state.doc.edit("Use Godot's Terrain3D region", |m, _| {
-            if let Some(link) = m.terrain3d_mut(id) {
-                use_godots(link, loc);
-            }
-        });
+        state.use_godots_terrain3d(id, loc);
     }
 
     if let Some(loc) = mine {

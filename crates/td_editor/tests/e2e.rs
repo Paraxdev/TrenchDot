@@ -141,6 +141,17 @@ impl Editor {
         result["structuredContent"].clone()
     }
 
+    /// The result of a tool call, or the error text when it failed.
+    fn try_call(&self, tool: &str, args: Value) -> Result<Value, String> {
+        let r = self.try_rpc("tools/call", json!({ "name": tool, "arguments": args })).unwrap_or_else(|| panic!("{tool}: no response"));
+        let result = &r["result"];
+        if result["isError"].as_bool().unwrap_or(true) {
+            Err(result["content"][0]["text"].as_str().unwrap_or_default().to_string())
+        } else {
+            Ok(result["structuredContent"].clone())
+        }
+    }
+
     fn call_err(&self, tool: &str, args: Value) -> String {
         let r = self.try_rpc("tools/call", json!({ "name": tool, "arguments": args })).unwrap();
         assert!(r["result"]["isError"].as_bool().unwrap_or(false), "{tool} unexpectedly succeeded");
@@ -9041,4 +9052,202 @@ fn terrain3d_scatter_follows_a_change_made_in_godot() {
 
     ed.call("run_action", json!({ "action": "undo" }));
     assert!((lone_instance(&ed, &set).unwrap()[1] - before[1]).abs() < 0.01, "one undo takes the instance back");
+}
+
+fn sorted_locs(v: &Value) -> Vec<[i64; 2]> {
+    let mut out: Vec<[i64; 2]> = v.as_array().unwrap().iter().map(|l| [l[0].as_i64().unwrap(), l[1].as_i64().unwrap()]).collect();
+    out.sort();
+    out
+}
+
+/// The terrain3d tool links a new folder, changes its regions and grows it with a dry run first, and refuses what it
+/// cannot do: a second link, a wrong node, a hidden node, bad arguments and settings without Godot.
+#[test]
+#[ignore]
+fn terrain3d_tool_links_a_new_folder_and_changes_its_regions() {
+    let dir = linked_project("terrain3d_tool_regions", json!([]));
+    let ed = Editor::launch_with("terrain3d_tool_regions", &["--project", dir.to_str().unwrap()]);
+    let t3d = |args: Value| ed.call("terrain3d", args);
+    let fails = |args: Value| ed.call_err("terrain3d", args);
+    assert!(fails(json!({ "op": "link", "data_directory": "terrain" })).contains("res://"));
+    assert!(fails(json!({ "op": "link", "data_directory": "res://w", "create": { "region_size": 100 } })).contains("64"));
+    assert!(fails(json!({ "op": "link", "data_directory": "res://a/b", "create": {} })).contains("folder name"));
+    assert!(fails(json!({ "op": "dance" })).contains("link, info, regions"));
+    assert!(fails(json!({ "op": "link", "data_directory": "res://nope" })).contains("holds no Terrain3D data"));
+    assert!(fails(json!({ "op": "info", "id": 99 })).contains("no node"));
+    assert!(ed.call("list_nodes", json!({ "type": "terrain3d" }))["nodes"].as_array().unwrap().is_empty(), "the refusals linked nothing");
+
+    let linked =
+        t3d(json!({ "op": "link", "data_directory": "res://my_world", "create": { "region_size": 64, "vertex_spacing": 0.25, "columns": 2, "rows": 1 } }));
+    let node = linked["id"].clone();
+    assert_eq!((linked["created"].clone(), linked["data_directory"].clone()), (json!(true), json!("res://my_world")));
+    assert_eq!(sorted_locs(&linked["regions"]), vec![[-1, 0], [0, 0]]);
+    let listed = ed.call("list_nodes", json!({ "type": "terrain3d" }))["nodes"][0].clone();
+    assert_eq!((listed["id"].clone(), listed["regions"].clone()), (node.clone(), json!(2)));
+    assert!(fails(json!({ "op": "link", "data_directory": "res://other", "create": {} })).contains("already"));
+    let layer = ed.call("list_nodes", json!({ "type": "layer" }))["nodes"][0]["id"].clone();
+    assert!(fails(json!({ "op": "info", "id": layer })).contains("not a Terrain3D"));
+
+    let info = t3d(json!({ "op": "info", "id": node }));
+    assert_eq!(info["godot"], "not_installed", "the project has no Terrain3D addon");
+    assert_eq!(info["settings"], json!({ "region_size": 64, "vertex_spacing": 0.25 }));
+    assert_eq!(info["changed"], json!([{ "loc": [-1, 0], "kind": "add", "conflict": false }, { "loc": [0, 0], "kind": "add", "conflict": false }]));
+    assert_eq!((info["conflicts"].clone(), info["pending"].clone()), (json!([]), json!([])));
+    assert_eq!(info["regions"][0], json!({ "loc": [-1, 0], "edited": true, "added": true, "height_range": null }));
+    assert!(fails(json!({ "op": "settings", "id": node, "region_size": 128 })).contains("Godot editor open"));
+    assert!(fails(json!({ "op": "settings", "id": node })).contains("region_size or vertex_spacing"));
+    assert!(fails(json!({ "op": "settings", "id": node, "vertex_spacing": 0.2 })).contains("spacing"));
+
+    let undo_top = || ed.state()["undo"][0].clone();
+    let before = undo_top();
+    let changed = t3d(json!({ "op": "regions", "id": node, "add": [[1, 0], [0, -1]], "remove": [[-1, 0]] }));
+    assert_eq!(sorted_locs(&changed["added"]), vec![[0, -1], [1, 0]]);
+    assert_eq!(changed["removed"], json!([[-1, 0]]));
+    assert_eq!(sorted_locs(&changed["regions"]), vec![[0, -1], [0, 0], [1, 0]]);
+    let after = undo_top();
+    assert_ne!(after, before);
+    let again = t3d(json!({ "op": "regions", "id": node, "add": [[0, 0]], "remove": [[5, 5]] }));
+    assert_eq!((again["added"].clone(), again["removed"].clone()), (json!([]), json!([])));
+    assert_eq!(undo_top(), after, "nothing changed, so no undo step");
+    let bad = [
+        json!({}),
+        json!({ "add": [[16, 0]] }),
+        json!({ "remove": [[0, -17]] }),
+        json!({ "add": [[1, 1]], "remove": [[1, 1]] }),
+        json!({ "add": [[0, 1]], "fill": "edge" }),
+    ];
+    for mut args in bad {
+        args["op"] = json!("regions");
+        args["id"] = node.clone();
+        fails(args);
+    }
+
+    let plan = t3d(json!({ "op": "grow", "id": node, "north": 1, "east": 1, "dry_run": true }));
+    assert_eq!((plan["min"].clone(), plan["max"].clone()), (json!([0, -2]), json!([2, 0])));
+    assert_eq!(sorted_locs(&plan["add"]), vec![[0, -2], [1, -2], [2, -2], [2, -1], [2, 0]]);
+    assert_eq!((plan["remove"].clone(), plan["columns"].clone(), plan["rows"].clone()), (json!([]), json!(3), json!(3)));
+    assert_eq!((plan["width_m"].clone(), plan["depth_m"].clone()), (json!(48.0), json!(48.0)));
+    assert_eq!(sorted_locs(&plan["regions"]).len(), 3, "a dry run changes nothing");
+    assert_eq!(undo_top(), after);
+
+    let grown = t3d(json!({ "op": "grow", "id": node, "north": 1, "east": 1 }));
+    assert_eq!(grown["dry_run"], false);
+    assert_eq!(sorted_locs(&grown["regions"]).len(), 8);
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(sorted_locs(&t3d(json!({ "op": "grow", "id": node, "north": 1, "dry_run": true }))["regions"]).len(), 3, "one undo step takes the grow back");
+    assert!(fails(json!({ "op": "grow", "id": node, "west": -5 })).contains("every"));
+    assert!(fails(json!({ "op": "grow", "id": node, "east": 40 })).contains("at most 32"));
+    assert!(fails(json!({ "op": "grow", "id": node })).contains("north, south, west or east"));
+    assert!(fails(json!({ "op": "grow", "id": node, "east": 1, "fill": "edge" })).contains("edge"));
+    let shrunk = t3d(json!({ "op": "grow", "id": node, "east": -1 }));
+    assert_eq!(sorted_locs(&shrunk["regions"]), vec![[0, -1], [0, 0]]);
+
+    ed.call("run_action", json!({ "action": "hide_selected" }));
+    assert!(fails(json!({ "op": "regions", "id": node, "add": [[3, 3]] })).contains("hidden"));
+    assert!(fails(json!({ "op": "grow", "id": node, "east": 1 })).contains("hidden"));
+    t3d(json!({ "op": "grow", "id": node, "east": 1, "dry_run": true }));
+    ed.call("run_action", json!({ "action": "unhide_all" }));
+    t3d(json!({ "op": "regions", "id": node, "add": [[3, 3]] }));
+}
+
+/// The terrain3d tool reads the world, sends it to a fake Godot and settles a conflict either way.
+#[test]
+#[ignore]
+fn terrain3d_tool_reports_sends_resolves_and_probes() {
+    let (dir, map) = terrain3d_world("terrain3d_tool_send", Some(9));
+    std::fs::create_dir_all(dir.join("addons/terrain_3d")).unwrap();
+    let answers = json!({
+        "terrain3d_apply": { "accepted": [[1, 0]], "refused": [{ "loc": [0, 1], "reason": "dirty" }], "problems": [] },
+        "terrain3d_settings": { "region_size": 128, "vertex_spacing": 0.25 }
+    });
+    let (godot, sent) = fake_godot_editor_with(&dir, &[&map], answers);
+    let ed = Editor::launch_with("terrain3d_tool_send", &["--project", dir.to_str().unwrap()]);
+    ed.call("set_editor", json!({ "live_link_port": godot }));
+    wait_state(&ed, "the live link", |s| s["godot"]["project_open"] == true);
+    ed.call("map_file", json!({ "op": "open", "path": map }));
+    let node = ed.call("list_nodes", json!({ "type": "terrain3d" }))["nodes"][0]["id"].clone();
+    let t3d = |args: Value| ed.call("terrain3d", args);
+    let fails = |args: Value| ed.call_err("terrain3d", args);
+
+    let info = t3d(json!({ "op": "info", "id": node }));
+    assert_eq!(info["godot"], "connected");
+    assert_eq!(info["versions"], json!({ "terrain3d": "1.1.0", "godot": "4.7.2", "data_version": 1.1 }));
+    assert_eq!(info["settings"], json!({ "region_size": 64, "vertex_spacing": 0.25 }));
+    assert_eq!(info["textures"], json!([{ "id": 1, "name": "red" }, { "id": 2, "name": "blue" }]));
+    assert_eq!(info["changed"], json!([{ "loc": [1, 0], "kind": "edit", "conflict": true }]));
+    assert_eq!((info["conflicts"].clone(), info["pending"].clone()), (json!([[1, 0]]), json!([[1, 0]])));
+    assert_eq!(info["unsaved_in_godot"], json!([]));
+    let range = |loc: [i64; 2]| info["regions"].as_array().unwrap().iter().find(|r| r["loc"] == json!(loc)).unwrap()["height_range"].clone();
+    assert_eq!((range([0, 0]), range([1, 0])), (json!([0.0, 20.0]), json!(null)));
+
+    assert!(fails(json!({ "op": "resolve", "id": node, "region": [0, 0], "take": "godot" })).contains("no edit of yours"));
+    assert!(fails(json!({ "op": "resolve", "id": node, "region": [1, 0], "take": "both" })).contains("take"));
+    let godots = t3d(json!({ "op": "resolve", "id": node, "region": [1, 0], "take": "godot" }));
+    assert_eq!((godots["was_conflict"].clone(), godots["kind"].clone()), (json!(true), json!("edit")));
+    assert_eq!(t3d(json!({ "op": "info", "id": node }))["changed"], json!([]));
+    let idle = t3d(json!({ "op": "send", "id": node }));
+    assert_eq!((idle["sent"].clone(), idle["pending"].clone()), (json!(false), json!([])));
+    assert!(idle["reason"].as_str().unwrap().contains("no Terrain3D edits"));
+    assert!(sent_events(&sent, "terrain3d_apply").is_empty(), "with nothing to send Godot is not asked");
+
+    ed.call("run_action", json!({ "action": "undo" }));
+    let reply = t3d(json!({ "op": "send", "id": node }));
+    assert_eq!((reply["sent"].clone(), reply["done"].clone(), reply["route"].clone()), (json!(true), json!(true), json!("live_link")));
+    assert_eq!(reply["accepted"], json!([[1, 0]]));
+    assert_eq!(reply["refused"], json!([{ "loc": [0, 1], "reason": "dirty" }]));
+    assert_eq!(reply["unsaved_in_godot"], json!([[0, 1]]));
+    let status = ed.state()["status"].as_str().unwrap().to_string();
+    assert!(status.contains("unsaved changes in Terrain3D region 0, 1") && !status.contains("changed in Godot"), "{status}");
+    assert_eq!(reply["pending"], json!([[1, 0]]));
+    assert_eq!(sent_events(&sent, "terrain3d_apply").iter().map(|e| e["force"].clone()).collect::<Vec<_>>(), vec![json!(false)]);
+    let quick = t3d(json!({ "op": "send", "id": node, "wait": false }));
+    assert_eq!((quick["sent"].clone(), quick["done"].clone()), (json!(true), json!(false)));
+    wait_state(&ed, "the second apply", |_| sent_events(&sent, "terrain3d_apply").len() == 2);
+
+    let mine = t3d(json!({ "op": "resolve", "id": node, "region": [1, 0], "take": "mine" }));
+    assert_eq!((mine["take"].clone(), mine["was_conflict"].clone()), (json!("mine"), json!(true)));
+    wait_state(&ed, "the forced apply", |_| sent_events(&sent, "terrain3d_apply").last().is_some_and(|e| e["force"] == true));
+
+    let same = t3d(json!({ "op": "settings", "id": node, "region_size": 64, "vertex_spacing": 0.25 }));
+    assert_eq!(same["changed"], false);
+    assert!(sent_events(&sent, "terrain3d_settings").is_empty(), "the same settings never reach Godot");
+    let changed = t3d(json!({ "op": "settings", "id": node, "region_size": 128 }));
+    assert_eq!((changed["changed"].clone(), changed["region_size"].clone(), changed["vertex_spacing"].clone()), (json!(true), json!(128), json!(0.25)));
+    let asked = sent_events(&sent, "terrain3d_settings");
+    assert_eq!(asked.len(), 1);
+    assert_eq!((asked[0]["region_size"].clone(), asked[0]["vertex_spacing"].clone()), (json!(128), json!(0.25)));
+
+    let probed = t3d(json!({ "op": "probe", "id": node, "points": [[536.0, 16.0], [584.0, 40.0], [24.0, 8.0], [-900.0, 5000.0]] }));
+    let points = probed["points"].as_array().unwrap();
+    let height = |k: usize| points[k]["height"].as_f64();
+    assert!((height(0).unwrap() - world_height([1, 0], 3, 2)).abs() < 0.01, "{probed}");
+    assert!((height(1).unwrap() - (world_height([1, 0], 9, 5) + 3.5 * 32.0)).abs() < 0.01, "the edit shows, {probed}");
+    assert!((height(2).unwrap() - world_height([0, 0], 3, 1)).abs() < 0.01, "{probed}");
+    assert_eq!((points[0]["region"].clone(), points[0]["base"].clone(), points[2]["base"].clone()), (json!([1, 0]), json!(2), json!(1)));
+    assert_eq!(height(3), None);
+    assert!(points[3]["base"].is_null());
+    assert!(fails(json!({ "op": "probe", "id": node, "points": [] })).contains("points"));
+    assert!(fails(json!({ "op": "probe", "id": node, "points": [[1.0]] })).contains("[x, z]"));
+}
+
+/// Without a Godot to reach, send leaves the edits pending in the data folder and says so.
+#[test]
+#[ignore]
+fn terrain3d_tool_send_leaves_edits_pending_without_godot() {
+    let (ed, node) = launch_world("terrain3d_tool_pending", Some(7));
+    let cache = artifacts().join("terrain3d_tool_pending").join("terrain").join(td_formats::terrain3d_cache::DIR_NAME);
+    ed.call("terrain3d", json!({ "op": "regions", "id": node, "add": [[0, 2]] }));
+    let found = ed.state()["godot"]["executable"].is_string();
+    let reply = ed.try_call("terrain3d", json!({ "op": "send", "id": node }));
+    let mut pending = td_formats::terrain3d_cache::pending_locs(&cache).unwrap();
+    pending.sort();
+    assert_eq!(pending, vec![[0, 2], [1, 0]], "both edits wait as files, whatever happened to the send");
+    match reply {
+        Ok(v) if !found => {
+            assert_eq!((v["route"].clone(), v["accepted"].clone()), (json!("waiting"), json!([])));
+            assert_eq!(v["pending"], json!([[0, 2], [1, 0]]));
+        }
+        Ok(_) => {}
+        Err(e) => assert!(found && e.contains("not applied"), "{e}"),
+    }
 }

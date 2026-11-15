@@ -1177,6 +1177,7 @@ impl App {
             "set_map_properties" => self.tool_set_map_properties(&args),
             "bake_lighting" => self.tool_bake_lighting(&args),
             "terrain_edit" => self.tool_terrain_edit(&args),
+            "terrain3d" => self.tool_terrain3d(&args),
             "duplicate" => self.tool_duplicate(&args),
             "run_script" => self.tool_run_script(&args, ctx),
             "import_model" => self.tool_import_model(&args),
@@ -1479,6 +1480,10 @@ impl App {
                 if let Some(p) = filter.matched_properties(e) {
                     v["properties"] = p;
                 }
+            }
+
+            if let Some(regions) = super::terrain3d_tool::region_count(&self.state, id) {
+                v["regions"] = json!(regions);
             }
 
             nodes.push(v);
