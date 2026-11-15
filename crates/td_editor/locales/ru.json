@@ -2863,5 +2863,7 @@
   "Terrain3D settings were not changed: {problem}": "Настройки Terrain3D не изменены: {problem}",
   "Spray": "Распыление",
   "Paint replaces the base texture under the brush": "Рисование заменяет базовую текстуру под кистью",
-  "Spray blends the texture over the base, a little with every dab": "Распыление подмешивает текстуру поверх базовой, понемногу с каждым мазком"
+  "Spray blends the texture over the base, a little with every dab": "Распыление подмешивает текстуру поверх базовой, понемногу с каждым мазком",
+  "Follows Terrain3D": "Следует за Terrain3D",
+  "Its instances are put back on the Terrain3D surface after every stroke, fill and change made in Godot": "Его экземпляры возвращаются на поверхность Terrain3D после каждого мазка, заливки и изменения, сделанного в Godot"
 }

@@ -2863,5 +2863,7 @@
   "Terrain3D settings were not changed: {problem}": "Terrain3D 设置未更改：{problem}",
   "Spray": "喷涂",
   "Paint replaces the base texture under the brush": "绘制会替换笔刷下的基础纹理",
-  "Spray blends the texture over the base, a little with every dab": "喷涂会随每次笔触把纹理少量混合到基础纹理之上"
+  "Spray blends the texture over the base, a little with every dab": "喷涂会随每次笔触把纹理少量混合到基础纹理之上",
+  "Follows Terrain3D": "跟随 Terrain3D",
+  "Its instances are put back on the Terrain3D surface after every stroke, fill and change made in Godot": "每次笔触、填充以及在 Godot 中所做的更改之后，其实例都会重新贴回 Terrain3D 表面"
 }

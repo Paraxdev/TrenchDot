@@ -8850,3 +8850,78 @@ fn terrain3d_edit_regions_click_adds_and_removes_a_region() {
     assert!(removed.remove);
     assert_eq!(pending_locs(&cache).unwrap(), vec![[-1, 1], [1, 0]], "no other square changed");
 }
+
+/// The height Godot samples at `x`, `z` in map units over the regions of `terrain3d_world` with the edits of the pending
+/// files, the surface a scatter instance is put on.
+fn surface_at(cache: &std::path::Path, x: f64, z: f64) -> f64 {
+    use std::collections::HashMap;
+    use td_formats::terrain3d_cache::{read_pending, read_region};
+    use td_geom::terrain3d::{Grid, Loc, Region3D, surface_height};
+
+    let regions: HashMap<Loc, Region3D> = [[0, 0], [1, 0], [0, 1]]
+        .into_iter()
+        .map(|loc| (loc, read_pending(cache, loc, 64).map(|p| p.region).unwrap_or_else(|_| read_region(cache, loc, 64).unwrap().region)))
+        .collect();
+    let grid = Grid { region_size: 64, spacing: 0.25, upm: 32.0 };
+    surface_height(&grid, None, |l| regions.get(&l), (x / 32.0) as f32, (z / 32.0) as f32) as f64 * 32.0
+}
+
+/// Where a set with a single instance stands: the middle of its bounds in x and z, and the bottom, which is the
+/// instance height for a model of scale 1.
+fn lone_instance(ed: &Editor, set: &Value) -> Option<[f64; 3]> {
+    let bounds = &ed.call("scatter", json!({ "op": "get", "id": set }))["sets"][0]["bounds"];
+    let (min, max) = (bounds["min"].as_array()?, bounds["max"].as_array()?);
+    let at = |i: usize| (min[i].as_f64().unwrap(), max[i].as_f64().unwrap());
+    Some([(at(0).0 + at(0).1) / 2.0, at(1).0, (at(2).0 + at(2).1) / 2.0])
+}
+
+/// A scatter set that targets the Terrain3D node ends up on the surface Godot samples, whether a fill or a dab put the
+/// instances there, over a bump where the drawn triangles and the sampled surface disagree. Its panel says it follows.
+#[test]
+#[ignore]
+fn terrain3d_scatter_follows_the_surface_after_a_fill_and_a_stroke() {
+    let (ed, node) = launch_world("terrain3d_follow", None);
+    let cache = artifacts().join("terrain3d_follow").join("terrain").join(td_formats::terrain3d_cache::DIR_NAME);
+    ed.call("set_camera", json!({ "view": "top", "center": [512, 0, 512], "zoom": 0.4 }));
+    // Narrow dabs all over the first row of regions: a smooth hill is flat enough inside a cell for the triangles to agree.
+    for (i, (x, z)) in (0..50).map(|i| (50.0 + 100.0 * (i % 10) as f64, 50.0 + 100.0 * (i / 10) as f64)).enumerate() {
+        ed.call(
+            "run_action",
+            json!({ "action": "sculpt", "args": { "center": [x, 0.0, z], "mode": "raise", "radius": 36, "strength": 20.0 + 15.0 * (i % 4) as f64 } }),
+        );
+    }
+
+    ed.call("run_action", json!({ "action": "send_terrain3d" }));
+
+    // One model with a spacing wider than the world: a fill or a dab places a single instance.
+    let item = json!({ "source": "res://rock.glb", "spacing": 1.0e6, "scale": 1 });
+    let set = ed.call("scatter", json!({ "op": "new_set", "name": "rocks", "items": [item], "targets": [node] }))["id"].clone();
+    let follows = |reply: &Value| reply["set"]["targets"] == json!([node]);
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let check = |how: &str, at: [f64; 3]| {
+        let want = surface_at(&cache, at[0], at[2]);
+        assert!((at[1] - want).abs() < 0.01, "{how}: an instance at {at:?} stands {} units off the surface {want}", at[1] - want);
+    };
+
+    for round in 0..4u64 {
+        ed.call("scatter", json!({ "op": "clear", "id": set }));
+        let reply = loop {
+            let reply = ed.call("scatter", json!({ "op": "fill", "density": 4, "seed": round }));
+            if reply["placed"] == 1 {
+                break reply;
+            }
+
+            assert!(Instant::now() < deadline, "the fill never found the tiles, {reply}");
+            ed.call("scatter", json!({ "op": "clear", "id": set }));
+            std::thread::sleep(Duration::from_millis(200));
+        };
+        assert!(follows(&reply));
+        check("fill", lone_instance(&ed, &set).unwrap());
+
+        ed.call("scatter", json!({ "op": "clear", "id": set }));
+        let (x, z) = (250.0 + 100.0 * round as f64, 150.0 + 100.0 * round as f64);
+        let reply = ed.call("scatter", json!({ "op": "paint", "center": [x, z], "radius": 36, "density": 8, "seed": round }));
+        assert_eq!(reply["placed"], 1, "{reply}");
+        check("dab", lone_instance(&ed, &set).unwrap());
+    }
+}

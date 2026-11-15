@@ -2863,5 +2863,7 @@
   "Terrain3D settings were not changed: {problem}": "No se cambiaron los ajustes de Terrain3D: {problem}",
   "Spray": "Rociar",
   "Paint replaces the base texture under the brush": "Pintar reemplaza la textura base bajo el pincel",
-  "Spray blends the texture over the base, a little with every dab": "Rociar mezcla la textura sobre la base, un poco con cada pasada"
+  "Spray blends the texture over the base, a little with every dab": "Rociar mezcla la textura sobre la base, un poco con cada pasada",
+  "Follows Terrain3D": "Sigue a Terrain3D",
+  "Its instances are put back on the Terrain3D surface after every stroke, fill and change made in Godot": "Sus instancias vuelven a la superficie de Terrain3D tras cada pincelada, cada relleno y cada cambio hecho en Godot"
 }

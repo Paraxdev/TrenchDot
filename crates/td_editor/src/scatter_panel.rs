@@ -408,7 +408,7 @@ fn targets_section(ui: &mut Ui, state: &mut EditorState, actions: &mut Vec<Actio
         ui.horizontal(|ui| {
             let icon = match state.doc.map.get(*t).map(|n| &n.kind) {
                 Some(td_doc::NodeKind::Scatter(_)) => icons::SCATTER,
-                Some(td_doc::NodeKind::Terrain(_)) => icons::TERRAIN,
+                Some(td_doc::NodeKind::Terrain(_) | td_doc::NodeKind::Terrain3D(_)) => icons::TERRAIN,
                 Some(td_doc::NodeKind::Mesh(_)) => icons::MESH,
                 _ => icons::BRUSH,
             };
@@ -424,6 +424,11 @@ fn targets_section(ui: &mut Ui, state: &mut EditorState, actions: &mut Vec<Actio
 
     if let Some(t) = drop {
         tool::toggle_target(state, t);
+    }
+
+    if state.terrain3d_followed(&set.targets).is_some() {
+        ui.label(RichText::new(tr("Follows Terrain3D")).small().color(theme::colors().orange))
+            .on_hover_text(tr("Its instances are put back on the Terrain3D surface after every stroke, fill and change made in Godot"));
     }
 
     let mut follow_edit = follow;

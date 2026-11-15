@@ -4,6 +4,7 @@ pub mod bridge;
 pub mod brush;
 pub mod click;
 pub mod dialog;
+pub mod follow;
 pub mod inspector;
 pub mod link;
 pub mod overlay;

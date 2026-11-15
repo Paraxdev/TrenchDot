@@ -2863,5 +2863,7 @@
   "Terrain3D settings were not changed: {problem}": "Les réglages de Terrain3D n'ont pas été modifiés : {problem}",
   "Spray": "Pulvériser",
   "Paint replaces the base texture under the brush": "Peindre remplace la texture de base sous le pinceau",
-  "Spray blends the texture over the base, a little with every dab": "Pulvériser fond la texture sur la base, un peu à chaque passage"
+  "Spray blends the texture over the base, a little with every dab": "Pulvériser fond la texture sur la base, un peu à chaque passage",
+  "Follows Terrain3D": "Suit Terrain3D",
+  "Its instances are put back on the Terrain3D surface after every stroke, fill and change made in Godot": "Ses instances sont replacées sur la surface de Terrain3D après chaque coup de pinceau, chaque remplissage et chaque modification faite dans Godot"
 }

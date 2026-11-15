@@ -13,6 +13,7 @@ use crate::i18n::{Msg, msg, msg_n, tr, trf};
 use crate::picking::SurfaceCaster;
 use crate::scene::v3;
 use crate::state::{EditorState, ScatterOutput};
+use crate::terrain3d::follow::ground_followers;
 use crate::widgets::corner_hint;
 
 fn rgba(c: Color32, a: f32) -> [f32; 4] {
@@ -312,7 +313,7 @@ pub fn target_hit(state: &EditorState, ray: &Ray) -> Option<SurfaceHit> {
 /// Adds or removes `node` as a target of the active set, creating a set when there is none. Returns whether it was
 /// added, or an error for nodes that cannot carry instances.
 pub fn eyedrop_target(state: &mut EditorState, node: NodeId) -> Result<bool, Msg> {
-    let is_ground = state.doc.map.get(node).is_some_and(|n| n.kind.is_geometry() || matches!(n.kind, NodeKind::Scatter(_)));
+    let is_ground = state.doc.map.get(node).is_some_and(|n| n.kind.is_geometry() || matches!(n.kind, NodeKind::Scatter(_) | NodeKind::Terrain3D(_)));
     if !is_ground {
         return Err(msg!("{node} is not a surface, targets are brushes, meshes, terrains and scatter sets", node));
     }
@@ -399,9 +400,15 @@ pub fn paint(state: &mut EditorState, center: DVec3, normal: DVec3, under: Optio
         let rules = ScatterRules { items: Some(enabled), ..settings.rules.clone() };
         set.paint(center, normal, settings.radius, &rules, rng, &others, |o, d| caster.cast(o, d))
     };
+    let follow = state.terrain3d_followed(&set.targets);
+    let source = follow.as_ref().and_then(|(_, cache)| state.terrain3d.source(cache));
     state.doc.edit("Scatter", |m, _| {
         if let Some(slot) = m.scatter_mut(id) {
             *slot = set;
+        }
+
+        if let (Some((link, _)), Some(source)) = (&follow, &source) {
+            ground_followers(m, *link, source, Some((center, settings.radius)));
         }
     });
     placed
@@ -462,9 +469,15 @@ pub fn fill(state: &mut EditorState, rng: &mut Rng) -> Result<usize, Msg> {
         let rules = ScatterRules { items: Some(enabled), only_targets: true, ..settings.rules.clone() };
         set.fill(&region, &rules, rng, &others, |o, d| caster.cast(o, d))
     };
+    let follow = state.terrain3d_followed(&set.targets);
+    let source = follow.as_ref().and_then(|(_, cache)| state.terrain3d.source(cache));
     state.doc.edit("Fill Scatter", |m, _| {
         if let Some(slot) = m.scatter_mut(id) {
             *slot = set;
+        }
+
+        if let (Some((link, _)), Some(source)) = (&follow, &source) {
+            ground_followers(m, *link, source, None);
         }
     });
     Ok(placed)

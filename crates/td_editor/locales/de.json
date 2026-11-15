@@ -2863,5 +2863,7 @@
   "Terrain3D settings were not changed: {problem}": "Terrain3D-Einstellungen wurden nicht geändert: {problem}",
   "Spray": "Sprühen",
   "Paint replaces the base texture under the brush": "Malen ersetzt die Basistextur unter dem Pinsel",
-  "Spray blends the texture over the base, a little with every dab": "Sprühen mischt die Textur mit jedem Pinselstrich ein wenig über die Basis"
+  "Spray blends the texture over the base, a little with every dab": "Sprühen mischt die Textur mit jedem Pinselstrich ein wenig über die Basis",
+  "Follows Terrain3D": "Folgt Terrain3D",
+  "Its instances are put back on the Terrain3D surface after every stroke, fill and change made in Godot": "Seine Instanzen werden nach jedem Pinselstrich, jeder Füllung und jeder Änderung in Godot wieder auf die Terrain3D-Oberfläche gesetzt"
 }
