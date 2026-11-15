@@ -7,7 +7,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use td_core::{DVec2, DVec3, Mirror, NodeId};
 use td_geom::heightfield::Terrain;
-use td_geom::terrain3d::{EdgeBlend, Grid, LOC_MAX, LOC_MIN, Loc, Region3D, loc_in_range, surface_height};
+use td_geom::terrain3d::{Control, EdgeBlend, Grid, LOC_MAX, LOC_MIN, Loc, Region3D, loc_in_range, surface_height};
 use td_geom::terrain3d_tile::{self, PaintMode};
 
 use crate::map::{Map, NodeKind};
@@ -114,6 +114,15 @@ pub struct GrowPlan {
     pub max: Loc,
     pub add: Vec<Loc>,
     pub remove: Vec<Loc>,
+}
+
+/// What Terrain3D has at a position: `height` is the surface a scatter instance stands on in map units, None over a
+/// hole or where no region is. `control` is the nearest vertex's control word.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Probe {
+    pub height: Option<f64>,
+    pub region: Option<Loc>,
+    pub control: Option<Control>,
 }
 
 impl Terrain3DLink {
@@ -973,6 +982,32 @@ mod edit_tests {
 
         assert!(on_line > 20);
         assert!(!link.edits.contains_key(&[3, 2]));
+    }
+
+    #[test]
+    fn a_probe_reads_the_edited_surface_and_the_nearest_vertex_control() {
+        let source = Fake::new(&[[-1, 0], [0, 0]]);
+        let mut link = Terrain3DLink::new("res://t3d");
+        let (x, z) = (-3.0 * CELL - 4.0, 5.0 * CELL + 3.0);
+        let before = link.probe(&source, x, z);
+        assert_eq!(before.region, Some([-1, 0]));
+        let want = |x: f64, z: f64| (3.0 + 0.05 * x / CELL - 0.02 * z / CELL) * UPM;
+        assert!((before.height.unwrap() - want(x, z)).abs() < 1e-3, "{before:?}");
+        let c = before.control.unwrap();
+        assert_eq!((c.base(), c.overlay(), c.blend(), c.hole(), c.navigation(), c.auto()), (2, 5, 40, false, true, true));
+
+        link.sculpt(&source, DVec3::new(x, 0.0, z), &brush(SculptMode::Raise, 64.0, 8.0));
+        assert!(link.probe(&source, x, z).height.unwrap() > before.height.unwrap() + 1.0, "the edit shows");
+        link.sculpt(&source, DVec3::new(x, 0.0, z), &brush(SculptMode::Hole, 64.0, 1.0));
+        let hole = link.probe(&source, x, z);
+        assert_eq!((hole.height, hole.region), (None, Some([-1, 0])));
+        assert!(hole.control.unwrap().hole());
+
+        let outside = link.probe(&source, 4.0 * 1024.0, 4.0 * 1024.0);
+        assert_eq!((outside.height, outside.region, outside.control), (None, None, None));
+        let edge = link.probe(&source, 0.0, 0.0);
+        assert_eq!(edge.region, Some([0, 0]));
+        assert!((edge.height.unwrap() - want(0.0, 0.0)).abs() < 1e-3);
     }
 
     #[test]
