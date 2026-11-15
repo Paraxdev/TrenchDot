@@ -1477,6 +1477,8 @@ impl Viewport {
             if let Some(b) = crate::terrain_size::footprint(state) {
                 size_labels(&painter, &self.camera, self.rect, b, crate::theme::VIEW.shape_bounds(), true);
             }
+
+            paint_terrain3d_marks(&painter, &self.camera, self.rect, state);
         }
 
         if state.prefs.godot_overlays {
@@ -1607,6 +1609,32 @@ pub(crate) fn cell_span(a: f64, b: f64, grid: f64, snap: bool) -> (f64, f64) {
     let eps = grid * 1e-3;
     let (lo, hi) = if snap { (((lo + eps) / grid).floor() * grid, ((hi - eps) / grid).ceil() * grid) } else { (lo, hi) };
     if (hi - lo).abs() < 1e-6 { (lo, lo + grid) } else { (lo, hi) }
+}
+
+fn paint_terrain3d_marks(painter: &egui::Painter, camera: &Camera, rect: Rect, state: &EditorState) {
+    use crate::terrain3d::overlay::{Mark, marks};
+
+    let border = Color32::from_rgba_unmultiplied(150, 150, 150, 120);
+    let warning = crate::theme::colors().warning();
+    let none = std::collections::BTreeSet::new();
+    for (id, layout) in &state.terrain3d_tiles.layouts {
+        let conflicts = state.terrain3d_tiles.conflicts.get(id).unwrap_or(&none);
+        for mark in marks(camera, rect, &layout.grid, &layout.locs, conflicts) {
+            match mark {
+                Mark::Region { rect: area, conflict, label } => {
+                    let (color, width) = if conflict { (warning, 2.0) } else { (border, 1.0) };
+                    painter.rect_stroke(area, 0.0, egui::Stroke::new(width, color), egui::StrokeKind::Inside);
+                    if let Some((pos, text)) = label {
+                        painter.text(pos, Align2::LEFT_TOP, text, FontId::monospace(11.0), color);
+                    }
+                }
+                Mark::Border { x, conflict } => {
+                    let (color, width) = if conflict { (warning, 2.0) } else { (border, 1.0) };
+                    painter.line_segment([Pos2::new(x, rect.min.y), Pos2::new(x, rect.max.y)], egui::Stroke::new(width, color));
+                }
+            }
+        }
+    }
 }
 
 /// Width and height of `b` beside it in a 2D view, above and to the right, or below and to the left when `opposite`.

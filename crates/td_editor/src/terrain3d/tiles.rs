@@ -231,6 +231,13 @@ pub fn rebuild(tiles: &mut BTreeMap<Loc, Entry>, world: &World, plan: &BTreeMap<
     (changed, false)
 }
 
+/// Where the regions of a linked Terrain3D node are, for the 2D views to mark.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Layout {
+    pub grid: Grid,
+    pub locs: Vec<Loc>,
+}
+
 /// The tiles of every linked Terrain3D node.
 #[derive(Default)]
 pub struct Tiles {
@@ -240,6 +247,7 @@ pub struct Tiles {
     /// Some tile is still to build or load, the next frame should go on.
     pub pending: bool,
     pub conflicts: BTreeMap<NodeId, BTreeSet<Loc>>,
+    pub layouts: BTreeMap<NodeId, Layout>,
     conflicts_for: Option<(u64, u64)>,
 }
 
@@ -260,14 +268,25 @@ impl Tiles {
         let before = self.nodes.len();
         self.nodes.retain(|id, _| ids.contains(id));
         self.conflicts.retain(|id, _| ids.contains(id));
-        self.nodes.len() != before
+        let layouts = self.layouts.len();
+        self.layouts.retain(|id, _| ids.contains(id));
+        self.nodes.len() != before || self.layouts.len() != layouts
     }
 
     pub(super) fn clear(&mut self, id: NodeId) -> bool {
         let had = self.nodes.get(&id).is_some_and(|m| !m.is_empty());
         self.nodes.remove(&id);
         self.conflicts.remove(&id);
-        had
+        had | self.layouts.remove(&id).is_some()
+    }
+
+    pub(super) fn set_layout(&mut self, id: NodeId, layout: Layout) -> bool {
+        if self.layouts.get(&id) == Some(&layout) {
+            return false;
+        }
+
+        self.layouts.insert(id, layout);
+        true
     }
 
     pub(super) fn conflicts_stale(&self, key: (u64, u64)) -> bool {

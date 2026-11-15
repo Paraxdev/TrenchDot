@@ -8682,3 +8682,34 @@ fn terrain3d_tiles_are_picked_and_ground_entities() {
     let id = ground(&ed);
     assert_eq!(height_at(&ed, &id), 0.0, "a hidden node is no ground");
 }
+
+/// A region whose pending edit was made against another version than the one Godot has now is outlined in the warning
+/// color in the 2D views, and a world without such an edit has no outline.
+#[test]
+#[ignore]
+fn terrain3d_conflicting_regions_are_outlined_in_the_top_view() {
+    let outline = |name: &'static str, pending_base: Option<u8>| {
+        let (ed, _) = launch_world(name, pending_base);
+        ed.call("set_editor", json!({ "theme": "dark" }));
+        ed.call("set_camera", json!({ "view": "top", "center": [512, 0, 256], "zoom": 0.3 }));
+        let warning = td_editor::theme::DARK.warning();
+        let near = |p: &image::Rgba<u8>| (0..3).all(|i| p.0[i].abs_diff(warning.to_array()[i]) <= 12);
+        let deadline = Instant::now() + Duration::from_secs(8);
+        loop {
+            // The Top view is the upper middle quarter of the default layout.
+            let window = shot(&ed, json!({ "target": "window" }), "window");
+            let (w, h) = window.dimensions();
+            let top = |x: u32, y: u32| x > w * 47 / 100 && x < w * 77 / 100 && y > h * 12 / 100 && y < h * 41 / 100;
+            let found = window.enumerate_pixels().filter(|(x, y, p)| top(*x, *y) && near(p)).count();
+            if found >= 200 || Instant::now() > deadline {
+                return found;
+            }
+
+            std::thread::sleep(Duration::from_millis(200));
+        }
+    };
+    let clean = outline("terrain3d_clean", None);
+    let conflicting = outline("terrain3d_conflict", Some(9));
+    assert!(clean < 20, "{clean} warning colored pixels without a conflict");
+    assert!(conflicting >= 200, "{conflicting} warning colored pixels with a conflict");
+}
