@@ -130,6 +130,93 @@ pub fn tile<'a>(grid: &Grid, region: &Region3D, regions: impl Fn(Loc) -> Option<
     Some(Tile { terrain, ids })
 }
 
+/// One level of a region's LOD pyramid as the cache stores it: `side * side` vertices `stride` apart that the region
+/// owns, heights in meters, `splat` (four bytes per vertex) over `ids`, and one hole byte per cell laid out `side` wide.
+/// `splat` and `holes` may be empty.
+#[derive(Clone, Copy, Debug)]
+pub struct Level<'a> {
+    pub stride: u32,
+    pub side: u32,
+    pub ids: &'a [u8],
+    pub heights: &'a [f32],
+    pub splat: &'a [u8],
+    pub holes: &'a [u8],
+}
+
+impl Level<'_> {
+    fn fits(&self, size: u32) -> bool {
+        let n = self.side as usize * self.side as usize;
+        self.stride > 0
+            && self.side > 0
+            && self.side * self.stride == size
+            && self.heights.len() == n
+            && (self.splat.is_empty() || self.splat.len() == n * 4)
+            && (self.holes.is_empty() || self.holes.len() == n)
+    }
+
+    fn weights(&self, k: usize) -> impl Iterator<Item = (u8, u8)> + '_ {
+        let single = (self.splat.is_empty()).then(|| self.ids.first().map(|id| (*id, 255u8))).flatten();
+        let spread = self.splat.get(k * 4..k * 4 + 4).into_iter().flat_map(|w| self.ids.iter().copied().zip(w.iter().copied()));
+        single.into_iter().chain(spread)
+    }
+}
+
+/// A level of the region at `loc` as a terrain of `side + 1` vertices per side, the way [`tile`] draws a region. The seam
+/// row and column come from the same level of the east, south and south east neighbors, or repeat the level's own edge
+/// where a neighbor has none or another stride. None for a level that does not fit the grid.
+pub fn level_tile<'a>(
+    grid: &Grid,
+    loc: Loc,
+    own: Level<'a>,
+    east: Option<Level<'a>>,
+    south: Option<Level<'a>>,
+    south_east: Option<Level<'a>>,
+    material: impl Fn(u8) -> String,
+) -> Option<Tile> {
+    if !own.fits(grid.region_size) || own.ids.is_empty() {
+        return None;
+    }
+
+    let same = |l: Option<Level<'a>>| l.filter(|l| l.stride == own.stride && l.side == own.side && l.fits(grid.region_size));
+    let (east, south, south_east) = (same(east), same(south), same(south_east));
+    let side = own.side as usize;
+    let n = side + 1;
+    let mut terrain = terrain_shell(grid, grid.vgrid_of(loc, [0, 0]), [n as u32, n as u32], own.stride)?;
+    let multiple = own.ids.len() > 1;
+    let mut splat = Vec::with_capacity(if multiple { n * n * 4 } else { 0 });
+    terrain.heights = Vec::with_capacity(n * n);
+    let last = side - 1;
+    for j in 0..n {
+        for i in 0..n {
+            let (a, b) = (i == side, j == side);
+            let candidates: [(Option<Level<'a>>, usize, usize); 4] = match (a, b) {
+                (false, false) => [(Some(own), i, j); 4],
+                (true, false) => [(east, 0, j), (Some(own), last, j), (Some(own), last, j), (Some(own), last, j)],
+                (false, true) => [(south, i, 0), (Some(own), i, last), (Some(own), i, last), (Some(own), i, last)],
+                (true, true) => [(south_east, 0, 0), (east, 0, last), (south, last, 0), (Some(own), last, last)],
+            };
+            let (level, x, z) = candidates.into_iter().find_map(|(l, x, z)| l.map(|l| (l, x, z)))?;
+            let k = z * side + x;
+            terrain.heights.push(to_map(grid, level.heights[k]));
+            if multiple {
+                let mut out = [0u8; 4];
+                for (id, w) in level.weights(k) {
+                    if let Some(slot) = own.ids.iter().position(|i| *i == id) {
+                        out[slot] = out[slot].saturating_add(w);
+                    }
+                }
+
+                splat.extend_from_slice(&out);
+            }
+        }
+    }
+
+    terrain.holes = if own.holes.iter().any(|h| *h != 0) { own.holes.to_vec() } else { Vec::new() };
+    terrain.layers = own.ids.iter().map(|id| TerrainLayer::new(material(*id), TILE_LAYER_TILE)).collect();
+    terrain.splat = splat;
+    Some(Tile { terrain, ids: own.ids.to_vec() })
+}
+
 /// Every LOD level of a region that a terrain can hold, finest first.
 pub fn pyramid<'a>(
     grid: &Grid,
@@ -620,5 +707,109 @@ mod tests {
         let big = Region3D::blank([0, 0], 1024);
         assert!(tile(&far, &big, |_| None, 16, name).is_none(), "102400 units per cell");
         assert_eq!(pyramid(&far, &big, |_| None, name).iter().map(|(s, _)| *s).collect::<Vec<_>>(), [1, 4]);
+    }
+
+    struct Sampled {
+        ids: Vec<u8>,
+        heights: Vec<f32>,
+        splat: Vec<u8>,
+        holes: Vec<u8>,
+    }
+
+    impl Sampled {
+        fn level(&self, stride: u32, side: u32) -> Level<'_> {
+            Level { stride, side, ids: &self.ids, heights: &self.heights, splat: &self.splat, holes: &self.holes }
+        }
+    }
+
+    /// What the cache stores for a region at `stride`: the owned vertices of its own tile.
+    fn sampled(g: &Grid, r: &Region3D, stride: u32) -> Sampled {
+        let t = tile(g, r, |_| None, stride, name).unwrap();
+        let side = r.size / stride;
+        let n = side as usize + 1;
+        let (mut heights, mut splat, mut holes) = (Vec::new(), Vec::new(), Vec::new());
+        for j in 0..side {
+            for i in 0..side {
+                heights.push(r.heights[((j * stride) * r.size + i * stride) as usize]);
+                if !t.terrain.splat.is_empty() {
+                    let k = (j as usize * n + i as usize) * 4;
+                    splat.extend_from_slice(&t.terrain.splat[k..k + 4]);
+                }
+
+                holes.push(t.terrain.holes.get((j * side + i) as usize).copied().unwrap_or(0));
+            }
+        }
+
+        Sampled { ids: t.ids, heights, splat, holes }
+    }
+
+    fn painted(locs: &[Loc]) -> BTreeMap<Loc, Region3D> {
+        let mut w = world(locs, 64);
+        for (n, r) in w.values_mut().enumerate() {
+            for k in 0..r.control.len() {
+                let (base, overlay) = ((k * 7 + n * 3) % 9, (k * 5 + n) % 4 + 10);
+                r.control[k] = mixed(base as u8, overlay as u8, ((k * 13 + n * 40) % 256) as u8).0;
+            }
+
+            r.control[4 * 64 + 8] = Control(r.control[4 * 64 + 8]).with_hole(true).0;
+        }
+
+        w
+    }
+
+    #[test]
+    fn a_level_tile_matches_the_tile_of_the_region_it_was_sampled_from() {
+        let g = Grid { region_size: 64, spacing: 1.5, upm: 32.0 };
+        let w = painted(&[[-1, 0], [0, 0], [-1, 1], [0, 1]]);
+        let stride = 4;
+        let s: BTreeMap<Loc, Sampled> = w.iter().map(|(l, r)| (*l, sampled(&g, r, stride))).collect();
+        let lv = |l: Loc| s.get(&l).map(|s| s.level(stride, 16));
+
+        let loc = [-1, 0];
+        let full = tile(&g, &w[&loc], |l| w.get(&l), stride, name).unwrap();
+        assert_eq!(level_tile(&g, loc, lv(loc).unwrap(), lv([0, 0]), lv([-1, 1]), lv([0, 1]), name), Some(full));
+
+        // Without east, south and south east neighbors the level repeats its last owned vertex.
+        let loc = [0, 1];
+        let alone = level_tile(&g, loc, lv(loc).unwrap(), lv([1, 1]), lv([0, 2]), lv([1, 2]), name).unwrap().terrain;
+        let own = &s[&loc];
+        let expected: Vec<f32> = (0..17).flat_map(|j| (0..17).map(move |i| (i, j))).map(|(i, j)| own.heights[j.min(15) * 16 + i.min(15)] * 32.0).collect();
+        assert_eq!(alone.heights, expected);
+        assert_eq!(alone.holes, own.holes);
+
+        let full = tile(&g, &w[&[-1, 0]], |l| w.get(&l), stride, name).unwrap().terrain;
+        assert_eq!((full.resolution, full.cell_size), ([17, 17], 192.0));
+        assert!(full.holes.iter().any(|h| *h != 0) && full.splat.len() == 17 * 17 * 4);
+    }
+
+    #[test]
+    fn a_level_tile_repeats_its_edge_without_neighbors_and_ignores_another_stride() {
+        let g = grid(64);
+        let w = painted(&[[2, -3], [3, -3]]);
+        let a = sampled(&g, &w[&[2, -3]], 4);
+        let alone = level_tile(&g, [2, -3], a.level(4, 16), None, None, None, name).unwrap();
+        let expected: Vec<f32> = (0..17).flat_map(|j| (0..17).map(move |i| (i, j))).map(|(i, j)| a.heights[j.min(15) * 16 + i.min(15)] * 32.0).collect();
+        assert_eq!(alone.terrain.heights, expected);
+        assert_eq!(&alone.terrain.splat[16 * 4..17 * 4], &alone.terrain.splat[15 * 4..16 * 4], "the edge column repeats");
+
+        let coarse = sampled(&g, &w[&[3, -3]], 16);
+        let mismatched = level_tile(&g, [2, -3], a.level(4, 16), Some(coarse.level(16, 4)), None, None, name);
+        assert_eq!(mismatched, Some(alone), "a neighbor at another stride is not a seam");
+    }
+
+    #[test]
+    fn a_level_that_does_not_fit_the_grid_makes_no_tile() {
+        let g = grid(64);
+        let w = painted(&[[0, 0]]);
+        let a = sampled(&g, &w[&[0, 0]], 4);
+        let ok = a.level(4, 16);
+        assert!(level_tile(&g, [0, 0], ok, None, None, None, name).is_some());
+        assert!(level_tile(&g, [0, 0], Level { side: 15, ..ok }, None, None, None, name).is_none(), "side times stride is not the region size");
+        assert!(level_tile(&g, [0, 0], Level { heights: &a.heights[1..], ..ok }, None, None, None, name).is_none());
+        assert!(level_tile(&g, [0, 0], Level { splat: &a.splat[1..], ..ok }, None, None, None, name).is_none());
+        assert!(level_tile(&g, [0, 0], Level { holes: &a.holes[1..], ..ok }, None, None, None, name).is_none());
+        assert!(level_tile(&g, [0, 0], Level { ids: &[], ..ok }, None, None, None, name).is_none());
+        assert!(level_tile(&g, [0, 0], Level { stride: 0, ..ok }, None, None, None, name).is_none());
+        assert!(level_tile(&Grid { region_size: 128, ..g }, [0, 0], ok, None, None, None, name).is_none());
     }
 }
