@@ -120,6 +120,12 @@ pub enum Drag {
         origin: DVec3,
         normal: DVec3,
     },
+    /// Dragging the side of terrain `id` facing `normal` in a 2D view, which adds or removes whole cells there.
+    TerrainEdge {
+        id: NodeId,
+        origin: DVec3,
+        normal: DVec3,
+    },
     Look,
     Pan,
     Orbit {

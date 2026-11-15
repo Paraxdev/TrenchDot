@@ -532,7 +532,11 @@ impl Viewport {
         if self.drag.is_none()
             && self.camera.kind.is_2d()
             && let Some(pos) = response.hover_pos()
-            && let Some((normal, segment)) = self.edge_under_cursor(pos, cx).map(|e| (e.normal, e.segment)).or_else(|| self.box_side_under(pos, cx.state))
+            && let Some((normal, segment)) = self
+                .edge_under_cursor(pos, cx)
+                .map(|e| (e.normal, e.segment))
+                .or_else(|| self.terrain_edge_under(pos, cx.state).map(|(_, n, s)| (n, s)))
+                .or_else(|| self.box_side_under(pos, cx.state))
         {
             let icon = if normal.dot(self.camera.kind.axes().0).abs() > 0.5 { CursorIcon::ResizeHorizontal } else { CursorIcon::ResizeVertical };
             ui.ctx().set_cursor_icon(icon);
@@ -561,6 +565,14 @@ impl Viewport {
             let origin_world = self.camera.screen_to_plane(self.rect, origin);
             cx.state.doc.begin(en!("Resize Brushes"));
             return Some(Drag::FaceResize { faces: edge.faces, origin: origin_world, normal: edge.normal });
+        }
+
+        if self.camera.kind.is_2d()
+            && let Some((id, normal, _)) = self.terrain_edge_under(origin, cx.state)
+        {
+            cx.state.terrain_resize = None;
+            cx.state.doc.begin(en!("Resize Terrain"));
+            return Some(Drag::TerrainEdge { id, origin: self.camera.screen_to_plane(self.rect, origin), normal });
         }
 
         let state = &mut *cx.state;
@@ -790,6 +802,13 @@ impl Viewport {
                 });
                 state.set_status(msg!("Resize {dist}", dist = format!("{dist:.3}")));
             }
+            Drag::TerrainEdge { id, origin, normal } => {
+                let Some(cell) = state.doc.transaction_base().and_then(|m| m.terrain(*id)).map(|t| t.cell_size) else { return };
+                let dist = (self.camera.screen_to_plane(rect, pos) - *origin).dot(*normal);
+                if let Some([cx, cz]) = crate::terrain_size::drag_edge(state, *id, *normal, (dist / cell).round() as i64) {
+                    state.set_status(msg!("Resized the terrain to {cx} x {cz} cells", cx, cz));
+                }
+            }
             _ => {}
         }
     }
@@ -841,6 +860,29 @@ impl Viewport {
         }
 
         (!faces.is_empty()).then_some(EdgeGrab { normal, faces, segment })
+    }
+
+    /// 2D views: the side of the one selected terrain under the cursor that grows or crops it. The top and bottom of
+    /// its height range in the side views are left alone, heights are sculpted.
+    fn terrain_edge_under(&self, pos: Pos2, state: &EditorState) -> Option<(NodeId, DVec3, [Pos2; 2])> {
+        let sel = &state.doc.selection;
+        let mut nodes = sel.nodes.iter();
+        let (Some(&id), None) = (nodes.next(), nodes.next()) else { return None };
+        let terrain = state.doc.map.terrain(id).filter(|_| sel.faces.is_empty() && state.doc.map.is_editable(id))?;
+        let [lo, hi] = crate::terrain_size::height_range(state, id, terrain);
+        let [cx, cz] = terrain.cells();
+        let min = DVec3::new(terrain.origin.x, lo, terrain.origin.z);
+        let max = DVec3::new(terrain.origin.x + cx as f64 * terrain.cell_size, hi, terrain.origin.z + cz as f64 * terrain.cell_size);
+        let (r, u, _) = self.camera.kind.axes();
+        let (mut a, mut b) = (self.camera.project(self.rect, min)?, self.camera.project(self.rect, max)?);
+        // Flat ground is a line in the side views, its ends only get a grab zone once the box has some height.
+        let short = 4.0 * EDGE_GRAB - (a.y - b.y).abs();
+        if short > 0.0 && self.camera.kind != ViewKind::Top {
+            let grow = if a.y <= b.y { short / 2.0 } else { -short / 2.0 };
+            (a.y, b.y) = (a.y - grow, b.y + grow);
+        }
+
+        side_under_where(a, b, r, u, pos, |normal| normal.y == 0.0).map(|(normal, segment)| (id, normal, segment))
     }
 
     /// Shows where a dragged payload lands: the faces a material goes on, or the surface point an entity rests on.
@@ -1217,6 +1259,11 @@ fn snap_face_move(state: &EditorState, faces: &[(NodeId, usize)], normal: DVec3,
 /// The outward normal and screen segment of the side of a box within `EDGE_GRAB` of `pos` in a 2D view, given where
 /// the box's min and max corners land on screen and the view's right and up axes.
 pub(crate) fn side_under(min: Pos2, max: Pos2, r: DVec3, u: DVec3, pos: Pos2) -> Option<(DVec3, [Pos2; 2])> {
+    side_under_where(min, max, r, u, pos, |_| true)
+}
+
+/// [`side_under`] among the sides whose normal passes `keep`.
+fn side_under_where(min: Pos2, max: Pos2, r: DVec3, u: DVec3, pos: Pos2, keep: impl Fn(DVec3) -> bool) -> Option<(DVec3, [Pos2; 2])> {
     let screen = Rect::from_two_pos(min, max);
     if !screen.expand(EDGE_GRAB).contains(pos) {
         return None;
@@ -1230,7 +1277,7 @@ pub(crate) fn side_under(min: Pos2, max: Pos2, r: DVec3, u: DVec3, pos: Pos2) ->
         ((pos.y - screen.min.y).abs(), screen.height(), if min.y <= max.y { -u } else { u }, [screen.left_top(), screen.right_top()]),
         ((pos.y - screen.max.y).abs(), screen.height(), if min.y <= max.y { u } else { -u }, [screen.left_bottom(), screen.right_bottom()]),
     ];
-    let (dist, extent, normal, segment) = candidates.into_iter().min_by(|a, b| a.0.total_cmp(&b.0))?;
+    let (dist, extent, normal, segment) = candidates.into_iter().filter(|c| keep(c.2)).min_by(|a, b| a.0.total_cmp(&b.0))?;
     // Inside a thin box the edge zones leave its middle third for moving it.
     let grab = if screen.contains(pos) { EDGE_GRAB.min(extent / 3.0) } else { EDGE_GRAB };
     (dist <= grab).then_some((normal, segment))
@@ -1663,5 +1710,23 @@ mod tests {
         assert_eq!(side(min, max, Pos2::new(400.0, 250.0)), Some(DVec3::NEG_Y));
         let segment = side_under(Pos2::new(500.0, 400.0), Pos2::new(300.0, 250.0), DVec3::NEG_Z, DVec3::Y, Pos2::new(300.0, 320.0)).map(|s| s.1);
         assert_eq!(segment, Some([Pos2::new(300.0, 250.0), Pos2::new(300.0, 400.0)]), "the segment is in screen order");
+    }
+
+    #[test]
+    fn the_end_of_a_tall_terrain_grabs_right_up_to_its_corner() {
+        use td_doc::map::NodeKind;
+        let mut state = EditorState::new(Default::default());
+        let layer = state.doc.map.default_layer();
+        let id = state.doc.map.insert(layer, NodeKind::Terrain(td_geom::Terrain::new(DVec3::ZERO, [8, 8], 32.0, "")));
+        state.doc.select(|_, s| _ = s.nodes.insert(id));
+        state.terrain_heights.set(Some((id, state.doc.revision, [0.0, 128.0])));
+        let mut view = Viewport::new(ViewKind::Front);
+        view.rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0));
+        (view.camera.center, view.camera.zoom) = (DVec3::new(128.0, 64.0, 0.0), 1.0);
+        let corner = view.camera.project(view.rect, DVec3::new(0.0, 128.0, 0.0)).unwrap();
+        let normal = |dx: f32, dy: f32| view.terrain_edge_under(corner + Vec2::new(dx, dy), &state).map(|e| e.1);
+        assert_eq!(normal(3.0, 1.0), Some(DVec3::NEG_X), "the top is nearer, but heights are not dragged");
+        assert_eq!(normal(-3.0, -1.0), Some(DVec3::NEG_X));
+        assert_eq!(normal(128.0, 1.0), None, "the top itself grabs nothing");
     }
 }

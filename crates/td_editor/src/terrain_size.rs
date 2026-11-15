@@ -1,7 +1,7 @@
 //! The Size block of the terrain Inspector. Everything typed there is a draft until Apply, which makes one undo step.
 
 use egui::{RichText, Ui};
-use td_core::{Aabb, NodeId};
+use td_core::{Aabb, DVec3, NodeId};
 use td_doc::terrain_resize::{ResizePlan, TerrainResize, apply, plan_over};
 use td_geom::Terrain;
 use td_geom::heightfield::{MAX_CELL_SIZE, MIN_CELL_SIZE};
@@ -42,6 +42,42 @@ pub fn set_total(sides: &mut Sides, cells: [u32; 2], axis: usize, total: i64) {
     } else {
         (sides.north, sides.south) = (near, far);
     }
+}
+
+/// The sides that move the edge facing `normal` (west, east, north or south) out by `cells`, clamped so the terrain
+/// keeps 1 to `MAX_CELLS` cells along that axis.
+pub fn edge_sides(counts: [u32; 2], normal: DVec3, cells: i64) -> Sides {
+    let axis = if normal.x.abs() > 0.5 { 0 } else { 1 };
+    let n = counts[axis] as i64;
+    let cells = cells.clamp(1 - n, MAX_CELLS as i64 - n) as i32;
+    let mut sides = Sides::default();
+    match (axis, normal[axis * 2] > 0.0) {
+        (0, false) => sides.west = cells,
+        (0, true) => sides.east = cells,
+        (_, false) => sides.north = cells,
+        (_, true) => sides.south = cells,
+    }
+
+    sides
+}
+
+/// The edge drag of a 2D view: the original terrain grown or cropped by `cells` on the side facing `normal`, as one
+/// step of the open transaction. Returns the new cell counts, none when nothing changed since the last frame.
+pub fn drag_edge(state: &mut EditorState, id: NodeId, normal: DVec3, cells: i64) -> Option<[u32; 2]> {
+    let base = state.doc.transaction_base()?.terrain(id)?.cells();
+    let sides = edge_sides(base, normal, cells);
+    let want = [total_cells(base, sides, 0) as u32, total_cells(base, sides, 1) as u32];
+    if state.doc.map.terrain(id).map(|t| t.cells()) == Some(want) {
+        return None;
+    }
+
+    state.doc.reset_transaction();
+    if sides.is_zero() {
+        return Some(base);
+    }
+
+    let resize = TerrainResize { sides, ..TerrainResize::default() };
+    state.doc.try_edit("Resize Terrain", |m, _| apply(m, id, &resize)).ok().map(|r| r.plan.cells)
 }
 
 fn grows(sides: Sides) -> bool {
@@ -293,6 +329,33 @@ mod tests {
         state.doc.revision += 1;
         assert_eq!(height_range(&state, a, &low), [4.0, 37.0]);
         assert_eq!(state.terrain_heights.get(), Some((a, state.doc.revision, [4.0, 37.0])));
+    }
+
+    #[test]
+    fn an_edge_moves_its_own_side_and_keeps_one_to_max_cells() {
+        let counts = [8, 4];
+        assert_eq!(edge_sides(counts, DVec3::NEG_X, 3), Sides { west: 3, ..Sides::default() });
+        assert_eq!(edge_sides(counts, DVec3::X, -2), Sides { east: -2, ..Sides::default() });
+        assert_eq!(edge_sides(counts, DVec3::NEG_Z, -10), Sides { north: -3, ..Sides::default() });
+        assert_eq!(edge_sides(counts, DVec3::Z, i64::MAX), Sides { south: MAX_CELLS as i32 - 4, ..Sides::default() });
+    }
+
+    #[test]
+    fn an_edge_drag_works_from_the_terrain_it_started_with() {
+        use td_doc::map::NodeKind;
+        let mut state = EditorState::new(Default::default());
+        let layer = state.doc.map.default_layer();
+        let id = state.doc.map.insert(layer, NodeKind::Terrain(Terrain::new(DVec3::ZERO, [7, 5], 32.0, "")));
+        assert_eq!(drag_edge(&mut state, id, DVec3::X, 2), None, "no drag is open");
+
+        state.doc.begin("Resize Terrain");
+        assert_eq!(drag_edge(&mut state, id, DVec3::X, 2), Some([8, 4]));
+        assert_eq!(drag_edge(&mut state, id, DVec3::X, 2), None, "the same cell count is not applied again");
+        assert_eq!(drag_edge(&mut state, id, DVec3::X, 5), Some([11, 4]), "steps count from the start, not the last frame");
+        assert_eq!(drag_edge(&mut state, id, DVec3::NEG_X, -2), Some([4, 4]));
+        assert_eq!(state.doc.map.terrain(id).unwrap().origin.x, 64.0, "cropping the west side moves the origin");
+        assert_eq!(drag_edge(&mut state, id, DVec3::NEG_X, 0), Some([6, 4]));
+        assert_eq!(state.doc.map.terrain(id).unwrap().origin.x, 0.0);
     }
 
     #[test]

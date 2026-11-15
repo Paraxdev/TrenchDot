@@ -1131,6 +1131,77 @@ fn terrain_sprinkle_cordon_tabs_bookmarks() {
     ed.call("run_action", json!({ "action": "next_tab" }));
     assert_eq!(ed.state()["map"]["terrains"], 1, "switching back keeps the first map");
 }
+
+#[test]
+#[ignore]
+fn terrain_edges_drag_whole_cells_in_the_2d_views() {
+    let ed = Editor::launch("terrain_edge_drag");
+    let id = ed.call("create_terrain", json!({ "origin": [0, 0, 0], "resolution": 9, "cell_size": 32, "shape": "flat" }))["id"].as_u64().unwrap();
+    ed.call("select", json!({ "ids": [id] }));
+    let node = |ed: &Editor| ed.call("get_node", json!({ "id": id, "compact": true }));
+    let undo = |ed: &Editor| ed.state()["undo"].as_array().unwrap().len();
+    let undo_before = undo(&ed);
+
+    ed.call("set_camera", json!({ "view": "top", "center": [128, 0, 128], "zoom": 0.5 }));
+    ed.input("top", json!([{ "type": "drag", "world": [256, 0, 128], "to_world": [326, 0, 128] }]));
+    assert_eq!(node(&ed)["resolution"], json!([11, 9]), "70 units east rounds to 2 cells");
+
+    // Flat ground is a line in the side views, its ends still grab.
+    ed.call("set_camera", json!({ "view": "front", "center": [128, 0, 128], "zoom": 0.5 }));
+    ed.input("front", json!([{ "type": "drag", "world": [0, 0, 128], "to_world": [-40, 0, 128] }]));
+    assert_eq!(node(&ed)["resolution"], json!([12, 9]));
+    let (min, max) = ed.selection_bounds();
+    assert!(approx(&[min[0], max[0]], &[-32.0, 320.0]), "growing west moves the west edge {min:?} {max:?}");
+
+    ed.call("set_camera", json!({ "view": "top", "center": [128, 0, 128], "zoom": 0.5 }));
+    ed.input("top", json!([{ "type": "drag", "world": [64, 0, 0], "to_world": [64, 0, 400] }]));
+    assert_eq!(node(&ed)["resolution"], json!([12, 2]), "a crop past the far side keeps one cell");
+    assert_eq!(undo(&ed), undo_before + 3, "each drag is one undo step");
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(node(&ed)["resolution"], json!([12, 9]));
+
+    ed.call("set_camera", json!({ "view": "side", "center": [128, 0, 128], "zoom": 0.5 }));
+    ed.input("side", json!([{ "type": "drag", "world": [0, 0, 256], "to_world": [0, 0, 200] }]));
+    assert_eq!(node(&ed)["resolution"], json!([12, 7]), "56 units back from the south edge rounds to 2 cells");
+    assert_eq!(ed.call("validate_map", json!({}))["count"], 0);
+
+    let steps = undo(&ed);
+    ed.call("set_camera", json!({ "view": "top", "center": [128, 0, 128], "zoom": 0.5 }));
+    ed.input("top", json!([{ "type": "drag", "world": [320, 0, 64], "to_world": [384, 0, 64], "release": false }]));
+    assert_eq!(node(&ed)["resolution"], json!([14, 7]), "a held drag shows its cells");
+    ed.input("top", json!([{ "type": "release", "world": [320, 0, 64] }]));
+    assert_eq!(node(&ed)["resolution"], json!([12, 7]));
+    assert_eq!(undo(&ed), steps, "a drag back to where it started leaves no undo step");
+
+    // With a brush selected too, the shared edge resizes the brush and leaves the terrain alone.
+    let brush = ed.box_brush([256.0, 0.0, 64.0], [320.0, 32.0, 128.0]);
+    ed.call("select", json!({ "ids": [id, brush] }));
+    ed.input("top", json!([{ "type": "drag", "world": [320, 0, 96], "to_world": [384, 0, 96] }]));
+    assert_eq!(node(&ed)["resolution"], json!([12, 7]));
+    let (_, max) = ed.selection_bounds();
+    assert!(approx(&[max[0]], &[384.0]), "the brush grew {max:?}");
+    ed.call("select", json!({ "ids": [brush] }));
+    ed.call("run_action", json!({ "action": "delete" }));
+
+    ed.call("hierarchy", json!({ "op": "set_flags", "ids": [id], "locked": true }));
+    ed.call("select", json!({ "ids": [id] }));
+    ed.input("top", json!([{ "type": "drag", "world": [320, 0, 64], "to_world": [384, 0, 64] }]));
+    assert_eq!(node(&ed)["resolution"], json!([12, 7]), "a locked terrain keeps its cells");
+    ed.call("hierarchy", json!({ "op": "set_flags", "ids": [id], "locked": false }));
+
+    // Once the terrain has height, its top and bottom in the side views are sculpted, not dragged.
+    ed.call("terrain_edit", json!({ "id": id, "op": "flatten_rect", "min": [-32, 0], "max": [96, 192], "height": 128, "margin": 0 }));
+    ed.call("select", json!({ "ids": [id] }));
+    let steps = undo(&ed);
+    ed.call("set_camera", json!({ "view": "front", "center": [128, 64, 96], "zoom": 0.5 }));
+    ed.input("front", json!([{ "type": "drag", "world": [224, 128, 96], "to_world": [224, 256, 96] }]));
+    assert_eq!(node(&ed)["resolution"], json!([12, 7]));
+    assert_eq!(undo(&ed), steps, "dragging the top does nothing");
+    ed.call("select", json!({ "ids": [id] }));
+    ed.input("front", json!([{ "type": "drag", "world": [314, 126, 96], "to_world": [378, 126, 96] }]));
+    assert_eq!(node(&ed)["resolution"], json!([14, 7]), "the end grabs even where the top is nearer");
+}
+
 #[test]
 #[ignore]
 fn terrain_resize_over_mcp() {

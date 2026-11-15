@@ -104,12 +104,27 @@ the cell size.
 > that goes outside that, or that would crop away every cell, is refused with the reason shown in red, and **Apply**
 > stays grayed out.
 
+### Dragging an edge
+
+You can also resize a selected terrain right in the **Top**, **Front** and **Side** views. With the Select tool, move
+the pointer over one of its edges until the cursor turns into a resize arrow and the edge lights up, then drag it out
+to add cells or in to crop them. The edge snaps to whole cells, the status bar shows the new cell count, and each drag
+is one step that Ctrl+Z takes back.
+
+![A terrain in the Top view with its east edge dragged out by four cells](../assets/terrain/edge-drag.png)
+
+A drag works like typing into that side's field and clicking **Apply** straight away. New ground continues the edge,
+the way **Edge height** does, and a terrain never drops below 1 cell. In the Front and Side views only the left and
+right ends grab, since the height of the ground comes from sculpting. Type into the **Size** block instead when you
+want **Zero** ground or a new cell size.
+
 ### Scatter on the terrain
 
 [Scatter](scatter.md) painted on the terrain stays on the ground. Instances over ground that is still there ride up or
 down with the new height, so nothing floats or sinks. Instances over cropped ground are removed by default, and when
 there are any, a **Remove n scatter instances on removed ground** checkbox appears under **Apply**. Untick it to keep
-them where they are, floating over nothing, if you plan to move them yourself. A scatter set that is locked or hidden,
+them where they are, floating over nothing, if you plan to move them yourself. Dragging an edge in always removes
+them, and Ctrl+Z brings them back. A scatter set that is locked or hidden,
 or sits in a locked or hidden layer, is left as it is.
 
 ## Sculpting
