@@ -122,6 +122,7 @@ impl EditorState {
     /// Per frame: the answer of a running apply, and the manifests of the linked folders. True while something wants the
     /// next frame in a second.
     pub fn poll_terrain3d(&mut self) -> bool {
+        self.terrain3d.upm = self.game.units_per_meter;
         if let Some(outcome) = self.terrain3d_bridge.poll() {
             if outcome.unanswered {
                 self.keep_unanswered_terrain3d(&outcome.folder);

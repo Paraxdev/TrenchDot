@@ -3907,3 +3907,15 @@ fn confirming_the_terrain3d_settings_sends_them_and_reports_godots_answer() {
 
     assert!(state.status.starts_with("Godot changed the Terrain3D settings"), "{}", state.status);
 }
+
+#[test]
+fn the_terrain3d_grid_follows_the_units_per_meter_of_the_game() {
+    let (mut f, _) = terrain3d_fixture("upm");
+    let cache = f.state.game.project_root.clone().unwrap().join("terrain").join(td_formats::terrain3d_cache::DIR_NAME);
+    for upm in [16.0, 40.0, 32.0] {
+        f.state.game.units_per_meter = upm;
+        f.state.poll_terrain3d();
+        f.state.terrain3d.refresh(&cache);
+        assert_eq!(f.state.terrain3d.grid(&cache).map(|g| (g.region_size, g.spacing, g.upm)), Some((64, 0.25, upm)));
+    }
+}
