@@ -2164,7 +2164,7 @@
   "Flat chipped faces cut into the surface": "Flache, abgeschlagene Flächen in der Oberfläche",
   "Sweep Faces…": "Flächen austragen…",
   "Sweep Faces": "Flächen austragen",
-  "Sweep Faces along a line, arc, S-bend or curve": "Flächen entlang Linie, Bogen, S-Kurve oder Kurve austragen",
+  "Sweep Faces along a line, arc, S-bend or curve": "Flächen entlang Linie, Bogen, S-Kurve oder freier Kurve austragen",
   "The radius has to be more than {min} u, or the inner side folds over": "Der Radius muss größer als {min} u sein, sonst klappt die Innenseite um",
   "The faces point opposite ways, pick faces that face the same way": "Die Flächen zeigen in entgegengesetzte Richtungen, nur Flächen mit derselben Richtung wählen",
   "These settings leave a segment without volume": "Mit diesen Einstellungen hat ein Segment kein Volumen",
