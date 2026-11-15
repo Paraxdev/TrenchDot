@@ -1,0 +1,14 @@
+[remap]
+
+importer="trenchdot.tdm"
+type="TrenchDotImportedMap"
+uid="uid://w4mr0sc74lml"
+path="res://.godot/imported/terrain3d_valley.tdm-4164db721472c8eeaabc311ebaa7e0b5.tres"
+
+[deps]
+
+source_file="res://demo/maps/showcase/terrain3d_valley.tdm"
+dest_files=["res://.godot/imported/terrain3d_valley.tdm-4164db721472c8eeaabc311ebaa7e0b5.tres"]
+
+[params]
+

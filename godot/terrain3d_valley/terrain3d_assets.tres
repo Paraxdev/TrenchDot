@@ -1,0 +1,40 @@
+[gd_resource type="Terrain3DAssets" format=3]
+
+[ext_resource type="Texture2D" path="res://terrain3d_valley/textures/grass_albedo.png" id="1_2d4nq"]
+[ext_resource type="Texture2D" path="res://terrain3d_valley/textures/grass_normal.png" id="2_oypq3"]
+[ext_resource type="Texture2D" path="res://terrain3d_valley/textures/cliff_albedo.png" id="3_iuj2v"]
+[ext_resource type="Texture2D" path="res://terrain3d_valley/textures/cliff_normal.png" id="4_u46fs"]
+[ext_resource type="Texture2D" path="res://terrain3d_valley/textures/dirt_albedo.png" id="5_5l7ik"]
+[ext_resource type="Texture2D" path="res://terrain3d_valley/textures/dirt_normal.png" id="6_low7o"]
+[ext_resource type="Texture2D" path="res://terrain3d_valley/textures/sand_albedo.png" id="7_h5pw7"]
+[ext_resource type="Texture2D" path="res://terrain3d_valley/textures/sand_normal.png" id="8_mnvuv"]
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_rvtw6"]
+name = "Grass"
+albedo_texture = ExtResource("1_2d4nq")
+normal_texture = ExtResource("2_oypq3")
+uv_scale = 0.5
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_xgoug"]
+name = "Cliff"
+id = 1
+albedo_texture = ExtResource("3_iuj2v")
+normal_texture = ExtResource("4_u46fs")
+uv_scale = 0.33
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_twgea"]
+name = "Dirt"
+id = 2
+albedo_texture = ExtResource("5_5l7ik")
+normal_texture = ExtResource("6_low7o")
+uv_scale = 0.5
+
+[sub_resource type="Terrain3DTextureAsset" id="Terrain3DTextureAsset_benr8"]
+name = "Sand"
+id = 3
+albedo_texture = ExtResource("7_h5pw7")
+normal_texture = ExtResource("8_mnvuv")
+uv_scale = 0.66
+
+[resource]
+texture_list = Array[Terrain3DTextureAsset]([SubResource("Terrain3DTextureAsset_rvtw6"), SubResource("Terrain3DTextureAsset_xgoug"), SubResource("Terrain3DTextureAsset_twgea"), SubResource("Terrain3DTextureAsset_benr8")])

@@ -1,0 +1,165 @@
+{
+  "format": "trenchdot-terrain3d",
+  "version": 1,
+  "terrain3d": "1.1.0",
+  "godot": "4.7.2",
+  "data_version": 1.1,
+  "region_size": 256,
+  "vertex_spacing": 1.0,
+  "material": {
+    "world_background": 0.0,
+    "ground_level": 0.0,
+    "region_blend": 0.0,
+    "auto_shader": false
+  },
+  "map_transform_identity": true,
+  "editor_open": false,
+  "regions": [
+    {
+      "loc": [
+        -1,
+        -1
+      ],
+      "hash": "b87a39f59a04e556bc936e315b7526812d17d42b74dc7fcfadeb20041a48d853",
+      "height_range": [
+        -7.04251003265381,
+        57.8384666442871
+      ]
+    },
+    {
+      "loc": [
+        0,
+        -1
+      ],
+      "hash": "48947ec0aca24532701ae99f3d9facbbda7ece6da3ca07d59c644b2462cbbe24",
+      "height_range": [
+        -6.75869703292847,
+        56.9280166625977
+      ]
+    },
+    {
+      "loc": [
+        1,
+        -1
+      ],
+      "hash": "b3c263ae9a0a91c1dd311ef8e2996aba1028b6408257f481be9fc7cff34a4715",
+      "height_range": [
+        -6.65043640136719,
+        54.3615875244141
+      ]
+    },
+    {
+      "loc": [
+        -1,
+        0
+      ],
+      "hash": "a2642a6b52001e4c6928012a7b99e378335bcf2c129ccd9a10236de4d3a457a5",
+      "height_range": [
+        -6.89031744003296,
+        29.3985824584961
+      ]
+    },
+    {
+      "loc": [
+        0,
+        0
+      ],
+      "hash": "03f3364d658000cd2265788cbe587bc834f806e4d684ab88c0e7a8e77a9d6947",
+      "height_range": [
+        -6.67762851715088,
+        39.0062294006348
+      ]
+    },
+    {
+      "loc": [
+        1,
+        0
+      ],
+      "hash": "1ff87b7e030d0aebd70c1cfc0355aeaf06e1d45bdddc3daf9f86dd29b1f76161",
+      "height_range": [
+        -6.82436895370483,
+        41.1630096435547
+      ]
+    }
+  ],
+  "dirty": [],
+  "save": {},
+  "textures": [
+    {
+      "id": 0,
+      "name": "Grass",
+      "albedo_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "thumbnail": "textures/0.png"
+    },
+    {
+      "id": 1,
+      "name": "Cliff",
+      "albedo_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "thumbnail": "textures/1.png"
+    },
+    {
+      "id": 2,
+      "name": "Dirt",
+      "albedo_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "thumbnail": "textures/2.png"
+    },
+    {
+      "id": 3,
+      "name": "Sand",
+      "albedo_color": [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "thumbnail": "textures/3.png"
+    }
+  ],
+  "applied": [
+    {
+      "seq": 1.0,
+      "accepted": [
+        [
+          -1.0,
+          -1.0
+        ],
+        [
+          -1.0,
+          0.0
+        ],
+        [
+          0.0,
+          -1.0
+        ],
+        [
+          0.0,
+          0.0
+        ],
+        [
+          1.0,
+          -1.0
+        ],
+        [
+          1.0,
+          0.0
+        ]
+      ],
+      "refused": []
+    }
+  ]
+}
