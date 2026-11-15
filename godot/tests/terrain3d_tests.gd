@@ -14,6 +14,7 @@ const DATA := "res://tests/terrain3d/probe"
 const SPOT := Vector2(-100.5, 600.25)
 const VERTEX := Vector2(-101, 600)
 const LINK_ID := 40
+const Apply := preload("res://tests/terrain3d_apply_tests.gd")
 
 static func run(t) -> void:
 	print("- Terrain3D link")
@@ -26,6 +27,7 @@ static func run(t) -> void:
 	if not ClassDB.class_exists("Terrain3D"):
 		return
 	await _test_builds_slot(t)
+	await _test_new_folder_size(t)
 	await _test_keeps_user_terrain(t)
 	await _test_problems(t)
 	await _test_live_session_and_hot_reload(t)
@@ -135,6 +137,29 @@ static func _test_builds_slot(t) -> void:
 	t.check(copy_slot != null and copy_slot.is_in_group(TrenchDotOverlay.KEEP_GROUP) and copy_slot.get_node_or_null("Terrain3D") != null, "the saved scene holds the slot, its group and its Terrain3D")
 	copy.free()
 	level.free()
+
+## A folder with no regions gets a Terrain3D of the region size and vertex spacing its manifest names, a folder with
+## regions keeps the size of its files.
+static func _test_new_folder_size(t) -> void:
+	for config in [[128, 2.5], [1024, 0.25]]:
+		var folder := "user://td_t3d_new_size_%d" % config[0]
+		Apply.new_folder(folder, config[0], config[1])
+		var map := _level(t, _map_text([folder]))
+		await t.process_frame
+		var terrain := (map.get_child(0) as TrenchDotTerrain3D).get_terrain()
+		t.check(terrain != null and int(terrain.get("region_size")) == config[0] and t.near(float(terrain.get("vertex_spacing")), config[1]), "a new folder builds a Terrain3D of size %d and spacing %s, got %s" % [config[0], config[1], [terrain.get("region_size"), terrain.get("vertex_spacing")] if terrain else null])
+		map.owner.free()
+		Apply.Export._clear(folder)
+
+	var folder := "user://td_t3d_new_size_files"
+	Apply.new_folder(folder, 128, 2.5)
+	DirAccess.copy_absolute(DATA + "/terrain3d-01_02.res", folder + "/terrain3d-01_02.res")
+	var probe := _level(t, _map_text([folder]))
+	await t.process_frame
+	var kept := (probe.get_child(0) as TrenchDotTerrain3D).get_terrain()
+	t.check(kept != null and int(kept.get("region_size")) == 256, "a folder with regions keeps the size of its files, got %s" % [kept.get("region_size") if kept else null])
+	probe.owner.free()
+	Apply.Export._clear(folder)
 
 static func _test_keeps_user_terrain(t) -> void:
 	var map := _level(t)
