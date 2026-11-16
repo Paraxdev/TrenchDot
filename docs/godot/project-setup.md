@@ -28,10 +28,9 @@ It only offers the step your project needs next:
 ![The Set up this project window saying the addon 0.0.9 is older than the editor, with the Update the addon to 0.1.0 button](../assets/project-setup/setup-update-addon.png)
 
 > [!WARNING]
-> Close Godot before you update. It keeps running the old addon until it restarts, so the button stays
-> greyed out while the live link sees Godot with the project open. Enable the plugin with Godot closed too, or Godot
-> writes its own copy of `project.godot` back. Ticking it in Godot under *Project > Project Settings > Plugins* works
-> as well.
+> Close Godot before you update. It keeps running the old addon until it restarts, so the update button stays greyed
+> out while the live link sees Godot with the project open. Enable the plugin with Godot closed too, or Godot writes
+> its own copy of `project.godot` back. Ticking it in Godot under *Project > Project Settings > Plugins* works as well.
 
 The old addon is not deleted, it moves to `.trenchdot/addon-backups/func_godot-<version>` in your project. Godot skips
 folders that start with a dot, so it neither imports the backup nor lists it as a second plugin. Delete it once the new
@@ -81,11 +80,12 @@ there clashes with it, and an addon update does not undo it.
 
     ![The Gameplay entities section after installing, saying it added 86 files to res://trenchdot/entities and to restart Godot if it has the project open](../assets/project-setup/setup-gameplay-installed.png)
 
-    When a Godot editor has the project open, TrenchDot asks it to pick up the new files, and the window says so. A
-    scene in [live mode](live.md#when-live-mode-rebuilds-the-whole-map) then rebuilds by itself. Press **Build Map**
-    in the other scenes that use your maps and save them, since they were built without the pack. When Godot is not
-    running, or runs an older addon, the window says to restart Godot if it has the project open, then to build and
-    save those scenes.
+    If a Godot editor has the project open, TrenchDot asks it to pick up the new files and the window says so. A scene
+    in [live mode](live.md#when-live-mode-rebuilds-the-whole-map) then rebuilds by itself.
+
+    Scenes that were built without the pack need a new build. Press **Build Map** in each scene that uses your maps
+    and save it. If Godot is closed or runs an older addon, the window says to restart Godot first if it has the
+    project open.
 
 3. (Optionally) Update it later
 
@@ -113,8 +113,8 @@ later one wins, in this order:
 3. The entities of your own FGD file
 
 To change an entity, edit its copy in the pack, or define the same classname in your own FGD. Both work, but a
-classname defined twice is easy to forget, so the editor tells you: when the project opens, the status bar names the
-definition that wins, and the Issues panel warns about each doubly defined class a map uses. Delete one of the two to
+classname defined twice is easy to forget, so the editor tells you. When the project opens, the status bar names the
+definition that wins. The Issues panel warns about each doubly defined class a map uses. Delete one of the two to
 settle it.
 
 ## Your own resources
@@ -151,9 +151,13 @@ TrenchDot Issues panel names every entity that the FGD Godot builds with lacks.
 
 TrenchDot learns your entities, texture folders and unit scale from `res://trenchdot_game.json`, which the game
 config writes. The addon exports it again whenever Godot notices files changing, and the editor reloads it within a
-second. The export also names the default map settings and the classes their FGD defines, which is how the editor warns
-about entities Godot would build without a definition. To export by hand, use *Project > Tools > TrenchDot: Export
-Game Config* in Godot, or run it headless, for example in CI:
+second.
+
+The export also names the default map settings and the classes their FGD defines. That is how the editor warns about
+entities Godot would build without a definition.
+
+To export by hand, use *Project > Tools > TrenchDot: Export Game Config* in Godot, or run it headless, for example in
+CI:
 
 ```sh
 godot --headless --path <project> --script res://addons/func_godot/src/trenchdot/export_game_config_cli.gd
