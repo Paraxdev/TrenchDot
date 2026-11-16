@@ -1,5 +1,5 @@
-//! Scatter that follows a Terrain3D node: its instances are cast onto the tiles TrenchDot draws, which are not quite
-//! the surface Godot samples, so they are put back on `surface_height` after a stroke or a fill.
+//! Scatter that follows a Terrain3D node: its instances are cast onto the triangles TrenchDot draws, which are not
+//! quite the surface Godot samples, so they are put back on `surface_height` after a stroke or a fill.
 
 use std::collections::{BTreeSet, HashSet};
 use std::path::PathBuf;
@@ -18,9 +18,9 @@ pub(crate) fn ground(min: DVec2, max: DVec2) -> View {
 }
 
 impl EditorState {
-    /// Loads and builds the Terrain3D tiles `views` need now. The app does it a little each frame, but a tool call that
-    /// casts onto the tiles right after a link or an edit, as a script does, has no frame in between.
-    pub(crate) fn build_terrain3d_tiles(&mut self, views: &[View]) {
+    /// Loads the Terrain3D regions `views` need now. The app does it a little each frame, but a tool call that casts
+    /// onto them right after a link or an edit, as a script does, has no frame in between.
+    pub(crate) fn load_terrain3d_regions(&mut self, views: &[View]) {
         if self.terrain3d_links().is_empty() {
             return;
         }
@@ -205,7 +205,7 @@ mod tests {
         let floor = state.doc.map.insert(
             layer,
             td_doc::NodeKind::Brush(
-                td_geom::Brush::from_aabb(&td_core::Aabb::new(DVec3::new(-400.0, -64.0, 0.0), DVec3::new(-100.0, -32.0, 5120.0)), "dev/grey").unwrap(),
+                td_geom::Brush::from_aabb(&td_core::Aabb::new(DVec3::new(4000.0, 300.0, 1000.0), DVec3::new(6000.0, 332.0, 3000.0)), "dev/grey").unwrap(),
             ),
         );
         state.doc.edit("targets", |m, _| m.scatter_mut(set).unwrap().targets = vec![id, floor]);
@@ -213,7 +213,7 @@ mod tests {
         let placed = scatter_tool::fill(&mut state, &mut Rng::new(3)).unwrap();
         assert!(placed > 50);
         let off = off_surface(&state, &cache, id, set);
-        assert!(off.iter().any(|d| *d > 0.01 * UPM), "the heights stay where the tiles gave them");
+        assert!(off.iter().any(|d| *d > 200.0), "the instances cast onto the floor above the regions stay on it");
     }
 
     #[test]
@@ -380,11 +380,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (mut state, id, _) = state_over(dir.path(), &[[-1, 0], [0, 0], [3, -2]]);
         let built = |state: &EditorState| state.terrain3d_tiles.node(id).map(|(loc, _)| loc).collect::<Vec<Loc>>();
-        state.build_terrain3d_tiles(&[ground(DVec2::new(20000.0, -700.0), DVec2::new(20100.0, -650.0))]);
+        state.load_terrain3d_regions(&[ground(DVec2::new(20000.0, -700.0), DVec2::new(20100.0, -650.0))]);
         assert!(built(&state).is_empty(), "no region lies under the patch");
-        state.build_terrain3d_tiles(&[ground(DVec2::new(5000.0, 700.0), DVec2::new(5110.0, 930.0))]);
+        state.load_terrain3d_regions(&[ground(DVec2::new(5000.0, 700.0), DVec2::new(5110.0, 930.0))]);
         assert_eq!(built(&state), [[0, 0]]);
-        state.build_terrain3d_tiles(&[
+        state.load_terrain3d_regions(&[
             ground(DVec2::new(-300.0, 700.0), DVec2::new(300.0, 900.0)),
             ground(DVec2::new(16000.0, -9000.0), DVec2::new(16100.0, -8000.0)),
         ]);

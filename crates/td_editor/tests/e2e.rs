@@ -8814,7 +8814,7 @@ fn terrain3d_inspector_shows_the_texture_swatches_of_the_selected_node() {
 /// hidden node takes neither.
 #[test]
 #[ignore]
-fn terrain3d_tiles_are_picked_and_ground_entities() {
+fn terrain3d_regions_are_picked_and_ground_entities() {
     let (ed, node) = launch_world("terrain3d_pick", None);
     ed.call("set_camera", json!({ "view": "top", "center": [672, 0, 56], "zoom": 1.0 }));
     let (x, z) = (672.0, 56.0);
@@ -8836,10 +8836,10 @@ fn terrain3d_tiles_are_picked_and_ground_entities() {
 
     ed.call("run_action", json!({ "action": "select_none" }));
     ed.input("top", json!([{ "type": "click", "world": [x, 0.0, z] }]));
-    assert_eq!(ed.state()["selection"]["nodes"], json!([node]), "a click on a tile selects the node");
+    assert_eq!(ed.state()["selection"]["nodes"], json!([node]), "a click on a region selects the node");
     ed.call("run_action", json!({ "action": "select_none" }));
     ed.input("top", json!([{ "type": "click", "world": [x, 0.0, -40.0] }]));
-    assert_eq!(ed.state()["selection"]["nodes"], json!([]), "a click beside every tile selects nothing");
+    assert_eq!(ed.state()["selection"]["nodes"], json!([]), "a click beside every region selects nothing");
 
     ed.call("hierarchy", json!({ "op": "set_flags", "ids": [node], "hidden": true }));
     ed.input("top", json!([{ "type": "click", "world": [x, 0.0, z] }]));

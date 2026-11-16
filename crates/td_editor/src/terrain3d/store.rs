@@ -1,11 +1,12 @@
 //! The editor's view of the Terrain3D caches Godot exports. Each manifest is polled once a second, regions load on a
 //! worker thread under a memory budget, and the LOD pyramids of regions too far away to load whole are built beside them.
 
-use std::cell::Cell;
+use std::any::Any;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Weak};
 use std::time::{Duration, Instant};
 
 use td_doc::terrain3d::RegionSource;
@@ -60,6 +61,9 @@ enum Done {
     Lod { cache: PathBuf, loc: Loc, size: u32, hash: RegionHash, result: Result<Lod, String> },
 }
 
+/// Region data and its lowest and highest height in meters.
+type Measured = (Weak<dyn Any + Send + Sync>, [f32; 2]);
+
 pub struct Terrain3DStore {
     folders: HashMap<PathBuf, Folder>,
     budget: usize,
@@ -69,6 +73,9 @@ pub struct Terrain3DStore {
     jobs: Option<Sender<Job>>,
     done: Option<Receiver<Done>>,
     repaint: Option<egui::Context>,
+    /// Height ranges of region data, keyed by its address. The Weak keeps the address from going to other data, and
+    /// `Arc::make_mut` moves data a Weak still points at, so an edited region gets a new address and a new range.
+    ranges: RefCell<HashMap<usize, Measured>>,
 }
 
 impl Default for Terrain3DStore {
@@ -80,7 +87,16 @@ impl Default for Terrain3DStore {
 impl Terrain3DStore {
     /// `repaint` is asked to redraw whenever the worker finished a region.
     pub fn new(repaint: Option<egui::Context>) -> Self {
-        Self { folders: HashMap::new(), budget: DEFAULT_BUDGET, upm: 32.0, tick: Cell::new(0), jobs: None, done: None, repaint }
+        Self {
+            folders: HashMap::new(),
+            budget: DEFAULT_BUDGET,
+            upm: 32.0,
+            tick: Cell::new(0),
+            jobs: None,
+            done: None,
+            repaint,
+            ranges: RefCell::new(HashMap::new()),
+        }
     }
 
     pub fn with_budget(mut self, bytes: usize) -> Self {
@@ -146,6 +162,29 @@ impl Terrain3DStore {
 
     pub fn lod(&self, cache: &Path, loc: Loc) -> Option<Arc<Lod>> {
         Some(self.folders.get(cache)?.lods.get(&loc)?.1.clone())
+    }
+
+    /// Lowest and highest finite height of a region in meters, an empty range for none.
+    pub fn region_range(&self, region: &Arc<Region3D>) -> [f32; 2] {
+        self.range(Arc::<Region3D>::downgrade(region), || height_range(&region.heights))
+    }
+
+    /// The range of the finest level of a pyramid.
+    pub fn lod_range(&self, lod: &Arc<Lod>) -> [f32; 2] {
+        self.range(Arc::<Lod>::downgrade(lod), || finest(lod).map_or([f32::INFINITY, f32::NEG_INFINITY], |l| height_range(&l.heights)))
+    }
+
+    fn range(&self, data: Weak<dyn Any + Send + Sync>, measure: impl FnOnce() -> [f32; 2]) -> [f32; 2] {
+        let key = data.as_ptr() as *const () as usize;
+        let mut ranges = self.ranges.borrow_mut();
+        if let Some((_, range)) = ranges.get(&key) {
+            return *range;
+        }
+
+        ranges.retain(|_, (held, _)| held.strong_count() > 0);
+        let range = measure();
+        ranges.insert(key, (data, range));
+        range
     }
 
     /// The regions whose cache changed since the last call, for the views that draw them.
@@ -450,6 +489,14 @@ fn load_lod(cache: &Path, loc: Loc, size: u32, hash: RegionHash, grid: &Grid) ->
     Ok(lod)
 }
 
+pub fn finest(lod: &Lod) -> Option<&LodLevel> {
+    lod.levels.iter().min_by_key(|l| l.stride)
+}
+
+fn height_range(heights: &[f32]) -> [f32; 2] {
+    heights.iter().filter(|h| h.is_finite()).fold([f32::INFINITY, f32::NEG_INFINITY], |[lo, hi], h| [lo.min(*h), hi.max(*h)])
+}
+
 /// The pyramid of a region without its finest level, which is the region itself. A level holds the vertices the region
 /// owns and one byte per cell for holes, the seam row and column come from the neighbor's own level where two sit
 /// side by side. None for a region too small for any level.
@@ -588,6 +635,43 @@ mod tests {
             store.refresh(cache);
             std::thread::sleep(Duration::from_millis(5));
         }
+    }
+
+    #[test]
+    fn height_ranges_follow_the_data_they_were_measured_on() {
+        let store = Terrain3DStore::default();
+        let (mut a, b) = (Arc::new(region(A, 4.0)), Arc::new(region(B, -20.0)));
+        assert_eq!(store.region_range(&a), [-11.75, 35.5]);
+        assert_eq!(store.region_range(&b), [-35.75, 11.5], "a second region does not get the first one's range");
+        assert_eq!(store.region_range(&a), [-11.75, 35.5]);
+
+        let shared = a.clone();
+        Arc::make_mut(&mut a).heights[70] = 90.0;
+        assert_eq!((store.region_range(&a), store.region_range(&shared)), ([-11.75, 90.0], [-11.75, 35.5]), "an edit next to its undo step");
+        drop(shared);
+        Arc::make_mut(&mut a).heights[71] = f32::NAN;
+        Arc::make_mut(&mut a).heights[0] = -50.0;
+        assert_eq!(store.region_range(&a), [-50.0, 90.0], "an edit nothing else holds, NaN left out");
+
+        let mut holes = Region3D::blank(A, 64);
+        holes.heights.fill(f32::NAN);
+        let empty = store.region_range(&Arc::new(holes));
+        assert!(empty[0] > empty[1], "no height is an empty range: {empty:?}");
+        assert_eq!(store.ranges.borrow().len(), 3, "dead data is dropped when a range is measured: {:?}", store.ranges.borrow().keys());
+
+        let level = |stride: u32, fill: f32| LodLevel {
+            stride,
+            side: 64 / stride,
+            ids: Vec::new(),
+            heights: vec![fill; (64 / stride).pow(2) as usize],
+            splat: Vec::new(),
+            holes: Vec::new(),
+        };
+        let mut lod = Lod { loc: A, region_size: 64, hash: hash(1), levels: vec![level(16, -400.0), level(4, 7.0)] };
+        lod.levels[1].heights[5] = 12.5;
+        assert_eq!(store.lod_range(&Arc::new(lod)), [7.0, 12.5], "a pyramid's range is its finest level's");
+        let bare = Lod { loc: B, region_size: 64, hash: hash(2), levels: Vec::new() };
+        assert_eq!(store.lod_range(&Arc::new(bare)), [f32::INFINITY, f32::NEG_INFINITY]);
     }
 
     #[test]

@@ -51,13 +51,8 @@ pub fn pick_all(state: &EditorState, ray: &Ray) -> Vec<Hit> {
                 }
             }
             NodeKind::Terrain3D(_) if map.is_editable(*id) && map.in_cordon(*id) => {
-                let nearest = state
-                    .terrain3d_tiles
-                    .node(*id)
-                    .filter_map(|(_, entry)| entry.tile.terrain.ray_cast(ray).map(|(dist, p)| (dist, p, &entry.tile.terrain)))
-                    .min_by(|a, b| a.0.total_cmp(&b.0));
-                if let Some((dist, p, t)) = nearest {
-                    hits.push(Hit { node: *id, face: None, distance: dist, point: p, normal: terrain_normal(t, p) });
+                if let Some(h) = state.terrain3d_regions(*id).and_then(|r| r.ray_cast(ray)) {
+                    hits.push(Hit { node: *id, face: None, distance: h.distance, point: h.point, normal: h.normal });
                 }
             }
             NodeKind::Entity(e) if node.children.is_empty() => {
@@ -109,6 +104,7 @@ enum Surface<'a> {
     Brush(&'a td_geom::Brush),
     Mesh(&'a td_geom::Mesh),
     Terrain(&'a td_geom::Terrain),
+    Terrain3D(crate::terrain3d::pick::PickRegions),
     /// Instances of another set, so foliage can be painted onto scattered rocks and props.
     Scatter(Vec<InstanceSurface>),
 }
@@ -213,12 +209,10 @@ impl<'a> SurfaceCaster<'a> {
         for (id, node) in map.nodes.iter() {
             let surface = match &node.kind {
                 NodeKind::Terrain3D(_) => {
-                    if !map.is_hidden(*id) && map.in_cordon(*id) {
-                        for (_, entry) in state.terrain3d_tiles.node(*id) {
-                            let b = entry.tile.terrain.bounds().expanded(1.0);
-                            if b.intersects(region) {
-                                surfaces.push((*id, b, Surface::Terrain(&entry.tile.terrain)));
-                            }
+                    if let Some(regions) = state.terrain3d_regions(*id) {
+                        let b = regions.bounds().expanded(1.0);
+                        if b.intersects(region) {
+                            surfaces.push((*id, b, Surface::Terrain3D(regions)));
                         }
                     }
 
@@ -290,6 +284,7 @@ impl<'a> SurfaceCaster<'a> {
                     (t, if n.dot(dir) > 0.0 { -n } else { n })
                 }),
                 Surface::Terrain(t) => t.ray_cast(&ray).map(|(dist, p)| (dist, terrain_normal(t, p))),
+                Surface::Terrain3D(r) => r.ray_cast(&ray).map(|h| (h.distance, h.normal)),
                 Surface::Scatter(list) => list.iter().filter_map(|i| i.cast(&ray)).min_by(|a, b| a.0.total_cmp(&b.0)),
             };
             if let Some((t, normal)) = hit

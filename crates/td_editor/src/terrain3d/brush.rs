@@ -57,12 +57,9 @@ pub fn texture_picker(ui: &mut Ui, state: &mut EditorState, nodes: &[NodeId]) {
 }
 
 impl EditorState {
-    /// The nearest point of the tiles of `nodes` along `ray`, the way the Sculpt tool finds its brush center.
+    /// The nearest point of the regions of `nodes` along `ray`, the way the Sculpt tool finds its brush center.
     pub fn terrain3d_ray(&self, nodes: &[NodeId], ray: &Ray) -> Option<(f64, DVec3, NodeId)> {
-        nodes
-            .iter()
-            .flat_map(|id| self.terrain3d_tiles.node(*id).filter_map(move |(_, entry)| entry.tile.terrain.ray_cast(ray).map(|(d, p)| (d, p, *id))))
-            .min_by(|a, b| a.0.total_cmp(&b.0))
+        nodes.iter().filter_map(|id| self.terrain3d_regions(*id)?.ray_cast(ray).map(|h| (h.distance, h.point, *id))).min_by(|a, b| a.0.total_cmp(&b.0))
     }
 
     /// One dab on every Terrain3D node of `nodes`. Height modes put the scatter that follows the node back on the new

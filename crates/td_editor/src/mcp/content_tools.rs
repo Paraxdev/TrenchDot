@@ -1130,7 +1130,7 @@ impl App {
         if let Some(reach) = scatter_reach(op, args, self.state.prefs.scatter.radius) {
             let mut views = crate::app::terrain3d_views(&self.viewports);
             views.push(reach);
-            self.state.build_terrain3d_tiles(&views);
+            self.state.load_terrain3d_regions(&views);
         }
 
         let mut rng = Rng::new(args["seed"].as_u64().unwrap_or_else(crate::commands::time_seed));

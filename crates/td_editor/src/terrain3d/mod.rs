@@ -8,6 +8,7 @@ pub mod follow;
 pub mod inspector;
 pub mod link;
 pub mod overlay;
+pub mod pick;
 pub mod store;
 pub mod tiles;
 
