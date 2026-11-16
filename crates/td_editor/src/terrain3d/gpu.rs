@@ -6,7 +6,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use td_core::NodeId;
-use td_doc::terrain3d::RegionSource;
+use td_doc::terrain3d::{RegionSource, Terrain3DLink};
 use td_formats::terrain3d_cache::{LodLevel, Manifest, ManifestTexture};
 use td_geom::terrain3d::{Control, Loc, Region3D};
 use td_render::Renderer;
@@ -72,6 +72,23 @@ impl Held {
     /// Whether some layer or block holds data from `source`.
     pub fn holds(&self, source: Source) -> bool {
         self.layers.iter().flatten().any(|l| l.source == source) || self.coarse.values().any(|s| *s == source)
+    }
+
+    /// The source the fine layer of `loc` was filled from.
+    pub fn fine_source(&self, loc: Loc) -> Option<Source> {
+        self.layers.iter().flatten().find(|l| l.loc == loc).map(|l| l.source)
+    }
+
+    /// Records that a patch brought the fine layer of `loc`, and its coarse block when it has one, to `source`. Returns
+    /// whether it has a coarse block, which the caller then rewrites.
+    pub fn patched(&mut self, loc: Loc, source: Source) -> bool {
+        for layer in self.layers.iter_mut().flatten().filter(|l| l.loc == loc) {
+            layer.source = source;
+        }
+
+        let Some(block) = self.coarse.get_mut(&loc) else { return false };
+        *block = source;
+        true
     }
 
     /// This frame's uploads, recorded as done: a coarse block for every region that has none, then fine layers for
@@ -208,6 +225,61 @@ pub fn coarse_from_level(level: &LodLevel, region_size: u32, stride: u32) -> Opt
     Some((heights, control))
 }
 
+/// A rectangle of a region's cells, origin and size.
+pub type Rect = ([u32; 2], [u32; 2]);
+
+/// The smallest rectangle outside which `new` holds what `old` does, None when nothing changed. Heights compare by
+/// their bits, so a NaN left alone counts as unchanged. Regions of another shape differ whole.
+pub fn changed_rect(old: &Region3D, new: &Region3D) -> Option<Rect> {
+    let side = new.size as usize;
+    let n = side * side;
+    let shaped = |r: &Region3D| r.size == new.size && r.heights.len() == n && r.control.len() == n && r.color.len() == new.color.len();
+    if !shaped(old) || !shaped(new) {
+        return Some(([0, 0], [new.size, new.size]));
+    }
+
+    let colored = new.color.len() == n * 4;
+    let same = |a: usize, b: usize| {
+        old.heights[a..b].iter().zip(&new.heights[a..b]).all(|(x, y)| x.to_bits() == y.to_bits())
+            && old.control[a..b] == new.control[a..b]
+            && (!colored || old.color[a * 4..b * 4] == new.color[a * 4..b * 4])
+    };
+    let mut out: Option<[usize; 4]> = None;
+    for j in 0..side {
+        let row = j * side;
+        if same(row, row + side) {
+            continue;
+        }
+
+        let first = (0..side).find(|i| !same(row + i, row + i + 1)).expect("a changed row");
+        let last = (0..side).rev().find(|i| !same(row + i, row + i + 1)).expect("a changed row");
+        out = Some(out.map_or([first, j, last, j], |[x0, y0, x1, _]| [x0.min(first), y0, x1.max(last), j]));
+    }
+
+    out.map(|[x0, y0, x1, y1]| ([x0 as u32, y0 as u32], [(x1 - x0 + 1) as u32, (y1 - y0 + 1) as u32]))
+}
+
+/// The values of `rect` in `data` laid out `side` per row, row by row.
+fn cut<T: Copy>(data: &[T], side: u32, ([x, y], [w, h]): Rect) -> Vec<T> {
+    (y..y + h)
+        .flat_map(|j| {
+            let at = (j * side + x) as usize;
+            data[at..at + w as usize].iter().copied()
+        })
+        .collect()
+}
+
+/// The data the fine layer of `loc` holds when it was filled from `from` and the region is now an edit, so a patch can
+/// bring it up to date: the edit uploaded before, or the cached region the edit started from.
+fn patch_base(link: &Terrain3DLink, source: &dyn RegionSource, loc: Loc, from: Source, pins: &HashMap<usize, Arc<Region3D>>) -> Option<Arc<Region3D>> {
+    let edit = link.live_edit(source, loc)?;
+    match from {
+        Source::Edited(p) => pins.get(&p).cloned(),
+        Source::Cached(hash) => edit.base.clone().filter(|_| edit.base_hash == Some(hash)),
+        Source::Absent => None,
+    }
+}
+
 /// The regions of a linked node the clipmap can show, in the order of `link.locs`.
 pub fn regions(state: &EditorState, id: NodeId, cache: &Path) -> Vec<Region> {
     let (Some(link), Some(source), Some(manifest)) = (state.doc.map.terrain3d(id), state.terrain3d.source(cache), state.terrain3d.manifest(cache)) else {
@@ -236,6 +308,15 @@ pub struct Status {
     pub fine_layers: u32,
     pub coarse_regions: usize,
     pub gpu_bytes: u64,
+    pub uploads: Uploads,
+}
+
+/// Fine layer uploads since the clipmap was made: whole regions, and patches with the cells they wrote.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Uploads {
+    pub whole: u64,
+    pub partial: u64,
+    pub partial_cells: u64,
 }
 
 /// One linked node's clipmap and what it was filled from.
@@ -247,6 +328,7 @@ pub struct NodeClipmap {
     /// to a later edit.
     pins: HashMap<usize, Arc<Region3D>>,
     shown: Vec<Loc>,
+    uploads: Uploads,
 }
 
 impl NodeClipmap {
@@ -263,6 +345,7 @@ impl NodeClipmap {
             fine_layers: desc.layers,
             coarse_regions: self.held.coarse_count(),
             gpu_bytes: fine + 8 * u64::from(w) * u64::from(h),
+            uploads: self.uploads,
         }
     }
 }
@@ -289,7 +372,8 @@ pub fn sync(renderer: &Renderer, slot: &mut Option<NodeClipmap>, state: &EditorS
     if !fits {
         *slot = match renderer.new_clipmap(&desc) {
             Ok(clip) => {
-                Some(NodeClipmap { clip, held: Held::new(desc.layers), textures: None, pins: HashMap::new(), shown: Vec::new() })
+                let held = Held::new(desc.layers);
+                Some(NodeClipmap { clip, held, textures: None, pins: HashMap::new(), shown: Vec::new(), uploads: Uploads::default() })
             }
             Err(e) => {
                 eprintln!("Terrain3D clipmap: {e}");
@@ -318,7 +402,39 @@ pub fn sync(renderer: &Renderer, slot: &mut Option<NodeClipmap>, state: &EditorS
 
     let texels = (size / stride) as usize;
     let bytes = [texels * texels * 8, size as usize * size as usize * 12];
-    let (uploads, more) = node.held.plan(&regions, state.terrain3d_residency.fine(id), bytes, UPLOAD_BUDGET);
+    let mut spent = 0;
+    for r in &regions {
+        let Some(from) = node.held.fine_source(r.loc).filter(|s| *s != r.source) else { continue };
+        let (Some(old), Some(new), Some(layer)) =
+            (patch_base(link, &source, r.loc, from, &node.pins), link.region(&source, r.loc), node.held.fine_layer(r.loc))
+        else {
+            continue;
+        };
+        if let Some(rect @ (origin, [w, h])) = changed_rect(&old, &new) {
+            let (heights, control) = (cut(&new.heights, new.size, rect), cut(&new.control, new.size, rect));
+            if let Err(e) = node.clip.write_fine(&renderer.queue, layer, origin, [w, h], &heights, &control, &colors(&new, rect)) {
+                eprintln!("Terrain3D clipmap: {e}");
+                continue;
+            }
+
+            node.uploads.partial += 1;
+            node.uploads.partial_cells += u64::from(w * h);
+            spent += (w * h) as usize * 12;
+        }
+
+        node.pins.insert(Arc::as_ptr(&new) as usize, new.clone());
+        if node.held.patched(r.loc, r.source)
+            && let Some((h, c)) = new.coarse(stride)
+        {
+            if let Err(e) = node.clip.write_coarse(&renderer.queue, r.loc, &h, &c) {
+                eprintln!("Terrain3D clipmap: {e}");
+            }
+
+            spent += bytes[0];
+        }
+    }
+
+    let (uploads, more) = node.held.plan(&regions, state.terrain3d_residency.fine(id), bytes, UPLOAD_BUDGET.saturating_sub(spent));
     for upload in uploads {
         let loc = match upload {
             Upload::Coarse(loc) | Upload::Fine(loc, _) => loc,
@@ -336,7 +452,17 @@ pub fn sync(renderer: &Renderer, slot: &mut Option<NodeClipmap>, state: &EditorS
                 .and_then(|l| l.levels.iter().find(|v| v.stride == stride).and_then(|v| coarse_from_level(v, size, stride)))
                 .map(|(h, c)| node.clip.write_coarse(&renderer.queue, loc, &h, &c)),
             (Upload::Fine(_, layer), Some(region)) => {
-                Some(node.clip.write_fine(&renderer.queue, layer, [0, 0], [size, size], &region.heights, &region.control, &colors(&region)))
+                let written = node.clip.write_fine(
+                    &renderer.queue,
+                    layer,
+                    [0, 0],
+                    [size, size],
+                    &region.heights,
+                    &region.control,
+                    &colors(&region, ([0, 0], [size, size])),
+                );
+                node.uploads.whole += u64::from(written.is_ok());
+                Some(written)
             }
             (Upload::Fine(..), None) => None,
         };
@@ -359,14 +485,14 @@ pub fn sync(renderer: &Renderer, slot: &mut Option<NodeClipmap>, state: &EditorS
     more
 }
 
-/// The color map of a region, white where it has none.
-fn colors(region: &Region3D) -> Vec<[u8; 4]> {
-    let n = region.heights.len();
-    if region.color.len() != n * 4 {
-        return vec![[255; 4]; n];
+/// The color map of a region within `rect`, Terrain3D's blank color where it has none.
+fn colors(region: &Region3D, rect: Rect) -> Vec<[u8; 4]> {
+    let [w, h] = rect.1;
+    if region.color.len() != region.heights.len() * 4 {
+        return vec![td_geom::terrain3d::BLANK_COLOR; (w * h) as usize];
     }
 
-    region.color.as_chunks::<4>().0.to_vec()
+    cut(region.color.as_chunks::<4>().0, region.size, rect)
 }
 
 /// The manifest's textures as the clipmap draws them: the exported albedo, else the thumbnail, else the color alone.
@@ -522,6 +648,116 @@ mod tests {
         let edited = Region { source: Source::Edited(8), pyramid: true, ..r };
         held.plan(&[Region { pyramid: true, ..r }], &[], [10, 100], usize::MAX);
         assert_eq!(held.plan(&[edited], &[], [10, 100], usize::MAX).0, vec![], "an edit not held whole keeps the block it had");
+    }
+
+    #[test]
+    fn a_patch_moves_the_layer_and_block_to_the_new_source_and_lets_the_old_one_go() {
+        let regions = [region([4, -3], 1), region([-5, 2], 2)];
+        let mut held = Held::new(1);
+        held.plan(&regions, &[[4, -3]], [10, 100], usize::MAX);
+        assert_eq!((held.fine_source([4, -3]), held.fine_source([-5, 2])), (Some(Source::Cached([1; 32])), None));
+
+        assert!(held.patched([4, -3], Source::Edited(0x70)), "the patched region has a coarse block to rewrite");
+        assert_eq!(held.fine_source([4, -3]), Some(Source::Edited(0x70)));
+        assert!(!held.holds(Source::Cached([1; 32])) && held.holds(Source::Edited(0x70)));
+        let edited = [Region { source: Source::Edited(0x70), ..regions[0] }, regions[1]];
+        assert_eq!(held.plan(&edited, &[[4, -3]], [10, 100], usize::MAX), (vec![], false), "a patched region needs no upload");
+
+        let mut lone = Held::new(1);
+        lone.plan(&regions[..1], &[], [10, 100], 5);
+        assert!(!lone.patched([-5, 2], Source::Edited(0x80)), "nothing held, nothing patched");
+        assert!(!lone.holds(Source::Edited(0x80)));
+    }
+
+    /// A slanted region off the origin with a color map, different in every cell.
+    fn ground(size: u32) -> Region3D {
+        let mut r = Region3D::blank([-3, 2], size);
+        for (k, (h, c)) in r.heights.iter_mut().zip(r.control.iter_mut()).enumerate() {
+            let (i, j) = ((k as u32 % size) as f32, (k as u32 / size) as f32);
+            *h = 1.5 + 0.25 * i - 0.125 * j;
+            *c = Control(0).with_base((k % 7) as u8).0;
+        }
+
+        r.color = (0..r.heights.len() * 4).map(|b| (b * 37 % 251) as u8).collect();
+        r
+    }
+
+    fn at(size: u32, i: u32, j: u32) -> usize {
+        (j * size + i) as usize
+    }
+
+    #[test]
+    fn one_changed_cell_is_a_rectangle_of_one() {
+        let old = ground(16);
+        let mut new = old.clone();
+        new.heights[at(16, 5, 9)] += 0.5;
+        assert_eq!(changed_rect(&old, &new), Some(([5, 9], [1, 1])));
+    }
+
+    #[test]
+    fn a_slanted_stroke_is_bounded_by_its_first_and_last_cell_whatever_changed() {
+        let old = ground(16);
+        let mut new = old.clone();
+        for t in 0..8 {
+            new.heights[at(16, 2 + t, 3 + t * 4 / 7)] -= 0.75;
+        }
+
+        new.control[at(16, 11, 4)] = Control(0).with_base(12).0;
+        new.color[at(16, 6, 10) * 4 + 2] ^= 0xff;
+        assert_eq!(changed_rect(&old, &new), Some(([2, 3], [10, 8])), "heights reach 2..=9 and 3..=7, control 11, color row 10");
+    }
+
+    #[test]
+    fn an_unchanged_region_has_no_rectangle_even_with_nan_heights() {
+        let mut old = ground(16);
+        old.heights[at(16, 7, 7)] = f32::NAN;
+        assert_eq!(changed_rect(&old, &old.clone()), None);
+        let mut plain = ground(1);
+        plain.color.clear();
+        assert_eq!(changed_rect(&plain, &plain.clone()), None, "a region of one vertex without color");
+    }
+
+    #[test]
+    fn a_region_changed_everywhere_or_reshaped_is_one_whole_rectangle() {
+        let old = ground(16);
+        let mut new = old.clone();
+        new.heights.iter_mut().for_each(|h| *h += 1.0);
+        assert_eq!(changed_rect(&old, &new), Some(([0, 0], [16, 16])));
+
+        let mut uncolored = old.clone();
+        uncolored.color.clear();
+        assert_eq!(changed_rect(&uncolored, &old), Some(([0, 0], [16, 16])), "a color map gained");
+        assert_eq!(changed_rect(&ground(8), &old), Some(([0, 0], [16, 16])), "another size");
+    }
+
+    #[test]
+    fn cells_on_opposite_borders_span_the_region_between_them() {
+        let old = ground(16);
+        let mut new = old.clone();
+        new.heights[at(16, 0, 4)] = 9.0;
+        new.control[at(16, 15, 11)] ^= 1;
+        assert_eq!(changed_rect(&old, &new), Some(([0, 4], [16, 8])), "west and east");
+
+        let mut new = old.clone();
+        new.heights[at(16, 7, 0)] = 9.0;
+        new.color[at(16, 3, 15) * 4] ^= 1;
+        assert_eq!(changed_rect(&old, &new), Some(([3, 0], [5, 16])), "north and south");
+
+        let mut new = old.clone();
+        new.heights[at(16, 15, 15)] = -9.0;
+        assert_eq!(changed_rect(&old, &new), Some(([15, 15], [1, 1])), "the last cell");
+    }
+
+    #[test]
+    fn a_rectangle_is_cut_row_by_row_with_the_blank_color_for_a_region_without_color() {
+        let mut r = ground(16);
+        let rect = ([13, 6], [3, 2]);
+        let want: Vec<f32> = [(13, 6), (14, 6), (15, 6), (13, 7), (14, 7), (15, 7)].iter().map(|(i, j)| r.heights[at(16, *i, *j)]).collect();
+        assert_eq!(cut(&r.heights, 16, rect), want);
+        let k = at(16, 15, 7) * 4;
+        assert_eq!(colors(&r, rect)[5], [r.color[k], r.color[k + 1], r.color[k + 2], r.color[k + 3]]);
+        r.color.clear();
+        assert_eq!(colors(&r, rect), vec![td_geom::terrain3d::BLANK_COLOR; 6]);
     }
 
     fn level(stride: u32, side: u32) -> LodLevel {

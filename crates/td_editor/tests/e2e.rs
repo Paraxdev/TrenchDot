@@ -8830,6 +8830,49 @@ fn terrain3d_triangles_stay_the_same_for_a_bigger_world() {
     assert_eq!(counts[0], counts[1], "the triangles do not grow with the world");
 }
 
+/// A sculpt dab reaches the GPU as a patch of the cells it changed: the 3D view shows the bump around the brush and
+/// nowhere else, and `terrain3d info` counts a partial upload while the whole region uploads stay as they were.
+#[test]
+#[ignore]
+fn terrain3d_sculpt_uploads_only_the_changed_rectangle() {
+    let (ed, node) = launch_world("terrain3d_patch", None);
+    ed.call("set_editor", json!({ "shade": "lit", "tool": "select" }));
+    ed.call("set_camera", json!({ "view": "3d", "position": [256.3, 420, 256.7], "look_at": [256, 0, 256] }));
+    let ground = ground_height(&ed, 256.0, 256.0);
+    let settled = clipmap_settled(&ed, &node, 3);
+    assert_eq!(settled["uploads"]["partial"], 0, "{settled}");
+    let args = json!({ "target": "3d", "width": 480, "height": 360 });
+    let before = shot(&ed, args.clone(), "before");
+
+    let reply = ed.call("run_action", json!({ "action": "sculpt", "args": { "center": [256, 0, 256], "mode": "raise", "radius": 64, "strength": 96 } }));
+    assert_eq!((reply["terrain3d"].as_u64(), reply["regions"].as_u64()), (Some(1), Some(1)), "{reply}");
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let clipmap = loop {
+        shot(&ed, args.clone(), "settle");
+        let clipmap = ed.call("terrain3d", json!({ "op": "info", "id": node }))["clipmap"].clone();
+        if clipmap["uploads"]["partial"].as_u64() > Some(0) {
+            break clipmap;
+        }
+
+        assert!(Instant::now() < deadline, "the dab never reached the GPU: {clipmap}");
+        std::thread::sleep(Duration::from_millis(200));
+    };
+    assert_eq!(clipmap["uploads"]["whole"], settled["uploads"]["whole"], "no region went up whole: {clipmap}");
+    // The brush reaches 8 vertices at 0.25 m and leaves the vertices at its rim, 15 by 15 of the region's 64 by 64.
+    assert_eq!((clipmap["uploads"]["partial"].as_u64(), clipmap["uploads"]["partial_cells"].as_u64()), (Some(1), Some(225)), "{clipmap}");
+    assert!(ground_height(&ed, 256.0, 256.0) > ground + 8.0, "the ground under the brush rose");
+
+    let after = shot(&ed, args, "after");
+    let changed: Vec<(u32, u32)> = after
+        .enumerate_pixels()
+        .filter(|(x, y, p)| p.0.iter().zip(before.get_pixel(*x, *y).0).any(|(a, b)| a.abs_diff(b) > 24))
+        .map(|(x, y, _)| (x, y))
+        .collect();
+    assert!(changed.len() > 200, "the bump shows, {} pixels changed", changed.len());
+    let far = changed.iter().filter(|(x, y)| x.abs_diff(240) > 140 || y.abs_diff(180) > 120).count();
+    assert_eq!(far, 0, "only the ground around the brush changed");
+}
+
 /// Selecting the Terrain3D node fills the Inspector with the textures of the folder, each with a swatch of its color.
 #[test]
 #[ignore]
