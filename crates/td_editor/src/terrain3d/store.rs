@@ -258,6 +258,8 @@ impl Terrain3DStore {
                     folder.regions.clear();
                     folder.lods.clear();
                     folder.inflight.clear();
+                    // The reads failed against files that went with the manifest, and a re-export brings back the same hashes.
+                    folder.failed.clear();
                     folder.generation += 1;
                 }
 
@@ -917,6 +919,45 @@ mod tests {
         store.want(&cache, &[A, B], &[]);
         settle(&mut store, &cache, |s| s.region(&cache, A).is_some());
         assert!(store.error(&cache).is_none(), "a good manifest read clears the error");
+    }
+
+    #[test]
+    fn what_failed_while_the_cache_was_gone_loads_once_it_is_back() {
+        let (dir, other_dir) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let (cache, other) = (cache_of(&dir), cache_of(&other_dir));
+        write_world(&cache, &[(A, 1), (B, 2)]);
+        write_world(&other, &[(A, 1)]);
+        std::fs::write(terrain3d_cache::region_path(&other, A).unwrap(), b"broken").unwrap();
+        let mut store = Terrain3DStore::default();
+        store.refresh(&other);
+        store.want(&other, &[A], &[]);
+        settle(&mut store, &other, |s| s.error(&other).is_some() && !s.loading(&other));
+
+        // The views asked for regions and pyramids, then the folder went away before the loader read them.
+        store.refresh(&cache);
+        std::fs::remove_dir_all(&cache).unwrap();
+        store.want(&cache, &[A], &[B]);
+        settle(&mut store, &cache, |s| s.error(&cache).is_some() && !s.loading(&cache));
+        assert_eq!(store.folders[&cache].failed.len(), 2, "both reads failed under the old manifest");
+        store.recheck();
+        store.refresh(&cache);
+        assert!(store.manifest(&cache).is_none() && store.error(&cache).is_none());
+
+        // Godot exports the same data again, so every hash is the one the reads failed with.
+        write_world(&cache, &[(A, 1), (B, 2)]);
+        store.recheck();
+        store.refresh(&cache);
+        store.want(&cache, &[A], &[B]);
+        settle(&mut store, &cache, |s| s.region(&cache, A).is_some() && s.lod(&cache, B).is_some());
+        assert_eq!(*store.region(&cache, A).unwrap(), region(A, -7.0 + 6.0 + 1.0));
+        let lod = store.lod(&cache, B).unwrap();
+        assert_eq!((lod.loc, lod.hash, lod.levels.len()), (B, hash(2), 1));
+        assert!(store.region(&cache, B).is_none() && store.lod(&cache, A).is_none());
+        assert!(store.error(&cache).is_none());
+
+        let broken = &store.folders[&other];
+        assert!(broken.regions.is_empty() && broken.inflight.is_empty());
+        assert!(broken.failed.contains_key(&(A, true)), "a broken file in another folder is still not asked for again");
     }
 
     #[test]
