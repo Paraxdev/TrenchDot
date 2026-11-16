@@ -1,7 +1,7 @@
 {#-
   The theme's repository link without data-md-component="source". That widget also asks GitHub for the latest release,
   a 404 in the console on every first visit since the repository only has the beta prerelease, so td.js adds the
-  stars and forks instead.
+  stars and forks instead. The Discord icon beside it links extra.discord in zensical.toml.
 -#}
 <a href="{{ config.repo_url }}" title="{{ lang.t('source') }}" class="md-source td-source">
   <div class="md-source__icon md-icon">
@@ -12,3 +12,10 @@
     {{ config.repo_name }}
   </div>
 </a>
+{%- if config.extra.discord %}
+<a href="{{ config.extra.discord }}" title="Discord" aria-label="Discord" class="md-source td-discord" target="_blank" rel="noopener">
+  <div class="md-source__icon md-icon">
+    {% include ".icons/fontawesome/brands/discord.svg" %}
+  </div>
+</a>
+{%- endif %}

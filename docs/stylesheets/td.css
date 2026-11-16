@@ -168,3 +168,47 @@
 [data-md-color-scheme="default"] .md-logo img {
   filter: drop-shadow(0 0 0.04rem rgb(0 0 0 / 0.75)) drop-shadow(0 0 0.04rem rgb(0 0 0 / 0.75));
 }
+
+/* The Discord icon shares the repository link's row, in the header and in the drawer. */
+.md-header__source,
+.md-nav__source {
+  white-space: nowrap;
+}
+
+.md-source.td-source {
+  display: inline-block;
+  width: calc(100% - 2.4rem);
+  vertical-align: middle;
+}
+
+.md-source.td-discord {
+  display: inline-block;
+  width: 2.4rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+[dir] .td-discord .md-source__icon svg {
+  margin-left: 0;
+  margin-right: 0;
+}
+
+@media screen and (min-width: 60em) {
+  .md-header__source {
+    width: auto;
+    max-width: none;
+  }
+
+  .md-header__source .md-source.td-source {
+    width: auto;
+    max-width: 11.5rem;
+  }
+
+  .md-header__source .td-source .md-source__repository {
+    max-width: none;
+  }
+
+  .md-header__source .md-source.td-discord {
+    margin-left: 0.4rem;
+  }
+}
