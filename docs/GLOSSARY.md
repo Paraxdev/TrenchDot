@@ -36,6 +36,9 @@ An entity that takes its shape from brushes you built, such as a door, a button 
 ## cell
 One square of a terrain's grid, between four neighboring vertices. A terrain is a whole number of cells along X and Z, and the cell size is the distance in map units between two vertices. Resizing a terrain adds or removes whole cells.
 
+## clipmap
+A way to draw a huge landscape: a fixed set of square rings around the camera, where each ring has half the detail of the one inside it and the whole set moves with the camera. Near ground is drawn finely and far ground coarsely, so the cost stays the same however big the world is. TrenchDot draws Terrain3D with one, the way Terrain3D does.
+
 ## convex
 Bulging outward everywhere, with no dents or hollows, like a box, a wedge or a cylinder. Every brush has to be convex, which is why the editor refuses vertex moves that would dent one. For concave shapes, convert the brush to a mesh.
 
@@ -189,6 +192,9 @@ A Godot effect that mirrors what is already on screen in shiny surfaces, so wet 
 ## SDFGI
 Godot's real time global illumination, light that bounces off surfaces and tints what is around them, without baking. It learns the scene's geometry in rings of cells around the camera, so geometry that appears suddenly, such as a swapped in map section, stays dark until the rings move on. Baked lighting has no such delay.
 
+## sea level
+The height in meters at which the ocean of a Terrain3D node sits. TrenchDot draws a water plane there when the ocean is on, and everything below it is under water.
+
 ## segmental arch
 An arch that is a slice of a circle less than a half circle, so it is flatter than a round arch of the same width. Old bridges, cellars and brick sewers often have one. An Arched tunnel with an Angle under 180 gets one.
 
@@ -245,6 +251,9 @@ A named set of objects in Hammer that you show or hide together. TrenchDot's lay
 
 ## vertex spacing
 The distance in meters between two neighboring vertices of a Terrain3D landscape. At 1 a region of 256 vertices covers 256 meters, at 2 it covers 512.
+
+## world background
+What Terrain3D draws beyond its regions, set on its material as None, Flat or Noise. Flat continues the ground as a plane at the ground level, Noise adds hills made from a noise function, None draws nothing.
 
 ## worldspawn
 The map's root entity, which holds the world brushes. Its keys hold settings for the whole map, such as the sky, fog, sun and streaming, and the Inspector shows it when nothing is selected.
