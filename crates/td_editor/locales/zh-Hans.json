@@ -2890,5 +2890,6 @@
   "Ocean": "海洋",
   "Sea Level": "海平面",
   "The cache has no material, assets or ocean, update the TrenchDot addon in Godot": "缓存中没有材质、资源和海洋，请更新 Godot 中的 TrenchDot 插件",
-  "This cache has no noise values, the hills draw flat until Godot exports again": "此缓存没有噪声数值，在 Godot 重新导出前山丘会画成平地"
+  "This cache has no noise values, the hills draw flat until Godot exports again": "此缓存没有噪声数值，在 Godot 重新导出前山丘会画成平地",
+  "Terrain3D cannot be drawn: {problem}": "无法绘制 Terrain3D：{problem}"
 }

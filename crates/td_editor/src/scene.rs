@@ -9,6 +9,7 @@ use td_geom::{Brush, Mesh, Terrain};
 use td_render::{Frame, GpuLines, GpuMesh, Lighting, LineShape, LineVertex, MeshBatch, MeshInstance, MeshVertex, PointLight, Renderer};
 
 use crate::face_cull::{FaceCull, FacePieces};
+use crate::i18n::msg;
 use crate::prefabs::{self, PrefabCache};
 use crate::state::EditorState;
 
@@ -181,6 +182,8 @@ pub struct SceneCache {
     terrain3d_generation: (u64, u64),
     /// Some clipmap has uploads left for the next frame.
     terrain3d_pending: bool,
+    /// The last clipmap creation failure told to the user, so a failure that repeats every frame is told once.
+    terrain3d_failed: Option<String>,
     scatters: HashMap<NodeId, ScatterGpu>,
     scatter_models: ScatterModels,
     unit_box: Option<GpuMesh>,
@@ -2361,11 +2364,16 @@ impl SceneCache {
         let chosen = &state.doc.selection.nodes;
         let mut pending = false;
         let mut status = BTreeMap::new();
+        let mut failed = None;
         for (id, cache) in state.terrain3d_links().iter().filter(|(id, _)| layouts.contains_key(id)) {
             let selected = show_selection && (chosen.contains(id) || map.ancestors(*id).iter().any(|a| chosen.contains(a)));
             let mut slot = self.terrain3d.remove(id);
             let color = if selected { SELECTED_COLOR } else { TERRAIN_EDGE };
-            pending |= crate::terrain3d::gpu::sync(renderer, &mut slot, state, *id, cache, selected, color);
+            match crate::terrain3d::gpu::sync(renderer, &mut slot, state, *id, cache, selected, color) {
+                Ok(more) => pending |= more,
+                Err(problem) => failed = Some(problem),
+            }
+
             if let Some(node) = slot {
                 status.insert(*id, node.status());
                 self.terrain3d.insert(*id, node);
@@ -2379,6 +2387,12 @@ impl SceneCache {
 
         self.terrain3d_pending = pending;
         state.terrain3d_clipmap = status;
+        if let Some(problem) = failed.as_ref().filter(|p| self.terrain3d_failed.as_ref() != Some(*p)) {
+            eprintln!("Terrain3D clipmap: {problem}");
+            state.fail_status(msg!("Terrain3D cannot be drawn: {problem}", problem));
+        }
+
+        self.terrain3d_failed = failed;
     }
 
     /// Whether a Terrain3D clipmap has uploads left, so the next frame should come soon.

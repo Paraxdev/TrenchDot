@@ -357,14 +357,23 @@ impl NodeClipmap {
 }
 
 /// Brings a node's clipmap up to what the store and the edits hold, uploading at most [`UPLOAD_BUDGET`] bytes, and drops
-/// it when the node has no region to show. Returns whether uploads are left for the next frame.
-pub fn sync(renderer: &Renderer, slot: &mut Option<NodeClipmap>, state: &EditorState, id: NodeId, cache: &Path, selected: bool, wire: [f32; 4]) -> bool {
+/// it when the node has no region to show. Returns whether uploads are left for the next frame, or why the clipmap
+/// could not be made.
+pub fn sync(
+    renderer: &Renderer,
+    slot: &mut Option<NodeClipmap>,
+    state: &EditorState,
+    id: NodeId,
+    cache: &Path,
+    selected: bool,
+    wire: [f32; 4],
+) -> Result<bool, String> {
     let regions = regions(state, id, cache);
     let (Some(link), Some(source), Some(manifest), false) =
         (state.doc.map.terrain3d(id), state.terrain3d.source(cache), state.terrain3d.manifest(cache), regions.is_empty())
     else {
         *slot = None;
-        return false;
+        return Ok(false);
     };
     let size = manifest.region_size;
     let stride = coarse_stride(size);
@@ -376,27 +385,20 @@ pub fn sync(renderer: &Renderer, slot: &mut Option<NodeClipmap>, state: &EditorS
         d.region_size == size && d.coarse_stride == stride && d.layers >= desc.layers && d.in_atlas(lo) && d.in_atlas(hi)
     });
     if !fits {
-        *slot = match renderer.new_clipmap(&desc) {
-            Ok(clip) => {
-                let held = Held::new(desc.layers);
-                Some(NodeClipmap {
-                    clip,
-                    held,
-                    textures: None,
-                    pins: HashMap::new(),
-                    shown: Vec::new(),
-                    uploads: Uploads::default(),
-                    water: None,
-                })
-            }
-            Err(e) => {
-                eprintln!("Terrain3D clipmap: {e}");
-                None
-            }
-        };
+        *slot = None;
+        let clip = renderer.new_clipmap(&desc)?;
+        *slot = Some(NodeClipmap {
+            clip,
+            held: Held::new(desc.layers),
+            textures: None,
+            pins: HashMap::new(),
+            shown: Vec::new(),
+            uploads: Uploads::default(),
+            water: None,
+        });
     }
 
-    let Some(node) = slot.as_mut() else { return false };
+    let Some(node) = slot.as_mut() else { return Ok(false) };
     if node.textures.as_ref() != Some(&manifest.textures) {
         renderer.set_clipmap_textures(&mut node.clip, &textures(cache, &manifest.textures));
         node.textures = Some(manifest.textures.clone());
@@ -497,7 +499,7 @@ pub fn sync(renderer: &Renderer, slot: &mut Option<NodeClipmap>, state: &EditorS
     }
 
     node.shown = regions.iter().map(|r| r.loc).collect();
-    more
+    Ok(more)
 }
 
 /// The color map of a region within `rect`, Terrain3D's blank color where it has none.

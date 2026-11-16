@@ -2890,5 +2890,6 @@
   "Ocean": "Océan",
   "Sea Level": "Niveau de la mer",
   "The cache has no material, assets or ocean, update the TrenchDot addon in Godot": "Le cache n'a ni matériau, ni assets, ni océan, mets à jour l'addon TrenchDot dans Godot",
-  "This cache has no noise values, the hills draw flat until Godot exports again": "Ce cache n'a pas de valeurs de bruit, les collines sont dessinées plates jusqu'au prochain export de Godot"
+  "This cache has no noise values, the hills draw flat until Godot exports again": "Ce cache n'a pas de valeurs de bruit, les collines sont dessinées plates jusqu'au prochain export de Godot",
+  "Terrain3D cannot be drawn: {problem}": "Impossible de dessiner Terrain3D : {problem}"
 }
