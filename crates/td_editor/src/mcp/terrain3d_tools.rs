@@ -1,7 +1,7 @@
 //! MCP tools for the Terrain3D node: `terrain_edit` on a Terrain3D id.
 
 use std::collections::BTreeSet;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use serde_json::{Value, json};
 use td_core::{DVec2, DVec3, NodeId};
@@ -139,19 +139,7 @@ impl EditorState {
             let source = self.terrain3d.source(&cache).ok_or("no Terrain3D cache")?;
             grid.regions_in(lo, hi).into_iter().filter(|l| source.hash(*l).is_some()).collect()
         };
-        self.terrain3d.want(&cache, &need, &[]);
-        let start = Instant::now();
-        while need.iter().any(|l| self.terrain3d.region(&cache, *l).is_none()) {
-            if start.elapsed() > LOAD_TIMEOUT {
-                let why = self.terrain3d.error(&cache).map(|e| format!(": {e}")).unwrap_or_default();
-                return Err(format!("the Terrain3D regions did not load in {} s{why}", LOAD_TIMEOUT.as_secs()));
-            }
-
-            std::thread::sleep(Duration::from_millis(5));
-            self.terrain3d.refresh(&cache);
-        }
-
-        Ok(())
+        self.terrain3d.load_whole(&cache, &need, LOAD_TIMEOUT)
     }
 
     /// Runs `job` on the regions of node `id` as one undo step. Height jobs put the scatter that follows the node back on

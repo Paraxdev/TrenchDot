@@ -152,6 +152,37 @@ impl Terrain3DStore {
         self.pump(cache);
     }
 
+    /// Holds the regions `need` whole and waits until they loaded, for tools that edit them. The next manifest read clears
+    /// the error to try a failed region again, so the wait keeps the last error it saw to name when it gives up.
+    pub fn load_whole(&mut self, cache: &Path, need: &[Loc], timeout: Duration) -> Result<(), String> {
+        self.want(cache, need, &[]);
+        let start = Instant::now();
+        let mut why = None;
+        loop {
+            let missing: Vec<Loc> = need.iter().copied().filter(|l| self.region(cache, *l).is_none()).collect();
+            if missing.is_empty() {
+                return Ok(());
+            }
+
+            if let Some(e) = self.error(cache) {
+                why = Some(e.to_string());
+            }
+
+            if start.elapsed() >= timeout {
+                let mut names = missing.iter().take(4).map(|l| format!("{l:?}")).collect::<Vec<_>>().join(", ");
+                if missing.len() > 4 {
+                    names += &format!(" and {} more", missing.len() - 4);
+                }
+
+                let why = why.map(|e| format!(", the last error was: {e}")).unwrap_or_default();
+                return Err(format!("the Terrain3D regions {names} did not load in {} s{why}", timeout.as_secs()));
+            }
+
+            std::thread::sleep(Duration::from_millis(5));
+            self.refresh(cache);
+        }
+    }
+
     /// A region held whole, None while it loads or when nobody asked for it.
     pub fn region(&self, cache: &Path, loc: Loc) -> Option<Arc<Region3D>> {
         let loaded = self.folders.get(cache)?.regions.get(&loc)?;
@@ -958,6 +989,41 @@ mod tests {
         let broken = &store.folders[&other];
         assert!(broken.regions.is_empty() && broken.inflight.is_empty());
         assert!(broken.failed.contains_key(&(A, true)), "a broken file in another folder is still not asked for again");
+    }
+
+    #[test]
+    fn a_tool_waits_for_whole_regions_and_names_what_did_not_load() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = cache_of(&dir);
+        write_world(&cache, &[(A, 1), (B, 2)]);
+        let mut store = Terrain3DStore::default();
+        assert_eq!(store.load_whole(&cache, &[], Duration::ZERO), Ok(()));
+        store.refresh(&cache);
+        let early = store.load_whole(&cache, &[B], Duration::ZERO).unwrap_err();
+        assert!(early.contains("regions [3, -2] did not load") && !early.contains("error"), "{early}");
+
+        store.load_whole(&cache, &[A, B], Duration::from_secs(10)).unwrap();
+        assert_eq!(*store.region(&cache, A).unwrap(), region(A, -7.0 + 6.0 + 1.0));
+        assert_eq!(*store.region(&cache, B).unwrap(), region(B, 21.0 - 6.0 + 2.0));
+        assert_eq!(store.load_whole(&cache, &[B, A], Duration::ZERO), Ok(()), "what is loaded needs no wait");
+
+        let broken_dir = tempfile::tempdir().unwrap();
+        let broken = cache_of(&broken_dir);
+        write_world(&broken, &[(A, 1), (B, 2)]);
+        std::fs::write(terrain3d_cache::region_path(&broken, A).unwrap(), b"broken").unwrap();
+        let read = terrain3d_cache::read_region(&broken, A, 64).unwrap_err().to_string();
+        store.refresh(&broken);
+        let start = Instant::now();
+        let failed = store.load_whole(&broken, &[B, A], Duration::from_millis(1500)).unwrap_err();
+        assert!(start.elapsed() >= Duration::from_millis(1500), "a failed region is tried again until the wait ends");
+        assert!(failed.contains("regions [-1, 2] did not load") && failed.ends_with(&format!("the last error was: {read}")), "{failed}");
+        assert!(store.region(&broken, B).is_some() && store.region(&cache, A).is_some());
+
+        let many: Vec<Loc> = (0..5).map(|k| [k - 2, 7 - k]).collect();
+        let five = store.load_whole(&cache, &many, Duration::ZERO).unwrap_err();
+        assert!(five.contains("regions [-2, 7], [-1, 6], [0, 5], [1, 4] and 1 more did"), "{five}");
+        let four = store.load_whole(&cache, &many[..4], Duration::ZERO).unwrap_err();
+        assert!(four.contains("regions [-2, 7], [-1, 6], [0, 5], [1, 4] did"), "{four}");
     }
 
     #[test]
