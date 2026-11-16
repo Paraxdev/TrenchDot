@@ -9,14 +9,11 @@ The build sorts the map's meshes into chunks on a grid, and only the chunks near
 
     Press Escape so nothing is selected. The Inspector on the right then shows *Map (worldspawn)*.
 
-2. Add `chunk_streaming`
+2. Tick `chunk_streaming`
 
-    Type `chunk_streaming` in the *key* field at the bottom, `1` in *value*, and click **Add**. (If it is already
-    listed, just turn it on there.)
-
-    ![The worldspawn Inspector with chunk_streaming typed in the key field, 1 in the value field and the Add button hovered](../assets/streaming/worldspawn-add-key.png)
-
-    You should see it listed with the other worldspawn keys:
+    Find it near the bottom of the list, below `_cull_void_faces`, and tick it. You should see a check mark in it. If
+    your project was made with an older addon and the row is missing, update the addon and
+    [export the game config](project-setup.md#the-game-config) again.
 
     ![The worldspawn Inspector with chunk_streaming ticked](../assets/streaming/worldspawn-chunk-streaming.png)
 
@@ -24,7 +21,7 @@ The build sorts the map's meshes into chunks on a grid, and only the chunks near
 
     The next build adds a `TrenchDotStreamer` to the map.
 
-(Optionally) add `chunk_size` and `load_radius` the same way:
+(Optionally) change `chunk_size` and `load_radius`, the two rows right below it:
 
 | Key | Default | Meaning |
 | --- | --- | --- |
