@@ -59,25 +59,27 @@ Brushes…*. As brushes, every cube becomes a brush, grouped under the file's na
 
 ## Textures of a placed mesh
 
-An editable mesh keeps the model's look. Its textures are copied into `models/<name>` in the project's texture folder,
-where `<name>` is the model's path in the Models tab, or its file name for a model from elsewhere. Select the mesh and
-the Inspector lists the materials it draws with:
+An editable mesh keeps the model's look. Select the mesh and the Inspector lists the materials it draws with:
 
 ![The Inspector of a placed mesh: 5966 vertices and the material models/polyhaven/containers/wine_barrel_01/tex0](../assets/models/inspector-mesh-materials.png)
 
-Where the plain image would not draw like the model, a Godot material goes into the project's material folder as well.
-That way cut out leaves, pixel art and glowing parts (a glTF model's emission color and emission map included) draw in
-Godot like they do here. To swap the materials, click one in the Materials tab while the mesh is selected, *Edit >
-Undo* brings them back.
+Placing copies the textures into `models/<name>` in the project's texture folder, where `<name>` is the model's path in
+the Models tab, or its file name for a model from elsewhere. Placing never overwrites a file. What it does with them:
 
-Placing never overwrites a file. Place the same model again and it reuses its textures, and keeps a material you tuned
-in Godot. If another model's textures already sit in that folder, like those of `rock.bbmodel` next to `rock.glb`, the
-new ones go into a numbered folder such as `models/rock_2`. Undo leaves the files where they are. If the textures
-cannot be written, say in a read-only project, the mesh comes in untextured and the status bar says why.
+| Case | What happens |
+| --- | --- |
+| The plain image would not draw like the model | A Godot material goes into the project's material folder as well, so cut out leaves, pixel art and glowing parts (a glTF model's emission color and emission map included) draw in Godot like they do here |
+| You place the same model again | It reuses its textures and keeps a material you tuned in Godot |
+| Another model's textures already sit in that folder, like those of `rock.bbmodel` next to `rock.glb` | The new ones go into a numbered folder such as `models/rock_2` |
+| You undo the placing | The files stay where they are |
+| The textures cannot be written, say in a read-only project | The mesh comes in untextured and the status bar says why |
 
-Textures count as the same by their pixels, so one that another program only saved again is still reused. Painted over
-one? Meshes placed before keep your version, and the next placement gets fresh copies in a numbered folder, with a new
-material. To give later placements your changes, apply your material to them from the Materials tab.
+To swap the materials of a placed mesh, select it and click a material in the Materials tab. *Edit > Undo*
+brings the old ones back.
+
+Textures count as the same by their pixels, so one that another program only saved again is still reused. If you painted
+over one, meshes placed before keep your version, and the next placement gets fresh copies in a numbered folder with a
+new material. To give later placements your changes, apply your material to them from the Materials tab.
 
 > [!NOTE]
 > FuncGodot only builds a face's material from the project's `default_material` when there is no material
