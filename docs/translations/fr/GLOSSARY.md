@@ -196,6 +196,9 @@ Un réglage, activé par défaut et basculé avec Ctrl+Shift+U, qui garde les te
 ## UV { #uv }
 Les coordonnées qui indiquent quelle partie d'une texture tombe sur chaque point d'une face, U dans le sens de la largeur de la texture et V dans le sens de la hauteur. Les faces de brush les reçoivent en général d'une projection, tandis que les meshes et certaines faces stockent les leurs pour chaque coin.
 
+## sommet { #vertex }
+Un point d'angle d'une forme. Un terrain en a un à chaque croisement de sa grille, chacun portant une hauteur et un mélange de peinture, et les cellules sont les carrés entre eux. Les maillages ont aussi des sommets, et une face est la zone entre ses coins.
+
 ## worldspawn { #worldspawn }
 L'entité racine de la carte, qui contient les brushes du monde. Ses clés contiennent des réglages pour toute la carte, comme le ciel, le brouillard, le soleil et le streaming, et l'Inspecteur l'affiche quand rien n'est sélectionné.
 

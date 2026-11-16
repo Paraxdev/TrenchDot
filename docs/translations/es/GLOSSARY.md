@@ -196,6 +196,9 @@ Un ajuste, activado por defecto y que se alterna con Ctrl+Shift+U, que mantiene 
 ## UV { #uv }
 Las coordenadas que dicen qué parte de una textura cae en cada punto de una cara, U a lo ancho de la textura y V hacia abajo. Las caras de brush suelen obtenerlas de una proyección, mientras que las mallas y algunas caras guardan las suyas para cada esquina.
 
+## vértice { #vertex }
+Un punto de esquina de una forma. Un terreno tiene uno en cada cruce de su cuadrícula, cada uno con una altura y una mezcla de pintura, y las celdas son los cuadrados entre ellos. Las mallas también tienen vértices, y una cara es el área entre sus esquinas.
+
 ## worldspawn { #worldspawn }
 La entidad raíz del mapa, que contiene los brushes del mundo. Sus claves guardan ajustes de todo el mapa, como el cielo, la niebla, el sol y el streaming, y el Inspector la muestra cuando no hay nada seleccionado.
 

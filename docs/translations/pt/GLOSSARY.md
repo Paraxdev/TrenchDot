@@ -196,6 +196,9 @@ Um ajuste, ligado por padrão e alternado com Ctrl+Shift+U, que mantém as textu
 ## UV { #uv }
 As coordenadas que dizem qual parte de uma textura cai em cada ponto de uma face, U ao longo da textura e V para baixo. As faces de brush normalmente as recebem de uma projeção, enquanto malhas e algumas faces guardam as suas para cada canto.
 
+## vértice { #vertex }
+Um ponto de canto de uma forma. Um terreno tem um em cada cruzamento da sua grade, cada um com uma altura e uma mistura de pintura, e as células são os quadrados entre eles. Malhas também têm vértices, e uma face é a área entre os seus cantos.
+
 ## worldspawn { #worldspawn }
 A entidade raiz do mapa, que guarda os brushes do mundo. As keys dela guardam configurações do mapa todo, como céu, névoa, sol e streaming, e o Inspetor a mostra quando nada está selecionado.
 

@@ -195,6 +195,9 @@ A setting, on by default and toggled with Ctrl+Shift+U, that keeps textures stuc
 ## UV
 The coordinates that say which part of a texture lands on each point of a face, U across the texture and V down it. Brush faces usually get them from a projection, while meshes and some faces store their own for each corner.
 
+## vertex
+A corner point of a shape. A terrain has one at every crossing of its grid, each holding a height and a paint mix, and the cells are the squares between them. Meshes have vertices too, and a face is the area between its corners.
+
 ## worldspawn
 The map's root entity, which holds the world brushes. Its keys hold settings for the whole map, such as the sky, fog, sun and streaming, and the Inspector shows it when nothing is selected.
 

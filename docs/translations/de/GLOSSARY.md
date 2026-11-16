@@ -196,6 +196,9 @@ Eine Einstellung, standardmäßig an und umgeschaltet mit Ctrl+Shift+U, die Text
 ## UV { #uv }
 Die Koordinaten, die sagen, welcher Teil einer Textur auf jeden Punkt einer Fläche fällt, U quer über die Textur und V nach unten. Brush-Flächen bekommen sie meist aus einer Projektion, während Meshes und manche Flächen für jede Ecke eigene speichern.
 
+## Vertex { #vertex }
+Ein Eckpunkt einer Form. Ein Terrain hat einen an jeder Kreuzung seines Gitters, jeder mit einer Höhe und einer Farbmischung, und die Zellen sind die Quadrate dazwischen. Meshes haben ebenfalls Vertices, und eine Fläche ist der Bereich zwischen ihren Ecken.
+
 ## worldspawn { #worldspawn }
 Die Wurzel-Entität der Karte, die die Welt-Brushes enthält. Ihre Keys halten Einstellungen für die ganze Karte, etwa Himmel, Nebel, Sonne und Streaming, und der Inspektor zeigt sie, wenn nichts ausgewählt ist.
 
