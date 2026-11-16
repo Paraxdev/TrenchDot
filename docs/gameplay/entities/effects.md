@@ -40,11 +40,17 @@ A static model with optional collision, for furniture, rocks and other props tha
 * **Keys:** `model` (.bbmodel, .glb, .gltf or .tscn), `model_node`, `collision`, `collision_layer`,
   `collision_mask`, `scale` 1.0
 
-`collision` default gives each mesh a convex hull, fine for boxy shapes. Pick convex decomposition or trimesh for
-shapes the player walks through or on, like an arch, or box for the cheapest shape, see [Collision](collision.md).
-Collision is only generated when the model has none of its own. Models placed with *Model Prop* and models inside
-prefabs are prop_model entities, so they collide the same way. For a file
-that holds several variants side by side, `model_node` keeps only the named node and moves it to the prop's origin.
+| `collision` | Use it for |
+| --- | --- |
+| default | A convex hull per mesh, fine for boxy shapes |
+| convex decomposition, trimesh | Shapes the player walks through or on, like an arch |
+| box | The cheapest shape |
+
+See [Collision](collision.md). Collision is only generated when the model has none of its own. Models placed with
+*Model Prop* and models inside prefabs are prop_model entities, so they collide the same way.
+
+For a file that holds several variants side by side, `model_node` keeps only the named node and moves it to the prop's
+origin.
 
 ## env_explosion
 
@@ -85,20 +91,30 @@ fires when the state actually changes. They are part of the addon's core, so eve
 
 * **Inputs:** `turn_on`, `turn_off`, `toggle`
 * **Outputs:** `switched(on)`
-* **Keys:** `light_energy` 1.0 (1.5 for spots), `light_color` 255 255 255, `start_on` 1, `shadows` 0 (costs more to
-  render), `fixture`, `fixture_off` hide, and `omni_range` 10, or `spot_range` 15 and `spot_angle` 35 (the cone's half
-  angle in degrees), `bake_mode` auto, `light_size` 0, `light_indirect_energy` 1, and `omni_attenuation` 1, or
-  `spot_attenuation` 1 and `spot_angle_attenuation` 1. These last keys set the Godot light properties of the same
-  name, and the bake uses them too
 
-**Fixtures** keep the lamp model in step with the light. Give the lamp's glowing geometry a targetname and put it in
-`fixture`, a trailing `*` matches a prefix so `hall_tube_*` covers every tube. It is shown while the light is on and
-hidden while off, with no wiring. With `fixture_off` set to `dark` it stays visible with its emission off. `fixture`
-takes the other [target](../parameters.md#targets) forms too, `@lamps` for a node group and `/root/...` for a node
-path. The editor previews every form but the node path, which only Godot can resolve.
+| Key | Default | What it does |
+| --- | --- | --- |
+| `light_energy` | 1.0, spots 1.5 | Brightness |
+| `light_color` | 255 255 255 | Color |
+| `start_on` | 1 | Starts switched on |
+| `shadows` | 0 | Casts shadows, costs more to render |
+| `omni_range` | 10 | Range in meters, on `light` |
+| `spot_range`, `spot_angle` | 15, 35 | Range in meters and the cone's half angle in degrees, on `light_spot` |
+| `fixture`, `fixture_off` | empty, hide | The lamp geometry that follows the light, see below |
+| `bake_mode`, `light_size` | auto, 0 | How [Bake Lighting](../../editor/light-baking.md#light-keys) treats the light |
+| `light_indirect_energy` | 1 | Scales the bounced light |
+| `omni_attenuation`, `spot_attenuation`, `spot_angle_attenuation` | 1 | Shape of the falloff |
 
-`bake_mode` and `light_size` decide how [Bake Lighting](../../editor/light-baking.md#light-keys) treats the light. With
-`auto` a light that I/O can switch, one with a targetname or `start_on` 0, stays real time.
+`light_size` and the last two rows set the Godot light properties of the same name, and the bake uses them too.
+
+**Fixtures** keep the lamp model in step with the light, with no wiring. Give the lamp's glowing geometry a targetname
+and put it in `fixture`. A trailing `*` matches a prefix, so `hall_tube_*` covers every tube. The fixture is shown while
+the light is on and hidden while it is off. With `fixture_off` set to `dark` it stays visible with its emission off.
+
+`fixture` takes the other [target](../parameters.md#targets) forms too, `@lamps` for a node group and `/root/...` for a
+node path. The editor previews every form but the node path, which only Godot can resolve.
+
+With `bake_mode` `auto`, a light that I/O can switch, one with a targetname or `start_on` 0, stays real time.
 
 ## env_sound
 
