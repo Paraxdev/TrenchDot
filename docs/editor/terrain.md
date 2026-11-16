@@ -146,7 +146,7 @@ Keep the mouse button down and the ground keeps rising under the brush.
 | Noise | Adds small random bumps, so flat ground looks less artificial |
 | Terrace | Snaps heights to steps of **step** units, for rice fields or stepped cliffs. The field shows up next to the mode |
 | Paint Alpha, Erase Alpha, Paint Layer | Paint instead of shaping. The alpha modes are meant for displacements, Paint Layer paints the terrain layer set next to the mode. On a terrain the [Blend tool](terrain-painting.md) does this with more control |
-| Hole, Unhole | Cuts whole cells out or fills them back, collision included. Use it for cave or bunker entrances |
+| Hole, Unhole | Cuts whole cells out or fills them back, collision included. Use it for cave or bunker entrances, see [Caves and overhangs](caves-overhangs.md) |
 
 Ctrl+wheel resizes the brush, Shift swaps raise and lower, and holding Ctrl smooths whatever the mode.
 

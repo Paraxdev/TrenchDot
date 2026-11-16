@@ -17,6 +17,7 @@
     * [Terrain](editor/terrain.md)
     * [Terrain layers](editor/terrain-layers.md)
     * [Terrain painting](editor/terrain-painting.md)
+    * [Caves and overhangs](editor/caves-overhangs.md)
     * [Scatter](editor/scatter.md)
     * [Prefab library](editor/prefab-library.md)
     * [Random fill](editor/random-fill.md)
