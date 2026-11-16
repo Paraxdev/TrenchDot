@@ -12,6 +12,8 @@ const COLOR_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8UnormSrgb;
 const DEPTH_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 pub const SHADOW_SIZE: u32 = 4096;
 pub const MAX_LIGHTS: usize = 64;
+/// Clipmaps a view draws, the first ones of its frame. There is one per Terrain3D node.
+pub const MAX_CLIPMAPS: usize = 4;
 
 pub const WHITE_MATERIAL: &str = "__white";
 pub const MISSING_MATERIAL: &str = "__missing";
@@ -158,6 +160,10 @@ fn line_shader() -> String {
 
 fn shape_shader() -> String {
     format!("{}\n{}\n{}", ink::wgsl(), include_str!("line.wgsl"), include_str!("line_shapes.wgsl"))
+}
+
+fn clipmap_shader() -> String {
+    format!("{}\n{}\n{}\n{}", include_str!("common.wgsl"), ink::wgsl(), clipmap::wgsl_consts(), include_str!("clipmap.wgsl"))
 }
 
 fn mesh_shader() -> String {
@@ -473,6 +479,15 @@ pub struct GpuInstances {
     buffer: wgpu::Buffer,
 }
 
+/// The grid of one clipmap mesh kind, shared by every clipmap.
+struct ClipmapMesh {
+    vertex: wgpu::Buffer,
+    index: wgpu::Buffer,
+    count: u32,
+    wire: wgpu::Buffer,
+    wire_count: u32,
+}
+
 pub struct GpuLines {
     vertex: wgpu::Buffer,
     count: u32,
@@ -536,6 +551,8 @@ pub struct ViewTarget {
     camera_bg: wgpu::BindGroup,
     camera_wide: wgpu::Buffer,
     camera_wide_bg: wgpu::BindGroup,
+    /// Room for [`MAX_CLIPMAPS`] clipmaps of [`clipmap::layout::MAX_INSTANCES`] records each.
+    clipmap_instances: wgpu::Buffer,
     pub texture_id: egui::TextureId,
 }
 
@@ -571,6 +588,8 @@ pub struct Frame<'a> {
     pub overlay_meshes: Vec<&'a GpuMesh>,
     /// Terrain chunks, drawn with the layer blending pipeline. Draw keys come from `prepare_terrain_material`.
     pub terrain: Vec<&'a GpuMesh>,
+    /// Terrain3D worlds, at most [`MAX_CLIPMAPS`] are drawn.
+    pub clipmaps: Vec<&'a clipmap::GpuClipmap>,
 }
 
 pub struct Renderer {
@@ -580,6 +599,7 @@ pub struct Renderer {
     camera_bgl: wgpu::BindGroupLayout,
     material_bgl: wgpu::BindGroupLayout,
     terrain_bgl: wgpu::BindGroupLayout,
+    clipmap_bgl: wgpu::BindGroupLayout,
     lightmap_bgl: wgpu::BindGroupLayout,
     lightmap_bg: wgpu::BindGroup,
     lightmap_buffer: wgpu::Buffer,
@@ -598,6 +618,9 @@ pub struct Renderer {
     shape_depth: wgpu::RenderPipeline,
     shape_overlay: wgpu::RenderPipeline,
     terrain_pipeline: wgpu::RenderPipeline,
+    clipmap_pipeline: wgpu::RenderPipeline,
+    clipmap_wire: wgpu::RenderPipeline,
+    clipmap_meshes: [ClipmapMesh; clipmap::layout::MeshKind::COUNT],
     shadow_pipeline: wgpu::RenderPipeline,
     /// The one record a mesh without instances is drawn with.
     identity_instance: wgpu::Buffer,
@@ -681,6 +704,7 @@ impl Renderer {
                 texture_entry(13),
             ],
         });
+        let clipmap_bgl = clipmap::bind_group_layout(&device);
         let lightmap_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("light map"),
             entries: &[
@@ -788,6 +812,8 @@ impl Renderer {
             device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("line"), source: wgpu::ShaderSource::Wgsl(line_shader().into()) });
         let shape_shader =
             device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("line shapes"), source: wgpu::ShaderSource::Wgsl(shape_shader().into()) });
+        let clipmap_shader =
+            device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("clipmap"), source: wgpu::ShaderSource::Wgsl(clipmap_shader().into()) });
         let sky_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("sky"),
             source: wgpu::ShaderSource::Wgsl(format!("{common}\n{}", include_str!("sky.wgsl")).into()),
@@ -803,6 +829,11 @@ impl Renderer {
         let terrain_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("terrain"),
             bind_group_layouts: &[Some(&camera_bgl), Some(&terrain_bgl), Some(&lightmap_bgl)],
+            immediate_size: 0,
+        });
+        let clipmap_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("clipmap"),
+            bind_group_layouts: &[Some(&camera_bgl), Some(&clipmap_bgl)],
             immediate_size: 0,
         });
         let shadow_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -938,6 +969,59 @@ impl Renderer {
         let shape_depth = make("line shape depth", &shape_shader, &line_layout, &shape_buffers, tri, false, true, false, GreaterEqual);
         let shape_overlay = make("line shape overlay", &shape_shader, &line_layout, &shape_buffers, tri, false, true, false, Always);
         let terrain_pipeline = make("terrain", &terrain_shader, &terrain_layout, &[Some(mesh_buffer)], tri, true, false, true, Greater);
+        let clipmap_vertex_attrs = wgpu::vertex_attr_array![0 => Uint32x2];
+        let clipmap_instance_attrs = wgpu::vertex_attr_array![1 => Sint32x2, 2 => Uint32];
+        let clipmap_buffers = [
+            Some(wgpu::VertexBufferLayout { array_stride: 8, step_mode: wgpu::VertexStepMode::Vertex, attributes: &clipmap_vertex_attrs }),
+            Some(wgpu::VertexBufferLayout {
+                array_stride: std::mem::size_of::<clipmap::layout::ClipmapInstance>() as u64,
+                step_mode: wgpu::VertexStepMode::Instance,
+                attributes: &clipmap_instance_attrs,
+            }),
+        ];
+        let clipmap_make = |label: &str, topology, cull_mode, fragment: &str, depth_write: bool, depth_compare| {
+            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(label),
+                layout: Some(&clipmap_layout),
+                vertex: wgpu::VertexState {
+                    module: &clipmap_shader,
+                    entry_point: Some("vs_main"),
+                    compilation_options: Default::default(),
+                    buffers: &clipmap_buffers,
+                },
+                primitive: wgpu::PrimitiveState { topology, front_face: wgpu::FrontFace::Ccw, cull_mode, ..Default::default() },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: DEPTH_FORMAT,
+                    depth_write_enabled: Some(depth_write),
+                    depth_compare: Some(depth_compare),
+                    stencil: Default::default(),
+                    bias: Default::default(),
+                }),
+                multisample: wgpu::MultisampleState { count: MSAA_SAMPLES, mask: !0, alpha_to_coverage_enabled: false },
+                fragment: Some(wgpu::FragmentState {
+                    module: &clipmap_shader,
+                    entry_point: Some(fragment),
+                    compilation_options: Default::default(),
+                    targets: &[Some(wgpu::ColorTargetState { format: COLOR_FORMAT, blend: None, write_mask: wgpu::ColorWrites::ALL })],
+                }),
+                multiview_mask: None,
+                cache: None,
+            })
+        };
+        let clipmap_pipeline = clipmap_make("clipmap", tri, Some(wgpu::Face::Back), "fs_main", true, Greater);
+        let clipmap_wire = clipmap_make("clipmap wire", wgpu::PrimitiveTopology::LineList, None, "fs_wire", false, GreaterEqual);
+        let clipmap_meshes = clipmap::layout::MeshKind::ALL.map(|kind| {
+            let buffer =
+                |label: &str, contents: &[u8], usage| device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some(label), contents, usage });
+            let (index, wire) = (kind.indices(), kind.wire_indices());
+            ClipmapMesh {
+                vertex: buffer("clipmap vertices", bytemuck::cast_slice(&kind.vertices()), wgpu::BufferUsages::VERTEX),
+                index: buffer("clipmap indices", bytemuck::cast_slice(&index), wgpu::BufferUsages::INDEX),
+                count: index.len() as u32,
+                wire: buffer("clipmap wire", bytemuck::cast_slice(&wire), wgpu::BufferUsages::INDEX),
+                wire_count: wire.len() as u32,
+            }
+        });
         let shadow_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("shadow"),
             layout: Some(&shadow_layout),
@@ -972,6 +1056,7 @@ impl Renderer {
             camera_bgl,
             material_bgl,
             terrain_bgl,
+            clipmap_bgl,
             lightmap_bgl,
             lightmap_bg,
             lightmap_buffer,
@@ -990,6 +1075,9 @@ impl Renderer {
             shape_depth,
             shape_overlay,
             terrain_pipeline,
+            clipmap_pipeline,
+            clipmap_wire,
+            clipmap_meshes,
             shadow_pipeline,
             shadow_uniform,
             shadow_bg,
@@ -1442,6 +1530,15 @@ impl Renderer {
         Some(GpuMesh { vertex, index, draws, instances: None })
     }
 
+    /// GPU arrays for one Terrain3D world.
+    pub fn new_clipmap(&self, desc: &clipmap::ClipmapDesc) -> Result<clipmap::GpuClipmap, String> {
+        if let Some(reason) = self.lost() {
+            return Err(format!("the GPU device was lost ({reason})"));
+        }
+
+        clipmap::GpuClipmap::new(&self.device, &self.clipmap_bgl, desc)
+    }
+
     pub fn upload_instances(&self, instances: &[MeshInstance]) -> Option<GpuInstances> {
         if instances.is_empty() || self.lost().is_some() {
             return None;
@@ -1547,7 +1644,13 @@ impl Renderer {
         };
         let (camera, camera_bg) = camera_pair("camera");
         let (camera_wide, camera_wide_bg) = camera_pair("camera wide");
-        *target = Some(ViewTarget { size, msaa, resolve, resolve_view, depth, camera, camera_bg, camera_wide, camera_wide_bg, texture_id });
+        let clipmap_instances = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("clipmap instances"),
+            size: (MAX_CLIPMAPS * clipmap::layout::MAX_INSTANCES * std::mem::size_of::<clipmap::layout::ClipmapInstance>()) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        *target = Some(ViewTarget { size, msaa, resolve, resolve_view, depth, camera, camera_bg, camera_wide, camera_wide_bg, clipmap_instances, texture_id });
         true
     }
 
@@ -1669,6 +1772,39 @@ impl Renderer {
                 }
             };
 
+            let draw_clipmaps = |pass: &mut wgpu::RenderPass, wire: bool| {
+                if frame.clipmaps.is_empty() {
+                    return;
+                }
+
+                pass.set_pipeline(if wire { &self.clipmap_wire } else { &self.clipmap_pipeline });
+                let record = std::mem::size_of::<clipmap::layout::ClipmapInstance>() as u64;
+                for (k, clip) in frame.clipmaps.iter().take(MAX_CLIPMAPS).enumerate() {
+                    let instances = clip.instances(params.eye, params.view_proj);
+                    let records: Vec<clipmap::layout::ClipmapInstance> = instances.parts.iter().map(|&p| p.into()).collect();
+                    if records.is_empty() {
+                        continue;
+                    }
+
+                    let base = (k * clipmap::layout::MAX_INSTANCES) as u64 * record;
+                    self.queue.write_buffer(&target.clipmap_instances, base, bytemuck::cast_slice(&records));
+                    pass.set_bind_group(1, &clip.bind_group, &[]);
+                    pass.set_vertex_buffer(1, target.clipmap_instances.slice(base..base + records.len() as u64 * record));
+                    for (mesh, range) in self.clipmap_meshes.iter().zip(&instances.ranges) {
+                        if range.is_empty() {
+                            continue;
+                        }
+
+                        let (index, count) = if wire { (&mesh.wire, mesh.wire_count) } else { (&mesh.index, mesh.count) };
+                        pass.set_vertex_buffer(0, mesh.vertex.slice(..));
+                        pass.set_index_buffer(index.slice(..), wgpu::IndexFormat::Uint32);
+                        pass.draw_indexed(0..count, 0, range.clone());
+                    }
+                }
+
+                pass.set_bind_group(2, &self.lightmap_bg, &[]);
+            };
+
             if frame.sky {
                 pass.set_pipeline(&self.sky_pipeline);
                 pass.draw(0..3, 0..1);
@@ -1676,6 +1812,7 @@ impl Renderer {
 
             if params.shade == ShadeMode::Wireframe {
                 draw_lines(&mut pass, [&self.line_depth, &self.shape_depth], &frame.wire_lines);
+                draw_clipmaps(&mut pass, true);
                 draw_lines(&mut pass, [&self.line_depth, &self.shape_depth], &frame.lines);
                 draw_meshes(&mut pass, &self.mesh_overlay, &frame.overlay_meshes);
                 draw_lines(&mut pass, [&self.line_overlay, &self.shape_overlay], &frame.overlay_lines);
@@ -1699,6 +1836,8 @@ impl Renderer {
                     }
                 }
             }
+
+            draw_clipmaps(&mut pass, false);
 
             draw_lines(&mut pass, [&self.line_depth, &self.shape_depth], &frame.lines);
             let mut double_sided: Option<bool> = None;
@@ -1892,6 +2031,7 @@ mod tests {
         validate("mesh", &super::mesh_shader());
         validate("terrain", &format!("{common}\n{baked}\n{}", include_str!("terrain.wgsl")));
 
+        validate("clipmap", &super::clipmap_shader());
         validate("sky", &format!("{common}\n{}", include_str!("sky.wgsl")));
 
         validate("line", &super::line_shader());
@@ -2062,6 +2202,7 @@ mod tests {
         assert_eq!(std::mem::size_of::<super::CameraUniform>(), 176);
         assert_eq!(std::mem::size_of::<super::MaterialUniform>(), 80);
         assert_eq!(std::mem::size_of::<super::TerrainUniform>(), 176);
+        assert_eq!(std::mem::size_of::<super::clipmap::ClipmapUniform>(), 4 * 16 + 256 * 16);
         assert_eq!(std::mem::size_of::<super::LightsUniform>(), 28 * 4 + 64 + super::MAX_LIGHTS * 48);
     }
 

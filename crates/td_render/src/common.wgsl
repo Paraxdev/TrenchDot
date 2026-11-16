@@ -115,6 +115,14 @@ fn light_at(world: vec3<f32>, n: vec3<f32>) -> vec3<f32> {
     return light;
 }
 
+/// Brightness of ground outside lit mode. The fixed face shading suits brush sides but barely changes over rolling
+/// ground, so terrains take light from a fixed direction instead. Flat ground keeps full brightness and slopes turned
+/// away darken, the relief shows.
+fn relief(n: vec3<f32>) -> f32 {
+    let to_light = normalize(vec3<f32>(0.6, 1.0, 0.4));
+    return clamp(1.0 - 0.9 * (1.0 - dot(n, to_light) / to_light.y), 0.35, 1.05);
+}
+
 fn is_lit() -> bool {
     return cam.params.z > 1.5;
 }

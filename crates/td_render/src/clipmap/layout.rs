@@ -109,6 +109,34 @@ impl MeshKind {
 
         out
     }
+
+    /// Every edge of [`Self::indices`] once, as a line list.
+    pub fn wire_indices(self) -> Vec<u32> {
+        let [w, d] = self.size().map(|n| n as u32);
+        let at = |x: u32, z: u32| z * (w + 1) + x;
+        let mut out = Vec::with_capacity(((w * (d + 1) + d * (w + 1) + w * d) * 2) as usize);
+        for z in 0..=d {
+            for x in 0..=w {
+                if x < w {
+                    out.extend([at(x, z), at(x + 1, z)]);
+                }
+
+                if z < d {
+                    out.extend([at(x, z), at(x, z + 1)]);
+                }
+
+                if x < w && z < d {
+                    if (x + z).is_multiple_of(2) {
+                        out.extend([at(x, z), at(x + 1, z + 1)]);
+                    } else {
+                        out.extend([at(x, z + 1), at(x + 1, z)]);
+                    }
+                }
+            }
+        }
+
+        out
+    }
 }
 
 /// One mesh placed in the ring.
@@ -451,6 +479,22 @@ mod tests {
                 let want = if (x + z).is_multiple_of(2) { [p00, p01, p11, p00, p11, p10] } else { [p00, p01, p10, p01, p11, p10] };
                 assert_eq!(got, want, "{kind:?} cell {x} {z}");
             }
+        }
+    }
+
+    #[test]
+    fn wire_draws_every_triangle_edge_once() {
+        use std::collections::BTreeSet;
+        let edge = |a: u32, b: u32| (a.min(b), a.max(b));
+        for kind in MeshKind::ALL {
+            let wire = kind.wire_indices();
+            let lines: Vec<(u32, u32)> = wire.chunks(2).map(|l| edge(l[0], l[1])).collect();
+            let unique: BTreeSet<(u32, u32)> = lines.iter().copied().collect();
+            assert_eq!(unique.len(), lines.len(), "{kind:?} draws an edge twice");
+            let tris: BTreeSet<(u32, u32)> = kind.indices().chunks(3).flat_map(|t| [edge(t[0], t[1]), edge(t[1], t[2]), edge(t[2], t[0])]).collect();
+            assert_eq!(unique, tris, "{kind:?}");
+            let [w, d] = kind.size();
+            assert_eq!(lines.len() as i64, w * (d + 1) + d * (w + 1) + w * d, "{kind:?}");
         }
     }
 
