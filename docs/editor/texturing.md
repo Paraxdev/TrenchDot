@@ -82,17 +82,29 @@ gets a yellow outline.
 With no face selected, a selected brush counts as all its faces, so you can select a brush, press **Shift+T** and
 scroll straight away. Several selected faces or brushes change together.
 
-To work on faces one by one, for example to leave a few out, select the brushes and press **Ctrl+Shift+A**, or choose
-*Edit > Select > Brush Faces*. The brushes and meshes are swapped for all their faces, tinted red, and **Ctrl+click**
-removes the ones you do not want. With the [UV Editor](uv-editor.md) as the visible tab, Ctrl+click on a brush does the
-same for that brush.
+To work on faces one by one, for example to leave a few out:
+
+1. Select the brushes and press **Ctrl+Shift+A**, or choose *Edit > Select > Brush Faces*
+
+    ![The Edit menu with the Select submenu open, listing All, None, Inverse, Brush Faces and more](../assets/texturing/menu-brush-faces.png)
+
+    The brushes and meshes are swapped for all their faces, tinted red.
+
+2. **Ctrl+click** each face you do not want, to remove it from the selection
+
+With the [UV Editor](uv-editor.md) as the visible tab, Ctrl+click on a brush does the same for that brush.
 
 Alt+right click is how a texture, like a trim or a row of bricks, runs cleanly around a corner.
 
-The tool options bar at the top has the **Justify** buttons. **Left**, **Right**, **Top**, **Bottom** and **Center**
-push the texture to that side of the face, **Fit** stretches it over the face, **Fit W** and **Fit H** only across or
-only up. With **Treat as One** ticked they work on all selected faces as one area, so one texture spans all of them.
-**Align to View** projects the texture along the 3D camera.
+The tool options bar at the top has the **Justify** buttons for the selected faces:
+
+| Button | Result |
+| --- | --- |
+| **Left**, **Right**, **Top**, **Bottom**, **Center** | Push the texture to that side of the face |
+| **Fit** | Stretches the texture over the face |
+| **Fit W**, **Fit H** | Stretch it only across, or only up |
+| **Treat as One** | A tick box. With it ticked the buttons work on all selected faces as one area, so one texture spans all of them |
+| **Align to View** | Projects the texture along the 3D camera |
 
 ![The Texture tool options bar with Justify Left, Right, Top, Bottom, Center, Fit, Fit W, Fit H, Treat as One, Align to View and Hotspot Fit](../assets/texturing/texture-tool-options.png)
 
@@ -107,12 +119,15 @@ For faces with explicit UVs, and for meshes, use the [UV Editor](uv-editor.md).
 ## Texture scale
 
 By default one texture pixel covers one map unit, so a 64 pixel texture repeats every two meters. That suits low
-resolution textures, but a 1024 pixel photo would stretch over 32 meters. Set `metadata/texture_size` on the material to
-the world size one repeat should cover, see [Texture size](../godot/materials.md#texture-size). The Inspector line under
-the material name tells you what a face got, like "1024 x 1024 px, 64 x 64 units a repeat".
+resolution textures, but a 1024 pixel photo would stretch over 32 meters. You can change the size one repeat covers in
+two places:
 
-To set it for one map only, or to make a texture run on seamlessly across every face, use
-[Texture Settings](light-baking.md#texture-settings) in the Inspector. Its repeat size wins over the material's.
+| Where | Use it for |
+| --- | --- |
+| `metadata/texture_size` on the material, see [Texture size](../godot/materials.md#texture-size) | Every map that uses the material |
+| [Texture Settings](light-baking.md#texture-settings) in the Inspector | One map only, or a texture that runs on seamlessly across every face. Its repeat size wins over the material's |
+
+The Inspector line under the material name tells you what a face got, like "1024 x 1024 px, 64 x 64 units a repeat".
 
 ## Hotspots
 
@@ -188,9 +203,10 @@ is not touched:
 | **sharpen** | From 0 to 1, how crisp the de-tiled texture stays, 0 is soft and 1 blends only right at the joins. It does nothing while **detile** is 0 |
 
 Changing a field does nothing by itself. Click **Apply Tiling** to give the selected faces, or every face of the
-selected brushes, the three values. A face that never got them uses repeat 1 and detile 0. The fields keep their values
-between maps, so the next brush starts from the same numbers. **Clear Blend Material** in *Terrain > Blend* takes the
-blend material off the selection again.
+selected brushes, the three values. A face that never got them uses repeat 1 and detile 0.
+
+The fields keep their values between maps, so the next brush starts from the same numbers. **Clear Blend Material** in
+*Terrain > Blend* takes the blend material off the selection again.
 
 ## Vertex paint
 
