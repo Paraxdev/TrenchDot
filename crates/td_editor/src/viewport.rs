@@ -442,15 +442,9 @@ impl Viewport {
                         && h.face.is_some()
                         && cx.state.doc.selection.nodes.iter().all(|id| map.brush(*id).is_some() || map.mesh(*id).is_some()) =>
                 {
-                    let face_count = |id: NodeId| map.brush(id).map(|b| b.faces.len()).or_else(|| map.mesh(id).map(|m| m.faces.len())).unwrap_or(0);
-                    let mut objects: Vec<NodeId> = cx.state.doc.selection.nodes.iter().copied().collect();
-                    objects.push(h.node);
-                    let faces: Vec<(NodeId, usize)> = objects.into_iter().flat_map(|id| (0..face_count(id)).map(move |f| (id, f))).collect();
+                    let objects: Vec<NodeId> = cx.state.doc.selection.nodes.iter().copied().chain([h.node]).collect();
                     cx.state.outliner_reveal = Some(h.node);
-                    cx.state.doc.select(|_, s| {
-                        s.nodes.clear();
-                        s.faces.extend(faces);
-                    });
+                    cx.state.doc.select(|m, s| s.select_faces_of(m, objects));
                     cx.state.set_status(msg!("Selected every face for UV work. Ctrl+click adds whole objects once the UV Editor tab is hidden"));
                 }
                 Some(h) => {
