@@ -5,7 +5,7 @@ use std::collections::{BTreeSet, HashSet};
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use super::tiles::{View, region_rect};
+use super::residency::{View, region_rect};
 use crate::state::EditorState;
 use td_core::{DVec2, DVec3, NodeId};
 use td_doc::Map;
@@ -27,7 +27,7 @@ impl EditorState {
 
         let start = Instant::now();
         self.terrain3d.recheck();
-        while self.update_terrain3d_tiles(views, Duration::from_secs(5)) && start.elapsed() < Duration::from_secs(30) {
+        while self.update_terrain3d_residency(views) && start.elapsed() < Duration::from_secs(30) {
             std::thread::sleep(Duration::from_millis(2));
         }
     }
@@ -97,7 +97,7 @@ mod tests {
     use crate::state::EditorState;
     use crate::terrain3d::brush::Texture;
     use crate::terrain3d::brush::tests::state_over;
-    use crate::terrain3d::tiles::View;
+    use crate::terrain3d::residency::View;
 
     const UPM: f64 = 32.0;
 
@@ -107,15 +107,15 @@ mod tests {
         let (mut state, id, cache) = state_over(root, locs);
         let dab = SculptBrush { mode: SculptMode::Raise, radius: 9.0 * UPM, strength: 40.0, ..Default::default() };
         state.sculpt_terrain3d(&[id], DVec3::new(21.3 * UPM, 0.0, 17.9 * UPM), &dab, Texture { id: 0, spray: false });
-        build_tiles(&mut state);
+        load_regions(&mut state);
         (state, id, cache)
     }
 
-    fn build_tiles(state: &mut EditorState) {
+    fn load_regions(state: &mut EditorState) {
         let everywhere = [View::Flat { min: DVec2::splat(-1.0e7), max: DVec2::splat(1.0e7), zoom: 1.0 }];
         let start = Instant::now();
-        while state.update_terrain3d_tiles(&everywhere, std::time::Duration::from_secs(5)) {
-            assert!(start.elapsed().as_secs() < 20, "the tiles were not built");
+        while state.update_terrain3d_residency(&everywhere) {
+            assert!(start.elapsed().as_secs() < 20, "the regions did not load");
         }
     }
 
@@ -254,7 +254,7 @@ mod tests {
         while !done(state) {
             assert!(start.elapsed().as_secs() < 10, "{what}");
             state.terrain3d.recheck();
-            state.update_terrain3d_tiles(views, std::time::Duration::from_secs(5));
+            state.update_terrain3d_residency(views);
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
     }
@@ -281,10 +281,10 @@ mod tests {
         let set = rock_at(&mut state, id, 21.3 * UPM, 5.0, 17.9 * UPM);
         let (revision, undo) = (state.doc.revision, state.doc.history.undo_labels().count());
         let everywhere = [View::Flat { min: DVec2::splat(-1.0e7), max: DVec2::splat(1.0e7), zoom: 1.0 }];
-        build_tiles(&mut state);
+        load_regions(&mut state);
         for _ in 0..20 {
             state.terrain3d.recheck();
-            state.update_terrain3d_tiles(&everywhere, std::time::Duration::from_secs(5));
+            state.update_terrain3d_residency(&everywhere);
         }
 
         assert_eq!(y_of(&state, set), 5.0, "the instance is off the surface and stays where the map put it");
@@ -296,7 +296,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (mut state, id, cache) = state_over(dir.path(), &[[0, 0], [1, 0]]);
         let everywhere = [View::Flat { min: DVec2::splat(-1.0e7), max: DVec2::splat(1.0e7), zoom: 1.0 }];
-        build_tiles(&mut state);
+        load_regions(&mut state);
         let (x, z) = (21.3 * UPM, 17.9 * UPM);
         let set = rock_at(&mut state, id, x, 0.0, z);
         let other = rock_at(&mut state, id, 9120.0, 0.0, 700.0);
@@ -314,7 +314,7 @@ mod tests {
         assert_eq!(state.doc.history.undo_labels().next(), Some(LABEL));
         for _ in 0..10 {
             state.terrain3d.recheck();
-            state.update_terrain3d_tiles(&everywhere, std::time::Duration::from_secs(5));
+            state.update_terrain3d_residency(&everywhere);
         }
 
         assert_eq!(state.doc.history.undo_labels().count(), undo + 1, "one change in Godot is one step");
@@ -323,7 +323,7 @@ mod tests {
         rewrite(&cache, [0, 0], 0.0, 12);
         for _ in 0..10 {
             state.terrain3d.recheck();
-            state.update_terrain3d_tiles(&everywhere, std::time::Duration::from_secs(5));
+            state.update_terrain3d_residency(&everywhere);
         }
 
         assert_eq!(state.doc.history.undo_labels().count(), undo + 1);
@@ -334,7 +334,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (mut state, id, cache) = state_over(dir.path(), &[[0, 0], [1, 0]]);
         let everywhere = [View::Flat { min: DVec2::splat(-1.0e7), max: DVec2::splat(1.0e7), zoom: 1.0 }];
-        build_tiles(&mut state);
+        load_regions(&mut state);
         let set = rock_at(&mut state, id, 5120.0 + 21.3 * UPM, 0.0, 17.9 * UPM);
         state.doc.edit("ground", |m, _| {
             ground_followers(m, id, &state.terrain3d.source(&cache).unwrap(), None);
@@ -349,7 +349,7 @@ mod tests {
         update_until(&mut state, &everywhere, "the region never reloaded", |s| first(s).is_some_and(|h| Some(h) != old));
         for _ in 0..10 {
             state.terrain3d.recheck();
-            state.update_terrain3d_tiles(&everywhere, std::time::Duration::from_secs(5));
+            state.update_terrain3d_residency(&everywhere);
         }
 
         assert_eq!(y_of(&state, set), before, "the instance waits while a step can be redone");
@@ -376,10 +376,14 @@ mod tests {
     }
 
     #[test]
-    fn building_for_a_patch_of_ground_builds_only_the_regions_under_it() {
+    fn loading_for_a_patch_of_ground_holds_only_the_regions_under_it_whole() {
         let dir = tempfile::tempdir().unwrap();
-        let (mut state, id, _) = state_over(dir.path(), &[[-1, 0], [0, 0], [3, -2]]);
-        let built = |state: &EditorState| state.terrain3d_tiles.node(id).map(|(loc, _)| loc).collect::<Vec<Loc>>();
+        let (mut state, id, cache) = state_over(dir.path(), &[[-1, 0], [0, 0], [3, -2]]);
+        let built = |state: &EditorState| {
+            let mut whole: Vec<Loc> = state.terrain3d_residency.fine(id).iter().copied().filter(|l| state.terrain3d.region(&cache, *l).is_some()).collect();
+            whole.sort();
+            whole
+        };
         state.load_terrain3d_regions(&[ground(DVec2::new(20000.0, -700.0), DVec2::new(20100.0, -650.0))]);
         assert!(built(&state).is_empty(), "no region lies under the patch");
         state.load_terrain3d_regions(&[ground(DVec2::new(5000.0, 700.0), DVec2::new(5110.0, 930.0))]);

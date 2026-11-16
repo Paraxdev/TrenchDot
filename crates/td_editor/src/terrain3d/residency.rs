@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use td_core::{DVec2, DVec3};
+use td_core::{DVec2, DVec3, NodeId};
 use td_geom::terrain3d::{Grid, Loc};
 use td_geom::terrain3d_tile;
 use td_render::clipmap::{coarse_stride, layout::MESH_SIZE};
@@ -123,6 +123,66 @@ pub enum Source {
 pub struct Layout {
     pub grid: Grid,
     pub locs: Vec<Loc>,
+}
+
+/// What the editor holds of every linked Terrain3D node that is shown.
+#[derive(Default)]
+pub struct Residency {
+    fine: BTreeMap<NodeId, Vec<Loc>>,
+    /// Counts every change, so a view knows to look again.
+    pub generation: u64,
+    /// Some region the views want is still loading.
+    pub pending: bool,
+    pub conflicts: BTreeMap<NodeId, BTreeSet<Loc>>,
+    pub layouts: BTreeMap<NodeId, Layout>,
+    conflicts_for: Option<(u64, u64)>,
+}
+
+impl Residency {
+    /// The regions of a node held whole, see [`by_distance`].
+    pub fn fine(&self, id: NodeId) -> &[Loc] {
+        self.fine.get(&id).map_or(&[], Vec::as_slice)
+    }
+
+    pub(super) fn set_fine(&mut self, id: NodeId, fine: Vec<Loc>) -> bool {
+        if self.fine.get(&id) == Some(&fine) {
+            return false;
+        }
+
+        self.fine.insert(id, fine);
+        true
+    }
+
+    pub(super) fn keep_only(&mut self, ids: &BTreeSet<NodeId>) -> bool {
+        let before = (self.fine.len(), self.layouts.len());
+        self.fine.retain(|id, _| ids.contains(id));
+        self.conflicts.retain(|id, _| ids.contains(id));
+        self.layouts.retain(|id, _| ids.contains(id));
+        before != (self.fine.len(), self.layouts.len())
+    }
+
+    pub(super) fn clear(&mut self, id: NodeId) -> bool {
+        self.conflicts.remove(&id);
+        self.fine.remove(&id).is_some() | self.layouts.remove(&id).is_some()
+    }
+
+    pub(super) fn set_layout(&mut self, id: NodeId, layout: Layout) -> bool {
+        if self.layouts.get(&id) == Some(&layout) {
+            return false;
+        }
+
+        self.layouts.insert(id, layout);
+        true
+    }
+
+    pub(super) fn conflicts_stale(&self, key: (u64, u64)) -> bool {
+        self.conflicts_for != Some(key)
+    }
+
+    pub(super) fn set_conflicts(&mut self, key: (u64, u64), found: BTreeMap<NodeId, BTreeSet<Loc>>) {
+        self.conflicts = found;
+        self.conflicts_for = Some(key);
+    }
 }
 
 #[cfg(test)]

@@ -1644,8 +1644,8 @@ fn paint_terrain3d_marks(painter: &egui::Painter, camera: &Camera, rect: Rect, s
     let border = Color32::from_rgba_unmultiplied(150, 150, 150, 120);
     let warning = crate::theme::colors().warning();
     let none = std::collections::BTreeSet::new();
-    for (id, layout) in &state.terrain3d_tiles.layouts {
-        let conflicts = state.terrain3d_tiles.conflicts.get(id).unwrap_or(&none);
+    for (id, layout) in &state.terrain3d_residency.layouts {
+        let conflicts = state.terrain3d_residency.conflicts.get(id).unwrap_or(&none);
         for mark in marks(camera, rect, &layout.grid, &layout.locs, conflicts) {
             match mark {
                 Mark::Region { rect: area, conflict, label } => {
@@ -1665,7 +1665,7 @@ fn paint_terrain3d_marks(painter: &egui::Painter, camera: &Camera, rect: Rect, s
     }
 
     let Some((id, min, max)) = state.terrain3d_outline else { return };
-    let Some(layout) = state.terrain3d_tiles.layouts.get(&id) else { return };
+    let Some(layout) = state.terrain3d_residency.layouts.get(&id) else { return };
     let stroke = egui::Stroke::new(2.0, crate::theme::colors().info());
     for mark in outline(camera, rect, &layout.grid, min, max) {
         match mark {

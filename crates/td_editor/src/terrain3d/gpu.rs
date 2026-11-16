@@ -2,12 +2,19 @@
 //! recently used first, and a coarse atlas block for every region, uploaded within a byte budget per frame.
 
 use std::collections::{HashMap, HashSet};
+use std::path::Path;
+use std::sync::Arc;
 
-use td_formats::terrain3d_cache::LodLevel;
-use td_geom::terrain3d::{Control, Loc};
-use td_render::clipmap::Slot;
+use td_core::NodeId;
+use td_doc::terrain3d::RegionSource;
+use td_formats::terrain3d_cache::{LodLevel, Manifest, ManifestTexture};
+use td_geom::terrain3d::{Control, Loc, Region3D};
+use td_render::Renderer;
+use td_render::clipmap::look::{Albedo, ClipmapTexture};
+use td_render::clipmap::{AutoShader, Background, ClipmapDesc, ClipmapParams, GpuClipmap, Slot, coarse_stride, fine_capacity, region_index};
 
-use super::residency::Source;
+use super::residency::{self, Source};
+use crate::state::EditorState;
 
 /// Bytes a frame uploads at most, though always one region, so a region of 1024 costs one frame.
 pub const UPLOAD_BUDGET: usize = 24 << 20;
@@ -60,6 +67,11 @@ impl Held {
 
     pub fn coarse_count(&self) -> usize {
         self.coarse.len()
+    }
+
+    /// Whether some layer or block holds data from `source`.
+    pub fn holds(&self, source: Source) -> bool {
+        self.layers.iter().flatten().any(|l| l.source == source) || self.coarse.values().any(|s| *s == source)
     }
 
     /// This frame's uploads, recorded as done: a coarse block for every region that has none, then fine layers for
@@ -194,6 +206,225 @@ pub fn coarse_from_level(level: &LodLevel, region_size: u32, stride: u32) -> Opt
     }
 
     Some((heights, control))
+}
+
+/// The regions of a linked node the clipmap can show, in the order of `link.locs`.
+pub fn regions(state: &EditorState, id: NodeId, cache: &Path) -> Vec<Region> {
+    let (Some(link), Some(source), Some(manifest)) = (state.doc.map.terrain3d(id), state.terrain3d.source(cache), state.terrain3d.manifest(cache)) else {
+        return Vec::new();
+    };
+    let size = manifest.region_size;
+    let stride = coarse_stride(size);
+    let hashes: HashMap<Loc, [u8; 32]> = manifest.regions.iter().map(|r| (r.loc, r.hash.0)).collect();
+    let region = |loc: Loc| {
+        if let Some(edit) = link.live_edit(&source, loc) {
+            return Some(Region { loc, source: Source::Edited(Arc::as_ptr(&edit.region) as usize), whole: true, pyramid: false });
+        }
+
+        let hash = *hashes.get(&loc)?;
+        let lod = state.terrain3d.lod(cache, loc);
+        let pyramid = residency::pyramid_has_coarse(size) && lod.is_some_and(|l| l.hash.0 == hash && l.levels.iter().any(|v| v.stride == stride));
+        Some(Region { loc, source: Source::Cached(hash), whole: source.region(loc).is_some(), pyramid })
+    };
+    link.locs(&source).into_iter().filter(|l| region_index(*l).is_some()).filter_map(region).collect()
+}
+
+/// What a node's clipmap holds, for `terrain3d info`.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Status {
+    pub fine_used: usize,
+    pub fine_layers: u32,
+    pub coarse_regions: usize,
+    pub gpu_bytes: u64,
+}
+
+/// One linked node's clipmap and what it was filled from.
+pub struct NodeClipmap {
+    clip: GpuClipmap,
+    held: Held,
+    textures: Option<Vec<ManifestTexture>>,
+    /// The edited regions held data came from. Keeping them alive keeps their addresses, which key that data, from going
+    /// to a later edit.
+    pins: HashMap<usize, Arc<Region3D>>,
+    shown: Vec<Loc>,
+}
+
+impl NodeClipmap {
+    pub fn clip(&self) -> &GpuClipmap {
+        &self.clip
+    }
+
+    pub fn status(&self) -> Status {
+        let desc = self.clip.desc();
+        let [w, h] = desc.atlas_size();
+        let fine = 12 * u64::from(desc.region_size).pow(2) * u64::from(desc.layers);
+        Status {
+            fine_used: self.held.fine_used(),
+            fine_layers: desc.layers,
+            coarse_regions: self.held.coarse_count(),
+            gpu_bytes: fine + 8 * u64::from(w) * u64::from(h),
+        }
+    }
+}
+
+/// Brings a node's clipmap up to what the store and the edits hold, uploading at most [`UPLOAD_BUDGET`] bytes, and drops
+/// it when the node has no region to show. Returns whether uploads are left for the next frame.
+pub fn sync(renderer: &Renderer, slot: &mut Option<NodeClipmap>, state: &EditorState, id: NodeId, cache: &Path, selected: bool, wire: [f32; 4]) -> bool {
+    let regions = regions(state, id, cache);
+    let (Some(link), Some(source), Some(manifest), false) =
+        (state.doc.map.terrain3d(id), state.terrain3d.source(cache), state.terrain3d.manifest(cache), regions.is_empty())
+    else {
+        *slot = None;
+        return false;
+    };
+    let size = manifest.region_size;
+    let stride = coarse_stride(size);
+    let lo = [0, 1].map(|i| regions.iter().map(|r| r.loc[i]).min().unwrap_or(0));
+    let hi = [0, 1].map(|i| regions.iter().map(|r| r.loc[i]).max().unwrap_or(0));
+    let desc = ClipmapDesc { region_size: size, layers: fine_capacity(size, regions.len()), coarse_stride: stride, atlas: [lo, hi] };
+    let fits = slot.as_ref().is_some_and(|n| {
+        let d = n.clip.desc();
+        d.region_size == size && d.coarse_stride == stride && d.layers >= desc.layers && d.in_atlas(lo) && d.in_atlas(hi)
+    });
+    if !fits {
+        *slot = match renderer.new_clipmap(&desc) {
+            Ok(clip) => {
+                Some(NodeClipmap { clip, held: Held::new(desc.layers), textures: None, pins: HashMap::new(), shown: Vec::new() })
+            }
+            Err(e) => {
+                eprintln!("Terrain3D clipmap: {e}");
+                None
+            }
+        };
+    }
+
+    let Some(node) = slot.as_mut() else { return false };
+    if node.textures.as_ref() != Some(&manifest.textures) {
+        renderer.set_clipmap_textures(&mut node.clip, &textures(cache, &manifest.textures));
+        node.textures = Some(manifest.textures.clone());
+    }
+
+    let ranges: HashMap<usize, [f32; 2]> = regions
+        .iter()
+        .filter_map(|r| match r.source {
+            Source::Edited(p) => Some((p, state.terrain3d.region_range(&link.region(&source, r.loc)?))),
+            _ => None,
+        })
+        .collect();
+    let params = params(state.terrain3d.upm, manifest, &regions, &ranges, selected, wire);
+    if *node.clip.params() != params {
+        node.clip.set_params(&renderer.queue, &params);
+    }
+
+    let texels = (size / stride) as usize;
+    let bytes = [texels * texels * 8, size as usize * size as usize * 12];
+    let (uploads, more) = node.held.plan(&regions, state.terrain3d_residency.fine(id), bytes, UPLOAD_BUDGET);
+    for upload in uploads {
+        let loc = match upload {
+            Upload::Coarse(loc) | Upload::Fine(loc, _) => loc,
+        };
+        let whole = link.region(&source, loc);
+        if let Some(region) = whole.as_ref().filter(|_| link.live_edit(&source, loc).is_some()) {
+            node.pins.insert(Arc::as_ptr(region) as usize, region.clone());
+        }
+
+        let written = match (upload, whole) {
+            (Upload::Coarse(_), Some(region)) => region.coarse(stride).map(|(h, c)| node.clip.write_coarse(&renderer.queue, loc, &h, &c)),
+            (Upload::Coarse(_), None) => state
+                .terrain3d
+                .lod(cache, loc)
+                .and_then(|l| l.levels.iter().find(|v| v.stride == stride).and_then(|v| coarse_from_level(v, size, stride)))
+                .map(|(h, c)| node.clip.write_coarse(&renderer.queue, loc, &h, &c)),
+            (Upload::Fine(_, layer), Some(region)) => {
+                Some(node.clip.write_fine(&renderer.queue, layer, [0, 0], [size, size], &region.heights, &region.control, &colors(&region)))
+            }
+            (Upload::Fine(..), None) => None,
+        };
+        if let Some(Err(e)) = written {
+            eprintln!("Terrain3D clipmap: {e}");
+        }
+    }
+
+    node.pins.retain(|p, _| node.held.holds(Source::Edited(*p)));
+    let present: HashSet<Loc> = regions.iter().map(|r| r.loc).collect();
+    let mut slots: Vec<(Loc, Slot)> = node.held.slots(&regions).into_iter().filter(|(l, s)| node.clip.slot(*l) != *s).collect();
+    slots.extend(node.shown.iter().filter(|l| !present.contains(*l)).map(|l| (*l, Slot::Absent)));
+    if !slots.is_empty()
+        && let Err(e) = node.clip.set_slots(&renderer.queue, &slots)
+    {
+        eprintln!("Terrain3D clipmap: {e}");
+    }
+
+    node.shown = regions.iter().map(|r| r.loc).collect();
+    more
+}
+
+/// The color map of a region, white where it has none.
+fn colors(region: &Region3D) -> Vec<[u8; 4]> {
+    let n = region.heights.len();
+    if region.color.len() != n * 4 {
+        return vec![[255; 4]; n];
+    }
+
+    region.color.as_chunks::<4>().0.to_vec()
+}
+
+/// The manifest's textures as the clipmap draws them: the exported albedo, else the thumbnail, else the color alone.
+fn textures(cache: &Path, list: &[ManifestTexture]) -> Vec<ClipmapTexture> {
+    let open = |file: &str| (!file.is_empty()).then(|| image::open(cache.join(file)).ok()).flatten().map(|i| i.to_rgba8());
+    list.iter()
+        .map(|t| {
+            let albedo = match (open(&t.albedo), open(&t.thumbnail)) {
+                (Some(full), _) => Albedo::Full(full),
+                (None, Some(small)) => Albedo::Thumbnail(small),
+                (None, None) => Albedo::None,
+            };
+            let [r, g, b, _] = t.albedo_color;
+            ClipmapTexture { id: t.id, albedo, color: [r, g, b], uv_scale: t.uv_scale, detiling: [t.detiling_rotation, t.detiling_shift] }
+        })
+        .collect()
+}
+
+fn params(upm: f64, manifest: &Manifest, regions: &[Region], ranges: &HashMap<usize, [f32; 2]>, selected: bool, wire: [f32; 4]) -> ClipmapParams {
+    let m = &manifest.material;
+    // Noise draws as Flat until the clipmap shader has Terrain3D's world noise.
+    let background = match m.world_background {
+        1 | 2 => Background::Flat,
+        _ => Background::None,
+    };
+    let cached: HashMap<Loc, [f32; 2]> = manifest.regions.iter().map(|r| (r.loc, r.height_range)).collect();
+    let mut range = [f32::INFINITY, f32::NEG_INFINITY];
+    let mut take = |[lo, hi]: [f32; 2]| range = [range[0].min(lo), range[1].max(hi)];
+    for r in regions {
+        let known = match r.source {
+            Source::Edited(p) => ranges.get(&p),
+            _ => cached.get(&r.loc),
+        };
+        known.copied().into_iter().for_each(&mut take);
+    }
+
+    if background != Background::None {
+        take([m.ground_level as f32; 2]);
+    }
+
+    let upm = upm as f32;
+    let heights = if range[0] <= range[1] { range.map(|h| h * upm) } else { [0.0; 2] };
+    let auto_shader = m.auto_shader.then(|| {
+        let a = m.auto.clone().unwrap_or_default();
+        AutoShader { slope: a.slope as f32, height_reduction: a.height_reduction as f32, base: a.base_texture, overlay: a.overlay_texture }
+    });
+    ClipmapParams {
+        cell: (manifest.vertex_spacing * upm as f64) as f32,
+        upm,
+        background,
+        ground_level: m.ground_level as f32,
+        region_blend: m.region_blend as f32,
+        heights,
+        selected,
+        wire,
+        textures: true,
+        auto_shader,
+    }
 }
 
 #[cfg(test)]

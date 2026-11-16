@@ -621,6 +621,8 @@ pub struct Renderer {
     clipmap_pipeline: wgpu::RenderPipeline,
     clipmap_wire: wgpu::RenderPipeline,
     clipmap_meshes: [ClipmapMesh; clipmap::layout::MeshKind::COUNT],
+    /// Triangles the clipmaps of the last view that drew any put on screen.
+    clipmap_triangles: std::sync::atomic::AtomicUsize,
     shadow_pipeline: wgpu::RenderPipeline,
     /// The one record a mesh without instances is drawn with.
     identity_instance: wgpu::Buffer,
@@ -1078,6 +1080,7 @@ impl Renderer {
             clipmap_pipeline,
             clipmap_wire,
             clipmap_meshes,
+            clipmap_triangles: Default::default(),
             shadow_pipeline,
             shadow_uniform,
             shadow_bg,
@@ -1539,6 +1542,11 @@ impl Renderer {
         clipmap::GpuClipmap::new(&self.device, &self.queue, &self.clipmap_bgl, desc)
     }
 
+    /// Triangles the clipmaps put on screen in the last view that drew any, after culling.
+    pub fn clipmap_triangles(&self) -> usize {
+        self.clipmap_triangles.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
     /// Replaces the textures a clipmap's ground draws with.
     pub fn set_clipmap_textures(&self, clip: &mut clipmap::GpuClipmap, textures: &[clipmap::look::ClipmapTexture]) {
         clip.set_textures(&self.device, &self.queue, &self.clipmap_bgl, textures);
@@ -1784,6 +1792,7 @@ impl Renderer {
 
                 pass.set_pipeline(if wire { &self.clipmap_wire } else { &self.clipmap_pipeline });
                 let record = std::mem::size_of::<clipmap::layout::ClipmapInstance>() as u64;
+                let mut triangles = 0;
                 for (k, clip) in frame.clipmaps.iter().take(MAX_CLIPMAPS).enumerate() {
                     let instances = clip.instances(params.eye, params.view_proj);
                     let records: Vec<clipmap::layout::ClipmapInstance> = instances.parts.iter().map(|&p| p.into()).collect();
@@ -1800,6 +1809,7 @@ impl Renderer {
                             continue;
                         }
 
+                        triangles += mesh.count as usize / 3 * range.len();
                         let (index, count) = if wire { (&mesh.wire, mesh.wire_count) } else { (&mesh.index, mesh.count) };
                         pass.set_vertex_buffer(0, mesh.vertex.slice(..));
                         pass.set_index_buffer(index.slice(..), wgpu::IndexFormat::Uint32);
@@ -1807,6 +1817,7 @@ impl Renderer {
                     }
                 }
 
+                self.clipmap_triangles.store(triangles, std::sync::atomic::Ordering::Relaxed);
                 pass.set_bind_group(2, &self.lightmap_bg, &[]);
             };
 

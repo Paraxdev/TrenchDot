@@ -12,14 +12,13 @@ pub mod overlay;
 pub mod pick;
 pub mod residency;
 pub mod store;
-pub mod tiles;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use td_core::NodeId;
+use td_core::{Aabb, DVec3, NodeId};
 use td_doc::map::NodeKind;
 use td_doc::terrain3d::{RegionHash, RegionSource, Settled};
 use td_formats::terrain3d_cache;
@@ -51,14 +50,6 @@ impl Sent {
         Settled { loc, region: self.region, base_hash: self.base_hash, before: self.before, now }
     }
 }
-
-/// The material name the tiles use for Terrain3D texture `id`.
-pub fn material_name(id: u8) -> String {
-    format!("terrain3d/{id}")
-}
-
-/// How long one frame may spend building tiles.
-pub const TILE_BUDGET: Duration = Duration::from_millis(12);
 
 /// How often an idle editor looks at the manifests of the linked folders.
 pub const POLL_EVERY: Duration = Duration::from_secs(1);
@@ -289,12 +280,13 @@ impl EditorState {
         !links.is_empty() || self.terrain3d_bridge.busy()
     }
 
-    /// Per frame: loads and builds the Terrain3D tiles the views need. True when the next frame should go on building.
-    pub fn update_terrain3d_tiles(&mut self, views: &[tiles::View], budget: Duration) -> bool {
+    /// Per frame: asks the store for the Terrain3D regions the views need, whole near a camera and as a pyramid
+    /// elsewhere. True while some of them are still loading.
+    pub fn update_terrain3d_residency(&mut self, views: &[residency::View]) -> bool {
         let links = self.terrain3d_links();
         let map = &self.doc.map;
         let live: BTreeSet<NodeId> = links.iter().map(|(id, _)| *id).filter(|id| !map.is_hidden(*id) && map.in_cordon(*id)).collect();
-        let mut changed = self.terrain3d_tiles.keep_only(&live);
+        let mut changed = self.terrain3d_residency.keep_only(&live);
         let mut pending = false;
         for (id, cache) in &links {
             if !live.contains(id) {
@@ -303,7 +295,7 @@ impl EditorState {
 
             self.terrain3d.refresh(cache);
             let (Some(grid), Some(link)) = (self.terrain3d.grid(cache), self.doc.map.terrain3d(*id)) else {
-                changed |= self.terrain3d_tiles.clear(*id);
+                changed |= self.terrain3d_residency.clear(*id);
                 continue;
             };
 
@@ -311,56 +303,24 @@ impl EditorState {
                 Some(source) => (link.locs(&source), link.edits.keys().copied().filter(|l| link.live_edit(&source, *l).is_some()).collect()),
                 None => Default::default(),
             };
-            changed |= self.terrain3d_tiles.set_layout(*id, tiles::Layout { grid, locs: locs.clone() });
+            changed |= self.terrain3d_residency.set_layout(*id, residency::Layout { grid, locs: locs.clone() });
             let exists: HashSet<Loc> = locs.iter().copied().collect();
             let owed = self.terrain3d_owed.entry(*id).or_default();
             owed.extend(self.terrain3d.take_news(cache));
-            let mut plan = tiles::plan(&grid, &locs, views);
+            let mut plan = residency::plan(&grid, &locs, views);
             // The scatter that follows the node is put on the new surface once its regions are loaded.
-            for loc in owed.iter().filter(|l| exists.contains(*l)) {
-                plan.insert(*loc, tiles::Detail::Full);
+            for loc in owed.iter().chain(&edited).filter(|l| exists.contains(*l)) {
+                plan.insert(*loc, residency::Detail::Full);
             }
 
-            for loc in edited.iter().filter(|l| exists.contains(*l)) {
-                plan.insert(*loc, tiles::Detail::Full);
-            }
-
-            let (full, lod) = tiles::wants(&plan, &|l| exists.contains(&l));
+            let (full, lod) = residency::wants(&plan, &|l| exists.contains(&l));
             self.terrain3d.want(cache, &full, &lod);
-
-            let store = &self.terrain3d;
-            let source = store.source(cache);
-            let hashes: HashMap<Loc, [u8; 32]> = store.manifest(cache).map(|m| m.regions.iter().map(|r| (r.loc, r.hash.0)).collect()).unwrap_or_default();
-            let region = |loc: Loc| {
-                if let Some(edit) = source.as_ref().and_then(|s| link.live_edit(s, loc)) {
-                    return Some((edit.region.clone(), tiles::Source::Edited(Arc::as_ptr(&edit.region) as usize)));
-                }
-
-                if link.removed.contains_key(&loc) {
-                    return None;
-                }
-
-                Some((store.region(cache, loc)?, tiles::Source::Cached(*hashes.get(&loc)?)))
-            };
-            let lod = |loc: Loc| if link.removed.contains_key(&loc) { None } else { store.lod(cache, loc) };
-            let material = material_name;
-            let world = tiles::World { grid, region: &region, lod: &lod, material: &material };
-            let focus = views.first().map_or(td_core::DVec2::ZERO, tiles::focus);
-            let mut order: Vec<Loc> = plan.keys().copied().collect();
-            order.sort_by(|a, b| {
-                let d = |l: &Loc| {
-                    let (lo, hi) = tiles::region_rect(&grid, *l);
-                    (lo + hi).distance_squared(focus * 2.0)
-                };
-                d(a).total_cmp(&d(b))
-            });
-            let (did, more) = tiles::rebuild(self.terrain3d_tiles.entries(*id), &world, &plan, &order, budget);
-            changed |= did;
-            pending |= more;
+            changed |= self.terrain3d_residency.set_fine(*id, residency::by_distance(&grid, &full, views));
+            pending |= self.terrain3d.loading(cache);
         }
 
         let key = (links.iter().map(|(_, c)| self.terrain3d.generation(c)).sum::<u64>(), self.doc.revision);
-        if self.terrain3d_tiles.conflicts_stale(key) {
+        if self.terrain3d_residency.conflicts_stale(key) {
             let mut found = BTreeMap::new();
             for (id, cache) in &links {
                 let (Some(link), Some(source)) = (self.doc.map.terrain3d(*id), self.terrain3d.source(cache)) else { continue };
@@ -370,17 +330,44 @@ impl EditorState {
                 }
             }
 
-            self.terrain3d_tiles.set_conflicts(key, found);
+            self.terrain3d_residency.set_conflicts(key, found);
             changed = true;
         }
 
         self.reground_owed(&links, &live);
         if changed {
-            self.terrain3d_tiles.generation += 1;
+            self.terrain3d_residency.generation += 1;
         }
 
-        self.terrain3d_tiles.pending = pending;
+        self.terrain3d_residency.pending = pending;
         pending
+    }
+}
+
+impl EditorState {
+    /// One box per region of a shown linked node, from the heights Godot reported or those of the edit.
+    pub fn terrain3d_boxes(&self, id: NodeId) -> Vec<Aabb> {
+        let Some(layout) = self.terrain3d_residency.layouts.get(&id) else { return Vec::new() };
+        let Some((_, cache)) = self.terrain3d_links().into_iter().find(|(node, _)| *node == id) else { return Vec::new() };
+        let (Some(link), Some(source), Some(manifest)) = (self.doc.map.terrain3d(id), self.terrain3d.source(&cache), self.terrain3d.manifest(&cache)) else {
+            return Vec::new();
+        };
+        let reported: HashMap<Loc, [f32; 2]> = manifest.regions.iter().map(|r| (r.loc, r.height_range)).collect();
+        let upm = layout.grid.upm;
+        let region_box = |loc: &Loc| {
+            let [lo, hi] = match link.live_edit(&source, *loc) {
+                Some(edit) => self.terrain3d.region_range(&edit.region),
+                None => *reported.get(loc)?,
+            };
+            let (min, max) = residency::region_rect(&layout.grid, *loc);
+            (lo <= hi).then(|| Aabb::new(DVec3::new(min.x, lo as f64 * upm, min.y), DVec3::new(max.x, hi as f64 * upm, max.y)))
+        };
+        layout.locs.iter().filter_map(region_box).collect()
+    }
+
+    /// The box around every region of a shown linked node, empty when none shows.
+    pub fn terrain3d_bounds(&self, id: NodeId) -> Aabb {
+        self.terrain3d_boxes(id).iter().fold(Aabb::EMPTY, |all, b| all.union(b))
     }
 }
 
@@ -476,27 +463,46 @@ mod tests {
         assert_eq!(terrain3d_cache::read_pending(&cache, L, 64).unwrap().region.heights, original.heights);
     }
 
-    /// Rebuilds the tiles until `done` holds, the regions they want load in the background.
-    fn build_tiles_until(state: &mut EditorState, done: impl Fn(&EditorState) -> bool) {
-        let everywhere = [tiles::View::Flat { min: td_core::DVec2::splat(-1.0e7), max: td_core::DVec2::splat(1.0e7), zoom: 1.0 }];
+    /// Updates the residency until `done` holds, the regions it wants load in the background.
+    fn update_until(state: &mut EditorState, done: impl Fn(&EditorState) -> bool) {
+        let everywhere = [residency::View::Flat { min: td_core::DVec2::splat(-1.0e7), max: td_core::DVec2::splat(1.0e7), zoom: 1.0 }];
         let start = std::time::Instant::now();
         loop {
-            state.update_terrain3d_tiles(&everywhere, Duration::from_secs(5));
+            state.update_terrain3d_residency(&everywhere);
             if done(state) {
                 return;
             }
 
-            assert!(start.elapsed().as_secs() < 20, "the tiles were not built");
+            assert!(start.elapsed().as_secs() < 20, "the regions did not load");
             std::thread::sleep(Duration::from_millis(5));
         }
     }
 
-    fn tile_source(state: &EditorState, id: NodeId, loc: Loc) -> Option<tiles::Source> {
-        state.terrain3d_tiles.node(id).find(|(l, _)| *l == loc).map(|(_, e)| e.key.parts[0])
+    #[test]
+    fn region_boxes_follow_every_dab_of_a_stroke() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, _) = state_over(dir.path(), &[L, M]);
+        update_until(&mut state, |s| s.terrain3d_boxes(id).len() == 2);
+        let tops = |state: &EditorState| state.terrain3d_boxes(id).iter().map(|b| (b.min.x, b.max.y)).collect::<Vec<_>>();
+        assert_eq!(tops(&state), [(5120.0, 64.0), (10240.0, 64.0)], "the heights Godot reported");
+
+        dab(&mut state, id, L, 1000.0);
+        let first = tops(&state);
+        assert_eq!((first[0].0, first[1]), (5120.0, (10240.0, 64.0)));
+        assert!(first[0].1 > 64.0, "the edit's own heights: {first:?}");
+        dab(&mut state, id, L, 1000.0);
+        let second = tops(&state);
+        assert!(second[0].1 > first[0].1, "a second dab raises the box again: {second:?} after {first:?}");
+        assert_eq!(second[1], (10240.0, 64.0));
+    }
+
+    /// Where the clipmap would take a region held whole from.
+    fn whole_source(state: &EditorState, id: NodeId, cache: &Path, loc: Loc) -> Option<residency::Source> {
+        gpu::regions(state, id, cache).into_iter().find(|r| r.loc == loc && r.whole).map(|r| r.source)
     }
 
     #[test]
-    fn tiles_follow_godot_once_it_changes_or_removes_a_region_it_applied() {
+    fn the_clipmap_follows_godot_once_it_changes_or_removes_a_region_it_applied() {
         let dir = tempfile::tempdir().unwrap();
         let (mut state, id, cache) = state_over(dir.path(), &[L, M]);
         state.prefs.live_link = false;
@@ -504,7 +510,7 @@ mod tests {
         dab(&mut state, id, L, 1000.0);
         state.send_terrain3d(&BTreeSet::new());
         apply_in_godot(&mut state, &cache, 1, 2);
-        build_tiles_until(&mut state, |s| matches!(tile_source(s, id, L), Some(tiles::Source::Edited(_))));
+        update_until(&mut state, |s| matches!(whole_source(s, id, &cache, L), Some(residency::Source::Edited(_))));
 
         let mut region = (*state.doc.map.terrain3d(id).unwrap().edits[&L].region).clone();
         region.heights[9] = 2560.0;
@@ -514,7 +520,7 @@ mod tests {
         terrain3d_cache::write_manifest(&cache, &manifest).unwrap();
         state.terrain3d.recheck();
         state.poll_terrain3d();
-        build_tiles_until(&mut state, |s| tile_source(s, id, L) == Some(tiles::Source::Cached([7; 32])));
+        update_until(&mut state, |s| whole_source(s, id, &cache, L) == Some(residency::Source::Cached([7; 32])));
 
         std::fs::remove_file(terrain3d_cache::region_path(&cache, L).unwrap()).unwrap();
         let mut manifest = terrain3d_cache::read_manifest(&cache).unwrap();
@@ -522,8 +528,8 @@ mod tests {
         terrain3d_cache::write_manifest(&cache, &manifest).unwrap();
         state.terrain3d.recheck();
         state.poll_terrain3d();
-        build_tiles_until(&mut state, |s| tile_source(s, id, L).is_none());
-        assert_eq!(state.terrain3d_tiles.layouts[&id].locs, vec![M]);
+        update_until(&mut state, |s| gpu::regions(s, id, &cache).iter().all(|r| r.loc != L));
+        assert_eq!(state.terrain3d_residency.layouts[&id].locs, vec![M]);
     }
 
     #[test]

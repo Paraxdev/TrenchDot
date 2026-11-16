@@ -73,8 +73,8 @@ pub(crate) fn symmetry_arg(v: &Value, missing: Symmetry) -> Result<Symmetry, Str
     }
 }
 
-/// The ground a scatter op can land on, for loading the Terrain3D tiles under it. Fill covers its whole target area.
-fn scatter_reach(op: &str, args: &Value, radius: f64) -> Option<crate::terrain3d::tiles::View> {
+/// The ground a scatter op can land on, for loading the Terrain3D regions under it. Fill covers its whole target area.
+fn scatter_reach(op: &str, args: &Value, radius: f64) -> Option<crate::terrain3d::residency::View> {
     let points: Vec<DVec3> = match op {
         "fill" => return Some(crate::terrain3d::follow::ground(DVec2::splat(-1.0e7), DVec2::splat(1.0e7))),
         "stroke" => args["points"].as_array().into_iter().flatten().filter_map(point).collect(),
@@ -2682,8 +2682,8 @@ mod tests {
     }
 
     #[test]
-    fn a_scatter_call_loads_the_terrain3d_tiles_its_brush_can_reach() {
-        use crate::terrain3d::tiles::View;
+    fn a_scatter_call_loads_the_terrain3d_regions_its_brush_can_reach() {
+        use crate::terrain3d::residency::View;
         let flat = |min: [f64; 2], max: [f64; 2]| Some(View::Flat { min: DVec2::from(min), max: DVec2::from(max), zoom: f64::INFINITY });
         let stroke = json!({ "points": [[300, 40, -900], [-120, -2000], [700, 8, -1500]] });
         assert_eq!(scatter_reach("stroke", &stroke, 64.0), flat([-184.0, -2064.0], [764.0, -836.0]));

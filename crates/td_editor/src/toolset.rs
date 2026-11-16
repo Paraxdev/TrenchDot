@@ -278,7 +278,11 @@ fn outliner_hover_lines(state: &EditorState, id: NodeId, out: &mut Vec<LineVerte
         }
     }
 
-    let bounds = map.bounds(id);
+    let mut bounds = map.bounds(id);
+    if bounds.is_empty() {
+        bounds = state.terrain3d_bounds(id);
+    }
+
     if !drew && !bounds.is_empty() {
         let c = bounds.corners();
         for (i, j) in Aabb::EDGES {

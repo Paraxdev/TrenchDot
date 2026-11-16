@@ -225,6 +225,11 @@ impl Terrain3DStore {
         self.manifest(cache).is_some_and(|m| m.dirty.contains(&loc))
     }
 
+    /// Whether a region or pyramid of the folder is still loading.
+    pub fn loading(&self, cache: &Path) -> bool {
+        self.folders.get(cache).is_some_and(|f| !f.inflight.is_empty())
+    }
+
     /// Bytes of the regions held whole across every folder.
     pub fn loaded_bytes(&self) -> usize {
         self.folders.values().flat_map(|f| f.regions.values()).map(|l| bytes_of(&l.region)).sum()

@@ -8672,6 +8672,11 @@ fn world_height(loc: [i32; 2], px: u32, py: u32) -> f64 {
 /// thumbnail), [1, 0] with texture 2 (a blue albedo color, no thumbnail) and [0, 1] with texture 1. `pending_base` is
 /// the hash an edit left by an earlier save was made against, the manifest holds [7; 32] for every region.
 fn terrain3d_world(name: &str, pending_base: Option<u8>) -> (PathBuf, PathBuf) {
+    terrain3d_world_at(name, pending_base, &[[0, 0], [1, 0], [0, 1]])
+}
+
+/// `terrain3d_world` with regions at `locs`, the second of which `pending_base` edits.
+fn terrain3d_world_at(name: &str, pending_base: Option<u8>, locs: &[[i32; 2]]) -> (PathBuf, PathBuf) {
     use td_doc::terrain3d::Terrain3DLink;
     use td_doc::{Map, NodeKind, format};
     use td_formats::terrain3d_cache::{self, CachedRegion, Manifest, ManifestRegion, ManifestTexture, PendingRegion, RegionHash};
@@ -8680,9 +8685,8 @@ fn terrain3d_world(name: &str, pending_base: Option<u8>) -> (PathBuf, PathBuf) {
     let dir = linked_project(name, json!([{ "classname": "marker", "type": "point" }]));
     let cache = dir.join("terrain").join(terrain3d_cache::DIR_NAME);
     let hash = RegionHash([7; 32]);
-    let locs = [[0, 0], [1, 0], [0, 1]];
     let mut regions = Vec::new();
-    for loc in locs {
+    for &loc in locs {
         let mut region = Region3D::blank(loc, 64);
         let texture = if loc == [1, 0] { 2 } else { 1 };
         for (k, (h, c)) in region.heights.iter_mut().zip(region.control.iter_mut()).enumerate() {
@@ -8757,8 +8761,8 @@ fn launch_world(name: &'static str, pending_base: Option<u8>) -> (Editor, Value)
     (ed, node)
 }
 
-/// The tiles of the regions in view are drawn in the lit 3D view, each with the thumbnail or color of its texture, and a
-/// hidden node draws nothing.
+/// The regions in view are drawn in the lit 3D view, each with the thumbnail or color of its texture, and a hidden node
+/// draws nothing.
 #[test]
 #[ignore]
 fn terrain3d_regions_are_drawn_with_their_textures() {
@@ -8784,6 +8788,46 @@ fn terrain3d_regions_are_drawn_with_their_textures() {
     ed.call("hierarchy", json!({ "op": "set_flags", "ids": [node], "hidden": false }));
     let back = world_colors(&shot(&ed, args, "shown"));
     assert!(back.0 > 500 && back.1 > 500, "shown again: {back:?}");
+}
+
+/// What `terrain3d info` reports of the clipmap once every region of the world is on the GPU.
+fn clipmap_settled(ed: &Editor, node: &Value, regions: u64) -> Value {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        shot(ed, json!({ "target": "3d" }), "settle");
+        let clipmap = ed.call("terrain3d", json!({ "op": "info", "id": node }))["clipmap"].clone();
+        if clipmap["coarse_regions"] == regions && clipmap["fine_used"] == regions {
+            return clipmap;
+        }
+
+        assert!(Instant::now() < deadline, "the regions never reached the GPU: {clipmap}");
+        std::thread::sleep(Duration::from_millis(200));
+    }
+}
+
+/// The clipmap draws the same triangles over a world of 12 regions as over 3 when the camera sees only ground both
+/// worlds share.
+#[test]
+#[ignore]
+fn terrain3d_triangles_stay_the_same_for_a_bigger_world() {
+    let mut counts = Vec::new();
+    let twelve: Vec<[i32; 2]> = (-1..=1).flat_map(|z| (-1..=2).map(move |x| [x, z])).collect();
+    // The coarse atlas spans the bounding rectangle of the regions, 2 by 2 and 4 by 3 blocks.
+    for (name, locs, blocks) in [("terrain3d_tris_3", vec![[0, 0], [1, 0], [0, 1]], 4), ("terrain3d_tris_12", twelve, 12)] {
+        let (dir, map) = terrain3d_world_at(name, None, &locs);
+        let ed = Editor::launch_with(name, &["--project", dir.to_str().unwrap()]);
+        ed.call("map_file", json!({ "op": "open", "path": map }));
+        let node = ed.call("list_nodes", json!({ "type": "terrain3d" }))["nodes"][0]["id"].clone();
+        // Straight down over the middle of the three shared regions, low enough that every side of the view stays on them.
+        ed.call("set_camera", json!({ "view": "3d", "position": [512.3, 110, 498.7], "look_at": [511.9, 0, 499.4] }));
+        let clipmap = clipmap_settled(&ed, &node, locs.len() as u64);
+        assert_eq!(clipmap["fine_layers"], locs.len() as u64, "a 64 vertex region gets a fine layer each");
+        assert_eq!(clipmap["gpu_bytes"], 12 * 64 * 64 * locs.len() as u64 + 8 * 16 * 16 * blocks, "{clipmap}");
+        counts.push(clipmap["triangles"].as_u64().unwrap());
+    }
+
+    assert!(counts[0] > 0, "the clipmap drew: {counts:?}");
+    assert_eq!(counts[0], counts[1], "the triangles do not grow with the world");
 }
 
 /// Selecting the Terrain3D node fills the Inspector with the textures of the folder, each with a swatch of its color.

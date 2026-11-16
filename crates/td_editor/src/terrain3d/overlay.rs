@@ -7,7 +7,7 @@ use egui::{Pos2, Rect, Vec2};
 use td_core::DVec3;
 use td_geom::terrain3d::{Grid, Loc};
 
-use super::tiles::region_rect;
+use super::residency::region_rect;
 use crate::camera::Camera;
 
 /// A region shows its location once its smaller side is at least this many pixels.

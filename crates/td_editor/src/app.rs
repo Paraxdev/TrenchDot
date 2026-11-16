@@ -906,9 +906,9 @@ fn view_closeable(tab: &Tab, views_open: usize) -> bool {
     !matches!(tab, Tab::View(_)) || views_open > 1
 }
 
-/// What the Terrain3D tiles are loaded for: every view that has been laid out.
-pub(crate) fn terrain3d_views(viewports: &[Viewport]) -> Vec<crate::terrain3d::tiles::View> {
-    use crate::terrain3d::tiles::View;
+/// What the Terrain3D regions are loaded for: every view that has been laid out.
+pub(crate) fn terrain3d_views(viewports: &[Viewport]) -> Vec<crate::terrain3d::residency::View> {
+    use crate::terrain3d::residency::View;
     use td_core::DVec2;
 
     viewports
@@ -917,7 +917,7 @@ pub(crate) fn terrain3d_views(viewports: &[Viewport]) -> Vec<crate::terrain3d::t
         .map(|v| {
             let cam = &v.camera;
             if !cam.kind.is_2d() {
-                return View::Eye { position: cam.position, focal: v.rect.height() as f64 * 0.5 / (cam.fov.to_radians() * 0.5).tan() };
+                return View::Eye { position: cam.position };
             }
 
             let (r0, r1, u0, u1) = cam.visible_range(v.rect);
@@ -2853,7 +2853,11 @@ impl App {
         self.trust_chip = None;
         ui.horizontal(|ui| {
             let s = &mut self.state;
-            let stats = self.scene.stats;
+            let mut stats = self.scene.stats;
+            if !s.terrain3d_clipmap.is_empty() {
+                stats.triangles += self.renderer.clipmap_triangles();
+            }
+
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(stats_text(&stats));
                 ui.separator();
@@ -3617,12 +3621,14 @@ impl eframe::App for App {
             self.tools.reset();
         }
 
+        // The store's loader asks for a repaint when a region arrives, the scene when uploads are left.
         let views = terrain3d_views(&self.viewports);
-        if self.state.update_terrain3d_tiles(&views, crate::terrain3d::TILE_BUDGET) {
+        self.state.update_terrain3d_residency(&views);
+        self.scene.update(&mut self.renderer, &mut self.state, self.project_generation);
+        if self.scene.terrain3d_pending() {
             ctx.request_repaint();
         }
 
-        self.scene.update(&mut self.renderer, &mut self.state, self.project_generation);
         if let Some(vp) = self.viewports.iter().find(|v| !v.kind().is_2d()) {
             self.state.view_focus = Some(vp.camera.position + vp.camera.forward() * 256.0);
         }

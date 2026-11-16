@@ -119,10 +119,10 @@ mod tests {
     }
 
     #[test]
-    fn clicks_brushes_and_scatter_hit_the_region_data_without_a_tile() {
+    fn clicks_brushes_and_scatter_hit_the_region_data_the_store_holds() {
         let dir = tempfile::tempdir().unwrap();
         let (mut state, id, _) = state_over(dir.path(), &[[-1, 0], [0, 0]]);
-        assert_eq!(state.terrain3d_tiles.node(id).count(), 0, "nothing built a tile");
+        assert!(state.terrain3d_residency.layouts.is_empty(), "nothing but the store holds the regions");
         let ray = Ray::new(DVec3::new(2000.5, 3000.0, 1500.3), DVec3::new(0.2, -1.0, 0.1));
 
         let hits = pick_all(&state, &ray);

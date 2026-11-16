@@ -5,7 +5,7 @@ use egui::{Pos2, Rect};
 use td_core::{DVec3, NodeId};
 use td_geom::terrain3d::{Grid, Loc, loc_in_range};
 
-use super::tiles::region_rect;
+use super::residency::region_rect;
 use crate::camera::{Camera, ViewKind};
 use crate::state::EditorState;
 

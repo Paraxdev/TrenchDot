@@ -701,7 +701,9 @@ pub struct EditorState {
     pub overlay_ghosts: crate::overlays::OverlayGhosts,
     pub terrain3d: crate::terrain3d::store::Terrain3DStore,
     pub terrain3d_bridge: crate::terrain3d::bridge::Bridge,
-    pub terrain3d_tiles: crate::terrain3d::tiles::Tiles,
+    pub terrain3d_residency: crate::terrain3d::residency::Residency,
+    /// What the clipmap of each shown Terrain3D node holds, written by the scene each frame.
+    pub terrain3d_clipmap: std::collections::BTreeMap<NodeId, crate::terrain3d::gpu::Status>,
     /// Regions that changed in Godot, per node, whose following scatter waits to be put back on them.
     pub terrain3d_owed: std::collections::BTreeMap<NodeId, std::collections::BTreeSet<td_geom::terrain3d::Loc>>,
     /// What this editor sent to Godot and Godot has not reported applying yet, per document and cache folder.
@@ -982,7 +984,8 @@ impl EditorState {
             overlay_ghosts: Default::default(),
             terrain3d: Default::default(),
             terrain3d_bridge: Default::default(),
-            terrain3d_tiles: Default::default(),
+            terrain3d_residency: Default::default(),
+            terrain3d_clipmap: Default::default(),
             terrain3d_owed: Default::default(),
             terrain3d_sent: Default::default(),
             terrain3d_noted: Default::default(),

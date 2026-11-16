@@ -1,19 +1,16 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 
 use glam::Vec3;
 use td_core::{Aabb, Color, DMat4, DVec2, DVec3, NodeId};
 use td_doc::{Entity, Map, NodeKind, Selection};
-use td_formats::terrain3d_cache::ManifestTexture;
 use td_formats::{EntityDef, GameConfig};
-use td_geom::terrain3d::Loc;
 use td_geom::{Brush, Mesh, Terrain};
 use td_render::{Frame, GpuLines, GpuMesh, Lighting, LineShape, LineVertex, MeshBatch, MeshInstance, MeshVertex, PointLight, Renderer};
 
 use crate::face_cull::{FaceCull, FacePieces};
 use crate::prefabs::{self, PrefabCache};
 use crate::state::EditorState;
-use crate::terrain3d::tiles::Key as TileKey;
 
 pub const EDGE_COLOR: [f32; 4] = [0.85, 0.85, 0.85, 0.28];
 pub const EDGE_COLOR_2D: [f32; 4] = [0.85, 0.85, 0.85, 0.75];
@@ -92,14 +89,6 @@ struct TerrainGpu {
     /// Height following grid lines, only built in wireframe mode.
     wire: Option<GpuLines>,
     triangles: usize,
-}
-
-/// One drawn tile of a Terrain3D region, and what it was built for.
-struct Terrain3DGpu {
-    key: TileKey,
-    selected: bool,
-    wireframe: bool,
-    gpu: TerrainGpu,
 }
 
 /// Geometry being interactively moved, kept as its pre-drag batches so each frame only re-uploads a
@@ -185,11 +174,13 @@ pub struct SceneCache {
     wireframe: bool,
     buckets: Vec<Bucket>,
     terrains: HashMap<NodeId, TerrainGpu>,
-    terrain3d: HashMap<(NodeId, Loc), Terrain3DGpu>,
-    /// The texture list each Terrain3D node's materials were registered from.
-    terrain3d_materials: HashMap<NodeId, Vec<ManifestTexture>>,
-    /// Tile generation and the store generations the Terrain3D meshes were last brought up to.
+    terrain3d: HashMap<NodeId, crate::terrain3d::gpu::NodeClipmap>,
+    /// One box per region of each selected Terrain3D node.
+    terrain3d_boxes: Option<GpuLines>,
+    /// Residency generation and the store generations the boxes were built for.
     terrain3d_generation: (u64, u64),
+    /// Some clipmap has uploads left for the next frame.
+    terrain3d_pending: bool,
     scatters: HashMap<NodeId, ScatterGpu>,
     scatter_models: ScatterModels,
     unit_box: Option<GpuMesh>,
@@ -1382,30 +1373,6 @@ fn build_terrain(
     out
 }
 
-/// Registers the materials `crate::terrain3d::material_name` names: the thumbnail Godot saved for each texture tinted
-/// by its albedo color, or a flat swatch of that color, and mid grey for the ids the manifest does not list.
-fn register_terrain3d_materials(renderer: &mut Renderer, cache: &std::path::Path, textures: &[ManifestTexture]) {
-    for id in 0..32u8 {
-        let texture = textures.iter().find(|t| t.id == u32::from(id));
-        let color = texture.map_or([0.5, 0.5, 0.5, 1.0], |t| t.albedo_color);
-        let thumbnail = texture.filter(|t| !t.thumbnail.is_empty()).and_then(|t| image::open(cache.join(&t.thumbnail)).ok());
-        let name = crate::terrain3d::material_name(id);
-        match thumbnail {
-            Some(img) => {
-                let img = img.to_rgba8();
-                let mut desc = td_render::MaterialDesc::plain(&img, false);
-                desc.tint = [color[0], color[1], color[2], 1.0];
-                renderer.set_material_desc(&name, &desc);
-            }
-            None => {
-                let to_byte = |c: f32| (c.clamp(0.0, 1.0) * 255.0).round() as u8;
-                let swatch = image::RgbaImage::from_pixel(4, 4, image::Rgba([to_byte(color[0]), to_byte(color[1]), to_byte(color[2]), 255]));
-                renderer.set_material_desc(&name, &td_render::MaterialDesc::plain(&swatch, false));
-            }
-        }
-    }
-}
-
 /// Lines along the chunk borders at height `top` above the terrain's origin.
 fn chunk_lines(t: &Terrain, top: f64, color: [f32; 4], lines: &mut Vec<LineVertex>) {
     let size = t.size();
@@ -1748,6 +1715,7 @@ impl SceneCache {
             self.ghost_generation = Some(state.overlay_ghosts.generation);
         }
 
+        self.sync_terrain3d(renderer, state, show_selection);
         let walkable = state.walkable.on.then_some(state.walkable.generation);
         if self.walkable_generation != walkable {
             self.walkable =
@@ -1767,7 +1735,7 @@ impl SceneCache {
         let model_generation = state.models.generation;
         let lit = state.prefs.shade.is_lit();
         let wireframe = state.prefs.shade == crate::state::Shade::Wireframe;
-        let terrain3d_generation = (state.terrain3d_tiles.generation, state.terrain3d_links().iter().map(|(_, c)| state.terrain3d.generation(c)).sum());
+        let terrain3d_generation = (state.terrain3d_residency.generation, state.terrain3d_links().iter().map(|(_, c)| state.terrain3d.generation(c)).sum());
         if self.revision == state.doc.revision
             && self.terrain3d_generation == terrain3d_generation
             && self.project_generation == project_generation
@@ -1785,7 +1753,6 @@ impl SceneCache {
         self.terrain3d_generation = terrain3d_generation;
         if self.project_generation != project_generation {
             renderer.clear_materials();
-            self.terrain3d_materials.clear();
         }
 
         if self.model_reloads != state.models.reloads {
@@ -2059,7 +2026,7 @@ impl SceneCache {
             }
         }
 
-        self.update_terrain3d(renderer, state, wireframe, &is_selected);
+        self.update_terrain3d_boxes(renderer, state, &is_selected);
 
         let mut scatters_changed = false;
         for id in dirty.iter().copied() {
@@ -2292,7 +2259,7 @@ impl SceneCache {
             decal_footprints.extend(b.decal_footprints.iter().map(|(k, v)| (*k, *v)));
         }
 
-        for t in self.terrains.values().chain(self.terrain3d.values().map(|t| &t.gpu)) {
+        for t in self.terrains.values() {
             stats.triangles += t.triangles;
         }
 
@@ -2347,7 +2314,7 @@ impl SceneCache {
             let vp = Renderer::sun_view_proj(self.lighting.sun_direction, lo.as_vec3(), hi.as_vec3());
             let mut meshes: Vec<&GpuMesh> = self.buckets.iter().flat_map(|b| [b.opaque.as_ref(), b.double.as_ref()]).flatten().collect();
             meshes.extend(self.buckets.iter().flat_map(|b| b.placed[0].iter().chain(&b.placed[1])));
-            meshes.extend(self.terrains.values().chain(self.terrain3d.values().map(|t| &t.gpu)).flat_map(|t| t.chunks.iter().flatten()));
+            meshes.extend(self.terrains.values().flat_map(|t| t.chunks.iter().flatten()));
             meshes.extend(self.scatters.values().flat_map(|s| s.chunks.values().flat_map(|c| &c.meshes)));
             renderer.render_shadow(&meshes, vp);
             Some(vp)
@@ -2357,45 +2324,62 @@ impl SceneCache {
         self.shadow_dirty = false;
     }
 
-    /// Keeps one GPU mesh per Terrain3D tile the views want, rebuilt when the tile, its selection or the wireframe changes.
-    fn update_terrain3d(&mut self, renderer: &mut Renderer, state: &EditorState, wireframe: bool, is_selected: &dyn Fn(NodeId) -> bool) {
-        let links = state.terrain3d_links();
-        for (id, cache) in &links {
-            let textures = state.terrain3d.manifest(cache).map(|m| m.textures.as_slice()).unwrap_or_default();
-            if self.terrain3d_materials.get(id).is_some_and(|known| known == textures) {
-                continue;
+    /// Brings the clipmap of every shown Terrain3D node up to date. It runs every frame, since uploads trickle in under a
+    /// budget and regions arrive from the loader.
+    fn sync_terrain3d(&mut self, renderer: &Renderer, state: &mut EditorState, show_selection: bool) {
+        let layouts = &state.terrain3d_residency.layouts;
+        self.terrain3d.retain(|id, _| layouts.contains_key(id));
+        let map = &state.doc.map;
+        let chosen = &state.doc.selection.nodes;
+        let mut pending = false;
+        let mut status = BTreeMap::new();
+        for (id, cache) in state.terrain3d_links().iter().filter(|(id, _)| layouts.contains_key(id)) {
+            let selected = show_selection && (chosen.contains(id) || map.ancestors(*id).iter().any(|a| chosen.contains(a)));
+            let mut slot = self.terrain3d.remove(id);
+            let color = if selected { SELECTED_COLOR } else { TERRAIN_EDGE };
+            pending |= crate::terrain3d::gpu::sync(renderer, &mut slot, state, *id, cache, selected, color);
+            if let Some(node) = slot {
+                status.insert(*id, node.status());
+                self.terrain3d.insert(*id, node);
             }
-
-            register_terrain3d_materials(renderer, cache, textures);
-            self.terrain3d_materials.insert(*id, textures.to_vec());
-            self.terrain3d.retain(|(node, _), _| node != id);
         }
 
-        self.terrain3d_materials.retain(|id, _| links.iter().any(|(node, _)| node == id));
-        let mut live: HashSet<(NodeId, Loc)> = HashSet::new();
-        for id in state.terrain3d_tiles.nodes() {
-            let selected = is_selected(id);
-            for (loc, entry) in state.terrain3d_tiles.node(id) {
-                live.insert((id, loc));
-                let current = self.terrain3d.get(&(id, loc)).is_some_and(|t| t.key == entry.key && t.selected == selected && t.wireframe == wireframe);
-                if current || !entry.tile.terrain.is_valid() {
-                    continue;
+        self.terrain3d_pending = pending;
+        state.terrain3d_clipmap = status;
+    }
+
+    /// Whether a Terrain3D clipmap has uploads left, so the next frame should come soon.
+    pub fn terrain3d_pending(&self) -> bool {
+        self.terrain3d_pending
+    }
+
+    fn update_terrain3d_boxes(&mut self, renderer: &mut Renderer, state: &EditorState, is_selected: &dyn Fn(NodeId) -> bool) {
+        let mut lines = Vec::new();
+        for id in state.terrain3d_residency.layouts.keys().filter(|id| is_selected(**id)) {
+            for b in state.terrain3d_boxes(*id) {
+                let corners = b.corners();
+                for (i, j) in Aabb::EDGES {
+                    push_line(&mut lines, corners[i], corners[j], SELECTED_COLOR);
                 }
-
-                let mut gpu = build_terrain(renderer, &entry.tile.terrain, selected, None, None, wireframe, None);
-                gpu.lines_2d = None;
-                self.terrain3d.insert((id, loc), Terrain3DGpu { key: entry.key, selected, wireframe, gpu });
             }
         }
 
-        self.terrain3d.retain(|k, _| live.contains(k));
+        self.terrain3d_boxes = renderer.upload_lines(&lines).map(GpuLines::wide);
     }
 
     /// Adds the scene to a frame for a 3D or 2D view.
     /// Unselected edges are left out of lit views, which preview the game look. Without `overlays` only what
     /// the game shows is drawn: no entity boxes, volumes, edges, selection outlines, links, cordon or Godot overlay ghosts.
     pub fn fill_frame<'a>(&'a self, frame: &mut Frame<'a>, is_2d: bool, lit: bool, overlays: bool) {
-        for t in self.terrains.values().chain(self.terrain3d.values().map(|t| &t.gpu)) {
+        if is_2d || overlays {
+            frame.overlay_lines.extend(self.terrain3d_boxes.as_ref());
+        }
+
+        if !is_2d {
+            frame.clipmaps.extend(self.terrain3d.values().map(|n| n.clip()));
+        }
+
+        for t in self.terrains.values() {
             if is_2d {
                 frame.overlay_lines.extend(t.lines_2d.as_ref());
                 frame.overlay_lines.extend(t.sel_lines.as_ref());

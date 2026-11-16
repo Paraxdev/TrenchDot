@@ -136,7 +136,7 @@ impl ClipmapDesc {
         [0, 1].map(|i| (hi[i] - lo[i] + 1) as u32 * self.coarse_texels())
     }
 
-    fn in_atlas(&self, loc: [i32; 2]) -> bool {
+    pub fn in_atlas(&self, loc: [i32; 2]) -> bool {
         let [lo, hi] = self.atlas;
         (0..2).all(|i| (lo[i]..=hi[i]).contains(&loc[i]))
     }

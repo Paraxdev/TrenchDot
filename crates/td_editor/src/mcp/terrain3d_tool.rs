@@ -179,6 +179,20 @@ fn background_json(material: &ManifestMaterial) -> Value {
     json!({ "mode": mode, "noise": material.world_noise.is_some() })
 }
 
+/// What the node's clipmap holds on the GPU, null before the scene drew it once. The triangles are those every
+/// clipmap put on screen in the last 3D frame.
+fn clipmap_json(status: Option<&crate::terrain3d::gpu::Status>, triangles: usize) -> Value {
+    status.map_or(Value::Null, |s| {
+        json!({
+            "fine_layers": s.fine_layers,
+            "fine_used": s.fine_used,
+            "coarse_regions": s.coarse_regions,
+            "gpu_bytes": s.gpu_bytes,
+            "triangles": triangles,
+        })
+    })
+}
+
 /// What `link` creates, None when it links a folder Godot made.
 fn parse_link(a: &Value) -> Result<(String, Option<NewFolder>), String> {
     let dir = a["data_directory"].as_str().filter(|d| !d.is_empty()).ok_or("data_directory required, a res:// path like res://terrain_data")?;
@@ -343,6 +357,7 @@ impl App {
             "resources": manifest.resources,
             "ocean": manifest.ocean,
             "background": background_json(&manifest.material),
+            "clipmap": clipmap_json(state.terrain3d_clipmap.get(&id), self.renderer.clipmap_triangles()),
             "error": state.terrain3d.error(&cache),
         }))
     }
