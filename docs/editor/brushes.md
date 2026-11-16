@@ -5,11 +5,16 @@ with matching collision in Godot. Everything here uses the **Select** tool (Q), 
 
 ## Draw and move
 
-Drag anywhere off the selection, in any view, and a box follows the mouse. The 2D views print its size next to it. In
-the 3D view it starts on the surface under the cursor and is one grid step thick. In a 2D view it takes the depth of
-what is selected, like in Hammer and TrenchBroom. With a floor selected you can draw more floors of the same height
-from the Top view alone. With nothing selected it takes the depth of the last brush you drew, 128 units for the very
-first one. Untick *New brush depth from selection* in *File > Preferences* to always use the last brush's depth.
+Drag anywhere off the selection, in any view, and a box follows the mouse. The 2D views print its size next to it. How
+thick the box is depends on where you drag:
+
+| Where you drag | Thickness |
+| --- | --- |
+| The 3D view | One grid step, starting on the surface under the cursor |
+| A 2D view with something selected | The depth of the selection, like in Hammer and TrenchBroom. With a floor selected you can draw more floors of the same height from the Top view alone |
+| A 2D view with nothing selected | The depth of the last brush you drew, 128 units for the very first one |
+
+Untick *New brush depth from selection* in *File > Preferences* to always use the last brush's depth.
 
 ![The New brush depth from selection checkbox ticked in Preferences, below Keymap preset](../assets/brushes/preferences-depth-from-selection.png)
 
@@ -65,9 +70,14 @@ For slopes, ramps and angled walls, press C for the **Clip** tool:
 ![The Clip tool with two points placed in the Front view across the top corner of a box, the cut line shows in the 3D view as well](../assets/brushes/clip-points.png)
 
 To drag single corners, press V for the **Vertex** tool, or Tab with brushes selected. It shows handles on the corners,
-and small blue dots on the edge midpoints and face centers. Click a dot to select it, or drag it away from the brush
-to add a corner there. In the 3D view a dot slides straight out of the brush, so look at its face or edge from a bit
-to the side, a dot pointing right at the camera does not move. Delete removes the selected vertices.
+and small blue dots on the edge midpoints and face centers.
+
+* Drag a handle to move that corner.
+* Click a dot to select it, or drag it away from the brush to add a corner there.
+* Press Delete to remove the selected vertices.
+
+In the 3D view a dot slides straight out of the brush, so look at its face or edge from a bit to the side, a dot
+pointing right at the camera does not move.
 
 ![The Vertex tool on a clipped box, yellow corner handles and blue dots on the edges and faces](../assets/brushes/vertex-handles.png)
 
@@ -80,6 +90,8 @@ to the side, a dot pointing right at the camera does not move. Delete removes th
 
 For a floor plan, a pillar with five sides or any outline a box cannot make, press the **Polygon** tool in the toolbar,
 the pentagon next to Select. It has no key, *Tools > Polygon Tool* does the same.
+
+![The Polygon tool button in the toolbar, hovered, with its tooltip](../assets/brushes/toolbar-polygon.png)
 
 1. Click the corners of the outline in a 2D view. They snap to the grid, and a line follows the mouse to show the next
    edge. In the 3D view, click a surface first and the outline lies on that surface instead.
@@ -138,15 +150,23 @@ ramps that a plain scale cannot make.
 
 1. Select what you want to slant, brushes, groups and brush entities all work.
 2. Pick the Shear tool with Shift+R, or in *Tools > Shear Tool*. An orange box shows the selection's bounds.
+
+    ![The Tools menu open, listing Polygon Tool and Shear Tool with Shift+R](../assets/brushes/menu-tools-shear.png)
+
 3. Point at a side of the box. In the 3D view the side lights up when the pointer is over it, in a 2D view the edge
     nearest the pointer does.
 4. Drag the side. It slides parallel to itself while the opposite side stays where it is, and the selection follows live.
 
 ![A cube mid shear in the 3D view, the top side slid sideways with the bottom fixed](../assets/brushes/shear.png)
 
-The slide snaps to the grid. In a 2D view it runs along the view's axis that is parallel to the side. In the 3D view it
-follows whichever direction you drag further, and holding Shift frees it to slide both ways at once. Esc cancels the
-drag, and one undo takes back the whole shear. Textures stay locked to the faces while UV lock is on.
+The slide snaps to the grid. Which way it runs depends on the view:
+
+| View | The side slides |
+| --- | --- |
+| A 2D view | Along the view's axis that is parallel to the side |
+| The 3D view | In whichever direction you drag further. Hold Shift to slide both ways at once |
+
+Esc cancels the drag, and one undo takes back the whole shear. Textures stay locked to the faces while UV lock is on.
 
 Brushes and meshes slant. Point entities and prefab instances move along with the part of the box they sit in but
 keep the way they face. Terrains and scatters cannot slant, so they stay where they are.
@@ -206,16 +226,22 @@ Use the same numbers as `min` and `max` of `create_brush` or `create_mesh` to bu
 
 </div>
 
-Cylinders and cones stand upright by default. Pick **X** or **Z** under **Axis** to lay one down inside the same box,
-for pipes, logs or a beam, instead of rotating it afterwards. The torus, arch wall, gable roof, spire and grid are
-always made as a [mesh](meshes.md). Cylinders, cones and spheres can be one too with **Create as editable mesh**, then
-**Smooth shading** rounds them off. The **Text** shape builds block letters from brushes, for signs and floor
-lettering.
+The torus, arch wall, gable roof, spire and grid are always made as a [mesh](meshes.md). Cylinders, cones, spheres and
+rocks are brushes unless you tick **Create as editable mesh**, and **Smooth shading** then rounds them off. A few
+shapes have options of their own. **Rock** fills the box with a stone:
 
-**Rock** fills the box with a stone. **Roughness** sets how lumpy it is, **Facets** chips flat faces into it and
-**Flat base** cuts its underside flat so it sits on the ground. Change the **Seed** for a different stone of the same
-kind. As a brush the rock is one low poly convex stone that works with CSG and collides like any brush. With **Create
-as editable mesh** it keeps its dents and overhangs, and **Detail** sets how finely the surface is divided.
+| Shape | Option | What it does |
+| --- | --- | --- |
+| Cylinder, Cone | **Axis** | Stands upright on **Y**. Pick **X** or **Z** to lay it down inside the same box, for pipes, logs or a beam, instead of rotating it afterwards |
+| Rock | **Roughness** | How lumpy the stone is |
+| | **Facets** | Chips flat faces into it |
+| | **Flat base** | Cuts the underside flat so it sits on the ground |
+| | **Seed** | A different stone of the same kind |
+| | **Detail** | With **Create as editable mesh**, how finely the surface is divided |
+| Text | **Text** | The letters to build, A-Z, 0-9 and some punctuation, Enter for a new line. The shape turns them into block letters made of brushes, for signs and floor lettering |
+
+As a brush the rock is one low poly convex stone that works with CSG and collides like any brush. As an editable mesh it
+keeps its dents and overhangs.
 
 ![The Shape Generator set to Rock as an editable mesh, with Roughness 0.5, Facets 5, Flat base 0.3, Detail 3 and Seed 1](../assets/brushes/shape-generator-rock.png)
 
@@ -238,17 +264,27 @@ and leaves a run of brushes behind it, with the materials of the brush it came f
 
 ![A corridor of a dark floor and two orange walls, swept straight, round a 90 degree arc and straight again](../assets/brushes/sweep-faces-corridor.png)
 
-More **Segments** make a smoother curve. **Rise** lifts the end, so an arc with rise becomes a spiral ramp, **Twist**
-turns the faces about themselves and **End scale** grows or shrinks them on the way. An arc tighter than the faces are
-wide would fold over on its inner side, the dialog says the smallest radius that works instead. All picked faces
-travel the same way, along their average direction, so pick faces that point the same way, like the end of a corridor.
-Faces at an angle to each other would go out on a slant.
+These options shape the run:
 
-For a path of your own shape, pick **Curve**. Place a few points ahead of the faces with the **Path** tool (Shift+P,
-see [Placing and wiring](../gameplay/placing.md#placing-entities)) first. The curve leaves the faces straight out and
-runs smoothly through the points in order. **Points** picks which chain to follow, by default the one that starts
-nearest the faces. Move a point or add one to the chain and the cyan outline follows, so you can shape the run before
-you click **Create**. A bend tighter than the faces are wide is refused, spread the points further apart then.
+| Option | What it does |
+| --- | --- |
+| **Segments** | More of them make a smoother curve |
+| **Rise** | Lifts the end, so an arc with rise becomes a spiral ramp |
+| **Twist** | Turns the faces about themselves along the way |
+| **End scale** | Grows or shrinks the faces on the way, 1 keeps them as they are |
+
+An arc tighter than the faces are wide would fold over on its inner side, the dialog says the smallest radius that works
+instead. All picked faces travel the same way, along their average direction, so pick faces that point the same way, like
+the end of a corridor. Faces at an angle to each other would go out on a slant.
+
+For a path of your own shape:
+
+1. Place a few points ahead of the faces with the **Path** tool (Shift+P, see
+   [Placing and wiring](../gameplay/placing.md#placing-entities)).
+2. Pick **Curve** in the dialog. The curve leaves the faces straight out and runs smoothly through the points in order.
+   **Points** picks which chain to follow, by default the one that starts nearest the faces.
+3. Move a point or add one to the chain and the cyan outline follows, so you can shape the run before you click
+   **Create**. A bend tighter than the faces are wide is refused, spread the points further apart then.
 
 <div class="td-mcp" markdown>
 
