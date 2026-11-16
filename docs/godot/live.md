@@ -2,15 +2,24 @@
 
 ## Rebuild on save
 
-Keep the scene with your `FuncGodotMap` open in the Godot editor and just save in TrenchDot with Ctrl+S. Godot
-rebuilds that scene straight away, as long as its tab is the one Godot shows and the map node has *Auto Rebuild On Save*
-on. A scene in another tab that uses the map rebuilds when you switch to its tab. Closing and reopening a tab or
-reloading a scene does not break this. Saving a [prefab](../editor/prefab-library.md) rebuilds the maps of that scene
-that use it, directly or through another prefab.
+1. Keep the scene open in Godot
 
-The status bar at the bottom left tells you what Godot did. When it worked, it should say:
+    Open the scene with your `FuncGodotMap` in the Godot editor. The map node needs *Auto Rebuild On Save* on, which it
+    is by default.
 
-![The status bar saying "Live link: Godot rebuilt 1 map node(s)"](../assets/live/status-rebuilt.png)
+2. Save in TrenchDot
+
+    Press Ctrl+S. Godot rebuilds the scene straight away, as long as its tab is the one Godot shows. A scene in another
+    tab that uses the map rebuilds when you switch to its tab.
+
+3. Check the status bar
+
+    The status bar at the bottom left tells you what Godot did. When it worked, it should say:
+
+    ![The status bar saying "Live link: Godot rebuilt 1 map node(s)"](../assets/live/status-rebuilt.png)
+
+Closing and reopening a tab, or reloading a scene, does not break this. Saving a [prefab](../editor/prefab-library.md)
+rebuilds the maps of that scene that use it, directly or through another prefab.
 
 Save the scene in Godot to keep the result. If the status bar says something else, the message tells you why:
 
@@ -20,15 +29,18 @@ Save the scene in Godot to keep the result. If the status bar says something els
 | --- | --- |
 | The scene is not the current scene tab in Godot | Switch to that tab, it rebuilds then |
 | The current scene tab has no `FuncGodotMap` for the map | Open the scene that builds the map, or turn on *Auto Rebuild On Save* on its map node |
-| Godot has no scene open | Open the scene with the map in Godot, and if it is open, read on |
+| Godot has no scene open | Open the scene with the map in Godot. If it is open, see [Two Godot editors](#two-godot-editors) |
 | Godot is not running with the TrenchDot addon | Open the project in the Godot editor with the addon enabled |
 | Godot rebuilt the map, but the map settings have no definition for some classes, so they build as plain nodes | Add the definitions, see [Entities that do nothing](entities-troubleshooting.md) |
 | Godot rebuilt the map with warnings, see the Issues panel | Read them in the Issues panel, where they start with "Godot:" |
 
+### Two Godot editors
+
 Only one Godot editor can hold the live link port. A second editor with the same project warns in its Output panel that
-the live link could not listen, and TrenchDot keeps talking to the first one, which may have no scene open. Close the
-editor you do not use and the other one takes the link over within a few seconds. (Note: *Godot > Open Project in
-Godot Editor* brings an editor that already has the project to the front instead of starting a second one.)
+the live link could not listen, and TrenchDot keeps talking to the first one, which may have no scene open.
+
+Close the editor you do not use and the other one takes the link over within a few seconds. *Godot > Open Project in
+Godot Editor* brings an editor that already has the project to the front instead of starting a second one.
 
 ## Live mode
 
@@ -114,5 +126,5 @@ To see your saves in a game that is already running:
     The game rebuilds the maps that use the saved file and emits `map_reloaded(map)`. Use that signal to put the player
     back at a spawn point or reset game state. The status bar should end with "running game reloaded 1 map(s)".
 
-It listens on port 7843, which must match *Running game hot reload* in the editor's preferences. TrenchDot only sends
-it saves while the live link is on.
+The autoload listens on port 7843, which must match *Running game hot reload* under *File > Preferences*. TrenchDot only
+sends it saves while the live link is on.
