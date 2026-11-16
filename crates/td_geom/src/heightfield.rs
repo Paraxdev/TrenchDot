@@ -189,6 +189,68 @@ pub fn fbm(p: DVec2, seed: u32, octaves: u32, roughness: f64) -> f64 {
     sum / norm
 }
 
+/// Walks the cells under `ray` from `t0` with a 2D DDA and returns the nearest hit `test` reports in the first cell
+/// that has one. Cell (ci, cj) spans `origin + (ci, cj) * cell` one cell further on x and z, and the walk ends one cell
+/// past `cells` or before a cell the ray enters after `t_end`. Each step also tests the four neighbours, since a triangle edge on a cell boundary would otherwise
+/// slip through, so `test` gets indices outside `0..cells` and has to refuse them.
+pub fn ray_cast_cells<T>(
+    ray: &Ray,
+    [t0, t_end]: [f64; 2],
+    origin: DVec2,
+    cell: f64,
+    cells: [u32; 2],
+    test: impl Fn(i64, i64) -> Option<(f64, T)>,
+) -> Option<(f64, T)> {
+    let [cw, cd] = cells.map(|c| c as i64);
+    let flat = DVec2::new(ray.dir.x, ray.dir.z);
+    let start = ray.at(t0);
+    let local = (DVec2::new(start.x, start.z) - origin) / cell;
+    let (mut ci, mut cj) = (local.x.floor() as i64, local.y.floor() as i64);
+    if flat.length() < 1e-9 {
+        return test(ci, cj);
+    }
+
+    let step_x: i64 = if flat.x > 0.0 { 1 } else { -1 };
+    let step_z: i64 = if flat.y > 0.0 { 1 } else { -1 };
+    let next_boundary = |pos: f64, cell: i64, step: i64| if step > 0 { (cell + 1) as f64 - pos } else { pos - cell as f64 };
+    let inv =
+        DVec2::new(if flat.x.abs() > 1e-12 { (cell / flat.x).abs() } else { f64::MAX }, if flat.y.abs() > 1e-12 { (cell / flat.y).abs() } else { f64::MAX });
+    let mut t_max_x = t0 + next_boundary(local.x, ci, step_x) * inv.x;
+    let mut t_max_z = t0 + next_boundary(local.y, cj, step_z) * inv.y;
+    let max_steps = (cw + cd) as usize * 2 + 4;
+    for _ in 0..max_steps {
+        let mut best: Option<(f64, T)> = None;
+        for (dx, dz) in [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)] {
+            if let Some(hit) = test(ci + dx, cj + dz)
+                && best.as_ref().is_none_or(|b| hit.0 < b.0)
+            {
+                best = Some(hit);
+            }
+        }
+
+        if best.is_some() {
+            return best;
+        }
+
+        let entry = t_max_x.min(t_max_z);
+        if t_max_x < t_max_z {
+            ci += step_x;
+            t_max_x += inv.x;
+        } else {
+            cj += step_z;
+            t_max_z += inv.y;
+        }
+
+        let outside_x = (step_x > 0 && ci > cw) || (step_x < 0 && ci < -1);
+        let outside_z = (step_z > 0 && cj > cd) || (step_z < 0 && cj < -1);
+        if outside_x || outside_z || entry > t_end {
+            break;
+        }
+    }
+
+    None
+}
+
 impl Terrain {
     pub fn check_data(&self) -> Result<(), String> {
         let [w, d] = self.resolution;
@@ -352,8 +414,7 @@ impl Terrain {
         let bounds = self.bounds().expanded(1.0);
         let t0 = if bounds.contains_point(ray.origin) { 0.0 } else { ray.intersect_aabb(&bounds)? };
         let [cw, cd] = self.cells();
-        let flat = DVec2::new(ray.dir.x, ray.dir.z);
-        let test_cell = |ci: i64, cj: i64| -> Option<f64> {
+        let test_cell = |ci: i64, cj: i64| -> Option<(f64, ())> {
             if ci < 0 || cj < 0 || ci >= cw as i64 || cj >= cd as i64 || (!through_holes && self.is_hole(ci as u32, cj as u32)) {
                 return None;
             }
@@ -368,59 +429,10 @@ impl Terrain {
                 }
             }
 
-            best
+            best.map(|t| (t, ()))
         };
-        let start = ray.at(t0);
-        let cell_of = |p: DVec3| (((p.x - self.origin.x) / self.cell_size).floor() as i64, ((p.z - self.origin.z) / self.cell_size).floor() as i64);
-        if flat.length() < 1e-9 {
-            let (ci, cj) = cell_of(start);
-            return test_cell(ci, cj).map(|t| (t, ray.at(t)));
-        }
-
-        // 2D DDA over the grid.
-        let (mut ci, mut cj) = cell_of(start);
-        let step_x: i64 = if flat.x > 0.0 { 1 } else { -1 };
-        let step_z: i64 = if flat.y > 0.0 { 1 } else { -1 };
-        let local = DVec2::new(start.x - self.origin.x, start.z - self.origin.z) / self.cell_size;
-        let next_boundary = |pos: f64, cell: i64, step: i64| if step > 0 { (cell + 1) as f64 - pos } else { pos - cell as f64 };
-        let inv = DVec2::new(
-            if flat.x.abs() > 1e-12 { (self.cell_size / flat.x).abs() } else { f64::MAX },
-            if flat.y.abs() > 1e-12 { (self.cell_size / flat.y).abs() } else { f64::MAX },
-        );
-        let mut t_max_x = t0 + next_boundary(local.x, ci, step_x) * inv.x;
-        let mut t_max_z = t0 + next_boundary(local.y, cj, step_z) * inv.y;
-        let max_steps = (cw + cd) as usize * 2 + 4;
-        for _ in 0..max_steps {
-            // Neighbouring cells are tested too, a triangle edge on the boundary would otherwise slip through.
-            let mut best: Option<f64> = None;
-            for (dx, dz) in [(0, 0), (1, 0), (-1, 0), (0, 1), (0, -1)] {
-                if let Some(t) = test_cell(ci + dx, cj + dz)
-                    && best.is_none_or(|b| t < b)
-                {
-                    best = Some(t);
-                }
-            }
-
-            if let Some(t) = best {
-                return Some((t, ray.at(t)));
-            }
-
-            if t_max_x < t_max_z {
-                ci += step_x;
-                t_max_x += inv.x;
-            } else {
-                cj += step_z;
-                t_max_z += inv.y;
-            }
-
-            let outside_x = (step_x > 0 && ci > cw as i64) || (step_x < 0 && ci < -1);
-            let outside_z = (step_z > 0 && cj > cd as i64) || (step_z < 0 && cj < -1);
-            if outside_x || outside_z {
-                break;
-            }
-        }
-
-        None
+        let origin = DVec2::new(self.origin.x, self.origin.z);
+        ray_cast_cells(ray, [t0, f64::INFINITY], origin, self.cell_size, [cw, cd], test_cell).map(|(t, _)| (t, ray.at(t)))
     }
 
     /// Vertex coordinate range within `radius` of a world point.
@@ -1058,6 +1070,35 @@ mod tests {
         let slanted = t.ray_cast(&Ray::new(DVec3::new(-300.0, 300.0, -300.0), DVec3::new(1.0, -1.0, 1.0))).unwrap();
         assert!((slanted.1.y - t.height_at(slanted.1.x, slanted.1.z).unwrap()).abs() < 1e-3);
         assert!(t.ray_cast(&Ray::new(DVec3::new(0.0, 500.0, 0.0), DVec3::Y)).is_none());
+    }
+
+    #[test]
+    fn the_cell_walk_stops_before_the_first_cell_it_enters_after_t_end() {
+        let ray = Ray::new(DVec3::new(-7.3, 40.0, 11.9), DVec3::new(0.83, -0.2, 0.31));
+        let (origin, cell) = (DVec2::new(-13.7, 4.2), 2.5);
+        let walk = |t_end: f64| {
+            let seen = std::cell::RefCell::new(Vec::new());
+            let miss = ray_cast_cells(&ray, [0.0, t_end], origin, cell, [40, 30], |ci, cj| -> Option<(f64, ())> {
+                seen.borrow_mut().push([ci, cj]);
+                None
+            });
+            assert!(miss.is_none());
+            // Each step tests the cell under the ray first, then its four neighbours.
+            seen.into_inner().chunks(5).map(|c| c[0]).collect::<Vec<_>>()
+        };
+        let entry = |[ci, cj]: [i64; 2]| {
+            let tx = (origin.x + ci as f64 * cell - ray.origin.x) / ray.dir.x;
+            let tz = (origin.y + cj as f64 * cell - ray.origin.z) / ray.dir.z;
+            tx.max(tz)
+        };
+
+        let all = walk(f64::INFINITY);
+        assert_eq!(all.first(), Some(&[2, 3]));
+        assert_eq!(all.last().map(|c| c[0]), Some(40), "without an end the walk leaves the grid");
+        assert_eq!(walk(0.0), all[..1], "only the cell under the start");
+        let k = 12;
+        assert_eq!(walk(entry(all[k]) - 1e-6), all[..k], "the cell entered just after the end is left out");
+        assert_eq!(walk(entry(all[k]) + 1e-6), all[..=k], "the cell entered just before the end is tested");
     }
 
     #[test]

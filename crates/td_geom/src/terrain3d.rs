@@ -282,17 +282,24 @@ fn modified_height<'a>(grid: &Grid, edge: Option<EdgeBlend>, regions: &impl Fn(L
     }
 
     let height = region.heights[k];
-    let Some(edge) = edge else { return height };
+    match edge {
+        Some(edge) => edge_blended(grid, edge, |l| regions(l).is_some(), vgrid, height),
+        None => height,
+    }
+}
+
+/// `height` of the vertex at `vgrid` pulled toward the ground level near the edge of the regions `present` reports, the
+/// way Terrain3D's shader blends a vertex.
+pub(crate) fn edge_blended(grid: &Grid, edge: EdgeBlend, present: impl Fn(Loc) -> bool, vgrid: [i64; 2], height: f32) -> f32 {
     let texel = 1.0 / grid.region_size as f32;
-    let blend = region_blend(edge.region_blend, regions, vgrid[0] as f32 * texel, vgrid[1] as f32 * texel);
-    let s = blend.clamp(0.0, 1.0);
+    let s = region_blend(edge.region_blend, &present, vgrid[0] as f32 * texel, vgrid[1] as f32 * texel).clamp(0.0, 1.0);
     height + s * s * (3.0 - 2.0 * s) * (edge.ground_level - height)
 }
 
-fn region_blend<'a>(region_blend: f32, regions: &impl Fn(Loc) -> Option<&'a Region3D>, u: f32, v: f32) -> f32 {
+fn region_blend(region_blend: f32, present: &impl Fn(Loc) -> bool, u: f32, v: f32) -> f32 {
     let present = |u: f32, v: f32| {
         let loc = [u.floor() as i32, v.floor() as i32];
-        if loc_in_range(loc) && regions(loc).is_some() { 1.0 } else { 0.0 }
+        if loc_in_range(loc) && present(loc) { 1.0 } else { 0.0 }
     };
 
     // The bias matches Terrain3D's shader.

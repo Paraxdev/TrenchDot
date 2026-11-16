@@ -22,12 +22,17 @@ impl Ray {
     }
 
     pub fn intersect_aabb(&self, b: &Aabb) -> Option<f64> {
+        self.aabb_span(b).map(|[entry, _]| entry)
+    }
+
+    /// Where the ray enters and leaves `b`, the entry no earlier than the origin.
+    pub fn aabb_span(&self, b: &Aabb) -> Option<[f64; 2]> {
         let inv = 1.0 / self.dir;
         let t1 = (b.min - self.origin) * inv;
         let t2 = (b.max - self.origin) * inv;
         let tmin = t1.min(t2).max_element();
         let tmax = t1.max(t2).min_element();
-        if tmax >= tmin.max(0.0) { Some(tmin.max(0.0)) } else { None }
+        (tmax >= tmin.max(0.0)).then(|| [tmin.max(0.0), tmax])
     }
 
     /// Möller-Trumbore, double sided.
