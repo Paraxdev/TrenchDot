@@ -40,6 +40,9 @@ Una entidad que toma su forma de brushes que construiste, como una puerta, un bo
 ## celda { #cell data-forms="celdas" }
 Un cuadrado de la cuadrícula de un terreno, entre cuatro vértices vecinos. Un terreno tiene un número entero de celdas a lo largo de X y de Z, y el tamaño de celda es la distancia en unidades de mapa entre dos vértices. Al cambiar el tamaño de un terreno se añaden o se quitan celdas enteras.
 
+## clipmap { #clipmap data-forms="clipmaps" }
+Una forma de dibujar un paisaje enorme: un conjunto fijo de anillos cuadrados alrededor de la cámara, donde cada anillo tiene la mitad de detalle que el interior y todo el conjunto se mueve con la cámara. El suelo cercano se dibuja con detalle y el lejano de forma tosca, así que el coste es el mismo sea cual sea el tamaño del mundo. TrenchDot dibuja Terrain3D con uno, igual que el propio Terrain3D.
+
 ## convexa { #convex data-forms="convexo|convexos|convexas" }
 Abultada hacia fuera por todas partes, sin hendiduras ni huecos, como una caja, una cuña o un cilindro. Todo brush tiene que ser convexo, por eso el editor rechaza los movimientos de vértices que lo abollarían. Para formas cóncavas, convierte el brush en malla.
 
@@ -178,11 +181,23 @@ La iluminación global en tiempo real de Godot, luz que rebota en las superficie
 ## caja de selección { #selection-box data-forms="cajas de selección" }
 La caja que se arrastra sobre un espacio vacío en una vista 2D con el preajuste de Hammer. Espera a Enter o a un clic dentro y luego selecciona cada objeto que queda entero dentro, también los apilados uno detrás de otro, porque una vista 2D mira a través de todo el mapa. En la herramienta Vértice el mismo arrastre selecciona esquinas.
 
+## nivel del mar { #sea-level }
+La altura en metros a la que está el océano de un nodo Terrain3D. TrenchDot dibuja un plano de agua ahí cuando el océano está activado, y todo lo que queda por debajo está bajo el agua.
+
 ## señal { #signal data-forms="señales" }
 El nombre que da Godot a un evento que anuncia un nodo, como pulsar un botón. Cada output de una entidad es una señal, y cablear un output conecta esa señal con un método de input del destino.
 
+## nodo ranura { #slot-node data-forms="nodos ranura" }
+El nodo `TrenchDotTerrain3D` que Godot construye como primer hijo de un mapa para alojar su nodo Terrain3D. Las compilaciones, el modo en vivo y el hot reload lo dejan en paz, así que el terreno conserva su estado.
+
 ## targetname { #targetname }
 El nombre que le das a una entidad para que otras puedan alcanzarla, como main_door. Los outputs, los fixups de prefab y claves como fixture encuentran las entidades por él.
+
+## Terrain3D { #terrain3d }
+Un complemento gratuito de Godot, una GDExtension, para paisajes grandes: los dibuja con niveles de detalle, los guarda en archivos de región y tiene sus propias herramientas de esculpido y pintura. TrenchDot puede enlazar una carpeta de datos de Terrain3D y editarla, mira la página Terrain3D.
+
+## región de Terrain3D { #terrain3d-region data-forms="regiones de Terrain3D" }
+Una baldosa cuadrada de un paisaje Terrain3D, guardada en su propio archivo. Todas las regiones tienen el mismo número de vértices por lado, 256 por defecto, y están en una posición entera de la cuadrícula, como (-1, 0). Pueden faltar regiones, así que un paisaje no tiene que ser un rectángulo.
 
 ## texel { #texel data-forms="texels" }
 Un píxel de una textura tal como cae sobre una superficie. Por defecto un texel cubre una unidad de mapa, y la densidad de texels, cuántos caben en un área, decide lo nítida que se ve una textura. Un lightmap también tiene texels, y su tamaño de texel dice cuántas unidades de mapa cubre cada uno.
@@ -216,6 +231,12 @@ Un punto de esquina de una forma. Un terreno tiene uno en cada cruce de su cuadr
 
 ## VisGroup { #visgroup }
 Un conjunto con nombre de objetos de Hammer que muestras u ocultas a la vez. Las capas de TrenchDot hacen lo mismo, pero las llenas tú.
+
+## espaciado de vértices { #vertex-spacing }
+La distancia en metros entre dos vértices vecinos de un paisaje Terrain3D. Con 1, una región de 256 vértices cubre 256 metros, con 2 cubre 512.
+
+## fondo del mundo { #world-background }
+Lo que Terrain3D dibuja más allá de sus regiones, ajustado en su material como Ninguno, Plano o Ruido. Plano continúa el suelo como un plano a la altura del suelo, Ruido añade colinas hechas con una función de ruido, Ninguno no dibuja nada.
 
 ## worldspawn { #worldspawn }
 La entidad raíz del mapa, que contiene los brushes del mundo. Sus claves guardan ajustes de todo el mapa, como el cielo, la niebla, el sol y el streaming, y el Inspector la muestra cuando no hay nada seleccionado.

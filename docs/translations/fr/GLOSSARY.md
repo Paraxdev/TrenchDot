@@ -40,6 +40,9 @@ Une entité dont la forme vient de brushes que vous avez construits, comme une p
 ## cellule { #cell data-forms="cellules" }
 Un carré de la grille d'un terrain, entre quatre sommets voisins. Un terrain compte un nombre entier de cellules le long de X et de Z, et la taille de cellule est la distance en unités de carte entre deux sommets. Redimensionner un terrain ajoute ou retire des cellules entières.
 
+## clipmap { #clipmap data-forms="clipmaps" }
+Une façon de dessiner un immense paysage: un ensemble fixe d'anneaux carrés autour de la caméra, où chaque anneau a deux fois moins de détail que celui qu'il entoure, le tout suivant la caméra. Le sol proche est dessiné finement et le sol lointain grossièrement, donc le coût reste le même quelle que soit la taille du monde. TrenchDot dessine Terrain3D avec une clipmap, comme Terrain3D lui-même.
+
 ## convexe { #convex data-forms="convexes" }
 Bombé vers l'extérieur partout, sans creux ni bosses rentrantes, comme une boîte, un coin ou un cylindre. Chaque brush doit être convexe, c'est pourquoi l'éditeur refuse les déplacements de sommets qui en feraient un creux. Pour les formes concaves, convertissez le brush en mesh.
 
@@ -178,11 +181,23 @@ L'illumination globale en temps réel de Godot, une lumière qui rebondit sur le
 ## boîte de sélection { #selection-box data-forms="boîtes de sélection" }
 La boîte que l'on trace sur un espace vide dans une vue 2D avec le préréglage Hammer. Elle attend Enter ou un clic à l'intérieur, puis sélectionne chaque objet qui s'y trouve entièrement, y compris ceux empilés les uns derrière les autres, car une vue 2D regarde à travers toute la carte. Dans l'outil Sommet, le même glisser sélectionne des coins.
 
+## niveau de la mer { #sea-level }
+La hauteur en mètres à laquelle se trouve l'océan d'un nœud Terrain3D. TrenchDot dessine un plan d'eau à cette hauteur quand l'océan est activé, et tout ce qui est en dessous est sous l'eau.
+
 ## signal { #signal data-forms="signaux" }
 Le nom que Godot donne à un événement qu'un nœud annonce, comme l'appui sur un bouton. Chaque output d'entité est un signal, et câbler un output connecte ce signal à une méthode d'input de la cible.
 
+## nœud d'emplacement { #slot-node data-forms="nœuds d'emplacement" }
+Le nœud `TrenchDotTerrain3D` que Godot construit comme premier enfant d'une carte pour contenir son nœud Terrain3D. Les builds, le mode live et le hot reload n'y touchent pas, le terrain garde donc son état.
+
 ## targetname { #targetname }
 Le nom que vous donnez à une entité pour que d'autres entités puissent l'atteindre, comme main_door. Les outputs, les fixups de prefab et des clés comme fixture trouvent les entités grâce à lui.
+
+## Terrain3D { #terrain3d }
+Un add-on Godot gratuit, une GDExtension, pour les grands paysages: il les dessine avec des niveaux de détail, les stocke dans des fichiers de région et a ses propres outils de sculpture et de peinture. TrenchDot peut lier un dossier de données Terrain3D et le modifier, voir la page Terrain3D.
+
+## région Terrain3D { #terrain3d-region data-forms="régions Terrain3D" }
+Une tuile carrée d'un paysage Terrain3D, stockée dans son propre fichier. Chaque région a le même nombre de sommets par côté, 256 par défaut, et se trouve à une position entière de la grille, comme (-1, 0). Des régions peuvent manquer, un paysage n'a donc pas besoin d'être un rectangle.
 
 ## texel { #texel data-forms="texels" }
 Un pixel d'une texture tel qu'il tombe sur une surface. Par défaut un texel couvre une unité de carte, et la densité de texels, c'est-à-dire combien de texels tiennent sur une surface, décide de la netteté d'une texture. Une lightmap a aussi des texels, et sa taille de texel indique combien d'unités de carte l'un d'eux couvre.
@@ -216,6 +231,12 @@ Un point d'angle d'une forme. Un terrain en a un à chaque croisement de sa gril
 
 ## VisGroup { #visgroup }
 Un ensemble nommé d'objets dans Hammer que l'on affiche ou masque ensemble. Les calques de TrenchDot font le même travail, mais vous les remplissez vous-même.
+
+## espacement des sommets { #vertex-spacing }
+La distance en mètres entre deux sommets voisins d'un paysage Terrain3D. À 1, une région de 256 sommets couvre 256 mètres, à 2 elle en couvre 512.
+
+## arrière-plan du monde { #world-background }
+Ce que Terrain3D dessine au-delà de ses régions, réglé sur son matériau sur Aucun, Plat ou Bruit. Plat prolonge le sol en un plan à la hauteur du sol, Bruit ajoute des collines issues d'une fonction de bruit, Aucun ne dessine rien.
 
 ## worldspawn { #worldspawn }
 L'entité racine de la carte, qui contient les brushes du monde. Ses clés contiennent des réglages pour toute la carte, comme le ciel, le brouillard, le soleil et le streaming, et l'Inspecteur l'affiche quand rien n'est sélectionné.

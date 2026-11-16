@@ -40,6 +40,9 @@ Eine Entität, die ihre Form von Brushes bekommt, die du gebaut hast, etwa eine 
 ## Zelle { #cell data-forms="Zellen" }
 Ein Quadrat im Raster eines Terrains, zwischen vier benachbarten Vertices. Ein Terrain hat entlang X und Z eine ganze Zahl von Zellen, und die Zellgröße ist der Abstand in Karteneinheiten zwischen zwei Vertices. Wenn du die Größe eines Terrains änderst, kommen ganze Zellen hinzu oder fallen weg.
 
+## Clipmap { #clipmap data-forms="Clipmaps" }
+Eine Art, eine riesige Landschaft zu zeichnen: ein fester Satz quadratischer Ringe um die Kamera, wobei jeder Ring halb so fein ist wie der innere und der ganze Satz mit der Kamera wandert. Der Boden in der Nähe wird fein gezeichnet und der ferne grob, so bleibt der Aufwand gleich, egal wie groß die Welt ist. TrenchDot zeichnet Terrain3D mit einer, so wie Terrain3D selbst.
+
 ## konvex { #convex data-forms="konvexe|konvexen|konvexer|konvexes" }
 Überall nach außen gewölbt, ohne Dellen oder Mulden, wie ein Quader, ein Keil oder ein Zylinder. Jeder Brush muss konvex sein, deshalb lehnt der Editor Vertex-Verschiebungen ab, die ihn eindellen würden. Für konkave Formen wandelst du den Brush in ein Mesh um.
 
@@ -178,11 +181,23 @@ Die Echtzeit-Beleuchtung von Godot für globale Illumination, Licht, das von Obe
 ## Auswahlbox { #selection-box data-forms="Auswahlboxen" }
 Die Box, die du mit der Voreinstellung Hammer auf leerem Raum in einer 2D-Ansicht aufziehst. Sie wartet auf Enter oder einen Klick hinein und wählt dann jedes Objekt, das ganz darin liegt, auch die hintereinander gestapelten, denn eine 2D-Ansicht schaut geradewegs durch die Karte. Im Vertex-Werkzeug wählt derselbe Zug stattdessen Ecken.
 
+## Meeresspiegel { #sea-level }
+Die Höhe in Metern, auf der der Ozean eines Terrain3D-Knotens liegt. TrenchDot zeichnet dort eine Wasserfläche, wenn der Ozean an ist, und alles darunter liegt unter Wasser.
+
 ## Signal { #signal data-forms="Signale|Signalen|Signals" }
 Godots Name für ein Ereignis, das ein Node meldet, etwa wenn ein Knopf gedrückt wird. Jeder Output einer Entität ist ein Signal, und einen Output zu verdrahten verbindet dieses Signal mit einer Input-Methode am Ziel.
 
+## Slot-Node { #slot-node data-forms="Slot-Nodes" }
+Der Node `TrenchDotTerrain3D`, den Godot als erstes Kind einer Karte baut, um ihren Terrain3D-Node zu halten. Builds, der Live-Modus und Hot Reload lassen ihn in Ruhe, damit das Terrain seinen Zustand behält.
+
 ## targetname { #targetname }
 Der Name, den du einer Entität gibst, damit andere Entitäten sie erreichen, etwa main_door. Outputs, Prefab-Fixups und Keys wie fixture finden Entitäten über ihn.
+
+## Terrain3D { #terrain3d }
+Ein kostenloses Godot-Add-on, eine GDExtension, für große Landschaften: Es zeichnet sie mit Detailstufen, speichert sie in Regionsdateien und hat eigene Werkzeuge zum Formen und Malen. TrenchDot kann einen Terrain3D-Datenordner verknüpfen und bearbeiten, siehe die Seite Terrain3D.
+
+## Terrain3D-Region { #terrain3d-region data-forms="Terrain3D-Regionen" }
+Eine quadratische Kachel einer Terrain3D-Landschaft, in einer eigenen Datei gespeichert. Jede Region hat gleich viele Vertices pro Seite, standardmäßig 256, und liegt an einer ganzzahligen Position im Raster, etwa (-1, 0). Regionen können fehlen, eine Landschaft muss also kein Rechteck sein.
 
 ## Texel { #texel data-forms="Texeln" }
 Ein Pixel einer Textur, wie es auf einer Oberfläche landet. Standardmäßig deckt ein Texel eine Karteneinheit ab, und die Texeldichte, wie viele Texel auf eine Fläche passen, bestimmt, wie scharf eine Textur aussieht. Auch eine Lightmap hat Texel, und ihre Texelgröße sagt, wie viele Karteneinheiten eines abdeckt.
@@ -216,6 +231,12 @@ Ein Eckpunkt einer Form. Ein Terrain hat einen an jeder Kreuzung seines Gitters,
 
 ## VisGroup { #visgroup }
 Eine benannte Menge von Objekten in Hammer, die du gemeinsam ein- oder ausblendest. Die Ebenen von TrenchDot erfüllen dieselbe Aufgabe, nur füllst du sie selbst.
+
+## Vertexabstand { #vertex-spacing }
+Der Abstand in Metern zwischen zwei benachbarten Vertices einer Terrain3D-Landschaft. Bei 1 deckt eine Region mit 256 Vertices 256 Meter ab, bei 2 sind es 512.
+
+## Welthintergrund { #world-background }
+Was Terrain3D hinter seinen Regionen zeichnet, am Material als Keine, Flach oder Rauschen eingestellt. Flach setzt den Boden als Ebene auf der Bodenhöhe fort, Rauschen fügt Hügel aus einer Rauschfunktion hinzu, Keine zeichnet nichts.
 
 ## worldspawn { #worldspawn }
 Die Wurzel-Entität der Karte, die die Welt-Brushes enthält. Ihre Keys halten Einstellungen für die ganze Karte, etwa Himmel, Nebel, Sonne und Streaming, und der Inspektor zeigt sie, wenn nichts ausgewählt ist.
