@@ -10,6 +10,8 @@ features (entity I/O, prefabs, displacements, decals, vertex paint, lit preview)
 Maps are saved as `.tdm` and built into Godot scenes by the [TrenchDot addon](https://github.com/Paraxdev/trenchdot_func), which started as a fork of
 [FuncGodot](https://github.com/func-godot/func_godot_plugin).
 
+For further questions or suggestions you may also join the [Discord](https://discord.gg/Hu86UjRwMD).
+
 ## TrenchDot and TrenchBroom
 
 TrenchDot owes a lot to TrenchBroom. It is a great editor that was fun to use, and much of how TrenchDot feels comes from it. From there
