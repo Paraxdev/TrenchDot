@@ -18,6 +18,12 @@ fn main() {
     let path = Path::new(&std::env::var_os("OUT_DIR").expect("cargo sets OUT_DIR")).join("addon_files.rs");
     std::fs::write(&path, out).unwrap_or_else(|e| panic!("could not write {}: {e}", path.display()));
 
+    let site = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../zensical.toml");
+    println!("cargo::rerun-if-changed={}", site.display());
+    let config = std::fs::read_to_string(&site).unwrap_or_else(|e| panic!("could not read {}: {e}", site.display()));
+    let discord = config.lines().find_map(|l| l.strip_prefix("discord = \"")?.strip_suffix('"')).expect("zensical.toml sets discord under [project.extra]");
+    println!("cargo::rustc-env=TRENCHDOT_DISCORD_URL={discord}");
+
     // Explorer, the Start menu entry and .tdm files show the exe's own icon, which egui's window icon does not set.
     #[cfg(windows)]
     embed_resource::compile("assets/trenchdot.rc", embed_resource::NONE).manifest_optional().expect("could not embed the exe icon");

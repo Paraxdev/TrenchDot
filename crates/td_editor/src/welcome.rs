@@ -18,7 +18,8 @@ pub fn getting_started_url() -> String {
     format!("{}getting-started.html", crate::help::site())
 }
 
-pub const DISCORD_URL: &str = "https://discord.gg/Hu86UjRwMD";
+/// Set by `discord` in zensical.toml, see build.rs.
+pub const DISCORD_URL: &str = env!("TRENCHDOT_DISCORD_URL");
 
 pub const CAMERA_3D_HELP: &str = en!("Hold the right mouse button to look around, WASD flies. Middle drag pans, the wheel moves forward and back.");
 pub const CAMERA_2D_HELP: &str = en!("Right or middle drag pans, the wheel zooms. Drag on empty space to draw a box brush.");
@@ -238,6 +239,33 @@ pub fn view_hint(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn readmes_link_the_discord_invite_in_zensical_toml() {
+        fn pages(dir: &Path, out: &mut Vec<PathBuf>) {
+            for entry in std::fs::read_dir(dir).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    pages(&path, out);
+                } else if path.extension().is_some_and(|e| e == "md") {
+                    out.push(path);
+                }
+            }
+        }
+
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let mut files = vec![root.join("README.md")];
+        pages(&root.join("docs"), &mut files);
+        let stale: Vec<String> = files
+            .iter()
+            .filter(|f| {
+                let text = std::fs::read_to_string(f).unwrap();
+                text.match_indices("https://discord.gg/").any(|(at, _)| text[at..].split([')', '"', '>', ' ', '\n']).next() != Some(DISCORD_URL))
+            })
+            .map(|f| f.strip_prefix(&root).unwrap().display().to_string())
+            .collect();
+        assert!(stale.is_empty(), "these still link an old Discord invite, change it to {DISCORD_URL}: {stale:?}");
+    }
 
     #[test]
     fn finds_project_maps_but_not_the_addons_or_godot_folders() {
