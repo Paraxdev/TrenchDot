@@ -163,6 +163,9 @@ Un groupe de modèles peints ensemble avec l'outil Scatter, comme une forêt ou 
 ## réflexions en espace écran { #screen-space-reflections data-forms="SSR" }
 Un effet de Godot qui reflète ce qui est déjà à l'écran dans les surfaces brillantes, si bien que les rues mouillées reflètent les lampes. Activez-le avec la clé worldspawn ssr réglée sur 1.
 
+## SDFGI { #sdfgi }
+L'illumination globale en temps réel de Godot, une lumière qui rebondit sur les surfaces et teinte ce qui les entoure, sans précalcul. Elle apprend la géométrie de la scène dans des anneaux de cellules autour de la caméra, donc une géométrie qui apparaît d'un coup, comme une section de carte échangée, reste sombre jusqu'à ce que les anneaux se déplacent. L'éclairage précalculé n'a pas ce délai.
+
 ## signal { #signal data-forms="signaux" }
 Le nom que Godot donne à un événement qu'un nœud annonce, comme l'appui sur un bouton. Chaque output d'entité est un signal, et câbler un output connecte ce signal à une méthode d'input de la cible.
 

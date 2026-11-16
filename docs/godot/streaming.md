@@ -66,8 +66,8 @@ same. This needs the [Gameplay entities pack](../gameplay/entities/README.md#ins
 
 3. Bake lighting in every section map
 
-    SDFGI only notices geometry a swap brings in once its cascades scroll, so a swapped in section would stay unlit.
-    Baked lighting comes with the section.
+    Godot's SDFGI would leave a swapped in section unlit for a while, since it only notices new geometry once its rings
+    of cells scroll. Baked lighting comes with the section, see [Baked lighting](baked-lighting.md).
 
 4. Make a scene per section
 

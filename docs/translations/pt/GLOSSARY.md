@@ -163,6 +163,9 @@ Um grupo de modelos pintados juntos com a ferramenta Scatter, como uma floresta 
 ## reflexos no espaço da tela { #screen-space-reflections }
 Um efeito do Godot que espelha em superfícies brilhantes o que já está na tela, para que ruas molhadas reflitam as lâmpadas. Ligue com a key ssr do worldspawn definida como 1.
 
+## SDFGI { #sdfgi }
+A iluminação global em tempo real do Godot, luz que quica nas superfícies e tinge o que está ao redor, sem bake. Ela aprende a geometria da cena em anéis de células ao redor da câmera, então uma geometria que surge de repente, como uma seção de mapa trocada, fica escura até os anéis avançarem. A iluminação baked não tem esse atraso.
+
 ## sinal { #signal data-forms="sinais" }
 O nome que o Godot dá a um evento que um nó anuncia, como um botão sendo pressionado. Todo output de entidade é um sinal, e ligar um output conecta esse sinal a um método de input no alvo.
 

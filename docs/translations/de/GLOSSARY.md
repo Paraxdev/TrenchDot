@@ -163,6 +163,9 @@ Eine Gruppe von Modellen, die zusammen mit dem Scatter-Werkzeug gemalt wird, etw
 ## Bildschirmraum-Reflexionen { #screen-space-reflections }
 Ein Godot-Effekt, der spiegelt, was schon auf dem Bildschirm ist, in glänzenden Oberflächen, sodass nasse Straßen die Lampen spiegeln. Schalte ihn mit dem worldspawn-Key ssr auf 1 ein.
 
+## SDFGI { #sdfgi }
+Die Echtzeit-Beleuchtung von Godot für globale Illumination, Licht, das von Oberflächen abprallt und die Umgebung färbt, ohne Baken. Sie lernt die Geometrie der Szene in Ringen aus Zellen um die Kamera, daher bleibt plötzlich auftauchende Geometrie, etwa ein eingetauschter Kartenabschnitt, dunkel, bis die Ringe weiterwandern. Gebackenes Licht hat diese Verzögerung nicht.
+
 ## Signal { #signal data-forms="Signale|Signalen|Signals" }
 Godots Name für ein Ereignis, das ein Node meldet, etwa wenn ein Knopf gedrückt wird. Jeder Output einer Entität ist ein Signal, und einen Output zu verdrahten verbindet dieses Signal mit einer Input-Methode am Ziel.
 

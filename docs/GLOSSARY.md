@@ -162,6 +162,9 @@ A group of models painted together with the Scatter tool, such as a forest or a 
 ## screen space reflections
 A Godot effect that mirrors what is already on screen in shiny surfaces, so wet streets reflect the lamps. Turn it on with the worldspawn key ssr set to 1.
 
+## SDFGI
+Godot's real time global illumination, light that bounces off surfaces and tints what is around them, without baking. It learns the scene's geometry in rings of cells around the camera, so geometry that appears suddenly, such as a swapped in map section, stays dark until the rings move on. Baked lighting has no such delay.
+
 ## signal
 Godot's name for an event a node announces, such as a button being pressed. Every entity output is a signal, and wiring an output connects that signal to an input method on the target.
 

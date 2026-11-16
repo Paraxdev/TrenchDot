@@ -163,6 +163,9 @@ Un grupo de modelos pintados juntos con la herramienta Scatter, como un bosque o
 ## reflejos en espacio de pantalla { #screen-space-reflections data-forms="reflexiones en espacio de pantalla" }
 Un efecto de Godot que refleja en las superficies brillantes lo que ya está en pantalla, así las calles mojadas reflejan las lámparas. Se activa poniendo la clave ssr de worldspawn en 1.
 
+## SDFGI { #sdfgi }
+La iluminación global en tiempo real de Godot, luz que rebota en las superficies y tiñe lo que las rodea, sin hornear. Aprende la geometría de la escena en anillos de celdas alrededor de la cámara, así que la geometría que aparece de golpe, como una sección de mapa cambiada, queda a oscuras hasta que los anillos avanzan. La luz horneada no tiene ese retraso.
+
 ## señal { #signal data-forms="señales" }
 El nombre que da Godot a un evento que anuncia un nodo, como pulsar un botón. Cada output de una entidad es una señal, y cablear un output conecta esa señal con un método de input del destino.
 
