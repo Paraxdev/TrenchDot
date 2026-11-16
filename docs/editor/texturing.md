@@ -134,6 +134,64 @@ picks the right one for each face.
 Hotspot Fit gives each face the rectangle whose shape matches it best, preferring one that keeps the texture close to
 its normal scale.
 
+## Blending a second material
+
+A face shows one material, but you can paint a second one over it, like dirt breaking through grass or moss creeping
+up a wall. The face keeps its own material and gets a blend material, and the **Blend** tool paints how much of it
+shows. The tool works on brushes, meshes and displacements, it is the same one that
+[paints a terrain](terrain-painting.md).
+
+1. Make the second material current
+
+    Press Escape so nothing is selected, then click the material to paint in, for example `showcase/dirt`, in the
+    Materials panel. With a selection, that click would retexture it instead.
+
+2. Select the brush and press Shift+G
+
+    The tool options bar at the top left turns into the Blend tool's. Select a brush, or Shift+click single faces, to
+    choose what gets the blend.
+
+3. Click **Set Blend Material**
+
+    It sits to the right of the bar's options, and *Terrain > Blend > Set Blend Material (current)* does the same.
+
+    ![The Blend tool options bar with Set Blend Material, repeat, detile, sharpen and Apply Tiling on the right](../assets/texturing/blend-options.png)
+
+    ![The Terrain menu with the Blend submenu open and Set Blend Material (current) highlighted](../assets/texturing/menu-set-blend-material.png)
+
+    The status bar names the material and how many faces got it. Nothing looks different yet, since no part of
+    the second material shows until you paint it in.
+
+    ![The status bar reporting the blend material and the number of faces](../assets/texturing/blend-status.png)
+
+4. Paint
+
+    Drag over the brush in a 3D view. **paint** brings the blend material in, hold Shift to take it back out, and the
+    other modes, falloffs, radius and strength work as on [Terrain painting](terrain-painting.md#the-blend-tool). With
+    nothing selected, the tool paints every face in the map that has a blend material, so select the brush to keep
+    a stroke off the rest.
+
+    ![Dirt painted across the top of a grass slab with the Blend tool](../assets/texturing/blend-result.png)
+
+The blend is stored on the corners of each face, so a plain box face can only fade between its four corners. To paint
+a path or a patch, give the face more corners first. Turn it into a [displacement](brushes.md#displacements) with
+*Brush > Displacement > Create* (a higher power gives a finer grid), or use a mesh and subdivide the face, see
+[Meshes](meshes.md).
+
+The three fields next to **Set Blend Material** change how the blend material looks in Godot, the face's own material
+is not touched:
+
+| Field | What it does |
+| --- | --- |
+| **repeat** | How much more often the blend material repeats across the face, 1 keeps the normal size and 2 doubles the number of repeats |
+| **detile** | From 0 to 1, turns and shifts every repeat and blurs the joins, so a path does not show a pattern. 0 leaves the plain repeat |
+| **sharpen** | From 0 to 1, how crisp the de-tiled texture stays, 0 is soft and 1 blends only right at the joins. It does nothing while **detile** is 0 |
+
+Changing a field does nothing by itself. Click **Apply Tiling** to give the selected faces, or every face of the
+selected brushes, the three values. A face that never got them uses repeat 1 and detile 0. The fields keep their values
+between maps, so the next brush starts from the same numbers. **Clear Blend Material** in *Terrain > Blend* takes the
+blend material off the selection again.
+
 ## Vertex paint
 
 The **Paint** tool (P) paints vertex colors onto brush faces, for dirt, tint and fake lighting. Pick the color in the

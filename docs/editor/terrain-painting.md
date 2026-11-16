@@ -47,8 +47,10 @@ The second menu in the bar is the falloff, how the strength fades from the cente
 
 Shift turns paint, noise, slope and height into erase, and Ctrl smooths. Ctrl+wheel resizes the brush.
 
-(Note: **Set Blend Material**, **repeat**, **detile**, **sharpen** and **Apply Tiling** further right in the bar are
-for blending brush faces, a terrain takes those settings from its layers.)
+The same tool paints a second material over brush, mesh and displacement faces, see
+[Blending a second material](texturing.md#blending-a-second-material). **Set Blend Material**, **repeat**,
+**detile**, **sharpen** and **Apply Tiling** further right in the bar are for those faces, a terrain takes the same
+settings from its layers.
 
 ## Auto Paint
 
