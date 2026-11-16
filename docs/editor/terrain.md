@@ -9,8 +9,10 @@ This page covers making one and shaping it with the Sculpt tool (G). Texturing i
 A terrain can grow after you create it, up to 2048 cells along each axis, either with the **Size** block in the
 Inspector ([Changing the size](#changing-the-size)) or by dragging its edge in a 2D view with the Select tool
 ([Dragging an edge](#dragging-an-edge)). It holds up to four layers, which you paint with the
-[Blend tool](terrain-painting.md). Since the ground is a heightfield, it cannot fold over itself, see
-[Caves and overhangs](caves-overhangs.md) for what to do instead.
+[Blend tool](terrain-painting.md).
+
+Since the ground is a heightfield, it cannot fold over itself, see [Caves and overhangs](caves-overhangs.md) for what to
+do instead.
 
 ## Creating a terrain
 
@@ -31,26 +33,38 @@ Inspector ([Changing the size](#changing-the-size)) or by dragging its edge in a
 3. (Optionally) Pick a starting shape
 
     **Shape** is the ground you start from. It's Hills by default, the others are Flat, Mountain, Island, Valley and
-    Ridges. **Import PNG…** reads a grayscale heightmap instead, where brighter pixels are higher. Both only work here,
-    on creation.
+    Ridges. The rows under it tune the noise it is made from:
+
+    | Row | Meaning |
+    | --- | --- |
+    | Height | How tall the ground gets, 512 u by default |
+    | Feature size | How wide one hill or valley is, 2048 u by default |
+    | Octaves / roughness | More octaves and a higher roughness add finer bumps on top |
+    | Erosion | How many passes let steep slopes slump, 20 by default |
+    | Seed | The same seed gives the same ground again |
+
+    **Import PNG…** next to **Heightmap** reads a grayscale image instead (PNG, TGA or BMP), where brighter pixels are
+    higher, up to **Height**. **Clear** goes back to the generated shape. Shape and heightmap only apply here, on
+    creation.
 
 4. (Optionally) Pick the layers
 
-    **Base layer**, **Slope layer**, **Peak layer** and **Low layer** are the terrain's four textures, and **Use
-    Current** puts in the material you last clicked. With **Paint layers from slope and height** ticked they get painted
-    right away, see [Auto Paint](terrain-painting.md#auto-paint).
+    **Base layer**, **Slope layer**, **Peak layer** and **Low layer** are the terrain's four textures, they start as
+    `dev/green`, `dev/grey`, `dev/blue` and `dev/orange`. **Use Current** puts in the material you last clicked, and
+    **tile** is how many units one repeat of it covers. **Paint layers from slope and height** is ticked by default, it
+    paints the layers right away, see [Auto Paint](terrain-painting.md#auto-paint).
 
 5. Click **Create** at the bottom
 
-    The terrain is centered on the 3D cursor, or on the **Center** you type in with **3D cursor** unticked, and that
+    The terrain is centered on the 3D cursor, or on the **Center** you type in once you untick **3D cursor**, and that
     height becomes the terrain's zero. You should see the new terrain selected, with the Sculpt tool already active.
 
 ## Picking the cell size
 
 | Setting | Meaning |
 | --- | --- |
-| Resolution | How many vertices run along each side, from 33 to 1025. More vertices hold more detail but cost more to draw and sculpt |
-| Cell size | The distance in map units between two neighboring vertices |
+| Resolution | How many vertices run along each side, one of 33, 65, 129, 257, 513 or 1025. More vertices hold more detail but cost more to draw and sculpt |
+| Cell size | The distance in map units between two neighboring vertices, from 4 to 1024 |
 
 257 vertices with 64 unit cells, for example, give 16384 units, 512 m.
 
@@ -59,8 +73,8 @@ big cells, a garden small ones.
 
 Picked wrong? You can [change the size](#changing-the-size) any time after creating the terrain.
 
-**Chunk cells** (32 by default) splits the terrain into square pieces for drawing and collision. Smaller chunks rebuild
-faster while sculpting, larger ones mean fewer nodes in Godot.
+**Chunk cells** in the Inspector (32 by default) splits the terrain into square pieces for drawing and collision.
+Smaller chunks rebuild faster while sculpting, larger ones mean fewer nodes in Godot.
 
 ## Changing the size
 
@@ -73,10 +87,10 @@ and the ground you already sculpted stays exactly where it was in the map.
 
 2. Type the change
 
-    **Cells** shows how many cells run along X and Z. Type a total there and both opposite sides grow or shrink evenly,
-    with the odd cell going to the east or south side. The **North (-Z)**, **South (+Z)**, **West (-X)** and **East
-    (+X)** fields change one side only. A positive number adds that many cells and a negative one removes them, so
-    `+8` on East adds 8 cells and `-2` on South crops 2.
+    | Field | What typing there does |
+    | --- | --- |
+    | **Cells** | Sets the total along X and Z. Both opposite sides grow or shrink evenly, with the odd cell going to the east or south side |
+    | **North (-Z)**, **South (+Z)**, **West (-X)**, **East (+X)** | Changes that one side. A positive number adds that many cells and a negative one removes them, so `+8` on East adds 8 and `-2` on South crops 2 |
 
     ![The Size block with 8 cells added east and 2 removed south, and the After line showing the result](../assets/terrain/inspector-size.png)
 
@@ -97,13 +111,16 @@ and the ground you already sculpted stays exactly where it was in the map.
 Everything that was kept shows at the same world position as before: heights, paint and holes of the cells that
 stay. If you add cells on the west or north side, the terrain's **Origin** moves out to match.
 
-**Cell size** works differently. It keeps the terrain's size in the map to the nearest whole cell and rebuilds the grid
-with the new spacing, so the cell count changes with it, and heights and paint are blended between the old vertices.
-When the size isn't a multiple of the new cell, the terrain grows or shrinks by up to half a cell, and **Whole cells
-change the size by** under **After** tells you how much. Changing the cell size back doesn't undo that rounding,
-Ctrl+Z does. Making the cells bigger throws detail away, and the Inspector warns you with **Fine detail is lost** before
-you apply. Making them smaller keeps the shape but can't add detail that was never there. The sides apply first, then
-the cell size.
+**Cell size** works differently, it rebuilds the grid with the new spacing:
+
+* The terrain keeps its size in the map, to the nearest whole cell, so the cell count changes with it. Heights and
+  paint are blended between the old vertices.
+* When the size isn't a multiple of the new cell, the terrain grows or shrinks by up to half a cell, and **Whole cells
+  change the size by** under **After** tells you how much. Changing the cell size back doesn't undo that rounding,
+  Ctrl+Z does.
+* Bigger cells throw detail away, and the Inspector warns you with **Fine detail is lost** before you apply. Smaller
+  cells keep the shape but can't add detail that was never there.
+* The sides apply first, then the cell size.
 
 > [!NOTE]
 > A terrain has between 1 and 2048 cells along each axis, and a cell size between 0.001 and 100000 units. A change
@@ -112,35 +129,38 @@ the cell size.
 
 ### Dragging an edge
 
-You can also resize a selected terrain right in the **Top**, **Front** and **Side** views. With the Select tool, move
-the pointer over one of its edges until the cursor turns into a resize arrow and the edge lights up, then drag it out
-to add cells or in to crop them. The edge snaps to whole cells, the status bar shows the new cell count, and each drag
-is one step that Ctrl+Z takes back.
+You can also resize right in the **Top**, **Front** and **Side** views, as long as exactly one terrain is selected, unlocked, with no faces selected.
+With the Select tool, move the pointer over one of its edges until the cursor turns into a resize arrow and the edge
+lights up, then drag it out to add cells or in to crop them. The edge snaps to whole cells and the status bar shows the
+new cell count. Each drag is one step that Ctrl+Z takes back.
 
 ![A terrain in the Top view with its east edge dragged out by four cells](../assets/terrain/edge-drag.png)
 
 A drag works like typing into that side's field and clicking **Apply** straight away. New ground continues the edge,
-the way **Edge height** does, and a terrain never drops below 1 cell. In the Front and Side views only the left and
-right ends grab, since the height of the ground comes from sculpting. Type into the **Size** block instead when you
-want **Zero** ground or a new cell size.
+the way **Edge height** does, and a terrain never drops below 1 cell.
+
+In the Front and Side views only the left and right ends grab, since the height of the ground comes from sculpting.
+Type into the **Size** block instead when you want **Zero** ground or a new cell size.
 
 ### Scatter on the terrain
 
-[Scatter](scatter.md) painted on the terrain stays on the ground. Instances over ground that is still there ride up or
-down with the new height, so nothing floats or sinks. Instances over cropped ground are removed by default, and when
-there are any, a **Remove n scatter instances on removed ground** checkbox appears under **Apply**. Untick it to keep
-them where they are, floating over nothing, if you plan to move them yourself. Dragging an edge in always removes
-them, and Ctrl+Z brings them back. A scatter set that is locked or hidden,
-or sits in a locked or hidden layer, is left as it is.
+[Scatter](scatter.md) painted on the terrain stays on the ground when you resize it:
+
+* Instances over ground that is still there ride up or down with the new height, so nothing floats or sinks.
+* Instances over cropped ground are removed by default. When there are any, a **Remove n scatter instances on removed
+  ground** checkbox appears under **Apply**. Untick it to keep them where they are, floating over nothing, if you plan
+  to move them yourself.
+* Dragging an edge in always removes them, and Ctrl+Z brings them back.
+* A scatter set that is locked or hidden, or sits in a locked or hidden layer, is left as it is.
 
 ## Sculpting
 
-Press G, pick a mode in the tool options bar at the top left, and drag over the terrain. It works on the selected
-terrains, or on all of them when nothing is selected.
+Press G, pick a mode in the first menu of the tool options bar at the top left, and drag over the terrain. It works on
+the selected terrains, or on all of them when nothing is selected.
 
 ![The Sculpt tool's mode menu open in the tool options bar, next to the radius and strength fields](../assets/terrain/sculpt-modes.png)
 
-Keep the mouse button down and the ground keeps rising under the brush.
+With Raise, keep the mouse button down and the ground keeps rising under the brush.
 
 ![Holding Raise with a 900 unit brush builds a hill out of the island](../assets/terrain/sculpt-raise.gif)
 
@@ -150,15 +170,15 @@ Keep the mouse button down and the ground keeps rising under the brush.
 | Smooth | Relaxes each vertex towards its neighbors, to soften lumps and sharp ridges |
 | Flatten | Pulls the ground to the height where the stroke started, for building pads, roads and plateaus |
 | Noise | Adds small random bumps, so flat ground looks less artificial |
-| Terrace | Snaps heights to steps of **step** units, for rice fields or stepped cliffs. The field shows up next to the mode |
-| Paint Alpha, Erase Alpha, Paint Layer | Paint instead of shaping. The alpha modes are meant for displacements, Paint Layer paints the terrain layer set next to the mode. On a terrain the [Blend tool](terrain-painting.md) does this with more control |
+| Terrace | Snaps heights to steps of **step** units (32 by default), for rice fields or stepped cliffs. The field shows up next to the mode |
+| Paint Alpha, Erase Alpha, Paint Layer | Paint instead of shaping. The alpha modes are meant for displacements, Paint Layer paints the terrain layer you set in the **layer** field next to the mode. On a terrain the [Blend tool](terrain-painting.md) does this with more control |
 | Hole, Unhole | Cuts whole cells out or fills them back, collision included. Use it for cave or bunker entrances, see [Caves and overhangs](caves-overhangs.md) |
 
 Ctrl+wheel resizes the brush, Shift swaps raise and lower, and holding Ctrl smooths whatever the mode.
 
-**Strength** sets how fast the brush works. Raise and Lower move the center of the brush 8 units a second per point of
-strength, whatever the radius, so the default 4 builds 32 units a second. For hills and islands turn the strength up
-rather than holding for a minute.
+The **strength** field in the options bar sets how fast the brush works. Raise and Lower move the center of the brush 8 units a
+second per point of strength, whatever the **radius**, so the default 4 builds 32 units a second. For hills and islands
+turn the strength up rather than holding for a minute.
 
 Keep the radius above the terrain's cell size, a smaller brush only nudges the one vertex under it (the status bar
 tells you when that happens).
