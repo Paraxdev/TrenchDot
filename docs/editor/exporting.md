@@ -43,14 +43,14 @@ untextured.
 
 ## Options
 
-| Option | Does |
-| --- | --- |
-| Whole map, Selection only | Everything, or only the selected objects, still inside their layers and groups |
-| Hidden layers and objects | Also exports what is hidden in the views. Off, you get what you see |
-| Prop models | The models that props and other point entities show, at their place, rotation and scale |
-| Scatter instances | Every tree, rock and tuft of the [scatter sets](scatter.md) as its own object. Off by default, since thousands of them make a big file that is slow to open |
-| Point entities as empty markers | An empty object named like the entity where each point entity without a model stands, handy for placing lights or cameras in Blender |
-| Merge unnamed brushes | Brushes you have not renamed join into one object per layer, group or entity, which keeps Blender's outliner short. Named brushes stay separate |
+| Option | Default | Does |
+| --- | --- | --- |
+| Whole map, Selection only | Whole map | Everything, or only the selected objects, still inside their layers and groups |
+| Hidden layers and objects | Off | Also exports what is hidden in the views. Off, you get what you see |
+| Prop models | On | The models that props and other point entities show, at their place, rotation and scale |
+| Scatter instances | Off | Every tree, rock and tuft of the [scatter sets](scatter.md) as its own object. Thousands of them make a big file that is slow to open |
+| Point entities as empty markers | Off | An empty object named like the entity where each point entity without a model stands, handy for placing lights or cameras in Blender |
+| Merge unnamed brushes | Off | Brushes you have not renamed join into one object per layer, group or entity, which keeps Blender's outliner short. Named brushes stay separate |
 
 ## What is exported
 
