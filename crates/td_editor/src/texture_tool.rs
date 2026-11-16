@@ -1,6 +1,7 @@
 //! Hammer style texture application tool. Click selects faces, right click applies the current material, Alt+right
 //! click applies it wrapped from the selected face, Alt+click picks a material and alignment, dragging a selected
-//! face slides its texture, Ctrl+wheel scales and Alt+wheel rotates.
+//! face slides its texture, Ctrl+wheel scales and Alt+wheel rotates. With no face selected a selected brush counts as
+//! all its faces.
 
 use egui::{Color32, Key, PointerButton, Pos2, Rect, Response, Ui};
 use td_core::{DMat3, DVec2, DVec3, NodeId, Plane};
@@ -56,7 +57,7 @@ impl TextureTool {
     }
 
     pub fn keys(&mut self, ctx: &egui::Context, state: &mut EditorState) -> bool {
-        let faces: Vec<(NodeId, usize)> = state.doc.selection.faces.iter().copied().collect();
+        let faces = texture_ops::target_faces(state);
         if faces.is_empty() {
             return false;
         }
@@ -132,7 +133,7 @@ impl TextureTool {
             && !modifiers.alt
             && let Some(origin) = ui.input(|i| i.pointer.press_origin())
             && let Some(face) = face_at(origin, state)
-            && state.doc.selection.faces.contains(&face)
+            && texture_ops::target_faces(state).contains(&face)
             && let Some(info) = texture_ops::face_info(&state.doc.map, face.0, face.1)
         {
             let ray = cam.ray(rect, origin);
@@ -156,7 +157,7 @@ impl TextureTool {
 
                     let step = want - drag.applied;
                     if step != DVec2::ZERO {
-                        let faces: Vec<(NodeId, usize)> = state.doc.selection.faces.iter().copied().collect();
+                        let faces = texture_ops::target_faces(state);
                         texture_ops::shift(state, &faces, step);
                         drag.applied = want;
                     }
@@ -179,7 +180,7 @@ impl TextureTool {
                     })
                     .collect()
             });
-            let faces: Vec<(NodeId, usize)> = state.doc.selection.faces.iter().copied().collect();
+            let faces = texture_ops::target_faces(state);
             for (dy, m) in wheel {
                 if faces.is_empty() {
                     break;

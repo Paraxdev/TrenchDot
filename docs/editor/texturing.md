@@ -70,14 +70,17 @@ gets a yellow outline.
 | --- | --- |
 | Click, Ctrl+click | Click selects a face, Ctrl+click adds or removes one |
 | Drag a selected face | Slide the texture, the pixel under the cursor stays under it |
-| Arrow keys | Slide by the grid size in pixels, with Shift by one pixel |
-| Ctrl+wheel | Scale by 2, with Shift in fine steps |
-| Alt+wheel | Rotate by 15°, with Shift by 1° |
+| Arrow keys | Slide the selected faces by the grid size in pixels, with Shift by one pixel |
+| Ctrl+wheel | Scale the selected faces by 2, with Shift in fine steps |
+| Alt+wheel | Rotate the selected faces by 15°, with Shift by 1° |
 | Alt+click | Pick up a face's material and alignment |
 | Right click | Apply the current material |
 | Ctrl+right click | Apply it and reset the alignment |
 | Shift+right click | Paste the picked material and alignment |
 | Alt+right click | Apply the current material, continuing the selected face's alignment across the edge |
+
+With no face selected, a selected brush counts as all its faces, so you can select a brush, press **Shift+T** and
+scroll straight away. Several selected faces or brushes change together.
 
 Alt+right click is how a texture, like a trim or a row of bricks, runs cleanly around a corner.
 

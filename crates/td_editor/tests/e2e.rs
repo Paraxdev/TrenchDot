@@ -1487,6 +1487,52 @@ fn texture_tool_apply_wrap_slide_scale() {
     assert!(colors > 20, "lit view with sky");
 }
 
+#[test]
+#[ignore]
+fn texture_tool_wheel_acts_on_selected_brushes() {
+    let ed = Editor::launch("texture_brushes");
+    let a = ed.call("create_brush", json!({ "min": [96, 32, -160], "max": [224, 96, -64], "shape": "wedge" }))["ids"][0].as_u64().unwrap();
+    let b = ed.call("create_brush", json!({ "min": [-288, 64, 128], "max": [-160, 192, 224], "shape": "wedge" }))["ids"][0].as_u64().unwrap();
+    ed.call("set_camera", json!({ "view": "3d", "position": [0, 300, 400], "look_at": [0, 64, 0] }));
+    ed.call("set_editor", json!({ "tool": "texture" }));
+    let scales = |id: u64| -> Vec<(u64, f64, f64)> {
+        let got = ed.call("texture", json!({ "op": "get", "faces": (0..16).map(|f| json!([id, f])).collect::<Vec<_>>() }));
+        got["faces"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|f| (f["face"][1].as_u64().unwrap(), f["uv"]["scale"][0].as_f64().unwrap(), f["uv"]["scale"][1].as_f64().unwrap()))
+            .collect()
+    };
+    let wheel = || ed.input("3d", json!([{ "type": "scroll", "world": [0, 64, 0], "delta": 120, "modifiers": ["ctrl"] }]));
+    let (base_a, base_b) = (scales(a), scales(b));
+    assert!(base_a.len() >= 5 && base_b.len() >= 5);
+
+    // Nothing selected, nothing changes.
+    ed.call("select", json!({ "mode": "clear" }));
+    wheel();
+    assert_eq!(scales(a), base_a);
+    assert_eq!(scales(b), base_b);
+
+    // Two brushes selected without any faces, every face of both doubles in one undo step.
+    ed.call("select", json!({ "ids": [a, b] }));
+    wheel();
+    let twice = |base: &[(u64, f64, f64)]| base.iter().map(|(f, x, y)| (*f, x * 2.0, y * 2.0)).collect::<Vec<_>>();
+    assert_eq!(scales(a), twice(&base_a));
+    assert_eq!(scales(b), twice(&base_b));
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(scales(a), base_a);
+    assert_eq!(scales(b), base_b);
+
+    // One face selected, only that face changes.
+    ed.call("select", json!({ "faces": [[a, 1]] }));
+    wheel();
+    let mut want = base_a.clone();
+    want[1] = (want[1].0, want[1].1 * 2.0, want[1].2 * 2.0);
+    assert_eq!(scales(a), want);
+    assert_eq!(scales(b), base_b);
+}
+
 /// Replays examples/mcp/logic_playground.json and follows the wiring of its math and logic nodes with the simulation.
 fn replay_logic_playground(ed: &Editor, root: &std::path::Path, out: &std::path::Path) {
     let path = root.join("examples/mcp/logic_playground.json").canonicalize().unwrap();
