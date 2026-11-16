@@ -78,6 +78,7 @@ class Runner extends Node:
 		await frames(5)
 		await _check_apply_undo_redo(slot, terrain)
 		await _check_settings(slot, terrain)
+		await _check_look(slot, terrain)
 		await _check_other_events()
 		slot.queue_free()
 		await frames(5)
@@ -147,7 +148,7 @@ class Runner extends Node:
 		check(history(slot).get_current_action() == steps and int(terrain.get(&"region_size")) == Apply.SIZE, "a refused setting changes nothing")
 		var reply := await send({ "event": "terrain3d_settings", "dir": dir, "region_size": 128, "vertex_spacing": 100.0 })
 		var manifest := TrenchDotTerrain3DCache.read_manifest(folder)
-		check(reply == { "ok": true, "region_size": 128, "vertex_spacing": 100.0, "seq": seq }, "the settings event changes size and spacing, got %s" % reply)
+		check(reply == { "ok": true, "region_size": 128, "vertex_spacing": 100.0, "material": "", "assets": "", "ocean_enabled": false, "seq": seq }, "the settings event changes size and spacing, got %s" % reply)
 		check(int(manifest.get("region_size", 0)) == 128 and is_equal_approx(manifest.get("vertex_spacing", 0.0), 100.0), "and the cache follows, got %s, %s" % [manifest.get("region_size"), manifest.get("vertex_spacing")])
 		check(history(slot).get_current_action() == steps + 1 and history(slot).get_current_action_name() == TrenchDotEditorIntegration.TERRAIN3D_SETTINGS, "as one undo step, got %d steps, %s" % [history(slot).get_current_action() - steps, history(slot).get_current_action_name()])
 		var edge := Vector2i(15, 0)
@@ -166,6 +167,65 @@ class Runner extends Node:
 		reply = await send({ "event": "terrain3d_settings", "dir": dir, "vertex_spacing": 0.25 })
 		check(reply.get("ok") == true and is_equal_approx(terrain.get(&"vertex_spacing"), 0.25), "the smallest spacing is taken, got %s" % reply)
 		history(slot).undo()
+
+	func exported() -> Dictionary:
+		await get_tree().create_timer(TrenchDotTerrain3D.EXPORT_DELAY + 0.3).timeout
+		return TrenchDotTerrain3DCache.read_manifest(folder)
+
+	func _check_look(slot: TrenchDotTerrain3D, terrain: Node3D) -> void:
+		var material: Resource = ClassDB.instantiate(&"Terrain3DMaterial")
+		material.set(&"world_background", 2)
+		var assets: Resource = ClassDB.instantiate(&"Terrain3DAssets")
+		var paths := { "material": folder.path_join("look_material.tres"), "assets": folder.path_join("look_assets.tres"), "wrong": folder.path_join("look_wrong.tres") }
+		check(ResourceSaver.save(material, paths["material"]) == OK and ResourceSaver.save(assets, paths["assets"]) == OK and ResourceSaver.save(StandardMaterial3D.new(), paths["wrong"]) == OK, "the look files are saved")
+		var built_in_material: Resource = terrain.get(&"material")
+		var built_in_assets: Resource = terrain.get(&"assets")
+		var steps := history(slot).get_current_action()
+		var refusals := [
+			{ "material": paths["wrong"] },
+			{ "assets": paths["material"] },
+			{ "material": paths["assets"] },
+			{ "material": folder.path_join("missing.tres") },
+			{ "assets": 7 },
+			{ "ocean_enabled": "yes" },
+			{ "material": paths["material"], "region_size": 100 },
+		]
+		for bad in refusals:
+			var refused := await send(bad.merged({ "event": "terrain3d_settings", "dir": dir }))
+			check(refused.get("ok") == false and refused.has("error"), "look %s is refused, got %s" % [bad, refused])
+		check(history(slot).get_current_action() == steps and terrain.get(&"material") == built_in_material and terrain.get(&"assets") == built_in_assets, "a refused look changes nothing")
+
+		var reply := await send({ "event": "terrain3d_settings", "dir": dir, "material": paths["material"], "assets": paths["assets"], "ocean_enabled": true })
+		var want := { "ok": true, "region_size": Apply.SIZE, "vertex_spacing": Apply.SPACING, "material": paths["material"], "assets": paths["assets"], "ocean_enabled": true, "seq": seq }
+		check(reply == want, "the settings event picks material, assets and ocean, got %s" % reply)
+		check(terrain.get(&"material").resource_path == paths["material"] and terrain.get(&"assets").resource_path == paths["assets"] and terrain.get(&"ocean_enabled") == true, "on the Terrain3D")
+		check(history(slot).get_current_action() == steps + 1 and history(slot).get_current_action_name() == TrenchDotEditorIntegration.TERRAIN3D_SETTINGS, "as one undo step, got %d steps" % [history(slot).get_current_action() - steps])
+		var manifest := await exported()
+		check(manifest.get("resources", {}).get("material") == paths["material"] and manifest.get("resources", {}).get("assets") == paths["assets"], "the cache names the picked files, got %s" % [manifest.get("resources")])
+		check(manifest.get("ocean", {}).get("enabled") == true and int(manifest.get("material", {}).get("world_background", -1)) == 2, "with the ocean on and the picked material's background, got %s, %s" % [manifest.get("ocean"), manifest.get("material")])
+
+		reply = await send({ "event": "terrain3d_settings", "dir": dir, "material": paths["material"], "ocean_enabled": true })
+		check(reply.get("ok") == true and history(slot).get_current_action() == steps + 1, "picking what the node has adds no undo step, got %s" % reply)
+
+		reply = await send({ "event": "terrain3d_settings", "dir": dir, "material": "" })
+		var blank: Resource = terrain.get(&"material")
+		check(reply.get("ok") == true and reply.get("material") == "" and reply.get("assets") == paths["assets"], "an empty material clears it, got %s" % reply)
+		check(blank != null and blank.resource_path.is_empty() and blank != built_in_material, "and the Terrain3D makes a blank one")
+		check(history(slot).get_current_action() == steps + 2, "as one more undo step")
+		reply = await send({ "event": "terrain3d_settings", "dir": dir, "material": "" })
+		check(history(slot).get_current_action() == steps + 2 and terrain.get(&"material") == blank, "clearing a material no file holds keeps it, got %s" % reply)
+		history(slot).undo()
+		check(terrain.get(&"material").resource_path == paths["material"], "the undo of a clear puts the picked material back")
+
+		history(slot).undo()
+		check(terrain.get(&"material") == built_in_material and terrain.get(&"assets") == built_in_assets and terrain.get(&"ocean_enabled") == false, "the undo of the pick puts the old look back")
+		manifest = await exported()
+		check(manifest.get("resources", {}).get("material") == "" and manifest.get("ocean", {}).get("enabled") == false, "and the cache follows, got %s, %s" % [manifest.get("resources"), manifest.get("ocean")])
+
+		reply = await send({ "event": "terrain3d_settings", "dir": dir, "region_size": 128, "assets": paths["assets"] })
+		check(reply.get("region_size") == 128 and reply.get("assets") == paths["assets"] and history(slot).get_current_action() == steps + 1, "size and look change as one undo step, got %s" % reply)
+		history(slot).undo()
+		check(int(terrain.get(&"region_size")) == Apply.SIZE and terrain.get(&"assets") == built_in_assets, "and undo together")
 
 	func _check_other_events() -> void:
 		var status: Dictionary = link.status()

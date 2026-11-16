@@ -43,7 +43,7 @@ does.
 | `capture` | `path`, `camera`, `width`, `height`, `text` | `png` (base64), `width`, `height` and `warnings`, the errors and warnings logged while building |
 | `terrain3d_apply` | `dir`, `force` | `accepted` and `refused` regions of the edits TrenchDot left pending in the Terrain3D data folder `dir`, applied to the open scene as one undo step. `force` also applies regions that changed in Godot |
 | `terrain3d_export` | `dir`, `regions` | Writes the [Terrain3D cache](../format/terrain3d-cache.md) of `dir`, only the listed regions with `regions` |
-| `terrain3d_settings` | `dir`, `region_size`, `vertex_spacing` | Changes the region size and vertex spacing of the Terrain3D that shows `dir`, and exports it again |
+| `terrain3d_settings` | `dir`, `region_size`, `vertex_spacing`, optional `material`, `assets` and `ocean_enabled` | Changes the region size, vertex spacing, material, assets and ocean of the Terrain3D that shows `dir` as one undo step, and exports it again. `material` and `assets` are res paths of a saved Terrain3DMaterial and Terrain3DAssets, an empty one clears a resource saved as its own file. The reply holds what the node has afterwards |
 | `walkable` | `path`, `agent`, `text` | `vertices` (flat x, y, z list), `polygons`, `islands` (polygon indices, largest first), `units_per_meter`, `agent` and `msec` |
 
 `capture` renders the world of the first map node using `path`. `camera` holds `position` and `forward` in map units

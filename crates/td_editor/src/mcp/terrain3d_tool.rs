@@ -9,14 +9,14 @@ use serde_json::{Value, json};
 use td_core::NodeId;
 use td_doc::map::NodeKind;
 use td_doc::terrain3d::{ChangeKind, Grow, RegionSource, Terrain3DLink};
-use td_formats::terrain3d_cache;
+use td_formats::terrain3d_cache::{self, Manifest, ManifestMaterial};
 use td_geom::terrain3d::{LOC_MAX, LOC_MIN, Loc};
 
 use super::ToolResult;
 use super::tools::{require_id, uint};
 use crate::app::App;
 use crate::state::EditorState;
-use crate::terrain3d::bridge::{self, Route};
+use crate::terrain3d::bridge::{self, Look, LookChange, Route, Settings};
 use crate::terrain3d::inspector::{self, Connection};
 use crate::terrain3d::link::{NewFolder, Problem};
 
@@ -100,8 +100,23 @@ fn parse_resolve(a: &Value) -> Result<(Loc, Take), String> {
     }
 }
 
-/// The new region size and vertex spacing, each None when it stays.
-fn parse_settings(a: &Value) -> Result<(Option<u32>, Option<f64>), String> {
+/// A res:// path of a saved `class` file, empty to clear the node's one, None when `key` is absent.
+fn resource_path(a: &Value, key: &str, class: &str) -> Result<Option<String>, String> {
+    let bad = |v: &Value| format!("{key} must be the res:// path of a saved {class} (.tres or .res), or \"\" to clear it, got {v}");
+    let path = match &a[key] {
+        Value::Null => return Ok(None),
+        Value::String(path) => path,
+        v => return Err(bad(v)),
+    };
+    let saved = path.strip_prefix("res://").is_some_and(|inner| {
+        let lower = inner.to_ascii_lowercase();
+        (lower.ends_with(".tres") || lower.ends_with(".res")) && !inner.split(['/', '\\']).any(|part| part.is_empty() || part == "..")
+    });
+    if path.is_empty() || saved { Ok(Some(path.clone())) } else { Err(bad(&a[key])) }
+}
+
+/// The new region size, vertex spacing and look, each None when it stays.
+fn parse_settings(a: &Value) -> Result<(Option<u32>, Option<f64>, LookChange), String> {
     let size = match &a["region_size"] {
         Value::Null => None,
         v => Some(uint(v).and_then(|n| u32::try_from(n).ok()).ok_or_else(|| format!("region_size must be a whole number, got {v}"))?),
@@ -110,15 +125,58 @@ fn parse_settings(a: &Value) -> Result<(Option<u32>, Option<f64>), String> {
         Value::Null => None,
         v => Some(v.as_f64().ok_or_else(|| format!("vertex_spacing must be a number of meters, got {v}"))?),
     };
-    if size.is_none() && spacing.is_none() {
-        return Err("region_size or vertex_spacing required".into());
+    let ocean_enabled = match &a["ocean_enabled"] {
+        Value::Null => None,
+        v => Some(v.as_bool().ok_or_else(|| format!("ocean_enabled must be true or false, got {v}"))?),
+    };
+    let look =
+        LookChange { material: resource_path(a, "material", "Terrain3DMaterial")?, assets: resource_path(a, "assets", "Terrain3DAssets")?, ocean_enabled };
+    if size.is_none() && spacing.is_none() && look.is_empty() {
+        return Err("region_size, vertex_spacing, material, assets or ocean_enabled required".into());
     }
 
     let check = NewFolder { region_size: size.unwrap_or(256), vertex_spacing: spacing.unwrap_or(1.0), ..Default::default() };
     match check.problem() {
         Some(p @ (Problem::RegionSize | Problem::Spacing)) => Err(p.english().into()),
-        _ => Ok((size, spacing)),
+        _ => Ok((size, spacing, look)),
     }
+}
+
+/// The look the cache says the node has, None for a cache from an addon that does not export it.
+fn look_of(manifest: &Manifest) -> Option<Look> {
+    let resources = manifest.resources.as_ref()?;
+    let ocean_enabled = manifest.ocean.as_ref().is_some_and(|o| o.enabled);
+    Some(Look { material: resources.material.clone(), assets: resources.assets.clone(), ocean_enabled })
+}
+
+/// The settings reply for what Godot answered. An addon that predates the look takes the grid alone: that is a note
+/// when the grid changed, else nothing happened and it is an error.
+fn settings_reply(id: NodeId, regrid: bool, asked: &LookChange, before: Option<&Look>, answer: &Settings) -> Result<Value, String> {
+    let mut reply = json!({ "id": id.0, "changed": regrid, "region_size": answer.region_size, "vertex_spacing": answer.spacing });
+    match &answer.look {
+        Some(now) => {
+            reply["changed"] = json!(regrid || before != Some(now));
+            reply["material"] = json!(now.material);
+            reply["assets"] = json!(now.assets);
+            reply["ocean_enabled"] = json!(now.ocean_enabled);
+        }
+        None if asked.is_empty() => {}
+        None if regrid => reply["note"] = json!(bridge::OLD_ADDON_LOOK),
+        None => return Err(bridge::OLD_ADDON_LOOK.into()),
+    }
+
+    Ok(reply)
+}
+
+/// The world background Godot draws beyond the regions, and whether the cache has the noise values to draw it.
+fn background_json(material: &ManifestMaterial) -> Value {
+    let mode = match material.world_background {
+        0 => "none",
+        1 => "flat",
+        2 => "noise",
+        _ => "unknown",
+    };
+    json!({ "mode": mode, "noise": material.world_noise.is_some() })
 }
 
 /// What `link` creates, None when it links a folder Godot made.
@@ -282,6 +340,9 @@ impl App {
             "refused": refused,
             "godot": godot,
             "versions": { "terrain3d": manifest.terrain3d, "godot": manifest.godot, "data_version": manifest.data_version },
+            "resources": manifest.resources,
+            "ocean": manifest.ocean,
+            "background": background_json(&manifest.material),
             "error": state.terrain3d.error(&cache),
         }))
     }
@@ -328,11 +389,12 @@ impl App {
 
     fn terrain3d_settings(&mut self, args: &Value) -> Result<Value, String> {
         let id = require_id(args, "id")?;
-        let (size, spacing) = parse_settings(args)?;
+        let (size, spacing, look) = parse_settings(args)?;
         let cache = self.state.terrain3d_cache_of(id)?;
         let grid = self.state.terrain3d.grid(&cache).ok_or("no Terrain3D cache")?;
         let (size, spacing) = (size.unwrap_or(grid.region_size), spacing.unwrap_or(grid.spacing));
-        if !inspector::settings_differ(&grid, size, spacing) {
+        let regrid = inspector::settings_differ(&grid, size, spacing);
+        if !regrid && look.is_empty() {
             return Ok(json!({ "id": id.0, "changed": false, "region_size": size, "vertex_spacing": spacing }));
         }
 
@@ -341,14 +403,17 @@ impl App {
         }
 
         if !self.state.godot_has_project() {
-            return Err("Needs the Godot editor open with this scene, Godot rewrites the region files for a change".into());
+            return Err("Needs the Godot editor open with this scene, the settings live in the scene there and Godot rewrites the region files".into());
         }
 
-        let folder = cache.parent().ok_or("no folder")?;
-        let (size, spacing) = bridge::settings(self.state.prefs.live_link_port, folder, size, spacing)?;
+        let before = self.state.terrain3d.manifest(&cache).and_then(look_of);
+        let folder = cache.parent().ok_or("no folder")?.to_path_buf();
+        let request = bridge::SettingsRequest { port: self.state.prefs.live_link_port, folder, region_size: size, spacing, look };
+        let answer = bridge::settings(&request)?;
         self.state.terrain3d.recheck();
+        let reply = settings_reply(id, regrid, &request.look, before.as_ref(), &answer)?;
         self.state.set_status(crate::i18n::msg!("Godot changed the Terrain3D settings, save the scene in Godot to keep them"));
-        Ok(json!({ "id": id.0, "changed": true, "region_size": size, "vertex_spacing": spacing }))
+        Ok(reply)
     }
 
     fn terrain3d_send(&mut self, args: &Value) -> Result<Value, String> {
@@ -524,15 +589,102 @@ mod tests {
 
     #[test]
     fn settings_check_each_value_at_its_edge() {
-        assert_eq!(parse_settings(&json!({ "region_size": 64 })), Ok((Some(64), None)));
-        assert_eq!(parse_settings(&json!({ "vertex_spacing": 0.25 })), Ok((None, Some(0.25))));
-        assert_eq!(parse_settings(&json!({ "region_size": 2048, "vertex_spacing": 100.0 })), Ok((Some(2048), Some(100.0))));
-        assert!(parse_settings(&json!({})).is_err());
+        let grid = |a: Value| parse_settings(&a).map(|(size, spacing, look)| (size, spacing, look.is_empty()));
+        assert_eq!(grid(json!({ "region_size": 64 })), Ok((Some(64), None, true)));
+        assert_eq!(grid(json!({ "vertex_spacing": 0.25 })), Ok((None, Some(0.25), true)));
+        assert_eq!(grid(json!({ "region_size": 2048, "vertex_spacing": 100.0 })), Ok((Some(2048), Some(100.0), true)));
+        assert!(parse_settings(&json!({})).unwrap_err().contains("material, assets or ocean_enabled required"));
         assert!(parse_settings(&json!({ "region_size": 100 })).unwrap_err().contains("64"));
         assert!(parse_settings(&json!({ "region_size": 4096 })).is_err());
         assert!(parse_settings(&json!({ "vertex_spacing": 0.2 })).unwrap_err().contains("spacing"));
         assert!(parse_settings(&json!({ "vertex_spacing": 100.5 })).is_err());
         assert!(parse_settings(&json!({ "vertex_spacing": "wide" })).is_err());
+    }
+
+    #[test]
+    fn settings_pick_saved_resources_and_refuse_other_paths() {
+        let look = |a: Value| parse_settings(&a).map(|(_, _, look)| look);
+        let material = "res://terrain/look/M_terrain.tres";
+        assert_eq!(look(json!({ "material": material })), Ok(LookChange { material: Some(material.into()), ..Default::default() }));
+        assert_eq!(
+            parse_settings(&json!({ "assets": "res://a.RES", "material": "", "ocean_enabled": false, "region_size": 512 })),
+            Ok((Some(512), None, LookChange { material: Some(String::new()), assets: Some("res://a.RES".into()), ocean_enabled: Some(false) }))
+        );
+        assert_eq!(look(json!({ "ocean_enabled": true })), Ok(LookChange { ocean_enabled: Some(true), ..Default::default() }));
+        let bad = [
+            ("material", json!("C:/proj/terrain/m.tres")),
+            ("material", json!("terrain/m.tres")),
+            ("material", json!("user://m.tres")),
+            ("material", json!("res://")),
+            ("material", json!("res://terrain/../../m.tres")),
+            ("material", json!("res://terrain//m.tres")),
+            ("material", json!("res://terrain\\..\\..\\m.tres")),
+            ("material", json!("res://terrain/m.gdshader")),
+            ("assets", json!("res://terrain/")),
+            ("assets", json!(7)),
+            ("assets", json!(["res://a.tres"])),
+        ];
+        for (key, path) in bad {
+            let refused = look(json!({ key: path.clone() })).unwrap_err();
+            assert!(refused.starts_with(key) && refused.contains("res://"), "{key} {path}: {refused}");
+        }
+
+        assert!(look(json!({ "ocean_enabled": "yes" })).unwrap_err().contains("true or false"));
+        assert!(look(json!({ "material": material, "region_size": 100 })).is_err(), "a bad grid value refuses the whole change");
+    }
+
+    #[test]
+    fn the_settings_reply_says_what_godot_has_and_when_an_old_addon_left_the_look() {
+        let id = NodeId(7);
+        let look = Look { material: "res://t/m.tres".into(), assets: String::new(), ocean_enabled: true };
+        let asked = LookChange { material: Some("res://t/m.tres".into()), ocean_enabled: Some(true), ..Default::default() };
+        let answer = Settings { region_size: 128, spacing: 0.5, look: Some(look.clone()) };
+        assert_eq!(
+            settings_reply(id, false, &asked, None, &answer),
+            Ok(
+                json!({ "id": 7, "changed": true, "region_size": 128, "vertex_spacing": 0.5, "material": "res://t/m.tres", "assets": "", "ocean_enabled": true })
+            )
+        );
+        let changed = |regrid, before: &Look| settings_reply(id, regrid, &asked, Some(before), &answer).unwrap()["changed"].clone();
+        assert_eq!(changed(false, &look), json!(false), "Godot had that look already");
+        assert_eq!(changed(true, &look), json!(true));
+        assert_eq!(changed(false, &Look { ocean_enabled: false, ..look.clone() }), json!(true));
+
+        let old = Settings { region_size: 128, spacing: 0.5, look: None };
+        assert_eq!(settings_reply(id, false, &asked, Some(&look), &old), Err(bridge::OLD_ADDON_LOOK.to_string()));
+        assert_eq!(
+            settings_reply(id, true, &asked, None, &old),
+            Ok(json!({ "id": 7, "changed": true, "region_size": 128, "vertex_spacing": 0.5, "note": bridge::OLD_ADDON_LOOK }))
+        );
+        assert_eq!(
+            settings_reply(id, true, &LookChange::default(), None, &old),
+            Ok(json!({ "id": 7, "changed": true, "region_size": 128, "vertex_spacing": 0.5 }))
+        );
+    }
+
+    #[test]
+    fn info_reads_the_look_and_the_background_from_the_cache() {
+        let manifest = |extra: Value| {
+            let mut m = json!({ "format": terrain3d_cache::FORMAT, "version": 1, "region_size": 256, "vertex_spacing": 1.0 });
+            m.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            serde_json::from_value::<Manifest>(m).unwrap()
+        };
+        let old = manifest(json!({}));
+        assert_eq!((look_of(&old), background_json(&old.material)), (None, json!({ "mode": "none", "noise": false })));
+
+        let resources = json!({ "material": "res://data/M_terrain.tres", "assets": "", "ocean_material": "res://ocean.tres" });
+        let without_ocean = manifest(json!({ "resources": resources, "material": { "world_background": 1 } }));
+        let want = Look { material: "res://data/M_terrain.tres".into(), assets: String::new(), ocean_enabled: false };
+        assert_eq!(look_of(&without_ocean), Some(want.clone()));
+        assert_eq!(background_json(&without_ocean.material), json!({ "mode": "flat", "noise": false }));
+
+        let noise = json!({ "world_background": 2, "world_noise": { "height": 64.0 } });
+        let full = manifest(json!({ "resources": resources, "ocean": { "enabled": true, "sea_level": 5.0 }, "material": noise }));
+        assert_eq!(look_of(&full), Some(Look { ocean_enabled: true, ..want }));
+        assert_eq!(background_json(&full.material), json!({ "mode": "noise", "noise": true }));
+        let flat_noise = manifest(json!({ "material": { "world_background": 2 } }));
+        assert_eq!(background_json(&flat_noise.material), json!({ "mode": "noise", "noise": false }), "an old cache has no noise values");
+        assert_eq!(background_json(&manifest(json!({ "material": { "world_background": 5 } })).material)["mode"], "unknown");
     }
 
     #[test]

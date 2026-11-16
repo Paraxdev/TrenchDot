@@ -545,7 +545,7 @@ static func _test_ocean(t) -> void:
 
 	var older := Node3D.new()
 	var none := { "material": "", "assets": "", "ocean_material": "" }
-	t.check(TrenchDotTerrain3DCache._ocean(older) == null and TrenchDotTerrain3DCache._resources(older) == none and TrenchDotTerrain3DCache._number(older, &"detiling_shift", 0.25) == 0.25, "a node without the ocean, resources and detiling of Terrain3D 1.1 gets none of them")
+	t.check(TrenchDotTerrain3DCache._ocean(older) == null and TrenchDotTerrain3DCache.resource_paths(older) == none and TrenchDotTerrain3DCache._number(older, &"detiling_shift", 0.25) == 0.25, "a node without the ocean, resources and detiling of Terrain3D 1.1 gets none of them")
 	older.free()
 
 static func _wait(t, seconds: float) -> void:

@@ -393,30 +393,84 @@ fn run_capture(mut cmd: Command, timeout: Duration) -> Result<(Option<i32>, Stri
     }
 }
 
-/// One request to change the region size and vertex spacing of the Terrain3D the open Godot editor shows.
+/// The material, assets and ocean switch a settings change asks Godot for, None keeps the node's own. A resource is
+/// the res:// path of a saved Terrain3DMaterial or Terrain3DAssets, an empty one clears it.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct LookChange {
+    pub material: Option<String>,
+    pub assets: Option<String>,
+    pub ocean_enabled: Option<bool>,
+}
+
+impl LookChange {
+    pub fn is_empty(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+/// The material, assets and ocean switch the Terrain3D node has, a resource built into the scene has an empty path.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Look {
+    pub material: String,
+    pub assets: String,
+    pub ocean_enabled: bool,
+}
+
+/// One request to change the region size, vertex spacing and look of the Terrain3D the open Godot editor shows.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SettingsRequest {
     pub port: u16,
     pub folder: PathBuf,
     pub region_size: u32,
     pub spacing: f64,
+    pub look: LookChange,
+}
+
+/// What the Terrain3D node has after a settings change. `look` is None from an addon that predates picking it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Settings {
+    pub region_size: u32,
+    pub spacing: f64,
+    pub look: Option<Look>,
 }
 
 const OLD_ADDON_SETTINGS: &str = "Update the TrenchDot addon in Godot to change Terrain3D settings";
+pub const OLD_ADDON_LOOK: &str = "Update the TrenchDot addon in Godot to pick the Terrain3D material, assets or ocean";
 const NO_SCENE_SETTINGS: &str = "Open the scene that shows this Terrain3D in the Godot editor first";
 
-fn settings_message(folder: &Path, region_size: u32, spacing: f64) -> Value {
-    json!({ "event": "terrain3d_settings", "dir": live_link::godot_path(folder), "region_size": region_size, "vertex_spacing": spacing })
+fn settings_message(request: &SettingsRequest) -> Value {
+    let mut message = json!({
+        "event": "terrain3d_settings",
+        "dir": live_link::godot_path(&request.folder),
+        "region_size": request.region_size,
+        "vertex_spacing": request.spacing,
+    });
+    let look = &request.look;
+    for (key, path) in [("material", &look.material), ("assets", &look.assets)] {
+        if let Some(path) = path {
+            message[key] = json!(path);
+        }
+    }
+
+    if let Some(on) = look.ocean_enabled {
+        message["ocean_enabled"] = json!(on);
+    }
+
+    message
 }
 
 /// Asks the open Godot editor to change the Terrain3D settings, blocking. Godot rewrites its region files itself, so
-/// there is no headless fallback. The answer is the region size and vertex spacing Godot has now.
-pub fn settings(port: u16, folder: &Path, region_size: u32, spacing: f64) -> Result<(u32, f64), String> {
-    let reply = live_link::send_timeout(port, &settings_message(folder, region_size, spacing), LIVE_REPLY)?;
+/// there is no headless fallback. The answer is what Godot has now.
+pub fn settings(request: &SettingsRequest) -> Result<Settings, String> {
+    let reply = live_link::send_timeout(request.port, &settings_message(request), LIVE_REPLY)?;
     if reply["ok"].as_bool() == Some(true)
-        && let (Some(size), Some(spacing)) = (reply["region_size"].as_u64().and_then(|n| u32::try_from(n).ok()), reply["vertex_spacing"].as_f64())
+        && let (Some(region_size), Some(spacing)) = (reply["region_size"].as_u64().and_then(|n| u32::try_from(n).ok()), reply["vertex_spacing"].as_f64())
     {
-        return Ok((size, spacing));
+        let look = match (reply["material"].as_str(), reply["assets"].as_str(), reply["ocean_enabled"].as_bool()) {
+            (Some(material), Some(assets), Some(ocean_enabled)) => Some(Look { material: material.into(), assets: assets.into(), ocean_enabled }),
+            _ => None,
+        };
+        return Ok(Settings { region_size, spacing, look });
     }
 
     Err(match reply["error"].as_str() {
@@ -433,7 +487,7 @@ pub struct Bridge {
     running: Option<Receiver<Outcome>>,
     queued: Option<Apply>,
     told_old_addon: bool,
-    settings_running: Option<Receiver<Result<(u32, f64), String>>>,
+    settings_running: Option<Receiver<Result<Settings, String>>>,
     settings_queued: Option<SettingsRequest>,
 }
 
@@ -468,12 +522,12 @@ impl Bridge {
         let (tx, rx) = mpsc::channel();
         self.settings_running = Some(rx);
         std::thread::spawn(move || {
-            let _ = tx.send(settings(request.port, &request.folder, request.region_size, request.spacing));
+            let _ = tx.send(settings(&request));
         });
     }
 
     /// The answer of the settings change that finished, and starts the one that waited.
-    pub fn poll_settings(&mut self) -> Option<Result<(u32, f64), String>> {
+    pub fn poll_settings(&mut self) -> Option<Result<Settings, String>> {
         let answer = self.settings_running.as_ref()?.try_recv().ok()?;
         self.settings_running = None;
         if let Some(next) = self.settings_queued.take() {
@@ -912,40 +966,77 @@ exit 3
         assert!(untested_version_note("1.2.0").en.starts_with("Terrain3D 1.2.0 was not tested"));
     }
 
+    fn settings_request(port: u16, folder: PathBuf, region_size: u32, spacing: f64, look: LookChange) -> SettingsRequest {
+        SettingsRequest { port, folder, region_size, spacing, look }
+    }
+
     #[test]
-    fn the_settings_event_names_the_folder_and_both_values() {
-        let message = settings_message(Path::new("D:/proj/terrain"), 128, 2.5);
+    fn the_settings_event_names_the_folder_and_only_the_look_it_changes() {
+        let folder = PathBuf::from("D:/proj/terrain");
+        let dir = live_link::godot_path(&folder);
+        let grid = settings_request(1, folder.clone(), 128, 2.5, LookChange::default());
+        assert_eq!(settings_message(&grid), json!({ "event": "terrain3d_settings", "dir": dir, "region_size": 128, "vertex_spacing": 2.5 }));
+
+        let look = LookChange { material: Some("res://terrain/look.tres".into()), assets: Some(String::new()), ocean_enabled: Some(false) };
         assert_eq!(
-            message,
-            json!({ "event": "terrain3d_settings", "dir": live_link::godot_path(Path::new("D:/proj/terrain")), "region_size": 128, "vertex_spacing": 2.5 })
+            settings_message(&settings_request(1, folder.clone(), 512, 0.75, look)),
+            json!({ "event": "terrain3d_settings", "dir": dir, "region_size": 512, "vertex_spacing": 0.75, "material": "res://terrain/look.tres", "assets": "", "ocean_enabled": false })
+        );
+        let ocean = LookChange { ocean_enabled: Some(true), ..Default::default() };
+        assert!(!ocean.is_empty() && LookChange::default().is_empty());
+        assert_eq!(
+            settings_message(&settings_request(1, folder, 64, 3.0, ocean)),
+            json!({ "event": "terrain3d_settings", "dir": dir, "region_size": 64, "vertex_spacing": 3.0, "ocean_enabled": true })
         );
     }
 
     #[test]
     fn the_open_editor_changes_the_settings_and_answers_what_it_has_now() {
         let dir = tempfile::tempdir().unwrap();
-        let (port, seen) = fake_editor(vec![("terrain3d_settings", json!({ "ok": true, "region_size": 512, "vertex_spacing": 0.75 }))]);
-        let folder = dir.path().join("terrain");
-        assert_eq!(settings(port, &folder, 512, 0.75), Ok((512, 0.75)));
+        let answer = json!({ "ok": true, "region_size": 512, "vertex_spacing": 0.75, "material": "res://terrain/m.tres", "assets": "", "ocean_enabled": true });
+        let (port, seen) = fake_editor(vec![("terrain3d_settings", answer)]);
+        let look = LookChange { material: Some("res://terrain/m.tres".into()), assets: None, ocean_enabled: Some(true) };
+        let got = settings(&settings_request(port, dir.path().join("terrain"), 512, 0.75, look));
+        let want = Look { material: "res://terrain/m.tres".into(), assets: String::new(), ocean_enabled: true };
+        assert_eq!(got, Ok(Settings { region_size: 512, spacing: 0.75, look: Some(want) }));
         let seen = seen.lock().unwrap();
         assert_eq!(seen.len(), 1);
         assert_eq!((seen[0]["region_size"].as_u64(), seen[0]["vertex_spacing"].as_f64()), (Some(512), Some(0.75)));
+        assert_eq!((seen[0]["material"].as_str(), seen[0].get("assets"), seen[0]["ocean_enabled"].as_bool()), (Some("res://terrain/m.tres"), None, Some(true)));
+    }
+
+    #[test]
+    fn an_addon_that_predates_the_look_answers_the_grid_alone() {
+        let dir = tempfile::tempdir().unwrap();
+        let look = LookChange { assets: Some("res://terrain/a.tres".into()), ..Default::default() };
+        let answers = [
+            json!({ "ok": true, "region_size": 256, "vertex_spacing": 2.0 }),
+            json!({ "ok": true, "region_size": 256, "vertex_spacing": 2.0, "material": "", "assets": "res://terrain/a.tres" }),
+            json!({ "ok": true, "region_size": 256, "vertex_spacing": 2.0, "material": "", "assets": 3, "ocean_enabled": false }),
+        ];
+        for answer in answers {
+            let (port, _) = fake_editor(vec![("terrain3d_settings", answer.clone())]);
+            let got = settings(&settings_request(port, dir.path().join("terrain"), 256, 2.0, look.clone()));
+            assert_eq!(got, Ok(Settings { region_size: 256, spacing: 2.0, look: None }), "{answer}");
+        }
     }
 
     #[test]
     fn a_refused_settings_change_says_why_in_plain_words() {
         let dir = tempfile::tempdir().unwrap();
         let folder = dir.path().join("terrain");
+        let request = |port| settings_request(port, folder.clone(), 64, 1.0, LookChange { material: Some("res://x.tres".into()), ..Default::default() });
         let refused = |error: &'static str| {
             let (port, _) = fake_editor(vec![("terrain3d_settings", json!({ "ok": false, "error": error }))]);
-            settings(port, &folder, 64, 1.0).unwrap_err()
+            settings(&request(port)).unwrap_err()
         };
         assert_eq!(refused("unknown event"), OLD_ADDON_SETTINGS);
         assert_eq!(refused("no open scene shows the Terrain3D data in res://terrain"), NO_SCENE_SETTINGS);
         assert_eq!(refused("Terrain3D has no region size 100, use 64"), "Terrain3D has no region size 100, use 64");
-        let (port, _) = fake_editor(vec![("terrain3d_settings", json!({ "ok": true }))]);
-        assert_eq!(settings(port, &folder, 64, 1.0), Err("unexpected reply".to_string()), "a reply without the new values is not a success");
-        assert_eq!(settings(1, &folder, 64, 1.0), Err(live_link::NOT_RUNNING.to_string()));
+        assert_eq!(refused("res://x.tres is not a Terrain3DMaterial"), "res://x.tres is not a Terrain3DMaterial");
+        let (port, _) = fake_editor(vec![("terrain3d_settings", json!({ "ok": true, "material": "res://x.tres", "assets": "", "ocean_enabled": false }))]);
+        assert_eq!(settings(&request(port)), Err("unexpected reply".to_string()), "a reply without the grid is not a success");
+        assert_eq!(settings(&request(1)), Err(live_link::NOT_RUNNING.to_string()));
     }
 
     #[test]
@@ -953,7 +1044,7 @@ exit 3
         let dir = tempfile::tempdir().unwrap();
         let (port, seen) = fake_editor(vec![("terrain3d_settings", json!({ "ok": true, "region_size": 64, "vertex_spacing": 1.0 }))]);
         let mut bridge = Bridge::default();
-        let request = |region_size| SettingsRequest { port, folder: dir.path().join("terrain"), region_size, spacing: 1.0 };
+        let request = |region_size| settings_request(port, dir.path().join("terrain"), region_size, 1.0, LookChange::default());
         assert!(bridge.poll_settings().is_none());
         for size in [64, 128, 512] {
             bridge.send_settings(request(size));

@@ -192,7 +192,13 @@ impl EditorState {
             return;
         }
 
-        self.terrain3d_bridge.send_settings(bridge::SettingsRequest { port: self.prefs.live_link_port, folder, region_size, spacing });
+        self.terrain3d_bridge.send_settings(bridge::SettingsRequest {
+            port: self.prefs.live_link_port,
+            folder,
+            region_size,
+            spacing,
+            look: Default::default(),
+        });
     }
 
     /// Takes back the edits an earlier session saved and Godot has not applied yet, so the map shows them again. A node

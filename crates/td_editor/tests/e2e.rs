@@ -9203,7 +9203,7 @@ fn terrain3d_tool_links_a_new_folder_and_changes_its_regions() {
     assert_eq!((info["conflicts"].clone(), info["pending"].clone()), (json!([]), json!([])));
     assert_eq!(info["regions"][0], json!({ "loc": [-1, 0], "edited": true, "added": true, "height_range": null }));
     assert!(fails(json!({ "op": "settings", "id": node, "region_size": 128 })).contains("Godot editor open"));
-    assert!(fails(json!({ "op": "settings", "id": node })).contains("region_size or vertex_spacing"));
+    assert!(fails(json!({ "op": "settings", "id": node })).contains("ocean_enabled required"));
     assert!(fails(json!({ "op": "settings", "id": node, "vertex_spacing": 0.2 })).contains("spacing"));
 
     let undo_top = || ed.state()["undo"][0].clone();
@@ -9282,6 +9282,8 @@ fn terrain3d_tool_reports_sends_resolves_and_probes() {
     assert_eq!(info["versions"], json!({ "terrain3d": "1.1.0", "godot": "4.7.2", "data_version": 1.1 }));
     assert_eq!(info["settings"], json!({ "region_size": 64, "vertex_spacing": 0.25 }));
     assert_eq!(info["textures"], json!([{ "id": 1, "name": "red" }, { "id": 2, "name": "blue" }]));
+    assert_eq!((info["resources"].clone(), info["ocean"].clone()), (json!(null), json!(null)), "a cache from an older addon has no look");
+    assert_eq!(info["background"], json!({ "mode": "none", "noise": false }));
     assert_eq!(info["changed"], json!([{ "loc": [1, 0], "kind": "edit", "conflict": true }]));
     assert_eq!((info["conflicts"].clone(), info["pending"].clone()), (json!([[1, 0]]), json!([[1, 0]])));
     assert_eq!(info["unsaved_in_godot"], json!([]));
@@ -9324,6 +9326,22 @@ fn terrain3d_tool_reports_sends_resolves_and_probes() {
     let asked = sent_events(&sent, "terrain3d_settings");
     assert_eq!(asked.len(), 1);
     assert_eq!((asked[0]["region_size"].clone(), asked[0]["vertex_spacing"].clone()), (json!(128), json!(0.25)));
+
+    assert!(fails(json!({ "op": "settings", "id": node, "material": "C:/proj/terrain/look.tres" })).contains("res://"));
+    assert!(fails(json!({ "op": "settings", "id": node, "ocean_enabled": "on" })).contains("true or false"));
+    assert_eq!(sent_events(&sent, "terrain3d_settings").len(), 1, "a bad look never reaches Godot");
+    let old_addon = fails(json!({ "op": "settings", "id": node, "material": "res://terrain/look.tres", "ocean_enabled": true }));
+    assert!(old_addon.contains("Update the TrenchDot addon"), "the fake Godot answers like an addon without the look, {old_addon}");
+    let both = t3d(json!({ "op": "settings", "id": node, "vertex_spacing": 0.5, "assets": "" }));
+    assert_eq!((both["changed"].clone(), both.get("assets")), (json!(true), None));
+    assert!(both["note"].as_str().unwrap().contains("Update the TrenchDot addon"), "the grid changed and the look did not, {both}");
+    let asked = sent_events(&sent, "terrain3d_settings");
+    assert_eq!(asked.len(), 3);
+    assert_eq!(
+        (asked[1]["material"].clone(), asked[1]["ocean_enabled"].clone(), asked[1].get("assets")),
+        (json!("res://terrain/look.tres"), json!(true), None)
+    );
+    assert_eq!((asked[2]["vertex_spacing"].clone(), asked[2]["assets"].clone(), asked[2].get("material")), (json!(0.5), json!(""), None));
 
     let probed = t3d(json!({ "op": "probe", "id": node, "points": [[536.0, 16.0], [584.0, 40.0], [24.0, 8.0], [-900.0, 5000.0]] }));
     let points = probed["points"].as_array().unwrap();
