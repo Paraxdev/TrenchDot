@@ -8873,6 +8873,70 @@ fn terrain3d_sculpt_uploads_only_the_changed_rectangle() {
     assert_eq!(far, 0, "only the ground around the brush changed");
 }
 
+/// Pixels inside `area` (x and y ranges) that are darker in `after` than in `before` with about the same hue, the way a
+/// shadow darkens a surface, and pixels that stayed as they were.
+fn shaded_and_same(before: &image::RgbaImage, after: &image::RgbaImage, area: [std::ops::Range<u32>; 2]) -> (usize, usize) {
+    let (mut shaded, mut same) = (0, 0);
+    for (x, y, a) in after.enumerate_pixels().filter(|(x, y, _)| area[0].contains(x) && area[1].contains(y)) {
+        let b = before.get_pixel(x, y);
+        let ratios = [0, 1, 2].map(|c| (f64::from(a.0[c]) + 1.0) / (f64::from(b.0[c]) + 1.0));
+        let (lo, hi) = ratios.iter().fold((f64::MAX, f64::MIN), |(lo, hi), r| (lo.min(*r), hi.max(*r)));
+        shaded += usize::from(hi < 0.75 && hi - lo < 0.3);
+        same += usize::from((0..3).all(|c| a.0[c].abs_diff(b.0[c]) <= 6));
+    }
+
+    (shaded, same)
+}
+
+/// In lit mode the sun shadow map covers the Terrain3D regions even though they are no brushes: a brush floating high
+/// over the ground shadows it, and the regions themselves shadow a floor below them, except where no region is.
+#[test]
+#[ignore]
+fn terrain3d_regions_cast_and_catch_sun_shadows() {
+    let (ed, node) = launch_world("terrain3d_shadows", None);
+    ed.call("set_editor", json!({ "shade": "lit", "tool": "select" }));
+    // The sun travels along +x and -z, 40 degrees down, so a brush about 300 units over [0, 1] shadows the ground near
+    // x 381 and z 619 and stays out of this view.
+    ed.call("set_camera", json!({ "view": "3d", "position": [381.3, 420, 619.7], "look_at": [381, 0, 619] }));
+    clipmap_settled(&ed, &node, 3);
+    let args = json!({ "target": "3d", "width": 480, "height": 360 });
+    let whole = [0..480, 0..360];
+    let ground = shot(&ed, args.clone(), "ground");
+    ed.call("create_brush", json!({ "min": [68, 400, 868], "max": [132, 448, 932] }));
+    let deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        let (shaded, _) = shaded_and_same(&ground, &shot(&ed, args.clone(), "brush"), whole.clone());
+        if shaded > 1000 {
+            break;
+        }
+
+        assert!(Instant::now() < deadline, "the brush never shadowed the ground, {shaded} pixels darkened");
+        std::thread::sleep(Duration::from_millis(200));
+    }
+
+    // A floor 300 units under the missing region [1, 1], straight below the camera. The sun comes from the west and south,
+    // so region [0, 1] shades a strip along the northern edge of the floor. Further south the sunlight slips in under the
+    // region's edge, and the empty corner over the floor casts nothing.
+    ed.call("create_brush", json!({ "min": [512, -316, 512], "max": [1024, -300, 1024] }));
+    ed.call("set_camera", json!({ "view": "3d", "position": [768, 600, 768.5], "look_at": [768, -300, 768] }));
+    let floor = [180..300, 116..240];
+    let deadline = Instant::now() + Duration::from_secs(15);
+    let shown = loop {
+        let shown = shot(&ed, args.clone(), "floor");
+        ed.call("hierarchy", json!({ "op": "set_flags", "ids": [node], "hidden": true }));
+        let bare = shot(&ed, args.clone(), "bare floor");
+        ed.call("hierarchy", json!({ "op": "set_flags", "ids": [node], "hidden": false }));
+        let (shaded, same) = shaded_and_same(&bare, &shown, floor.clone());
+        if shaded > 2000 && same > 8000 {
+            break (shaded, same);
+        }
+
+        assert!(Instant::now() < deadline, "{shaded} floor pixels in the shadow of the regions and {same} lit, of 14880");
+        clipmap_settled(&ed, &node, 3);
+    };
+    assert!(shown.0 + shown.1 > 14000, "the middle of the view is floor, shaded or lit: {shown:?}");
+}
+
 /// Selecting the Terrain3D node fills the Inspector with the textures of the folder, each with a swatch of its color.
 #[test]
 #[ignore]

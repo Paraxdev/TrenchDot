@@ -624,6 +624,11 @@ pub struct Renderer {
     /// Triangles the clipmaps of the last view that drew any put on screen.
     clipmap_triangles: std::sync::atomic::AtomicUsize,
     shadow_pipeline: wgpu::RenderPipeline,
+    clipmap_shadow: wgpu::RenderPipeline,
+    /// The camera the clipmap shadow pass reads: the sun's view projection and the eye its rings follow.
+    clipmap_shadow_camera: wgpu::Buffer,
+    clipmap_shadow_bg: wgpu::BindGroup,
+    clipmap_shadow_instances: wgpu::Buffer,
     /// The one record a mesh without instances is drawn with.
     identity_instance: wgpu::Buffer,
     shadow_uniform: wgpu::Buffer,
@@ -793,6 +798,23 @@ impl Renderer {
             layout: &shadow_bgl,
             entries: &[wgpu::BindGroupEntry { binding: 0, resource: shadow_uniform.as_entire_binding() }],
         });
+        let clipmap_shadow_camera = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("clipmap shadow camera"),
+            size: std::mem::size_of::<CameraUniform>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let clipmap_shadow_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("clipmap shadow"),
+            layout: &shadow_bgl,
+            entries: &[wgpu::BindGroupEntry { binding: 0, resource: clipmap_shadow_camera.as_entire_binding() }],
+        });
+        let clipmap_shadow_instances = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("clipmap shadow instances"),
+            size: (MAX_CLIPMAPS * clipmap::layout::MAX_INSTANCES * std::mem::size_of::<clipmap::layout::ClipmapInstance>()) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let lights_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("lights"),
             size: std::mem::size_of::<LightsUniform>() as u64,
@@ -841,6 +863,11 @@ impl Renderer {
         let shadow_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("shadow"),
             bind_group_layouts: &[Some(&shadow_bgl)],
+            immediate_size: 0,
+        });
+        let clipmap_shadow_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("clipmap shadow"),
+            bind_group_layouts: &[Some(&shadow_bgl), Some(&clipmap_bgl)],
             immediate_size: 0,
         });
 
@@ -1024,21 +1051,44 @@ impl Renderer {
                 wire_count: wire.len() as u32,
             }
         });
+        let shadow_depth = Some(wgpu::DepthStencilState {
+            format: DEPTH_FORMAT,
+            depth_write_enabled: Some(true),
+            depth_compare: Some(wgpu::CompareFunction::Less),
+            stencil: Default::default(),
+            bias: wgpu::DepthBiasState { constant: 2, slope_scale: 2.0, clamp: 0.0 },
+        });
         let shadow_pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("shadow"),
             layout: Some(&shadow_layout),
             vertex: wgpu::VertexState { module: &shadow_shader, entry_point: Some("vs_main"), compilation_options: Default::default(), buffers: &mesh_buffers },
             // Both sides cast shadows so open meshes and single sided decals still block the sun.
             primitive: wgpu::PrimitiveState { topology: tri, cull_mode: None, ..Default::default() },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: DEPTH_FORMAT,
-                depth_write_enabled: Some(true),
-                depth_compare: Some(wgpu::CompareFunction::Less),
-                stencil: Default::default(),
-                bias: wgpu::DepthBiasState { constant: 2, slope_scale: 2.0, clamp: 0.0 },
-            }),
+            depth_stencil: shadow_depth.clone(),
             multisample: Default::default(),
             fragment: None,
+            multiview_mask: None,
+            cache: None,
+        });
+        let clipmap_shadow = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("clipmap shadow"),
+            layout: Some(&clipmap_shadow_layout),
+            vertex: wgpu::VertexState {
+                module: &clipmap_shader,
+                entry_point: Some("vs_shadow"),
+                compilation_options: Default::default(),
+                buffers: &clipmap_buffers,
+            },
+            primitive: wgpu::PrimitiveState { topology: tri, cull_mode: None, ..Default::default() },
+            depth_stencil: shadow_depth,
+            multisample: Default::default(),
+            // Holes and the ground past the regions with no background cast nothing, like they draw nothing.
+            fragment: Some(wgpu::FragmentState {
+                module: &clipmap_shader,
+                entry_point: Some("fs_shadow"),
+                compilation_options: Default::default(),
+                targets: &[],
+            }),
             multiview_mask: None,
             cache: None,
         });
@@ -1082,6 +1132,10 @@ impl Renderer {
             clipmap_meshes,
             clipmap_triangles: Default::default(),
             shadow_pipeline,
+            clipmap_shadow,
+            clipmap_shadow_camera,
+            clipmap_shadow_bg,
+            clipmap_shadow_instances,
             shadow_uniform,
             shadow_bg,
             shadow_view,
@@ -1472,8 +1526,8 @@ impl Renderer {
         proj * view
     }
 
-    /// Renders the opaque and double sided meshes into the sun shadow map.
-    pub fn render_shadow(&self, meshes: &[&GpuMesh], view_proj: Mat4) {
+    /// Renders the opaque and double sided meshes into the sun shadow map, and the clipmaps with their rings around `eye`.
+    pub fn render_shadow(&self, meshes: &[&GpuMesh], clipmaps: &[&clipmap::GpuClipmap], eye: Vec3, view_proj: Mat4) {
         self.queue.write_buffer(&self.shadow_uniform, 0, bytemuck::cast_slice(&view_proj.to_cols_array()));
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("shadow") });
         {
@@ -1499,9 +1553,63 @@ impl Renderer {
                     pass.draw_indexed(range.clone(), 0, instances.clone());
                 }
             }
+
+            if !clipmaps.is_empty() {
+                let camera = CameraUniform {
+                    view_proj: view_proj.to_cols_array_2d(),
+                    inv_view_proj: view_proj.inverse().to_cols_array_2d(),
+                    eye: [eye.x, eye.y, eye.z, 1.0],
+                    params: [0.0; 4],
+                    viewport: [0.0; 4],
+                };
+                self.queue.write_buffer(&self.clipmap_shadow_camera, 0, bytemuck::bytes_of(&camera));
+                pass.set_pipeline(&self.clipmap_shadow);
+                pass.set_bind_group(0, &self.clipmap_shadow_bg, &[]);
+                self.draw_rings(&mut pass, clipmaps, &self.clipmap_shadow_instances, eye, view_proj, false);
+            }
         }
 
         self.queue.submit([encoder.finish()]);
+    }
+
+    /// Writes the ring parts each clipmap shows from `eye` through `view_proj` into `buffer` and draws them with the
+    /// pipeline and group 0 already bound. Returns the triangles drawn.
+    fn draw_rings(
+        &self,
+        pass: &mut wgpu::RenderPass,
+        clipmaps: &[&clipmap::GpuClipmap],
+        buffer: &wgpu::Buffer,
+        eye: Vec3,
+        view_proj: Mat4,
+        wire: bool,
+    ) -> usize {
+        let record = std::mem::size_of::<clipmap::layout::ClipmapInstance>() as u64;
+        let mut triangles = 0;
+        for (k, clip) in clipmaps.iter().take(MAX_CLIPMAPS).enumerate() {
+            let instances = clip.instances(eye, view_proj);
+            let records: Vec<clipmap::layout::ClipmapInstance> = instances.parts.iter().map(|&p| p.into()).collect();
+            if records.is_empty() {
+                continue;
+            }
+
+            let base = (k * clipmap::layout::MAX_INSTANCES) as u64 * record;
+            self.queue.write_buffer(buffer, base, bytemuck::cast_slice(&records));
+            pass.set_bind_group(1, &clip.bind_group, &[]);
+            pass.set_vertex_buffer(1, buffer.slice(base..base + records.len() as u64 * record));
+            for (mesh, range) in self.clipmap_meshes.iter().zip(&instances.ranges) {
+                if range.is_empty() {
+                    continue;
+                }
+
+                triangles += mesh.count as usize / 3 * range.len();
+                let (index, count) = if wire { (&mesh.wire, mesh.wire_count) } else { (&mesh.index, mesh.count) };
+                pass.set_vertex_buffer(0, mesh.vertex.slice(..));
+                pass.set_index_buffer(index.slice(..), wgpu::IndexFormat::Uint32);
+                pass.draw_indexed(0..count, 0, range.clone());
+            }
+        }
+
+        triangles
     }
 
     pub fn upload_mesh(&self, batch: &MeshBatch) -> Option<GpuMesh> {
@@ -1791,32 +1899,7 @@ impl Renderer {
                 }
 
                 pass.set_pipeline(if wire { &self.clipmap_wire } else { &self.clipmap_pipeline });
-                let record = std::mem::size_of::<clipmap::layout::ClipmapInstance>() as u64;
-                let mut triangles = 0;
-                for (k, clip) in frame.clipmaps.iter().take(MAX_CLIPMAPS).enumerate() {
-                    let instances = clip.instances(params.eye, params.view_proj);
-                    let records: Vec<clipmap::layout::ClipmapInstance> = instances.parts.iter().map(|&p| p.into()).collect();
-                    if records.is_empty() {
-                        continue;
-                    }
-
-                    let base = (k * clipmap::layout::MAX_INSTANCES) as u64 * record;
-                    self.queue.write_buffer(&target.clipmap_instances, base, bytemuck::cast_slice(&records));
-                    pass.set_bind_group(1, &clip.bind_group, &[]);
-                    pass.set_vertex_buffer(1, target.clipmap_instances.slice(base..base + records.len() as u64 * record));
-                    for (mesh, range) in self.clipmap_meshes.iter().zip(&instances.ranges) {
-                        if range.is_empty() {
-                            continue;
-                        }
-
-                        triangles += mesh.count as usize / 3 * range.len();
-                        let (index, count) = if wire { (&mesh.wire, mesh.wire_count) } else { (&mesh.index, mesh.count) };
-                        pass.set_vertex_buffer(0, mesh.vertex.slice(..));
-                        pass.set_index_buffer(index.slice(..), wgpu::IndexFormat::Uint32);
-                        pass.draw_indexed(0..count, 0, range.clone());
-                    }
-                }
-
+                let triangles = self.draw_rings(pass, &frame.clipmaps, &target.clipmap_instances, params.eye, params.view_proj, wire);
                 self.clipmap_triangles.store(triangles, std::sync::atomic::Ordering::Relaxed);
                 pass.set_bind_group(2, &self.lightmap_bg, &[]);
             };

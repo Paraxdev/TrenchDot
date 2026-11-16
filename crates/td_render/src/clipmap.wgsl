@@ -172,9 +172,16 @@ fn ground_normal(cell: vec2<i32>, step: i32) -> vec3<f32> {
     return normalize(vec3<f32>(-dx * clip.world.y, 2.0 * f32(step) * clip.world.x, -dz * clip.world.y));
 }
 
+struct RingVertex {
+    world: vec3<f32>,
+    cell: vec2<i32>,
+    end: vec2<i32>,
+    scale: i32,
+    lerp: f32,
+};
+
 // The twin of layout::Morph: odd vertices slide onto the next level's grid near the outer edge of their ring.
-@vertex
-fn vs_main(v: VIn) -> VOut {
+fn ring_vertex(v: VIn) -> RingVertex {
     let scale = 1 << v.level;
     let cell = v.origin + vec2<i32>(v.local) * scale;
     let target_cells = cam.eye.xz / clip.world.x;
@@ -186,16 +193,34 @@ fn vs_main(v: VIn) -> VOut {
     let end = cell + shift * scale;
     let pos = mix(vec2<f32>(cell), vec2<f32>(end), lerp);
     let h = blended(pos, mix(raw_height(cell), raw_height(end), lerp));
-    var n = ground_normal(cell, scale);
-    if (lerp > 0.0) {
-        n = normalize(mix(n, ground_normal(end, scale * 2), lerp));
+    return RingVertex(vec3<f32>(pos.x * clip.world.x, h * clip.world.y, pos.y * clip.world.x), cell, end, scale, lerp);
+}
+
+@vertex
+fn vs_main(v: VIn) -> VOut {
+    let r = ring_vertex(v);
+    var n = ground_normal(r.cell, r.scale);
+    if (r.lerp > 0.0) {
+        n = normalize(mix(n, ground_normal(r.end, r.scale * 2), r.lerp));
     }
 
     var o: VOut;
-    o.world = vec3<f32>(pos.x * clip.world.x, h * clip.world.y, pos.y * clip.world.x);
-    o.clip = cam.view_proj * vec4<f32>(o.world, 1.0);
+    o.world = r.world;
+    o.clip = cam.view_proj * vec4<f32>(r.world, 1.0);
     o.normal = n;
     return o;
+}
+
+struct ShadowOut {
+    @builtin(position) clip: vec4<f32>,
+    @location(0) world: vec3<f32>,
+};
+
+// In the shadow pass `cam` holds the sun's view projection and the eye the ring follows.
+@vertex
+fn vs_shadow(v: VIn) -> ShadowOut {
+    let world = ring_vertex(v).world;
+    return ShadowOut(cam.view_proj * vec4<f32>(world, 1.0), world);
 }
 
 // The corners of the triangle under `f` in cell `c`, which splits along the alternating diagonal like
@@ -393,4 +418,11 @@ fn fs_wire(f: VOut) -> @location(0) vec4<f32> {
         return vec4<f32>(flip(clip.wire.rgb, cam.viewport.w), 1.0);
     }
     return vec4<f32>(clip.wire.rgb, 1.0);
+}
+
+@fragment
+fn fs_shadow(f: ShadowOut) {
+    if (dropped(f.world)) {
+        discard;
+    }
 }

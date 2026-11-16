@@ -3635,7 +3635,7 @@ impl eframe::App for App {
 
         let cam = &self.viewports[0].camera;
         let focus = cam.position + cam.forward() * 1200.0;
-        self.scene.update_shadows(&mut self.renderer, focus, self.state.prefs.shade.is_lit());
+        self.scene.update_shadows(&mut self.renderer, cam.position, focus, self.state.prefs.shade.is_lit());
 
         let start_view = [ViewKind::Top, ViewKind::Front, ViewKind::Side]
             .into_iter()

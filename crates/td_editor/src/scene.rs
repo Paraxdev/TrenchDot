@@ -203,7 +203,8 @@ pub struct SceneCache {
     pub stats: SceneStats,
     pub lighting: Lighting,
     shadow_dirty: bool,
-    shadow_center: Option<DVec3>,
+    /// The focus and eye the sun shadow map was last drawn for.
+    shadow_view: Option<(DVec3, DVec3)>,
     scene_bounds: Aabb,
     face_cull: FaceCull,
     /// Pieces of the brushes cutters overlap, drawn in place of the whole brush.
@@ -1420,6 +1421,36 @@ fn changed_chunks(old: &Terrain, new: &Terrain) -> Option<BTreeSet<usize>> {
     Some(out)
 }
 
+/// How far the sun shadow map reaches to each side of the point the camera looks at, in map units.
+const SHADOW_REACH: f64 = 3200.0;
+
+/// What the sun shadow map fits: the map's layers and the regions of every shown Terrain3D node, which the map's own
+/// bounds leave out.
+fn shadow_bounds(state: &EditorState) -> Aabb {
+    let map = &state.doc.map;
+    state.terrain3d_residency.layouts.keys().fold(map.bounds_of(map.layers.iter().copied()), |all, id| all.union(&state.terrain3d_bounds(*id)))
+}
+
+/// The box the sun shadow map covers: [`SHADOW_REACH`] across x and z around `focus` pulled into `bounds`, no wider than
+/// `bounds` with some padding, and all of their height. None when nothing can cast or catch a shadow.
+fn shadow_box(bounds: Aabb, focus: DVec3) -> Option<Aabb> {
+    if bounds.is_empty() {
+        return None;
+    }
+
+    let center = focus.clamp(bounds.min, bounds.max);
+    let half = DVec3::splat(SHADOW_REACH).min(bounds.size() * 0.5 + DVec3::splat(64.0));
+    let lo = DVec3::new(center.x - half.x, bounds.min.y - 64.0, center.z - half.z);
+    let hi = DVec3::new(center.x + half.x, bounds.max.y + 64.0, center.z + half.z);
+    Some(Aabb::new(lo, hi))
+}
+
+/// Whether the sun shadow map drawn for `last` no longer fits the view: the focus left the middle of the box it covers,
+/// or, with clipmap `rings` in the scene, the eye moved, since their rings cast around it and are finest there.
+fn shadow_moved(last: Option<(DVec3, DVec3)>, focus: DVec3, eye: DVec3, rings: bool) -> bool {
+    last.is_none_or(|(f, e)| (f - focus).length() > SHADOW_REACH * 0.35 || (rings && (e - eye).length() > SHADOW_REACH * 0.05))
+}
+
 pub fn compute_lighting(map: &Map, game: &GameConfig) -> Lighting {
     let mut lighting = Lighting::default();
     let upm = game.units_per_meter as f32;
@@ -2281,7 +2312,7 @@ impl SceneCache {
             self.shadow_dirty = true;
         }
 
-        self.scene_bounds = map.bounds_of(map.layers.iter().copied());
+        self.scene_bounds = shadow_bounds(state);
 
         self.prev_map = Some(map);
         self.prev_selection = selection;
@@ -2290,37 +2321,32 @@ impl SceneCache {
         self.model_generation = state.models.generation;
     }
 
-    /// Renders the sun shadow map around `focus` when the scene changed or the camera moved away from the last fit.
-    pub fn update_shadows(&mut self, renderer: &mut Renderer, focus: DVec3, lit: bool) {
-        const HALF: f64 = 3200.0;
+    /// Renders the sun shadow map around `focus` when the scene changed or the camera moved away from the last fit. The
+    /// Terrain3D clipmaps cast with their rings around `eye`, the camera the view that set `focus` looks from.
+    pub fn update_shadows(&mut self, renderer: &mut Renderer, eye: DVec3, focus: DVec3, lit: bool) {
         if !lit {
-            self.shadow_center = None;
+            self.shadow_view = None;
             return;
         }
 
-        let moved = self.shadow_center.is_none_or(|c| (c - focus).length() > HALF * 0.35);
+        let rings = !self.terrain3d.is_empty();
+        let moved = shadow_moved(self.shadow_view, focus, eye, rings);
         if !self.shadow_dirty && !moved {
             return;
         }
 
-        let bounds = self.scene_bounds;
-        let vp = if bounds.is_empty() {
-            None
-        } else {
-            let center = focus.clamp(bounds.min, bounds.max);
-            let half = DVec3::new(HALF, bounds.size().y * 0.5 + 64.0, HALF).min(bounds.size() * 0.5 + DVec3::splat(64.0));
-            let lo = DVec3::new(center.x - half.x, bounds.min.y - 64.0, center.z - half.z);
-            let hi = DVec3::new(center.x + half.x, bounds.max.y + 64.0, center.z + half.z);
-            let vp = Renderer::sun_view_proj(self.lighting.sun_direction, lo.as_vec3(), hi.as_vec3());
+        let vp = shadow_box(self.scene_bounds, focus).map(|fit| {
+            let vp = Renderer::sun_view_proj(self.lighting.sun_direction, fit.min.as_vec3(), fit.max.as_vec3());
             let mut meshes: Vec<&GpuMesh> = self.buckets.iter().flat_map(|b| [b.opaque.as_ref(), b.double.as_ref()]).flatten().collect();
             meshes.extend(self.buckets.iter().flat_map(|b| b.placed[0].iter().chain(&b.placed[1])));
             meshes.extend(self.terrains.values().flat_map(|t| t.chunks.iter().flatten()));
             meshes.extend(self.scatters.values().flat_map(|s| s.chunks.values().flat_map(|c| &c.meshes)));
-            renderer.render_shadow(&meshes, vp);
-            Some(vp)
-        };
+            let clipmaps: Vec<_> = self.terrain3d.values().map(|n| n.clip()).collect();
+            renderer.render_shadow(&meshes, &clipmaps, eye.as_vec3(), vp);
+            vp
+        });
         renderer.set_lighting(&self.lighting, vp);
-        self.shadow_center = Some(focus);
+        self.shadow_view = Some((focus, eye));
         self.shadow_dirty = false;
     }
 
@@ -2342,6 +2368,11 @@ impl SceneCache {
                 status.insert(*id, node.status());
                 self.terrain3d.insert(*id, node);
             }
+        }
+
+        // Uploads trickle in while pending, and a stroke shows as a patch upload in the status.
+        if pending || self.terrain3d_pending || status != state.terrain3d_clipmap {
+            self.shadow_dirty = true;
         }
 
         self.terrain3d_pending = pending;
@@ -2480,6 +2511,63 @@ impl SceneCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_shadow_map_follows_the_eye_only_while_rings_cast() {
+        let (focus, eye) = (DVec3::new(100.0, 0.0, 100.0), DVec3::new(100.0, 900.0, 1500.0));
+        let last = Some((focus, eye));
+        let step = DVec3::new(0.0, 0.0, 200.0);
+        assert!(shadow_moved(None, focus, eye, false), "never drawn");
+        assert!(!shadow_moved(last, focus, eye, true));
+        assert!(!shadow_moved(last, focus, eye + step, false), "brushes alone cast the same from anywhere");
+        assert!(shadow_moved(last, focus, eye + step, true), "the rings moved with the eye");
+        assert!(!shadow_moved(last, focus + step, eye, true), "a small turn keeps the fit");
+        assert!(shadow_moved(last, focus + step * 6.0, eye, false), "the focus left the middle of the box");
+    }
+
+    /// The sun shadow map fits the regions of a shown Terrain3D node, which the map's own bounds leave out, alone or next
+    /// to a brush, and a hidden node no longer widens it.
+    #[test]
+    fn the_shadow_fit_takes_in_the_shown_terrain3d_regions_with_and_without_brushes() {
+        use crate::terrain3d::residency::View;
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, _) = crate::terrain3d::brush::tests::state_over(dir.path(), &[[1, -1], [2, -1]]);
+        assert_eq!(shadow_bounds(&state), Aabb::EMPTY, "no region shows before the residency places them");
+        assert_eq!(shadow_box(Aabb::EMPTY, DVec3::new(300.0, 20.0, -700.0)), None, "nothing to fit");
+
+        let everywhere = [View::Flat { min: DVec2::splat(-1.0e7), max: DVec2::splat(1.0e7), zoom: 1.0 }];
+        let start = std::time::Instant::now();
+        while state.terrain3d_bounds(id).is_empty() {
+            assert!(start.elapsed().as_secs() < 20, "the regions were never placed");
+            state.update_terrain3d_residency(&everywhere);
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+
+        // Two regions of 64 vertices 2.5 m apart, their manifest heights 0 to 2 m.
+        let regions = Aabb::new(DVec3::new(5120.0, 0.0, -5120.0), DVec3::new(15360.0, 64.0, 0.0));
+        assert_eq!(shadow_bounds(&state), regions, "a map of nothing but Terrain3D still gets a fit");
+        let inside = shadow_box(regions, DVec3::new(7000.0, 500.0, -2000.0));
+        assert_eq!(
+            inside,
+            Some(Aabb::new(DVec3::new(3800.0, -64.0, -4624.0), DVec3::new(10200.0, 128.0, 624.0))),
+            "the reach along x, the depth of the regions along z"
+        );
+        let away = shadow_box(regions, DVec3::new(-9000.0, -300.0, 9000.0));
+        assert_eq!(
+            away,
+            Some(Aabb::new(DVec3::new(1920.0, -64.0, -2624.0), DVec3::new(8320.0, 128.0, 2624.0))),
+            "a focus off the regions is pulled to their corner"
+        );
+
+        let layer = state.doc.map.default_layer();
+        let brush = Aabb::new(DVec3::new(-3000.0, 300.0, 700.0), DVec3::new(-2900.0, 420.0, 760.0));
+        state.doc.edit("brush", |m, _| m.insert(layer, NodeKind::Brush(Brush::from_aabb(&brush, "dev/grey").unwrap())));
+        assert_eq!(shadow_bounds(&state), regions.union(&brush), "the brush and the regions together");
+
+        state.doc.edit("hide", |m, _| m.get_mut(id).unwrap().hidden = true);
+        state.update_terrain3d_residency(&everywhere);
+        assert_eq!(shadow_bounds(&state), brush, "a hidden Terrain3D node leaves the brush alone to fit");
+    }
 
     #[test]
     fn brush_entity_outlines_draw_wide_in_their_own_color() {
