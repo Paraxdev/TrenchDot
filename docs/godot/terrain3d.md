@@ -164,7 +164,11 @@ The 3D view draws the ground the way Godot does: every pixel blends the base and
 there, with the texture scale, the color map and the autoshader on slopes, and holes are cut out. Ground near the camera
 is exact. Ground far away is a coarser copy, drawn as a [clipmap](../GLOSSARY.md#clipmap), a set of rings around the
 camera that each have half the detail of the one inside, so a world of many regions stays smooth and the frame time does
-not grow with its size. A region that is still loading shows its coarse copy, never a hole.
+not grow with its size.
+
+While a big world loads, regions fill in over a few frames, because each frame uploads only a limited amount. Every
+region gets its coarse copy first, then the ones nearest the camera are swapped for the exact ground. A region whose
+data has not been read yet is not drawn at all, so you see the world background in its place until it arrives.
 
 Beyond the regions it draws the [world background](../GLOSSARY.md#world-background) of the material, and a Terrain3D
 with an ocean gets a water plane at its [sea level](../GLOSSARY.md#sea-level). The 2D views draw the region borders as
@@ -236,8 +240,8 @@ seam. **Paint Layer** sets a texture id instead of one of four layers. Paint Alp
 displacements and leave Terrain3D as it is. The mode menu scrolls, Paint Layer, Hole and Unhole sit at its bottom.
 
 > [!TIP]
-> Radius and strength are in map units, 32 to a meter. The defaults, radius 48 and strength 4, make a brush 1.5 m wide
-> that raises 1 m a second, which hardly shows on a landscape hundreds of meters wide. For hills try a radius of 1000 to
+> Radius and strength are in map units, 32 to a meter. The defaults, radius 48 and strength 4, make a brush 3 m across
+> (a radius of 1.5 m) that raises 1 m a second, which hardly shows on a landscape hundreds of meters wide. For hills try a radius of 1000 to
 > 3000 and a strength of 50 or more, and resize the brush with Ctrl+wheel as you go. Strength stops at 256, a larger
 > value you type becomes 256.
 >
@@ -297,6 +301,11 @@ changed in Godot too", with the region outlined in the warning color in every vi
 | **Keep Mine** | Sends your edit anyway, replacing what Godot has |
 
 So unsaved work in Godot is never overwritten behind your back, and edits in different regions never conflict.
+
+A region you sculpted at another region size than Godot's terrain has, for example because you changed the region size
+in Godot and closed it without saving, shows "Region 0, 0 was made at another region size than Godot's terrain has".
+Godot cannot take such an edit, so there is no **Keep Mine**, only **Use Godot's**. To keep the edit instead, set the
+region size in Godot's Terrain3D node back to the size you sculpted at and send again.
 
 ## Scatter on Terrain3D
 
