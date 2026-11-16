@@ -141,7 +141,7 @@ static func _test_builds_slot(t) -> void:
 	level.free()
 
 ## A folder with no regions gets a Terrain3D of the region size and vertex spacing its manifest names, a folder with
-## regions keeps the size of its files.
+## regions keeps the size and spacing of its files.
 static func _test_new_folder_size(t) -> void:
 	for config in [[128, 2.5], [1024, 0.25]]:
 		var folder := "user://td_t3d_new_size_%d" % config[0]
@@ -162,6 +162,16 @@ static func _test_new_folder_size(t) -> void:
 	t.check(kept != null and int(kept.get("region_size")) == 256, "a folder with regions keeps the size of its files, got %s" % [kept.get("region_size") if kept else null])
 	probe.owner.free()
 	Apply.Export._clear(folder)
+
+	var spaced := "user://td_t3d_new_size_spaced"
+	Apply.new_folder(spaced, 128, 2.5)
+	DirAccess.copy_absolute("res://tests/terrain3d/v1_0_2/terrain3d_02-01.res", spaced + "/terrain3d_02-01.res")
+	var built := _level(t, _map_text([spaced]))
+	await t.process_frame
+	var node := (built.get_child(0) as TrenchDotTerrain3D).get_terrain()
+	t.check(node != null and t.near(float(node.get("vertex_spacing")), 2.0), "a folder with regions builds a Terrain3D of the spacing its files were saved with, not the manifest's, got %s" % [node.get("vertex_spacing") if node else null])
+	built.owner.free()
+	Apply.Export._clear(spaced)
 
 static func _test_keeps_user_terrain(t) -> void:
 	var map := _level(t)
