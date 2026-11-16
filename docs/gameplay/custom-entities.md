@@ -24,14 +24,21 @@ func disarm() -> void:
 
 Make the activator the first `Node` argument of your signals, so chains further down still know who started them.
 
-Map keys arrive in `_func_godot_apply_properties`. Read them through `TrenchDotIO.to_bool`, `to_vector3` and
-`to_color`, which accept both text and already converted values. Nodes you add there are saved with the scene. Nodes you
-add in `_ready` are not, they are made again each time the scene loads, which suits what only the running game needs.
-For an entity with a *Scene File*, Godot saves the nodes that come from that scene as the scene file holds them, so
-changes you make to them there are lost. Nodes you add are still saved, and changes to the scene's own nodes belong in
-`_ready`.
-
 The script needs `@tool`, because maps are built in the Godot editor, where only tool scripts run their methods.
+
+Map keys arrive in `_func_godot_apply_properties`. Read them through `TrenchDotIO.to_bool`, `to_vector3` and
+`to_color`, which accept both text and already converted values.
+
+Where you create nodes decides whether the scene keeps them:
+
+| Where | Saved with the scene | Use it for |
+| --- | --- | --- |
+| `_func_godot_apply_properties` | Yes | Nodes the map should contain |
+| `_ready` | No, made again each time the scene loads | What only the running game needs |
+
+An entity with a *Scene File* is different: Godot saves the nodes that come from that scene as the scene file holds
+them, so changes you make to them in `_func_godot_apply_properties` are lost. Nodes you add are still saved, and
+changes to the scene's own nodes belong in `_ready`.
 
 ## Making it placeable
 
