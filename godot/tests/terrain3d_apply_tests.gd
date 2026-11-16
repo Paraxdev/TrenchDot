@@ -26,6 +26,8 @@ static func run(t) -> void:
 	await _test_remove_then_edit(t)
 	await _test_bad_files(t)
 	await _test_instances_follow(t)
+	await _test_neighbours_stay_saved(t)
+	await _test_neighbours_mid_stroke(t)
 	_test_cli(t)
 	await _test_cli_instances(t)
 	_test_new_folder_settings(t)
@@ -277,6 +279,90 @@ static func _test_instances_follow(t) -> void:
 	want.sort()
 	t.check(Export._ints(result.accepted) == [[-1, 0]] and ys.size() == 2 and t.near(ys[0], want[0]) and t.near(ys[1], want[1]), "Terrain3D instances follow the applied height, got %s want %s from %s" % [ys, want, result])
 	terrain.free()
+
+## A saved and exported Terrain3D with the fixture maps at [param locs] and an instance at each of [param spots]. The
+## control maps are cleared, a fixture hole would drop an instance.
+static func _neighbourhood(t, folder: String, locs: Array, spots: Array) -> Node3D:
+	var terrain: Node3D = await Export._terrain(t, folder, SIZE, SPACING)
+	var data: Object = terrain.get(&"data")
+	for loc: Vector2i in locs:
+		Export._fill(terrain, loc, Export._pattern(loc, false))
+		data.get_region(loc).set_map(TYPE_CONTROL, Image.create_empty(SIZE, SIZE, false, Image.FORMAT_RF))
+	data.update_maps(3, true, false)
+	if not spots.is_empty():
+		var assets: Object = terrain.get(&"assets")
+		if assets.call(&"get_mesh_count") == 0:
+			assets.call(&"set_mesh_asset", 0, ClassDB.instantiate(&"Terrain3DMeshAsset"))
+		var xforms: Array[Transform3D] = []
+		for spot: Vector3 in spots:
+			xforms.append(Transform3D(Basis(), spot + Vector3.UP * data.get_height(spot)))
+		terrain.get(&"instancer").call(&"add_transforms", 0, xforms)
+	data.save_directory(folder)
+	TrenchDotTerrain3DCache.export(terrain, folder)
+	return terrain
+
+## Leaves a pending edit that makes [param loc] a slope lifted by [param lift] without holes.
+static func _send(folder: String, loc: Vector2i, lift: float) -> void:
+	_pending(folder, loc, { "height": _slanted(loc, lift), "control": Image.create_empty(SIZE, SIZE, false, Image.FORMAT_RF) }, _hash(folder, loc))
+
+## Terrain3D's update_transforms looks past the region it is given, an apply or a restore must not leave the regions
+## around it flagged unsaved.
+static func _test_neighbours_stay_saved(t) -> void:
+	var folder := WORK.path_join("neighbours")
+	var corner := Vector2i(-1, 0)
+	var west := Vector2i(-2, 0)
+	var north := Vector2i(-1, -1)
+	var locs := [Vector2i(-2, -1), north, west, corner, Vector2i(2, 1)]
+	# One instance in each neighbour within the 1 m Terrain3D looks past the corner, one inside the corner.
+	var spots := [Vector3(-160.5, 0.0, 41.0), Vector3(-97.0, 0.0, -0.5), Vector3(-160.5, 0.0, -0.5), Vector3(-83.0, 0.0, 77.0)]
+	var terrain := await _neighbourhood(t, folder, locs, spots)
+	var data: Object = terrain.get(&"data")
+	var instances := locs.map(func(loc: Vector2i) -> String: return var_to_str(data.get_region(loc).get(&"instances")))
+	var unsaved := func() -> Array: return locs.filter(func(loc: Vector2i) -> bool: return data.get_region(loc).get(&"modified"))
+	_send(folder, corner, 9.0)
+	var result := TrenchDotTerrain3DCache.apply(terrain, folder)
+	var moved := locs.filter(func(loc: Vector2i) -> bool: return var_to_str(data.get_region(loc).get(&"instances")) != instances[locs.find(loc)])
+	t.check(Export._ints(result.accepted) == [[-1, 0]] and unsaved.call().is_empty() and TrenchDotTerrain3DCache.read_manifest(folder).get("dirty", []).is_empty() and moved == [corner], "an apply leaves the regions around it saved and their instances where they were, got %s unsaved and %s moved from %s" % [unsaved.call(), moved, result])
+	data.get_region(north).set(&"modified", true)
+	_send(folder, corner, 3.0)
+	result = TrenchDotTerrain3DCache.apply(terrain, folder)
+	t.check(Export._ints(result.accepted) == [[-1, 0]] and unsaved.call() == [north], "a neighbour Godot has unsaved stays unsaved through an apply, got %s from %s" % [unsaved.call(), result])
+	_send(folder, north, 4.0)
+	_send(folder, west, 6.0)
+	result = TrenchDotTerrain3DCache.apply(terrain, folder)
+	var refused: Array = result.refused.map(func(r: Dictionary) -> Array: return [Export._ints(r["loc"]), r["reason"]])
+	t.check(Export._ints(result.accepted) == [[-2, 0]] and refused == [[[-1, -1], "dirty"]], "a send to a saved neighbour of an applied region is accepted and one to an unsaved neighbour refused, got %s" % [result])
+	data.save_directory(folder)
+	var before: Array = TrenchDotTerrain3DCache.snapshot_region(data, west)
+	var skipped := TrenchDotTerrain3DCache.restore_regions(terrain, { corner: [_slanted(corner, 2.0), Image.create_empty(SIZE, SIZE, false, Image.FORMAT_RF), data.get_region(corner).get_map(TYPE_COLOR).duplicate()] })
+	t.check(skipped.is_empty() and unsaved.call() == [corner] and TrenchDotTerrain3DCache.snapshot_region(data, west)[0].get_data() == before[0].get_data(), "a restore flags only the regions it puts back, got %s unsaved and %s skipped" % [unsaved.call(), skipped])
+	terrain.free()
+
+## Terrain3D flags a region unsaved only when a brush stroke first reaches it. A neighbour an apply drew into a held
+## stroke must stay flagged, or the rest of the stroke in it is not saved with the scene.
+static func _test_neighbours_mid_stroke(t) -> void:
+	var folder := WORK.path_join("mid_stroke")
+	var corner := Vector2i(-1, 0)
+	var north_west := Vector2i(-2, -1)
+	var terrain := await _neighbourhood(t, folder, [north_west, Vector2i(-1, -1), Vector2i(-2, 0), corner], [])
+	var data: Object = terrain.get(&"data")
+	var editor: Object = ClassDB.instantiate(&"Terrain3DEditor")
+	editor.call(&"set_terrain", terrain)
+	terrain.call(&"set_editor", editor)
+	editor.call(&"start_operation", Vector3(-83.0, 0.0, 77.0))
+	_send(folder, corner, 9.0)
+	var result := TrenchDotTerrain3DCache.apply(terrain, folder)
+	# What Terrain3DEditor does for each pixel a stroke paints.
+	var region: Object = data.get_region(north_west)
+	editor.call(&"backup_region", region)
+	region.get_map(TYPE_HEIGHT).set_pixel(13, 5, Color(77.5, 0.0, 0.0))
+	data.save_directory(folder)
+	var saved := _saved_height(folder, north_west)
+	var height: Variant = saved.get_pixel(13, 5).r if saved else null
+	t.check(Export._ints(result.accepted) == [[-1, 0]] and height != null and t.near(height, 77.5), "a stroke held through an apply is saved in a neighbour it reaches afterwards, got %s from %s" % [height, result])
+	terrain.call(&"set_editor", null)
+	terrain.free()
+	editor.free()
 
 static func _test_cli(t) -> void:
 	var folder := WORK.path_join("cli")
