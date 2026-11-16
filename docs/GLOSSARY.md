@@ -78,6 +78,9 @@ The file trenchdot_game.json in the Godot project root, written by the addon. It
 ## Gameplay entities pack
 The doors, buttons, lifts, triggers, logic, spawners, props and effects of the entity reference. They aren't part of the addon itself. Installing the pack copies their definitions and scripts into res://trenchdot/entities, where they belong to your project and you can change them freely.
 
+## gizmo
+A set of handles drawn on a selection that you drag to move, rotate or scale it.
+
 ## glTF
 An open file format for 3D models and scenes that Blender, Godot and most 3D tools read. A .glb file is its binary form, which holds the geometry and the textures in one file.
 

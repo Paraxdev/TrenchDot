@@ -82,6 +82,9 @@ O arquivo trenchdot_game.json na raiz do projeto Godot, gravado pelo addon. Ele 
 ## pacote de entidades de gameplay { #gameplay-entities-pack data-forms="pacotes de entidades de gameplay" }
 As portas, botões, elevadores, triggers, lógica, spawners, props e efeitos da referência de entidades. Eles não fazem parte do addon em si. Instalar o pacote copia as definições e os scripts deles para res://trenchdot/entities, onde passam a pertencer ao seu projeto e você pode mudá-los à vontade.
 
+## Gizmo { #gizmo }
+Um conjunto de alças desenhado sobre uma seleção que você arrasta para movê-la, girá-la ou redimensioná-la.
+
 ## glTF { #gltf }
 Um formato de arquivo aberto para modelos e cenas 3D que o Blender, o Godot e a maioria das ferramentas 3D leem. Um arquivo .glb é a forma binária dele, que guarda a geometria e as texturas em um só arquivo.
 
