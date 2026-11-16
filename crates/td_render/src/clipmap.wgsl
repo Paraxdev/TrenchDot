@@ -26,6 +26,8 @@ struct Clipmap {
     noise: vec4<f32>,
     // xyz: Terrain3D's world noise offset, w: fewest octaves
     noise_offset: vec4<f32>,
+    // x: 1 when the background draws
+    toggles: vec4<f32>,
     // Fine layer per region map location, COARSE_ONLY or NO_REGION, four to an element.
     regions: array<vec4<i32>, 256>,
     textures: array<Texture, 32>,
@@ -222,7 +224,7 @@ fn noise_weight(uv: vec2<f32>) -> f32 {
 
 // The meters a Noise background raises the ground at `pos` in cells, nothing near the regions.
 fn noise_height(pos: vec2<f32>, octaves: i32) -> f32 {
-    if (clip.look.x < 1.5) {
+    if (clip.look.x < 1.5 || clip.toggles.x < 0.5) {
         return 0.0;
     }
     let size = f32(clip.grid.x);
@@ -313,10 +315,10 @@ fn triangle(c: vec2<i32>, f: vec2<f32>) -> array<vec2<i32>, 3> {
     return array<vec2<i32>, 3>(vec2<i32>(0, 1), vec2<i32>(1, 0), select(vec2<i32>(1, 1), vec2<i32>(0, 0), f.x + f.y < 1.0));
 }
 
-// With no background, whether the level 0 triangle under a pixel has a corner no region holds, so this drops exactly
+// With no background drawn, whether the level 0 triangle under a pixel has a corner no region holds, so this drops exactly
 // the triangles picking misses.
 fn outside(world: vec3<f32>) -> bool {
-    if (clip.look.x > 0.5) {
+    if (clip.look.x > 0.5 && clip.toggles.x > 0.5) {
         return false;
     }
     let p = world.xz / clip.world.x;

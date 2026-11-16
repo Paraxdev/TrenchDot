@@ -152,6 +152,9 @@ pub struct ClipmapParams {
     /// Map units per meter, heights are meters.
     pub upm: f32,
     pub background: Background,
+    /// Whether the background draws. Off leaves only the ground the regions hold, still blended toward the ground level
+    /// at their edges, as with the background on.
+    pub background_shown: bool,
     /// Meters, what a Flat or Noise background blends the region edges toward.
     pub ground_level: f32,
     pub region_blend: f32,
@@ -182,6 +185,7 @@ impl Default for ClipmapParams {
             cell: 32.0,
             upm: 32.0,
             background: Background::None,
+            background_shown: true,
             ground_level: 0.0,
             region_blend: 0.25,
             heights: [0.0, 0.0],
@@ -204,6 +208,7 @@ pub(crate) struct ClipmapUniform {
     auto_shader: [f32; 4],
     noise: [f32; 4],
     noise_offset: [f32; 4],
+    toggles: [f32; 4],
     regions: [[i32; 4]; 256],
     textures: [look::TextureUniform; look::MAX_TEXTURES],
 }
@@ -243,6 +248,7 @@ impl ClipmapUniform {
         let octaves = |o: u32| o.min(noise::MAX_OCTAVES) as f32;
         self.noise = [n.scale, n.height, n.lod_distance, octaves(n.max_octaves)];
         self.noise_offset = [n.offset[0], n.offset[1], n.offset[2], octaves(n.min_octaves)];
+        self.toggles = [flag(p.background_shown), 0.0, 0.0, 0.0];
     }
 
     fn slot(&self, i: usize) -> Slot {
@@ -480,13 +486,11 @@ impl GpuClipmap {
         out
     }
 
-    /// The parts a view at `eye` draws. Without a background nothing draws past the regions.
+    /// The parts a view at `eye` draws. Without a background, or with it hidden, nothing draws past the regions.
     pub fn instances(&self, eye: Vec3, view_proj: Mat4) -> layout::Instances {
         let cell = self.params.cell as f64;
-        let area = match self.params.background {
-            Background::None => Some(self.area().unwrap_or([I64Vec2::ZERO; 2])),
-            _ => None,
-        };
+        let drawn = self.params.background != Background::None && self.params.background_shown;
+        let area = if drawn { None } else { Some(self.area().unwrap_or([I64Vec2::ZERO; 2])) };
         let cull = layout::Cull { frustum: Some(layout::Frustum::new(view_proj)), cell, heights: self.params.heights.map(|h| h as f64), area };
         layout::Instances::new(DVec2::new(eye.x as f64, eye.z as f64) / cell, &cull)
     }
@@ -988,6 +992,31 @@ mod tests {
         assert_eq!(u.look[2], 2.0);
         u.set_params(&ClipmapParams { textures: false, auto_shader: None, ..params }, true);
         assert_eq!((u.look, u.auto_shader), ([1.0, 1.0, 1.0, 0.0], [0.0; 4]));
+    }
+
+    #[test]
+    fn a_hidden_background_reaches_the_uniform_and_the_culling() {
+        let mut u = ClipmapUniform::new(&DESC);
+        assert_eq!(u.toggles[0], 1.0, "the background draws by default");
+        let params = ClipmapParams { background: Background::Flat, background_shown: false, ..Default::default() };
+        u.set_params(&params, true);
+        assert_eq!((u.look[0], u.toggles[0]), (1.0, 0.0), "the mode stays, so the edges still blend");
+        u.set_params(&ClipmapParams { background_shown: true, ..params }, true);
+        assert_eq!(u.toggles[0], 1.0);
+
+        let (device, queue) = device(true);
+        let mut clip = GpuClipmap::new(&device, &queue, &bind_group_layout(&device), &DESC).unwrap();
+        let eye = Vec3::new(-3000.0, 4000.0, 2500.0);
+        let view_proj = top_down(eye, [2.0e6, 2.0e6]);
+        clip.set_slots(&queue, &[([-3, 2], Slot::Coarse)]).unwrap();
+        let params = ClipmapParams { cell: 24.0, heights: [-500.0, 900.0], background: Background::Flat, ..Default::default() };
+        clip.set_params(&queue, &params);
+        let shown = clip.instances(eye, view_proj).parts.len();
+        clip.set_params(&queue, &ClipmapParams { background_shown: false, ..params });
+        let hidden = clip.instances(eye, view_proj).parts;
+        assert!(!hidden.is_empty() && hidden.len() < shown, "{} parts over the regions of {shown}", hidden.len());
+        clip.set_params(&queue, &ClipmapParams { background: Background::None, ..params });
+        assert_eq!(clip.instances(eye, view_proj).parts.len(), hidden.len(), "hidden culls like no background");
     }
 
     #[test]

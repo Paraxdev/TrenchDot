@@ -191,6 +191,7 @@ pub struct SceneCache {
     ghosts: Option<GpuLines>,
     ghost_generation: Option<u64>,
     show_ghosts: bool,
+    show_terrain3d_water: bool,
     /// The leak path of the void culling, see `crate::void_cull`, and the report generation it was drawn for.
     leak_lines: Option<GpuLines>,
     leak_generation: Option<u64>,
@@ -1741,6 +1742,7 @@ impl SceneCache {
     pub fn update_with(&mut self, renderer: &mut Renderer, state: &mut EditorState, project_generation: u64, show_selection: bool) {
         state.overlay_ghosts.refresh(state.doc.path.as_deref());
         self.show_ghosts = state.prefs.godot_overlays;
+        self.show_terrain3d_water = state.prefs.terrain3d_water;
         if self.ghost_generation != Some(state.overlay_ghosts.generation) {
             self.ghosts = renderer.upload_lines(&crate::overlays::ghost_lines(&state.overlay_ghosts.items));
             self.ghost_generation = Some(state.overlay_ghosts.generation);
@@ -2408,7 +2410,13 @@ impl SceneCache {
 
         if !is_2d {
             frame.clipmaps.extend(self.terrain3d.values().map(|n| n.clip()));
-            frame.water = self.terrain3d.iter().filter_map(|(id, n)| Some((*id, n.water()?))).min_by_key(|(id, _)| *id).map(|(_, w)| w);
+            frame.water = self
+                .terrain3d
+                .iter()
+                .filter(|_| self.show_terrain3d_water)
+                .filter_map(|(id, n)| Some((*id, n.water()?)))
+                .min_by_key(|(id, _)| *id)
+                .map(|(_, w)| w);
         }
 
         for t in self.terrains.values() {

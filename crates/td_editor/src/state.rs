@@ -447,6 +447,12 @@ pub struct Prefs {
     /// The experimental Terrain3D bridge: Link Terrain3D shows in the menus. A map that already links Terrain3D works
     /// either way, and MCP clients reach it either way.
     pub terrain3d: bool,
+    /// Draw Terrain3D with its textures, off draws each as its mean color.
+    pub terrain3d_textures: bool,
+    /// Draw Terrain3D's world background past the regions, off keeps only the ground the regions hold.
+    pub terrain3d_background: bool,
+    /// Draw the ocean of a Terrain3D node that has one.
+    pub terrain3d_water: bool,
     /// Projects, by absolute path, whose content wizard a person has answered or closed. It opens by itself only for
     /// a project that is neither here nor among the recent projects.
     pub content_asked: std::collections::BTreeSet<PathBuf>,
@@ -567,6 +573,9 @@ impl Default for Prefs {
             walk_agent: Default::default(),
             start_hints: true,
             terrain3d: false,
+            terrain3d_textures: true,
+            terrain3d_background: true,
+            terrain3d_water: true,
             content_asked: Default::default(),
             addon_dismissed: Default::default(),
             update_check: true,
@@ -2812,6 +2821,19 @@ mod tests {
         assert_eq!((again.keymap_asked, again.fly_speed), (false, 77.0), "a saved false stays unanswered");
         let answered = serde_json::to_string(&Prefs { keymap_asked: true, ..Prefs::default() }).unwrap();
         assert!(load(&answered).keymap_asked);
+    }
+
+    #[test]
+    fn the_terrain3d_view_prefs_default_on_and_round_trip() {
+        let load = |json: &str| serde_json::from_str::<Prefs>(json).unwrap();
+        let on = |p: &Prefs| (p.terrain3d_textures, p.terrain3d_background, p.terrain3d_water);
+        assert_eq!(on(&Prefs::default()), (true, true, true));
+        let old = load(r#"{"fly_speed": 100.0, "terrain3d": true}"#);
+        assert_eq!((on(&old), old.fly_speed, old.terrain3d), ((true, true, true), 100.0, true), "a prefs file from before has all three on");
+        let some = load(r#"{"terrain3d_background": false, "fly_speed": 5.0}"#);
+        assert_eq!((on(&some), some.fly_speed), ((true, false, true), 5.0));
+        let saved = serde_json::to_string(&Prefs { terrain3d_textures: false, terrain3d_water: false, ..Prefs::default() }).unwrap();
+        assert_eq!(on(&load(&saved)), (false, true, false), "{saved}");
     }
 
     #[test]

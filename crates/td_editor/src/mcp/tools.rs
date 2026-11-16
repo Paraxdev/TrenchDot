@@ -2526,6 +2526,16 @@ impl App {
             self.state.prefs.live_mode = live;
         }
 
+        for (key, pref) in [
+            ("terrain3d_textures", &mut self.state.prefs.terrain3d_textures),
+            ("terrain3d_background", &mut self.state.prefs.terrain3d_background),
+            ("terrain3d_water", &mut self.state.prefs.terrain3d_water),
+        ] {
+            if let Some(on) = args[key].as_bool() {
+                *pref = on;
+            }
+        }
+
         if let Some(b) = args["draw_depth_from_selection"].as_bool() {
             self.state.prefs.draw_depth_from_selection = b;
         }

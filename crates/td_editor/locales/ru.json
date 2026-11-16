@@ -2879,5 +2879,10 @@
   "Edit the Terrain3D plugin's terrain, a Terrain3D update can break it": "Правит ландшафт плагина Terrain3D, обновление Terrain3D может его сломать",
   "Show, sculpt and paint terrain made with the Terrain3D plugin. It relies on a third party plugin, so a new Terrain3D release can break it.": "Показывает, лепит и раскрашивает ландшафт плагина Terrain3D. Он опирается на сторонний плагин, поэтому новая версия Terrain3D может его сломать.",
   "What this means": "Что это значит",
-  "Terrain3D is experimental, turn it on in File > Preferences": "Terrain3D экспериментальный, включите его в Файл > Настройки"
+  "Terrain3D is experimental, turn it on in File > Preferences": "Terrain3D экспериментальный, включите его в Файл > Настройки",
+  "World Background": "Фон мира",
+  "Water": "Вода",
+  "Off draws each texture as its average color": "Выключено: каждая текстура рисуется средним цветом",
+  "The hills or flat ground Terrain3D draws past its regions": "Холмы или плоская земля, которые Terrain3D рисует за своими регионами",
+  "The ocean of a Terrain3D node": "Океан узла Terrain3D"
 }

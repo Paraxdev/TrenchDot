@@ -2879,5 +2879,10 @@
   "Edit the Terrain3D plugin's terrain, a Terrain3D update can break it": "Terrain3D プラグインの地形を編集します。Terrain3D の更新で動かなくなることがあります",
   "Show, sculpt and paint terrain made with the Terrain3D plugin. It relies on a third party plugin, so a new Terrain3D release can break it.": "Terrain3D プラグインで作った地形を表示、スカルプト、ペイントします。サードパーティのプラグインに依存するため、Terrain3D の新しいリリースで動かなくなることがあります。",
   "What this means": "これの意味",
-  "Terrain3D is experimental, turn it on in File > Preferences": "Terrain3D は実験的機能です。ファイル > 環境設定 でオンにしてください"
+  "Terrain3D is experimental, turn it on in File > Preferences": "Terrain3D は実験的機能です。ファイル > 環境設定 でオンにしてください",
+  "World Background": "ワールド背景",
+  "Water": "水",
+  "Off draws each texture as its average color": "オフにすると各テクスチャを平均色で描画します",
+  "The hills or flat ground Terrain3D draws past its regions": "Terrain3D がリージョンの外側に描く丘や平らな地面",
+  "The ocean of a Terrain3D node": "Terrain3D ノードの海"
 }

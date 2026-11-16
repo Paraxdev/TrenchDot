@@ -2879,5 +2879,10 @@
   "Edit the Terrain3D plugin's terrain, a Terrain3D update can break it": "Bearbeitet das Terrain des Terrain3D-Plugins, ein Terrain3D-Update kann es kaputt machen",
   "Show, sculpt and paint terrain made with the Terrain3D plugin. It relies on a third party plugin, so a new Terrain3D release can break it.": "Zeigt, formt und bemalt Terrain aus dem Terrain3D-Plugin. Es baut auf einem Plugin von Dritten auf, daher kann eine neue Terrain3D-Version es kaputt machen.",
   "What this means": "Was das bedeutet",
-  "Terrain3D is experimental, turn it on in File > Preferences": "Terrain3D ist experimentell, schalte es unter Datei > Einstellungen ein"
+  "Terrain3D is experimental, turn it on in File > Preferences": "Terrain3D ist experimentell, schalte es unter Datei > Einstellungen ein",
+  "World Background": "Welthintergrund",
+  "Water": "Wasser",
+  "Off draws each texture as its average color": "Aus zeichnet jede Textur in ihrer Durchschnittsfarbe",
+  "The hills or flat ground Terrain3D draws past its regions": "Die Hügel oder flache Fläche, die Terrain3D hinter seinen Regionen zeichnet",
+  "The ocean of a Terrain3D node": "Der Ozean eines Terrain3D-Knotens"
 }

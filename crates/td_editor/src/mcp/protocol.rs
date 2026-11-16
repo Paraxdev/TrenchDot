@@ -493,7 +493,7 @@ pub fn tool_definitions() -> Vec<Value> {
         }),
         json!({
             "name": "set_editor",
-            "description": "Editor settings: grid size, snapping, uv lock, active tool (select, clip, vertex, rotate, scale, shear, mesh, sculpt, blend, paint, scatter, volume, path, measure, texture), current material, shading, mesh component mode, scatter palette items, brush radius, sculpt mode, keyboard shortcut preset (keymap), sculpt and blend symmetry (get_state reports it as editor.symmetry), vertex edit symmetry (edit_symmetry, get_state reports it as editor.edit_symmetry), editor language and interface scale. mcp: false turns MCP off until a person turns it back on in Preferences.",
+            "description": "Editor settings: grid size, snapping, uv lock, active tool (select, clip, vertex, rotate, scale, shear, mesh, sculpt, blend, paint, scatter, volume, path, measure, texture), current material, shading, mesh component mode, scatter palette items, brush radius, sculpt mode, keyboard shortcut preset (keymap), sculpt and blend symmetry (get_state reports it as editor.symmetry), vertex edit symmetry (edit_symmetry, get_state reports it as editor.edit_symmetry), editor language and interface scale, what the 3D view draws of Terrain3D (textures, background, water). mcp: false turns MCP off until a person turns it back on in Preferences.",
             "inputSchema": { "type": "object", "properties": {
                 "grid": { "type": "number", "exclusiveMinimum": 0, "description": "positive, clamped to 0.125..1024" }, "snap": { "type": "boolean" }, "uv_lock": { "type": "boolean" },
                 "tool": { "type": "string" }, "material": { "type": "string" },
@@ -507,6 +507,9 @@ pub fn tool_definitions() -> Vec<Value> {
                 "symmetry": symmetry_schema(),
                 "edit_symmetry": edit_symmetry_schema(),
                 "terrain3d_edit_regions": { "type": "boolean", "description": "Edit Regions mode of the selected Terrain3D node, a click on a square of the Top view adds or removes a region" },
+                "terrain3d_textures": { "type": "boolean", "description": "View > Terrain3D > Textures, off draws each Terrain3D texture as its average color" },
+                "terrain3d_background": { "type": "boolean", "description": "View > Terrain3D > World Background, off leaves only the ground the regions hold" },
+                "terrain3d_water": { "type": "boolean", "description": "View > Terrain3D > Water, off leaves out the ocean of a Terrain3D node" },
                 "theme": { "type": "string", "enum": ["dark", "light", "system"], "description": "Editor colors. system follows the OS app mode and falls back to dark." },
                 "keymap": { "type": "string", "enum": ["trenchbroom", "hammer", "blender"], "description": "Keyboard shortcut preset, get_state reports it as editor.keymap. In the hammer preset Select All in the Texture tool selects the faces of the selected brushes." },
                 "language": { "type": "string", "enum": ["en", "de", "fr", "es", "pt", "ru", "zh-Hans", "ja"], "description": "Language of the menus, panels and messages. Tool names, MCP replies and errors stay English." },

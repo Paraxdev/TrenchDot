@@ -2879,5 +2879,10 @@
   "Edit the Terrain3D plugin's terrain, a Terrain3D update can break it": "编辑 Terrain3D 插件的地形，Terrain3D 更新后可能失效",
   "Show, sculpt and paint terrain made with the Terrain3D plugin. It relies on a third party plugin, so a new Terrain3D release can break it.": "显示、雕刻和绘制用 Terrain3D 插件制作的地形。它依赖第三方插件，因此 Terrain3D 的新版本可能使其失效。",
   "What this means": "这意味着什么",
-  "Terrain3D is experimental, turn it on in File > Preferences": "Terrain3D 是实验功能，请在 文件 > 偏好设置 中开启"
+  "Terrain3D is experimental, turn it on in File > Preferences": "Terrain3D 是实验功能，请在 文件 > 偏好设置 中开启",
+  "World Background": "世界背景",
+  "Water": "水",
+  "Off draws each texture as its average color": "关闭后每张纹理以平均颜色绘制",
+  "The hills or flat ground Terrain3D draws past its regions": "Terrain3D 在区域之外绘制的丘陵或平坦地面",
+  "The ocean of a Terrain3D node": "Terrain3D 节点的海洋"
 }

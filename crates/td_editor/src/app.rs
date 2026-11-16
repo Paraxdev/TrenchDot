@@ -2050,6 +2050,25 @@ impl App {
                 m.item(ui, Some(icons::FOCUS), en!("Focus Selection"), Action::FocusSelection);
                 m.toggle(ui, en!("Transform Gizmo"), self.state.prefs.transform_gizmo, Action::ToggleTransformGizmo);
                 m.toggle(ui, en!("Godot Overlays"), self.state.prefs.godot_overlays, Action::ToggleGodotOverlays);
+                if self.state.prefs.terrain3d || self.state.doc.map.has_terrain3d() {
+                    sub_menu(ui, None, en!("Terrain3D"), |ui| {
+                        let p = &mut self.state.prefs;
+                        let rows = [
+                            (en!("Textures"), &mut p.terrain3d_textures, tr("Off draws each texture as its average color")),
+                            (en!("World Background"), &mut p.terrain3d_background, tr("The hills or flat ground Terrain3D draws past its regions")),
+                            (en!("Water"), &mut p.terrain3d_water, tr("The ocean of a Terrain3D node")),
+                        ];
+                        for (label, on, tip) in rows {
+                            let (_, shown) = label.parts();
+                            let response = ui.add(menu_button(on.then_some(icons::CHECK), shown, None)).on_hover_text(tip);
+                            if response.clicked() {
+                                *on = !*on;
+                                ui.close();
+                            }
+                        }
+                    });
+                }
+
                 m.toggle(ui, en!("Preview void culling"), self.state.prefs.preview_void_cull, Action::ToggleVoidPreview);
                 sub_menu(ui, None, en!("Walkable Area"), |ui| {
                     m.toggle(ui, en!("Show Walkable Area"), self.state.walkable.on, Action::ToggleWalkable);

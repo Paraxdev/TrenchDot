@@ -15,7 +15,7 @@ use td_render::clipmap::{AutoShader, Background, ClipmapDesc, ClipmapParams, Gpu
 use td_render::{Renderer, Water};
 
 use super::residency::{self, Source};
-use crate::state::EditorState;
+use crate::state::{EditorState, Prefs};
 
 /// Bytes a frame uploads at most, though always one region, so a region of 1024 costs one frame.
 pub const UPLOAD_BUDGET: usize = 24 << 20;
@@ -410,7 +410,7 @@ pub fn sync(renderer: &Renderer, slot: &mut Option<NodeClipmap>, state: &EditorS
             _ => None,
         })
         .collect();
-    let params = params(state.terrain3d.upm, manifest, &regions, &ranges, selected, wire);
+    let params = params(state.terrain3d.upm, manifest, &regions, &ranges, selected, wire, &state.prefs);
     if *node.clip.params() != params {
         node.clip.set_params(&renderer.queue, &params);
     }
@@ -549,7 +549,15 @@ fn background(m: &ManifestMaterial) -> Background {
     }
 }
 
-fn params(upm: f64, manifest: &Manifest, regions: &[Region], ranges: &HashMap<usize, [f32; 2]>, selected: bool, wire: [f32; 4]) -> ClipmapParams {
+fn params(
+    upm: f64,
+    manifest: &Manifest,
+    regions: &[Region],
+    ranges: &HashMap<usize, [f32; 2]>,
+    selected: bool,
+    wire: [f32; 4],
+    prefs: &Prefs,
+) -> ClipmapParams {
     let m = &manifest.material;
     let background = background(m);
     let cached: HashMap<Loc, [f32; 2]> = manifest.regions.iter().map(|r| (r.loc, r.height_range)).collect();
@@ -582,12 +590,13 @@ fn params(upm: f64, manifest: &Manifest, regions: &[Region], ranges: &HashMap<us
         cell: (manifest.vertex_spacing * upm as f64) as f32,
         upm,
         background,
+        background_shown: prefs.terrain3d_background,
         ground_level: m.ground_level as f32,
         region_blend: m.region_blend as f32,
         heights,
         selected,
         wire,
-        textures: true,
+        textures: prefs.terrain3d_textures,
         auto_shader,
     }
 }
@@ -625,7 +634,7 @@ mod tests {
         };
         let regions = [region([-2, 3], 1), region([5, -1], 1)];
         let drawn = |manifest: &Manifest| {
-            let p = params(32.0, manifest, &regions, &HashMap::new(), false, [1.0; 4]);
+            let p = params(32.0, manifest, &regions, &HashMap::new(), false, [1.0; 4], &Prefs::default());
             (p.background, p.heights)
         };
         assert_eq!(drawn(&manifest), (Background::None, [-6.0 * 32.0, 20.0 * 32.0]), "no background leaves out the ground level");
@@ -642,6 +651,13 @@ mod tests {
         assert_eq!(drawn(&manifest), (Background::Noise(noise), [-306.0 * 32.0, 80.0 * 32.0]));
         manifest.material.world_background = 0;
         assert_eq!(drawn(&manifest), (Background::None, [-6.0 * 32.0, 20.0 * 32.0]), "noise values without the mode draw nothing");
+        let shown = |prefs: &Prefs| {
+            let p = params(32.0, &manifest, &regions, &HashMap::new(), false, [1.0; 4], prefs);
+            (p.textures, p.background_shown)
+        };
+        let off = |t: bool, b: bool| Prefs { terrain3d_textures: t, terrain3d_background: b, ..Prefs::default() };
+        assert_eq!(shown(&Prefs::default()), (true, true));
+        assert_eq!((shown(&off(false, true)), shown(&off(true, false)), shown(&off(false, false))), ((false, true), (true, false), (false, false)));
     }
 
     #[test]

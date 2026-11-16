@@ -9044,6 +9044,122 @@ fn terrain3d_ocean_draws_water_below_the_horizon() {
     assert_eq!(image_difference(&calm_wire, &dry_wire), 0.0);
 }
 
+/// The View > Terrain3D switches, set over MCP, each change the pixels they stand for: textures draw their mean color,
+/// the background leaves only the ground the regions hold but keeps their edge blend, water leaves the plane out.
+#[test]
+#[ignore]
+fn terrain3d_view_switches_change_what_is_drawn() {
+    use td_formats::terrain3d_cache::{self, ManifestOcean};
+
+    let (dir, _) = terrain3d_world("terrain3d_switches", None);
+    let base = dir.join("terrain").join(terrain3d_cache::DIR_NAME);
+    let checker = image::RgbaImage::from_fn(8, 8, |x, y| if (x + y) % 2 == 0 { image::Rgba([240, 20, 20, 255]) } else { image::Rgba([20, 20, 240, 255]) });
+    checker.save(base.join("textures/1.png")).unwrap();
+    let variant = |name: &str, background: u32, ocean: bool| {
+        let cache = dir.join(name).join(terrain3d_cache::DIR_NAME);
+        copy_dir(&base, &cache);
+        let mut manifest = terrain3d_cache::read_manifest(&cache).unwrap();
+        manifest.material.world_background = background;
+        if background == 2 {
+            manifest.material.world_noise = Some(terrain3d_cache::WorldNoise { height: 64.0, ..Default::default() });
+        }
+
+        if ocean {
+            manifest.ocean = Some(ManifestOcean { enabled: true, sea_level: 3.0, water_color: [0.1, 0.75, 0.25, 1.0], ..Default::default() });
+        }
+
+        terrain3d_cache::write_manifest(&cache, &manifest).unwrap();
+        let mut map = td_doc::Map::new();
+        let layer = map.default_layer();
+        map.insert(layer, td_doc::NodeKind::Terrain3D(td_doc::terrain3d::Terrain3DLink::new(format!("res://{name}"))));
+        let path = dir.join(format!("maps/{name}.tdm"));
+        td_doc::format::save(&map, &path).unwrap();
+        path
+    };
+    let (hills_map, pond_map, flat_map, none_map) =
+        (variant("hills", 2, false), variant("pond", 1, true), variant("flat", 1, false), variant("none", 0, false));
+
+    let ed = Editor::launch_with("terrain3d_switches", &["--project", dir.to_str().unwrap()]);
+    ed.call("set_editor", json!({ "shade": "lit", "tool": "select" }));
+    let args = json!({ "target": "3d", "width": 320, "height": 240 });
+    let open = |map: &std::path::Path, from: [f64; 3], to: [f64; 3]| {
+        ed.call("map_file", json!({ "op": "open", "path": map }));
+        let node = ed.call("list_nodes", json!({ "type": "terrain3d" }))["nodes"][0]["id"].clone();
+        ed.call("set_camera", json!({ "view": "3d", "position": from, "look_at": to }));
+        clipmap_settled(&ed, &node, 3);
+        node
+    };
+    let differ = |a: &image::RgbaImage, b: &image::RgbaImage, rows: std::ops::Range<u32>| {
+        let moved = |(x, y, p): &(u32, u32, &image::Rgba<u8>)| (0..3).any(|c| p.0[c].abs_diff(b.get_pixel(*x, *y).0[c]) > 24);
+        a.enumerate_pixels().filter(|px| rows.contains(&px.1) && moved(px)).count()
+    };
+    let switch = |key: &str, on: bool| {
+        let reply = ed.call("set_editor", json!({ key: on }));
+        assert!(reply.is_object(), "{key}: {reply}");
+    };
+
+    // Level over region [0, 0] looking away from every region, the horizon is the middle row.
+    let (from, to) = ([256.0, 800.0, 256.0], [-3000.0, 800.0, -3000.0]);
+    let node = open(&pond_map, from, to);
+    let full = shot(&ed, args.clone(), "pond");
+    ed.call("hierarchy", json!({ "op": "set_flags", "ids": [node], "hidden": true }));
+    let sky = shot(&ed, args.clone(), "sky");
+    ed.call("hierarchy", json!({ "op": "set_flags", "ids": [node], "hidden": false }));
+    let under = 320 * 110;
+    assert!(differ(&full, &sky, 130..240) > under * 9 / 10, "water fills the view under the horizon");
+    switch("terrain3d_water", false);
+    let dry = shot(&ed, args.clone(), "dry");
+    assert_eq!(differ(&full, &dry, 0..110), 0, "water leaves the sky alone");
+    assert!(differ(&full, &dry, 130..240) > under * 9 / 10, "no water under the horizon");
+    assert!(differ(&dry, &sky, 130..240) > under * 9 / 10, "the flat ground is there instead");
+    switch("terrain3d_water", true);
+    assert_eq!(differ(&full, &shot(&ed, args.clone(), "wet"), 0..240), 0, "water back on draws what it did");
+
+    open(&hills_map, from, to);
+    let hilly = shot(&ed, args.clone(), "hills");
+    assert!(differ(&hilly, &sky, 0..110) > 320 * 110 / 4, "hills stand over the horizon");
+    switch("terrain3d_background", false);
+    let bare = shot(&ed, args.clone(), "bare");
+    assert_eq!(differ(&bare, &sky, 0..240), 0, "with the background off only sky is left past the regions");
+    switch("terrain3d_background", true);
+    assert_eq!(differ(&hilly, &shot(&ed, args.clone(), "hilly"), 0..240), 0, "the background back on draws what it did");
+
+    // Steeply down at the edge of region [0, 0] that borders no region, where the ground blends toward the ground level.
+    let (from, to) = ([256.0, 900.0, -200.0], [256.0, 0.0, 100.0]);
+    let node = open(&flat_map, from, to);
+    let with = shot(&ed, args.clone(), "edge_flat");
+    ed.call("hierarchy", json!({ "op": "set_flags", "ids": [node], "hidden": true }));
+    let empty = shot(&ed, args.clone(), "edge_sky");
+    ed.call("hierarchy", json!({ "op": "set_flags", "ids": [node], "hidden": false }));
+    switch("terrain3d_background", false);
+    let off = shot(&ed, args.clone(), "edge_off");
+    switch("terrain3d_background", true);
+    open(&none_map, from, to);
+    let none = shot(&ed, args.clone(), "edge_none");
+    let held = |other: &image::RgbaImage| {
+        let ground = |x: u32, y: u32| off.get_pixel(x, y).0 != empty.get_pixel(x, y).0;
+        off.enumerate_pixels().filter(|(x, y, p)| ground(*x, *y) && (0..3).any(|c| p.0[c].abs_diff(other.get_pixel(*x, *y).0[c]) > 24)).count()
+    };
+    let drawn = off.enumerate_pixels().filter(|(x, y, _)| off.get_pixel(*x, *y).0 != empty.get_pixel(*x, *y).0).count();
+    assert!(drawn > 5000, "the regions are drawn with the background off: {drawn}");
+    assert!(differ(&with, &off, 0..240) > 5000, "the ground beyond the regions is gone");
+    assert!(held(&with) < drawn / 50, "the ground of the regions is drawn as with the background: {} of {drawn}", held(&with));
+    assert!(held(&none) > drawn / 20, "and keeps the blend a material without a background lacks: {} of {drawn}", held(&none));
+
+    // Textures off draw each texture as its mean color: the checker's contrast is gone.
+    open(&flat_map, [512.0, 1500.0, 1500.0], [512.0, 0.0, 400.0]);
+    let sampled = shot(&ed, args.clone(), "sampled");
+    switch("terrain3d_textures", false);
+    let means = shot(&ed, args.clone(), "means");
+    let rough = |img: &image::RgbaImage| -> u64 {
+        img.enumerate_pixels().filter(|(x, _, _)| *x > 0).map(|(x, y, p)| u64::from(p.0[0].abs_diff(img.get_pixel(x - 1, y).0[0]))).sum()
+    };
+    assert!(differ(&sampled, &means, 0..240) > 2000, "the pixels change");
+    assert!(rough(&means) * 2 < rough(&sampled), "the checker blurs to flat colors: {} against {}", rough(&means), rough(&sampled));
+    switch("terrain3d_textures", true);
+    assert_eq!(differ(&sampled, &shot(&ed, args, "again"), 0..240), 0, "textures back on draw what they did");
+}
+
 /// Selecting the Terrain3D node fills the Inspector with the textures of the folder, each with a swatch of its color.
 #[test]
 #[ignore]
