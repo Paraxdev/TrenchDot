@@ -115,6 +115,18 @@ impl Region3D {
     pub fn control_at(&self, pixel: [u32; 2]) -> Control {
         Control(self.control[self.index(pixel)])
     }
+
+    /// The heights and control words of every `stride`th vertex, `size / stride` squared row by row. None when the
+    /// stride does not divide the region.
+    pub fn coarse(&self, stride: u32) -> Option<(Vec<f32>, Vec<u32>)> {
+        if stride == 0 || !self.size.is_multiple_of(stride) {
+            return None;
+        }
+
+        let side = self.size / stride;
+        let at = (0..side).flat_map(|j| (0..side).map(move |i| [i * stride, j * stride]));
+        Some(at.map(|p| (self.heights[self.index(p)], self.control[self.index(p)])).unzip())
+    }
 }
 
 /// The file stem Terrain3D gives a region, `terrain3d-01_02` for (-1, 2). None outside the region map.
@@ -528,5 +540,29 @@ mod tests {
         assert_eq!(surface_height(&grid, None, alone, 0.0, 128.0), stored(0, 128), "no world background");
         let partway = surface_height(&grid, edge, alone, 1.0, 128.0);
         assert!(partway < -3.5 && partway > stored(1, 128) + 0.5, "{partway} lies between the ground level and the stored height");
+    }
+
+    #[test]
+    fn coarse_keeps_every_strided_vertex_with_its_whole_control_word() {
+        let mut r = slanted([-3, 2], 64);
+        let hole = Control(r.control[0]).with_hole(true).with_base(7).with_blend(90);
+        let at = r.index([60, 4]);
+        r.control[at] = hole.0;
+        let between = r.index([61, 4]);
+        r.control[between] = Control(0).with_hole(true).0;
+
+        let (heights, control) = r.coarse(4).unwrap();
+        assert_eq!((heights.len(), control.len()), (256, 256));
+        for (k, (h, c)) in heights.iter().zip(&control).enumerate() {
+            let p = [(k % 16) as u32 * 4, (k / 16) as u32 * 4];
+            assert_eq!((h.to_bits(), *c), (r.heights[r.index(p)].to_bits(), r.control[r.index(p)]), "texel {k} is vertex {p:?}");
+        }
+
+        assert_eq!(control[16 + 15], hole.0, "the strided vertex keeps its hole, texture and blend");
+        assert!(control.iter().filter(|c| Control(**c).hole()).count() == 1, "a hole between strided vertices is not sampled");
+        assert_eq!(r.coarse(1).map(|c| c.0), Some(r.heights.clone()));
+        assert_eq!(r.coarse(64).map(|c| c.0), Some(vec![r.heights[0]]));
+        assert_eq!(r.coarse(3), None);
+        assert_eq!(r.coarse(0), None);
     }
 }

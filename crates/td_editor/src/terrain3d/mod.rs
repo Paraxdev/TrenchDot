@@ -5,10 +5,12 @@ pub mod brush;
 pub mod click;
 pub mod dialog;
 pub mod follow;
+pub mod gpu;
 pub mod inspector;
 pub mod link;
 pub mod overlay;
 pub mod pick;
+pub mod residency;
 pub mod store;
 pub mod tiles;
 
