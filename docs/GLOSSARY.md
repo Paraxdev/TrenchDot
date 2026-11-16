@@ -87,6 +87,9 @@ A named tag on nodes in Godot, set under Node > Groups or from code, that lets c
 ## Hammer
 Valve's level editor for Source engine games such as Half-Life 2. TrenchDot borrows its model of entity inputs and outputs and can import its .vmf maps.
 
+## heightfield
+A grid of heights with one value for each point, which is what a terrain is made of. Every spot has exactly one ground height, so a heightfield cannot hold a cave or an overhang, those are built from brushes or meshes.
+
 ## hot reload
 Rebuilding the maps of a game that's already running each time you save in TrenchDot, so you don't have to restart it to see a change. It needs the trenchdot_hot_reload.gd autoload in the game.
 

@@ -6,6 +6,12 @@ ground like hills, beaches and valleys, where shaping brushes by hand would take
 This page covers making one and shaping it with the Sculpt tool (G). Texturing it is on
 [Terrain layers](terrain-layers.md) and [Terrain painting](terrain-painting.md).
 
+A terrain can grow after you create it, up to 2048 cells along each axis, either with the **Size** block in the
+Inspector ([Changing the size](#changing-the-size)) or by dragging its edge in a 2D view with the Select tool
+([Dragging an edge](#dragging-an-edge)). It holds up to four layers, which you paint with the
+[Blend tool](terrain-painting.md). Since the ground is a heightfield, it cannot fold over itself, see
+[Caves and overhangs](caves-overhangs.md) for what to do instead.
+
 ## Creating a terrain
 
 1. Open the dialog
