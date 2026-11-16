@@ -788,4 +788,34 @@ exit 3
         assert!(state.doc.is_modified(), "closing must still ask");
         assert!(state.status_failed() && state.status.contains("res://elsewhere"), "{}", state.status);
     }
+
+    /// The clipmap shader decodes control words with td_render's table, which must read every field where Control
+    /// writes it.
+    #[test]
+    fn the_clipmap_decodes_control_like_terrain3d() {
+        use td_geom::terrain3d::Control;
+        use td_render::clipmap::look::decode;
+        // Terrain3DUtil documents the uv scale steps as 0, 20, 40, 60, 80, -60, -40 and -20 percent of texture size.
+        let scales = [1.0, 0.8, 0.6, 0.4, 0.2, 1.6, 1.4, 1.2].map(|s| s * 0.5);
+        let words = [
+            Control(0),
+            Control(u32::MAX),
+            Control(0).with_base(31).with_overlay(1).with_blend(255).with_uv_angle(15).with_uv_scale(7),
+            Control(0).with_base(5).with_overlay(30).with_blend(1).with_uv_angle(1).with_uv_scale(4).with_hole(true),
+            Control(0x5a5a_5a5a).with_auto(false).with_navigation(true),
+            Control(0xa5a5_a5a5).with_reserved(0).with_hole(false),
+            Control(td_geom::terrain3d::BLANK_CONTROL),
+        ];
+        for c in words {
+            let d = decode(c.0);
+            let want_angle = c.uv_angle() as f64 * -std::f64::consts::TAU / 16.0;
+            assert_eq!(
+                (d.base, d.overlay, d.blend, d.hole, d.auto),
+                (c.base() as u32, c.overlay() as u32, c.blend() as f32 / 255.0, c.hole(), c.auto()),
+                "{:#x}",
+                c.0
+            );
+            assert!((d.angle - want_angle).abs() < 1e-12 && (d.scale - scales[c.uv_scale() as usize]).abs() < 1e-12, "{:#x}: {d:?}", c.0);
+        }
+    }
 }

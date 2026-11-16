@@ -1536,7 +1536,12 @@ impl Renderer {
             return Err(format!("the GPU device was lost ({reason})"));
         }
 
-        clipmap::GpuClipmap::new(&self.device, &self.clipmap_bgl, desc)
+        clipmap::GpuClipmap::new(&self.device, &self.queue, &self.clipmap_bgl, desc)
+    }
+
+    /// Replaces the textures a clipmap's ground draws with.
+    pub fn set_clipmap_textures(&self, clip: &mut clipmap::GpuClipmap, textures: &[clipmap::look::ClipmapTexture]) {
+        clip.set_textures(&self.device, &self.queue, &self.clipmap_bgl, textures);
     }
 
     pub fn upload_instances(&self, instances: &[MeshInstance]) -> Option<GpuInstances> {
@@ -2202,7 +2207,7 @@ mod tests {
         assert_eq!(std::mem::size_of::<super::CameraUniform>(), 176);
         assert_eq!(std::mem::size_of::<super::MaterialUniform>(), 80);
         assert_eq!(std::mem::size_of::<super::TerrainUniform>(), 176);
-        assert_eq!(std::mem::size_of::<super::clipmap::ClipmapUniform>(), 4 * 16 + 256 * 16);
+        assert_eq!(std::mem::size_of::<super::clipmap::ClipmapUniform>(), 5 * 16 + 256 * 16 + 32 * 48);
         assert_eq!(std::mem::size_of::<super::LightsUniform>(), 28 * 4 + 64 + super::MAX_LIGHTS * 48);
     }
 

@@ -1,17 +1,30 @@
-// clipmap::wgsl_consts() puts MESH_SIZE, MAP_SIDE, LOC_MIN, NO_REGION and COARSE_ONLY in front of this file.
-// Positions in cells are Terrain3D vertex grid coordinates, x along world x and y along world z.
+// clipmap::wgsl_consts() puts MESH_SIZE, MAP_SIDE, LOC_MIN, NO_REGION, COARSE_ONLY and the control word shifts in
+// front of this file. Positions in cells are Terrain3D vertex grid coordinates, x along world x and y along world z.
+
+struct Texture {
+    // x: uv scale, y: detiling rotation, z: detiling shift
+    uv: vec4<f32>,
+    // rgb: albedo color
+    color: vec4<f32>,
+    // rgb: linear mean of the albedo, drawn when textures are off
+    mean: vec4<f32>,
+};
 
 struct Clipmap {
     // x: region size in cells, y: cells between coarse texels, zw: region map location of the coarse atlas's first texel
     grid: vec4<i32>,
     // x: map units per cell, y: map units per meter, z: ground level in meters, w: region blend
     world: vec4<f32>,
-    // x: background (0 none, 1 flat, 2 noise), y: 1 when selected
+    // x: background (0 none, 1 flat, 2 noise), y: 1 when selected, z: textures (0 none listed, 1 mean colors,
+    // 2 sampled), w: 1 with the auto shader on
     look: vec4<f32>,
     // rgb: wireframe line color
     wire: vec4<f32>,
+    // x: auto slope, y: auto height reduction, z: auto base texture, w: auto overlay texture
+    auto_shader: vec4<f32>,
     // Fine layer per region map location, COARSE_ONLY or NO_REGION, four to an element.
     regions: array<vec4<i32>, 256>,
+    textures: array<Texture, 32>,
 };
 
 @group(1) @binding(0) var fine_heights: texture_2d_array<f32>;
@@ -20,6 +33,11 @@ struct Clipmap {
 @group(1) @binding(3) var coarse_heights: texture_2d<f32>;
 @group(1) @binding(4) var coarse_control: texture_2d<u32>;
 @group(1) @binding(5) var<uniform> clip: Clipmap;
+@group(1) @binding(6) var albedo: texture_2d_array<f32>;
+@group(1) @binding(7) var albedo_sampler: sampler;
+
+const TAU: f32 = 6.283185307179586;
+const PLAIN_GROUND: vec3<f32> = vec3<f32>(0.62, 0.6, 0.55);
 
 struct VIn {
     @location(0) local: vec2<u32>,
@@ -180,42 +198,179 @@ fn vs_main(v: VIn) -> VOut {
     return o;
 }
 
-// With no background, whether the level 0 triangle under a pixel has a corner no region holds. Cells split along the
-// alternating diagonal like layout::MeshKind::indices, so this drops exactly the triangles picking misses.
+// The corners of the triangle under `f` in cell `c`, which splits along the alternating diagonal like
+// layout::MeshKind::indices.
+fn triangle(c: vec2<i32>, f: vec2<f32>) -> array<vec2<i32>, 3> {
+    if (((c.x + c.y) & 1) == 0) {
+        return array<vec2<i32>, 3>(vec2<i32>(0, 0), vec2<i32>(1, 1), select(vec2<i32>(1, 0), vec2<i32>(0, 1), f.y >= f.x));
+    }
+    return array<vec2<i32>, 3>(vec2<i32>(0, 1), vec2<i32>(1, 0), select(vec2<i32>(1, 1), vec2<i32>(0, 0), f.x + f.y < 1.0));
+}
+
+// With no background, whether the level 0 triangle under a pixel has a corner no region holds, so this drops exactly
+// the triangles picking misses.
 fn outside(world: vec3<f32>) -> bool {
     if (clip.look.x > 0.5) {
         return false;
     }
     let p = world.xz / clip.world.x;
     let c = vec2<i32>(floor(p));
-    let f = p - floor(p);
-    var a = vec2<i32>(0, 0);
-    var b = vec2<i32>(1, 1);
-    var k = vec2<i32>(1, 0);
-    if (((c.x + c.y) & 1) == 0) {
-        if (f.y >= f.x) {
-            k = vec2<i32>(0, 1);
-        }
-    } else {
-        a = vec2<i32>(0, 1);
-        b = vec2<i32>(1, 0);
-        if (f.x + f.y < 1.0) {
-            k = vec2<i32>(0, 0);
-        } else {
-            k = vec2<i32>(1, 1);
+    let t = triangle(c, p - floor(p));
+    return !(present(c + t[0]) && present(c + t[1]) && present(c + t[2]));
+}
+
+// The control word at a vertex. Where no region holds it, a lone auto bit: Terrain3D's auto shader paints there, and
+// otherwise it decodes like the empty word Terrain3D reads.
+fn control_at(cell: vec2<i32>) -> u32 {
+    let loc = loc_of(cell);
+    let slot = slot_at(loc);
+    if (slot >= 0) {
+        return textureLoad(fine_control, cell - loc * clip.grid.x, slot, 0).r;
+    }
+    if (slot == COARSE_ONLY) {
+        return textureLoad(coarse_control, (cell - clip.grid.zw * clip.grid.x) / clip.grid.y, 0).r;
+    }
+    return 1u << AUTO_BIT;
+}
+
+// Terrain3D's color map at a vertex, white where only the coarse atlas or nothing holds it.
+fn color_at(cell: vec2<i32>) -> vec3<f32> {
+    let loc = loc_of(cell);
+    let slot = slot_at(loc);
+    if (slot >= 0) {
+        return textureLoad(fine_color, cell - loc * clip.grid.x, slot, 0).rgb;
+    }
+    return vec3<f32>(1.0);
+}
+
+// Cells between the vertices whose control words a pixel at `p` cells reads: the coarse texels in a region only the
+// atlas holds.
+fn control_step(p: vec2<f32>) -> i32 {
+    return select(1, clip.grid.y, slot_at(loc_of(vec2<i32>(floor(p)))) == COARSE_ONLY);
+}
+
+fn is_hole(cell: vec2<i32>) -> bool {
+    return ((control_at(cell) >> HOLE_BIT) & 1u) == 1u;
+}
+
+// Terrain3D drops every triangle with a hole at a corner. Here that holds per pixel, at every distance.
+fn in_hole(world: vec3<f32>) -> bool {
+    let stride = control_step(world.xz / clip.world.x);
+    let q = world.xz / (clip.world.x * f32(stride));
+    let c = vec2<i32>(floor(q));
+    let t = triangle(c, q - floor(q));
+    return is_hole((c + t[0]) * stride) || is_hole((c + t[1]) * stride) || is_hole((c + t[2]) * stride);
+}
+
+fn dropped(world: vec3<f32>) -> bool {
+    return outside(world) || in_hole(world);
+}
+
+fn rotate(v: vec2<f32>, cs: vec2<f32>) -> vec2<f32> {
+    return vec2<f32>(cs.x * v.x + cs.y * v.y, cs.x * v.y - cs.y * v.x);
+}
+
+fn random(xy: vec2<f32>) -> f32 {
+    return fract(sin(dot(xy, vec2<f32>(12.9898, 78.233))) * 43758.5453);
+}
+
+fn control_scale(control: u32) -> f32 {
+    return 0.9 - f32(((((control >> SCALE_SHIFT) & 7u) + 3u) % 8u) + 1u) * 0.1;
+}
+
+// Where Terrain3D samples texture `id` at `world` meters, in a cell whose corner vertex at `corner` meters holds
+// `control`. The twin of look::texture_uv.
+fn texture_uv(id: u32, world: vec2<f32>, corner: vec2<f32>, control: u32) -> vec2<f32> {
+    let scale = control_scale(control);
+    let angle = f32((control >> ANGLE_SHIFT) & 15u) * (-TAU / 16.0);
+    let turn = vec2<f32>(cos(angle), sin(angle));
+    let uv = rotate(world * scale, turn);
+    let pos = rotate(corner * scale, turn);
+    let t = clip.textures[id].uv;
+    let center = floor(pos * t.x + 0.5);
+    let tile = (random(center) * 2.0 - 1.0) * TAU;
+    let spin = tile * t.y;
+    return rotate(uv * t.x - center, vec2<f32>(cos(spin), sin(spin))) + center + tile * t.z - 0.5;
+}
+
+// Texture `id` at a pixel, `ddx` and `ddy` the pixel's footprint in meters.
+fn layer_color(id: u32, control: u32, world: vec2<f32>, corner: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> vec3<f32> {
+    let t = clip.textures[id];
+    if (clip.look.z < 1.5 || id >= textureNumLayers(albedo)) {
+        return t.mean.rgb * t.color.rgb;
+    }
+    let k = control_scale(control) * t.uv.x;
+    let uv = texture_uv(id, world, corner, control);
+    return textureSampleGrad(albedo, albedo_sampler, uv, id, ddx * k, ddy * k).rgb * t.color.rgb;
+}
+
+// Terrain3D's auto shader: where a vertex asks for it, or no region holds it, the slope and height of the ground mix
+// two textures.
+fn painted_control(cell: vec2<i32>, n: vec3<f32>, y: f32) -> u32 {
+    let control = control_at(cell);
+    if (clip.look.w < 0.5 || ((control >> AUTO_BIT) & 1u) == 0u) {
+        return control;
+    }
+    let a = clip.auto_shader;
+    let blend = clamp(a.x * 2.0 * (n.y - 1.0) + 1.0 - a.y * 0.01 * y, 0.0, 1.0);
+    return ((u32(a.z) & 31u) << BASE_SHIFT) | ((u32(a.w) & 31u) << OVERLAY_SHIFT) | ((u32(blend * 255.0 + 0.5) & 255u) << BLEND_SHIFT);
+}
+
+fn corner_color(control: u32, world: vec2<f32>, corner: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> vec3<f32> {
+    let base = (control >> BASE_SHIFT) & 31u;
+    let over = (control >> OVERLAY_SHIFT) & 31u;
+    let blend = select(f32((control >> BLEND_SHIFT) & 255u) / 255.0, 0.0, over == base);
+    var rgb = vec3<f32>(0.0);
+    if (blend < 1.0) {
+        rgb += (1.0 - blend) * layer_color(base, control, world, corner, ddx, ddy);
+    }
+    if (blend > 0.0) {
+        rgb += blend * layer_color(over, control, world, corner, ddx, ddy);
+    }
+    return rgb;
+}
+
+// The ground's color before light: the corners of the pixel's cell each mix their two textures, the four are blended
+// bilinearly and tinted by the color map.
+fn ground_albedo(world: vec3<f32>, n: vec3<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> vec3<f32> {
+    if (clip.look.z < 0.5) {
+        return PLAIN_GROUND;
+    }
+    let stride = control_step(world.xz / clip.world.x);
+    let q = world.xz / (clip.world.x * f32(stride));
+    let c = vec2<i32>(floor(q)) * stride;
+    let f = q - floor(q);
+    let meters = world.xz / clip.world.y;
+    let cell_meters = clip.world.x / clip.world.y;
+    var rgb = vec3<f32>(0.0);
+    var tint = vec3<f32>(0.0);
+    for (var i = 0u; i < 4u; i++) {
+        let o = vec2<i32>(i32(i & 1u), i32(i >> 1u));
+        let w = mix(1.0 - f.x, f.x, f32(o.x)) * mix(1.0 - f.y, f.y, f32(o.y));
+        let corner = c + o * stride;
+        if (w > 0.0) {
+            let control = painted_control(corner, n, world.y / clip.world.y);
+            rgb += w * corner_color(control, meters, vec2<f32>(corner) * cell_meters, ddx, ddy);
+            tint += w * color_at(corner);
         }
     }
-    return !(present(c + a) && present(c + b) && present(c + k));
+    return rgb * tint;
 }
 
 @fragment
 fn fs_main(f: VOut) -> @location(0) vec4<f32> {
-    if (outside(f.world)) {
+    let meters = f.world.xz / clip.world.y;
+    let ddx = dpdx(meters);
+    let ddy = dpdy(meters);
+    if (dropped(f.world)) {
         discard;
     }
     let n = normalize(f.normal);
     let flat_mode = step(0.5, cam.params.z) * step(cam.params.z, 1.5);
-    var base = mix(vec3<f32>(0.62, 0.6, 0.55), vec3<f32>(0.8), flat_mode);
+    var base = vec3<f32>(0.8);
+    if (flat_mode < 0.5) {
+        base = ground_albedo(f.world, n, ddx, ddy);
+    }
     base = mix(base, base * vec3<f32>(1.0, 0.62, 0.58), clip.look.y);
     var rgb: vec3<f32>;
     if (is_lit()) {
@@ -231,7 +386,7 @@ fn fs_main(f: VOut) -> @location(0) vec4<f32> {
 
 @fragment
 fn fs_wire(f: VOut) -> @location(0) vec4<f32> {
-    if (outside(f.world)) {
+    if (dropped(f.world)) {
         discard;
     }
     if (cam.viewport.w > 0.0) {
