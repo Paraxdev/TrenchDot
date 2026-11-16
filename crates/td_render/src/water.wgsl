@@ -32,13 +32,10 @@ fn vs_main(@builtin(vertex_index) i: u32) -> WaterOut {
 fn fs_main(f: WaterOut) -> @location(0) vec4<f32> {
     let ndc = vec2<f32>(f.clip.x / cam.viewport.x * 2.0 - 1.0, 1.0 - f.clip.y / cam.viewport.y * 2.0);
     let near = cam.inv_view_proj * vec4<f32>(ndc, 1.0, 1.0);
-    let mid = cam.inv_view_proj * vec4<f32>(ndc, 0.5, 1.0);
     let start = near.xyz / near.w;
-    let dir = normalize(mid.xyz / mid.w - start);
+    let dir = pixel_ray(f.clip);
     let dy = select(dir.y, -1e-6, abs(dir.y) < 1e-6);
     let world = start + dir * clamp((water.plane.x - start.y) / dy, 0.0, WATER_REACH * 2.0);
-    let fresnel = 0.02 + 0.98 * pow(1.0 - abs(dir.y), 5.0);
-    let alpha = clamp(mix(0.6, 1.0, fresnel) * water.color.a, 0.0, 1.0);
     let rgb = apply_fog(shade(water.color.rgb, world, vec3<f32>(0.0, 1.0, 0.0)), world);
-    return vec4<f32>(rgb, alpha);
+    return vec4<f32>(rgb, water_alpha(dir, water.color.a));
 }

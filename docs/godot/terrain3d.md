@@ -178,8 +178,8 @@ thin lines with the region number in the corner, once a region is big enough on 
 | Flat | A flat plane at the material's ground level, blended into the region edges |
 | Noise | Hills made from the material's noise settings, in the same shape as in Godot, though colors and fine detail can differ |
 
-The water is a tinted, translucent plane that follows the camera to the horizon and turns a little more opaque when you
-look along it. It does not copy the waves of the ocean shader.
+The water is a tinted plane that follows the camera to the horizon. Like Godot's ocean it hides the ground below it
+more the deeper that ground lies, so shallow shores still show through. It does not copy the waves of the ocean shader.
 
 **View > Terrain3D** switches each part on or off, for a closer look at the ground or a faster view. The menu shows
 while the experimental preference is on or the map links a Terrain3D, and TrenchDot remembers the choices.

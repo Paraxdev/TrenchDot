@@ -167,6 +167,8 @@ pub struct ClipmapParams {
     pub textures: bool,
     /// Terrain3D's auto shader, None when the material has it off.
     pub auto_shader: Option<AutoShader>,
+    /// The water drawn over the ground, which hides the ground below it more the deeper it lies.
+    pub water: Option<crate::Water>,
 }
 
 /// Terrain3D's auto shader: two textures mixed by slope and height wherever the control map asks for it or no region
@@ -193,6 +195,7 @@ impl Default for ClipmapParams {
             wire: [1.0; 4],
             textures: true,
             auto_shader: None,
+            water: None,
         }
     }
 }
@@ -209,6 +212,7 @@ pub(crate) struct ClipmapUniform {
     noise: [f32; 4],
     noise_offset: [f32; 4],
     toggles: [f32; 4],
+    water: [f32; 4],
     regions: [[i32; 4]; 256],
     textures: [look::TextureUniform; look::MAX_TEXTURES],
 }
@@ -248,7 +252,9 @@ impl ClipmapUniform {
         let octaves = |o: u32| o.min(noise::MAX_OCTAVES) as f32;
         self.noise = [n.scale, n.height, n.lod_distance, octaves(n.max_octaves)];
         self.noise_offset = [n.offset[0], n.offset[1], n.offset[2], octaves(n.min_octaves)];
-        self.toggles = [flag(p.background_shown), 0.0, 0.0, 0.0];
+        let water = p.water.unwrap_or(crate::Water { level: 0.0, color: [0.0; 4] });
+        self.toggles = [flag(p.background_shown), flag(p.water.is_some()), water.color[3], 0.0];
+        self.water = [water.color[0], water.color[1], water.color[2], water.level];
     }
 
     fn slot(&self, i: usize) -> Slot {
@@ -1028,6 +1034,18 @@ mod tests {
         assert_eq!((u.look[0], u.noise, u.noise_offset), (2.0, [3.5, -20.0, 600.0, 15.0], [0.25, -0.1, 7.0, 3.0]), "octaves past 15 are clamped");
         u.set_params(&ClipmapParams { background: Background::Flat, ..params }, false);
         assert_eq!((u.look[0], u.noise, u.noise_offset), (1.0, [0.0; 4], [0.0; 4]));
+    }
+
+    #[test]
+    fn water_reaches_the_uniform_only_while_there_is_water() {
+        let mut u = ClipmapUniform::new(&DESC);
+        assert_eq!((u.toggles, u.water), ([1.0, 0.0, 0.0, 0.0], [0.0; 4]), "no water by default");
+        let water = crate::Water { level: -80.5, color: [0.1, 0.25, 0.4, 0.75] };
+        let params = ClipmapParams { water: Some(water), background_shown: false, ..Default::default() };
+        u.set_params(&params, true);
+        assert_eq!((u.toggles, u.water), ([0.0, 1.0, 0.75, 0.0], [0.1, 0.25, 0.4, -80.5]));
+        u.set_params(&ClipmapParams { water: None, ..params }, true);
+        assert_eq!((u.toggles, u.water), ([0.0; 4], [0.0; 4]));
     }
 
     #[test]

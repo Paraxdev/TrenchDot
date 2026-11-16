@@ -26,8 +26,10 @@ struct Clipmap {
     noise: vec4<f32>,
     // xyz: Terrain3D's world noise offset, w: fewest octaves
     noise_offset: vec4<f32>,
-    // x: 1 when the background draws
+    // x: 1 when the background draws, y: 1 with water over the ground, z: the water's opacity
     toggles: vec4<f32>,
+    // rgb: linear water color, w: map unit height of the water surface
+    water: vec4<f32>,
     // Fine layer per region map location, COARSE_ONLY or NO_REGION, four to an element.
     regions: array<vec4<i32>, 256>,
     textures: array<Texture, 32>,
@@ -485,6 +487,13 @@ fn fs_main(f: VOut) -> @location(0) vec4<f32> {
         rgb = tonemap(base * light_at(f.world, n));
     } else {
         rgb = base * relief(n);
+    }
+    if (clip.toggles.y > 0.5 && f.world.y < clip.water.w) {
+        // The water plane blends over this pixel by `a`, so the ground takes on the rest of Terrain3D's depth fade.
+        let a = water_alpha(pixel_ray(f.clip), clip.toggles.z);
+        let cover = water_depth_cover((clip.water.w - f.world.y) / clip.world.y);
+        let under = clamp((cover - a) / max(1.0 - a, 1e-4), 0.0, 1.0);
+        rgb = mix(rgb, shade(clip.water.rgb, f.world, vec3<f32>(0.0, 1.0, 0.0)), under);
     }
     rgb = apply_fog(rgb, f.world);
     let grid_strength = select(0.12, 0.03, is_lit());

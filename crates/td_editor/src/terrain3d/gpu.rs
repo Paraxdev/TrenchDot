@@ -600,6 +600,7 @@ fn params(
         wire,
         textures: prefs.terrain3d_textures,
         auto_shader,
+        water: water(f64::from(upm), manifest.ocean.as_ref()).filter(|_| prefs.terrain3d_water),
     }
 }
 
@@ -660,6 +661,18 @@ mod tests {
         let off = |t: bool, b: bool| Prefs { terrain3d_textures: t, terrain3d_background: b, ..Prefs::default() };
         assert_eq!(shown(&Prefs::default()), (true, true));
         assert_eq!((shown(&off(false, true)), shown(&off(true, false)), shown(&off(false, false))), ((false, true), (true, false), (false, false)));
+
+        let under = |manifest: &Manifest, shown: bool| {
+            let prefs = Prefs { terrain3d_water: shown, ..Prefs::default() };
+            params(40.0, manifest, &regions, &HashMap::new(), false, [1.0; 4], &prefs).water
+        };
+        assert_eq!(under(&manifest, true), None, "no ocean");
+        let ocean = |enabled: bool| Some(ManifestOcean { enabled, sea_level: -3.5, water_color: [1.0, 0.0, 1.0, 0.5], source: "res://sea.tres".into() });
+        manifest.ocean = ocean(false);
+        assert_eq!(under(&manifest, true), None, "an ocean that is off");
+        manifest.ocean = ocean(true);
+        assert_eq!(under(&manifest, true), Some(Water { level: -140.0, color: [1.0, 0.0, 1.0, 0.5] }), "the ground fades under the water");
+        assert_eq!(under(&manifest, false), None, "nor under water that View > Terrain3D hides");
     }
 
     #[test]

@@ -74,6 +74,28 @@ fn sun_shadow(world: vec3<f32>, n: vec3<f32>) -> f32 {
     return sum / 9.0;
 }
 
+/// Direction of the ray through the pixel at framebuffer position `frag`, for perspective and orthographic views alike.
+fn pixel_ray(frag: vec4<f32>) -> vec3<f32> {
+    let ndc = vec2<f32>(frag.x / cam.viewport.x * 2.0 - 1.0, 1.0 - frag.y / cam.viewport.y * 2.0);
+    let near = cam.inv_view_proj * vec4<f32>(ndc, 1.0, 1.0);
+    let mid = cam.inv_view_proj * vec4<f32>(ndc, 0.5, 1.0);
+    return normalize(mid.xyz / mid.w - near.xyz / near.w);
+}
+
+// What Terrain3D's ocean covers at 20 meters deep and less, pow(20 / 256, 0.1) of its depth fade.
+const WATER_SHALLOW: f32 = 0.775;
+
+/// How much the water plane covers what lies behind it along `dir`, more toward the horizon.
+fn water_alpha(dir: vec3<f32>, opacity: f32) -> f32 {
+    let fresnel = 0.02 + 0.98 * pow(1.0 - abs(dir.y), 5.0);
+    return clamp(mix(WATER_SHALLOW, 1.0, fresnel) * opacity, 0.0, 1.0);
+}
+
+/// How much Terrain3D's ocean covers ground `depth` meters below its surface.
+fn water_depth_cover(depth: f32) -> f32 {
+    return pow(clamp(max(depth, 20.0) / 256.0, 0.0, 1.0), 0.1);
+}
+
 /// Shades a surface. Mode 0 (textured) and 1 (flat) use fixed face shading, mode 2 uses the scene lights.
 fn shade(base: vec3<f32>, world: vec3<f32>, normal: vec3<f32>) -> vec3<f32> {
     let n = normalize(normal);
