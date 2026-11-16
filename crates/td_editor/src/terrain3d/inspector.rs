@@ -42,18 +42,27 @@ pub fn connection(installed: bool, restricted: bool, godot_open: bool, godot_fou
     }
 }
 
-/// The regions that wait for Godot, the ones Godot changed too and the ones it holds unsaved changes in.
+/// The regions that wait for Godot, the ones Godot changed too, the ones made at another region size than Godot's
+/// terrain has and the ones it holds unsaved changes in.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Changes {
     pub total: usize,
     pub conflicts: Vec<Loc>,
+    pub resized: Vec<Loc>,
     pub unsaved: Vec<Loc>,
 }
 
 /// Sorts `list` by what Godot does with each region, `unsaved` tells the regions Godot refuses until its scene is saved.
+/// A region at another region size stays refused after a save, so it is listed as resized whatever Godot holds.
 pub fn changes(list: &[RegionChange], unsaved: impl Fn(Loc) -> bool) -> Changes {
-    let (unsaved, rest): (Vec<_>, Vec<_>) = list.iter().partition(|c| unsaved(c.loc));
-    Changes { total: list.len(), conflicts: rest.iter().filter(|c| c.conflict).map(|c| c.loc).collect(), unsaved: unsaved.iter().map(|c| c.loc).collect() }
+    let (resized, rest): (Vec<_>, Vec<_>) = list.iter().partition(|c| c.resized);
+    let (unsaved, rest): (Vec<_>, Vec<_>) = rest.into_iter().partition(|c| unsaved(c.loc));
+    Changes {
+        total: list.len(),
+        conflicts: rest.iter().filter(|c| c.conflict).map(|c| c.loc).collect(),
+        resized: resized.iter().map(|c| c.loc).collect(),
+        unsaved: unsaved.iter().map(|c| c.loc).collect(),
+    }
 }
 
 /// Whether Godot holds unsaved changes in region `loc`, or refused it for them, so it waits until the scene is saved.
@@ -330,6 +339,15 @@ pub fn inspector(ui: &mut Ui, state: &mut EditorState, id: NodeId, actions: &mut
         });
     }
 
+    for loc in &found.resized {
+        let warning =
+            trf!("Region {x}, {y} was made at another region size than Godot's terrain has, use Godot's or set the size back in Godot", x = loc[0], y = loc[1]);
+        ui.label(RichText::new(warning).color(theme::colors().warning()));
+        if ui.button(tr("Use Godot's")).clicked() {
+            godots = Some(*loc);
+        }
+    }
+
     for loc in &found.unsaved {
         let warning = trf!("Godot has unsaved changes in region {x}, {y}, save the scene there and send again", x = loc[0], y = loc[1]);
         ui.label(RichText::new(warning).color(theme::colors().warning()));
@@ -357,7 +375,11 @@ mod tests {
     use super::*;
 
     fn change(loc: Loc, conflict: bool) -> RegionChange {
-        RegionChange { loc, kind: ChangeKind::Edit, region: None, base_hash: None, conflict }
+        RegionChange { loc, kind: ChangeKind::Edit, region: None, base_hash: None, conflict, resized: false }
+    }
+
+    fn resized(loc: Loc, conflict: bool) -> RegionChange {
+        RegionChange { resized: true, ..change(loc, conflict) }
     }
 
     #[test]
@@ -388,10 +410,29 @@ mod tests {
         let none = |_| false;
         assert_eq!(changes(&[], none), Changes::default());
         let list = [change([2, -1], false), change([-3, 4], true), change([0, 0], false), change([5, 5], true)];
-        assert_eq!(changes(&list, none), Changes { total: 4, conflicts: vec![[-3, 4], [5, 5]], unsaved: vec![] });
-        assert_eq!(changes(&list[..1], none), Changes { total: 1, conflicts: vec![], unsaved: vec![] });
+        assert_eq!(changes(&list, none), Changes { total: 4, conflicts: vec![[-3, 4], [5, 5]], unsaved: vec![], ..Default::default() });
+        assert_eq!(changes(&list[..1], none), Changes { total: 1, ..Default::default() });
         let unsaved = |loc: Loc| loc == [5, 5] || loc == [2, -1] || loc == [7, 7];
-        assert_eq!(changes(&list, unsaved), Changes { total: 4, conflicts: vec![[-3, 4]], unsaved: vec![[2, -1], [5, 5]] }, "unsaved wins over conflict");
+        assert_eq!(
+            changes(&list, unsaved),
+            Changes { total: 4, conflicts: vec![[-3, 4]], unsaved: vec![[2, -1], [5, 5]], ..Default::default() },
+            "unsaved wins over conflict"
+        );
+    }
+
+    #[test]
+    fn a_region_at_another_region_size_is_listed_apart_and_never_a_conflict() {
+        let none = |_| false;
+        let list = [change([2, -1], true), resized([-3, 4], true), resized([8, 8], false), change([0, 0], false), resized([5, -5], true)];
+        let found = changes(&list, none);
+        assert_eq!(found, Changes { total: 5, conflicts: vec![[2, -1]], resized: vec![[-3, 4], [8, 8], [5, -5]], unsaved: vec![] });
+        let unsaved = |loc: Loc| loc == [8, 8] || loc == [2, -1];
+        assert_eq!(
+            changes(&list, unsaved),
+            Changes { total: 5, conflicts: vec![], resized: vec![[-3, 4], [8, 8], [5, -5]], unsaved: vec![[2, -1]] },
+            "resized wins over unsaved, a save in Godot would not let it through"
+        );
+        assert_eq!(changes(&list[..1], none).resized, Vec::<Loc>::new());
     }
 
     #[test]

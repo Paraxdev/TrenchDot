@@ -2891,5 +2891,7 @@
   "Sea Level": "海平面",
   "The cache has no material, assets or ocean, update the TrenchDot addon in Godot": "缓存中没有材质、资源和海洋，请更新 Godot 中的 TrenchDot 插件",
   "This cache has no noise values, the hills draw flat until Godot exports again": "此缓存没有噪声数值，在 Godot 重新导出前山丘会画成平地",
-  "Terrain3D cannot be drawn: {problem}": "无法绘制 Terrain3D：{problem}"
+  "Terrain3D cannot be drawn: {problem}": "无法绘制 Terrain3D：{problem}",
+  "Region {x}, {y} was made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "区域 {x}, {y} 的区域大小与 Godot 中的地形不同，请使用 Godot 的版本，或在 Godot 中改回该大小",
+  "Some regions were made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "部分区域的区域大小与 Godot 中的地形不同，请使用 Godot 的版本，或在 Godot 中改回该大小"
 }

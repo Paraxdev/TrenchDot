@@ -8,7 +8,7 @@ use std::time::Duration;
 use serde_json::{Value, json};
 use td_core::NodeId;
 use td_doc::map::NodeKind;
-use td_doc::terrain3d::{ChangeKind, Grow, RegionSource, Terrain3DLink};
+use td_doc::terrain3d::{ChangeKind, Grow, RegionChange, RegionSource, Terrain3DLink};
 use td_formats::terrain3d_cache::{self, ManifestMaterial};
 use td_geom::terrain3d::{LOC_MAX, LOC_MIN, Loc};
 
@@ -99,6 +99,16 @@ fn parse_resolve(a: &Value) -> Result<(Loc, Take), String> {
         Some("mine") => Ok((loc, Take::Mine)),
         _ => Err("take must be godot (drop my edit) or mine (send it over Godot's)".into()),
     }
+}
+
+/// Why `take` cannot settle `change` on a terrain of `region_size`. Godot refuses an edit made at another region size
+/// whatever it is sent over, so only dropping it settles the region.
+fn resolve_refusal(change: &RegionChange, take: &Take, region_size: u32) -> Option<String> {
+    let edit = change.region.as_ref().filter(|_| change.resized && matches!(take, Take::Mine))?;
+    Some(format!(
+        "region {:?} was made at region size {}, Godot's terrain uses {region_size}. Take godot to drop the edit, or set region_size back to {} with the settings op",
+        change.loc, edit.size, edit.size
+    ))
 }
 
 /// A res:// path of a saved `class` file, empty to clear the node's one, None when `key` is absent.
@@ -344,6 +354,7 @@ impl App {
             "textures": manifest.textures.iter().map(|t| json!({ "id": t.id, "name": t.name })).collect::<Vec<_>>(),
             "changed": changes.iter().map(|c| json!({ "loc": c.loc, "kind": kind_name(c.kind), "conflict": c.conflict })).collect::<Vec<_>>(),
             "conflicts": found.conflicts,
+            "resized": found.resized,
             "unsaved_in_godot": found.unsaved,
             "pending": terrain3d_cache::pending_locs(&cache).unwrap_or_default(),
             "refused": refused,
@@ -490,12 +501,16 @@ impl App {
         let id = require_id(args, "id")?;
         let (loc, take) = parse_resolve(args)?;
         let cache = self.state.terrain3d_cache_of(id)?;
-        let change = {
+        let (change, region_size) = {
             let source = self.state.terrain3d.source(&cache).ok_or("no Terrain3D cache")?;
             let link = self.state.doc.map.terrain3d(id).ok_or("not a Terrain3D node")?;
-            link.changed_regions(&source).into_iter().find(|c| c.loc == loc)
+            (link.changed_regions(&source).into_iter().find(|c| c.loc == loc), source.grid().region_size)
         };
         let Some(change) = change else { return Err(format!("region {loc:?} has no edit of yours that waits for Godot")) };
+        if let Some(refusal) = resolve_refusal(&change, &take, region_size) {
+            return Err(refusal);
+        }
+
         match take {
             Take::Godot => {
                 self.state.terrain3d_editable(id)?;
@@ -597,6 +612,27 @@ mod tests {
         assert!(parse_resolve(&json!({ "region": [0, 1] })).unwrap_err().contains("take"));
         assert!(parse_resolve(&json!({ "region": [0, 1], "take": "both" })).is_err());
         assert!(parse_resolve(&json!({ "region": [16, 1], "take": "mine" })).is_err());
+    }
+
+    #[test]
+    fn a_region_made_at_another_region_size_can_only_be_dropped() {
+        let edit = |loc: Loc, size: u32, resized: bool| RegionChange {
+            loc,
+            kind: ChangeKind::Edit,
+            region: Some(std::sync::Arc::new(td_geom::terrain3d::Region3D::blank(loc, size))),
+            base_hash: None,
+            conflict: true,
+            resized,
+        };
+        let refusal = resolve_refusal(&edit([-3, 7], 256, true), &Take::Mine, 128).unwrap();
+        for fact in ["[-3, 7]", "region size 256", "uses 128", "take godot", "region_size back to 256"] {
+            assert!(refusal.to_lowercase().contains(fact), "{fact} missing from {refusal}");
+        }
+
+        assert_eq!(resolve_refusal(&edit([-3, 7], 256, true), &Take::Godot, 128), None);
+        assert_eq!(resolve_refusal(&edit([5, -2], 128, false), &Take::Mine, 128), None);
+        let removal = RegionChange { region: None, kind: ChangeKind::Remove, ..edit([0, 0], 64, false) };
+        assert_eq!(resolve_refusal(&removal, &Take::Mine, 128), None);
     }
 
     #[test]

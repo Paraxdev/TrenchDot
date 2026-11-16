@@ -96,6 +96,8 @@ pub struct RegionChange {
     pub base_hash: Option<RegionHash>,
     /// Godot changed the region since the edit started from it, or the world's region size no longer fits the edit.
     pub conflict: bool,
+    /// The edit has another region size than the world, which Godot refuses whatever the base hash says.
+    pub resized: bool,
 }
 
 /// Regions to add (positive) or remove (negative) on each side of the region map. North is toward -z.
@@ -391,12 +393,13 @@ impl Terrain3DLink {
                 region: Some(edit.region.clone()),
                 base_hash: edit.base_hash,
                 conflict: source.hash(*loc) != edit.base_hash || edit.region.size != size,
+                resized: edit.region.size != size,
             });
         }
 
         for (loc, hash) in &self.removed {
             let Some(now) = source.hash(*loc) else { continue };
-            out.push(RegionChange { loc: *loc, kind: ChangeKind::Remove, region: None, base_hash: Some(*hash), conflict: now != *hash });
+            out.push(RegionChange { loc: *loc, kind: ChangeKind::Remove, region: None, base_hash: Some(*hash), conflict: now != *hash, resized: false });
         }
 
         out.sort_by_key(|c| (c.loc[1], c.loc[0]));
@@ -1235,8 +1238,12 @@ mod edit_tests {
             ]
         );
 
+        assert!(link.changed_regions(&source).iter().all(|c| !c.resized));
         source.grid.region_size = 128;
-        assert!(link.changed_regions(&source).iter().all(|c| c.conflict));
+        let resized = link.changed_regions(&source);
+        assert!(resized.iter().all(|c| c.conflict));
+        let flags: Vec<_> = resized.iter().map(|c| (c.loc, c.resized)).collect();
+        assert_eq!(flags, vec![([0, 0], true), ([2, 0], false), ([5, 0], true), ([6, 0], true)]);
     }
 
     #[test]

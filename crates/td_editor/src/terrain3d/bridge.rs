@@ -25,6 +25,8 @@ const OLD_ADDON: &str = "unknown event";
 const NO_SCENE: &str = "no open scene shows the Terrain3D data in ";
 /// The reason Godot refuses a region whose scene has unsaved changes there.
 pub const DIRTY: &str = "dirty";
+/// The refusal reason for an edit made at another region size than the terrain in Godot has.
+pub const SIZE: &str = "size";
 
 /// Writes `changes` as the pending files of the cache at `cache`, replacing what an earlier save left for the same
 /// regions. `forced` regions are applied even when they changed in Godot meanwhile. Returns the regions written.
@@ -193,10 +195,17 @@ impl Outcome {
         self.refused.iter().filter(|(_, reason)| reason == DIRTY).map(|(loc, _)| *loc).collect()
     }
 
+    /// The refused regions made at another region size than the terrain in Godot has, which stay here until the size
+    /// is set back in Godot or the edit is dropped.
+    pub fn resized(&self) -> Vec<Loc> {
+        self.refused.iter().filter(|(_, reason)| reason == SIZE).map(|(loc, _)| *loc).collect()
+    }
+
     /// What the status line says, a failure is the first message when `is_ok` is false.
     pub fn status(&self) -> Msg {
         let dirty = self.unsaved_in_godot();
-        let (applied, refused) = (self.accepted.len(), self.refused.len() - dirty.len());
+        let resized = self.resized();
+        let (applied, refused) = (self.accepted.len(), self.refused.len() - dirty.len() - resized.len());
         let mut out = if let Some(problem) = self.problems.first() {
             msg!("Terrain3D edits were not applied: {problem}", problem)
         } else if self.route == Route::Waiting {
@@ -207,7 +216,7 @@ impl Outcome {
             msg!("Godot applied no Terrain3D regions, {refused} changed in Godot and stay here", refused)
         } else if applied > 0 {
             msg!("Godot applied {applied} Terrain3D region(s)", applied)
-        } else if !dirty.is_empty() {
+        } else if !dirty.is_empty() || !resized.is_empty() {
             msg!("Godot applied no Terrain3D regions")
         } else {
             msg!("Godot had no Terrain3D edits to apply")
@@ -228,6 +237,10 @@ impl Outcome {
                     )
                 }
             }
+        }
+
+        if self.is_ok() && !resized.is_empty() {
+            out = out.then(". ", msg!("Some regions were made at another region size than Godot's terrain has, use Godot's or set the size back in Godot"));
         }
 
         if self.old_addon {
@@ -598,7 +611,14 @@ mod tests {
     }
 
     fn change(loc: Loc, kind: ChangeKind, base: Option<u8>, seed: f32) -> RegionChange {
-        RegionChange { loc, kind, region: (kind != ChangeKind::Remove).then(|| region(loc, seed)), base_hash: base.map(|b| [b; 32]), conflict: false }
+        RegionChange {
+            loc,
+            kind,
+            region: (kind != ChangeKind::Remove).then(|| region(loc, seed)),
+            base_hash: base.map(|b| [b; 32]),
+            conflict: false,
+            resized: false,
+        }
     }
 
     fn cache_of(dir: &tempfile::TempDir) -> PathBuf {
@@ -944,10 +964,15 @@ exit 3
         let out = |accepted: Vec<Loc>, refused: Vec<(Loc, String)>| Outcome { route: Route::LiveLink, accepted, refused, ..Default::default() };
         assert_eq!(out(vec![A], vec![]).status().en, "Godot applied 1 Terrain3D region(s)");
         assert_eq!(out(vec![A, B], vec![([0, 0], "changed".into())]).status().en, "Godot applied 2 Terrain3D region(s), 1 changed in Godot and stay here");
+        let size_note = "Some regions were made at another region size than Godot's terrain has, use Godot's or set the size back in Godot";
         assert_eq!(
             out(vec![], vec![([0, 0], "size".into()), ([1, 0], "changed".into())]).status().en,
-            "Godot applied no Terrain3D regions, 2 changed in Godot and stay here"
+            format!("Godot applied no Terrain3D regions, 1 changed in Godot and stay here. {size_note}")
         );
+        assert_eq!(out(vec![], vec![([0, 0], "size".into()), ([1, 0], "size".into())]).status().en, format!("Godot applied no Terrain3D regions. {size_note}"));
+        assert_eq!(out(vec![A], vec![([0, 0], "size".into())]).status().en, format!("Godot applied 1 Terrain3D region(s). {size_note}"));
+        assert_eq!(out(vec![], vec![([0, 0], "size".into())]).resized(), vec![[0, 0]]);
+        assert!(out(vec![], vec![([0, 0], "changed".into())]).resized().is_empty());
         assert_eq!(
             out(vec![A], vec![([-3, 2], "dirty".into())]).status().en,
             "Godot applied 1 Terrain3D region(s). Godot has unsaved changes in Terrain3D region -3, 2, save the scene there and send again"

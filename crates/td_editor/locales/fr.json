@@ -2891,5 +2891,7 @@
   "Sea Level": "Niveau de la mer",
   "The cache has no material, assets or ocean, update the TrenchDot addon in Godot": "Le cache n'a ni matériau, ni assets, ni océan, mets à jour l'addon TrenchDot dans Godot",
   "This cache has no noise values, the hills draw flat until Godot exports again": "Ce cache n'a pas de valeurs de bruit, les collines sont dessinées plates jusqu'au prochain export de Godot",
-  "Terrain3D cannot be drawn: {problem}": "Impossible de dessiner Terrain3D : {problem}"
+  "Terrain3D cannot be drawn: {problem}": "Impossible de dessiner Terrain3D : {problem}",
+  "Region {x}, {y} was made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "La région {x}, {y} a été faite avec une autre taille de région que celle du terrain de Godot, utiliser celle de Godot ou rétablir la taille dans Godot",
+  "Some regions were made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "Certaines régions ont été faites avec une autre taille de région que celle du terrain de Godot, utiliser celle de Godot ou rétablir la taille dans Godot"
 }
