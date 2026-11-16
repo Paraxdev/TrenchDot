@@ -78,8 +78,8 @@ the command palette.
 Once you know your way around, untick *Help text* in *File > Preferences* to hide the short guidance lines in the tool
 options bar and the panels. Their tooltips stay.
 
-(Note: links open in your web browser. If no browser opens, the status bar says so and the link is copied to the
-clipboard.)
+> [!NOTE]
+> Links open in your web browser. If no browser opens, the status bar says so and the link is copied to the clipboard.
 
 ## Views
 
@@ -162,9 +162,8 @@ You can also pick it in **View > Theme**, right below *Interface Scale*, or in t
 Dark*, *Light* or *System*. No key is bound by default, but you can give each one a key in the keymap editor.
 
 In Light, the 2D views (Top, Front and Side) turn into paper, a light gray background with dark grid lines and brush
-edges, so the lines you draw still read at a glance. The 3D view keeps its dark surround in both themes, and so do the
-texture canvases of the UV editor and the hotspot editor. A texture looks the same in either theme, and a light
-surround would change how you judge its colors.
+edges, so the lines you draw still read at a glance. The 3D view and the texture canvases of the UV editor and the
+hotspot editor stay dark in both themes, since a light surround would change how you judge a texture's colors.
 
 <div class="td-mcp" markdown>
 
