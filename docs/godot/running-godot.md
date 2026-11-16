@@ -1,22 +1,25 @@
 # Running Godot from the editor
 
 Saving, builds and live mode talk to the addon over the live link, so they work with any Godot editor that has the
-project open. TrenchDot only needs to find the Godot executable for *Godot > Open Project in Godot Editor*, the Godot
-robot in the toolbar, and *Godot > Run Project* (F5) while no Godot editor has the project open, since those start
-Godot themselves.
+project open, and need no executable. TrenchDot only has to find the Godot executable when it must start Godot itself:
+
+* *Godot > Open Project in Godot Editor*, and the Godot robot in the toolbar
+* *Godot > Run Project* (F5), while no Godot editor has the project open
 
 ![The Godot menu with Run Project hovered, its F5 shortcut on the right and Open Project in Godot Editor below](../assets/running-godot/menu-run-project.png)
 
 ## Run Project
 
-While a Godot editor has the project open, *Run Project* asks that editor to save its open scenes and play the main
-scene, as pressing Play in Godot does. The game then has everything Godot built, live edits included. The status bar
-should say "Godot saved its open scenes and runs the main scene". If the project has no main scene, it says so, set
-one in Godot under *Project > Project Settings > Application > Run*.
+What *Run Project* does depends on whether a Godot editor has the project open:
 
-Without a Godot editor, *Run Project* starts the game with the Godot executable. It then runs the scenes as they were
-last saved in Godot. The same happens with an older addon, and the status bar adds that the game may lack your latest
-map changes. Save them in Godot, or press Play there.
+| Godot editor | What happens |
+| --- | --- |
+| Open on this project | It saves its open scenes and plays the main scene, as pressing Play in Godot does. The game has everything Godot built, live edits included. |
+| Not open | TrenchDot starts the game with the Godot executable. It runs the scenes as they were last saved in Godot. |
+| Open, but with an older addon | The same as not open. The status bar adds that the game may lack your latest map changes, so save them in Godot or press Play there. |
+
+With a Godot editor open, the status bar should say "Godot saved its open scenes and runs the main scene". If the
+project has no main scene, it says so instead. Set one in Godot under *Project > Project Settings > Application > Run*.
 
 ## Finding the executable
 
@@ -69,24 +72,24 @@ nothing is started in Godot on the project, so a big project takes a moment befo
 
 ![The prompt asking "Do you trust the authors of the files in this project?" with the project's folder, what Restricted Mode blocks, the parent folder checkbox and the Trust Project and Open in Restricted Mode buttons](../assets/running-godot/trust-prompt.png)
 
-Click **Trust Project** for your own projects and ones from people you trust. Tick *Trust the authors of all files in
-the parent folder* first to trust every project in that folder, such as the one you keep all your games in. Without it
-you trust that one project only, and a project unpacked inside it, such as a map pack with its own `project.godot`,
-isn't trusted along with it.
+Pick one of the buttons:
 
-Click **Open in Restricted Mode** when you're not sure. You can still view and edit the maps, but TrenchDot doesn't
-start Godot on the project, build in Godot or send live edits. *Restricted Mode* then shows in yellow at the right of
-the status bar, click it to answer the question again.
+| Button | Use it | What happens |
+| --- | --- | --- |
+| **Trust Project** | For your own projects and ones from people you trust | Godot may run the project. Tick *Trust the authors of all files in the parent folder* first to trust every project in that folder, such as the one you keep all your games in. Without the tick you trust that one project only, and a project unpacked inside it, such as a map pack with its own `project.godot`, isn't trusted along with it. |
+| **Open in Restricted Mode** | When you're not sure | You can still view and edit the maps, but TrenchDot doesn't start Godot on the project, build in Godot or send live edits. |
+
+*Restricted Mode* then shows in yellow at the right of the status bar. Click it to answer the question again.
 
 ![The yellow Restricted Mode chip in the status bar, its tooltip saying TrenchDot does not run this project in Godot until you trust it](../assets/running-godot/restricted-mode-chip.png)
 
 In Restricted Mode, *Run Project*, the Godot robot, *Build in Godot* and turning on live mode ask "Running it runs its
 scripts. Trust it and continue?", and go ahead once you click **Trust Project**.
 
-Opening a map that belongs to another project you haven't trusted keeps the open project, and the prompt adds **Keep
-Current Project** to its buttons. A `project.godot` inside the open project's folder is ignored, the way Godot ignores
-it. When a map from outside the open project runs GDScript of its own, the status line says so and the Issues panel
-shows where.
+Opening a map that belongs to another project you haven't trusted keeps the open project, and the prompt adds
+**Keep Current Project** to its buttons. A `project.godot` inside the open project's folder is ignored, the way Godot
+ignores it. When a map from outside the open project runs GDScript of its own, the status line says so and the Issues
+panel shows where.
 
 Projects in *Recent Projects* from before TrenchDot asked about trust count as trusted, and so does a project you
 start the editor with through `--project`, for that session.
@@ -97,11 +100,18 @@ start the editor with through `--project`, for that session.
 ### Projects without code
 
 A project that holds no code opens without the question, since Godot has nothing in it to run. That is an empty folder,
-a project you just made, or one with only TrenchDot's addon and the Gameplay entities pack it installed. Code here
-means scripts, C# projects, native libraries, scenes and resources with scripts in them, autoloads, editor plugins and
-maps whose `logic_script` holds GDScript. The addon and the pack only count as TrenchDot's own while every file in
-them is the one this version installs, so an edited or older copy counts as code, and so does a project too big to look
-through quickly.
+a project you just made, or one with only TrenchDot's addon and the Gameplay entities pack it installed. The addon and
+the pack only count as TrenchDot's own while every file in them is the one this version installs, so an edited or older
+copy counts as code.
+
+These count as code:
+
+* Scripts and C# projects
+* Native libraries
+* Scenes and resources that hold scripts
+* Autoloads and editor plugins
+* Maps whose `logic_script` holds GDScript
+* A project too big to look through quickly
 
 TrenchDot looks again each time it opens the project and remembers nothing, so it asks once the project has gained
 scripts. To keep your own project trusted, save a map into it with *File > Save* while it holds no code. From then on
