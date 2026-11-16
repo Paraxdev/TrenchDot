@@ -7,10 +7,11 @@ use std::sync::Arc;
 
 use td_core::NodeId;
 use td_doc::terrain3d::{RegionSource, Terrain3DLink};
-use td_formats::terrain3d_cache::{LodLevel, Manifest, ManifestTexture};
+use td_formats::terrain3d_cache::{LodLevel, Manifest, ManifestMaterial, ManifestTexture};
 use td_geom::terrain3d::{Control, Loc, Region3D};
 use td_render::Renderer;
 use td_render::clipmap::look::{Albedo, ClipmapTexture};
+use td_render::clipmap::noise::Noise;
 use td_render::clipmap::{AutoShader, Background, ClipmapDesc, ClipmapParams, GpuClipmap, Slot, coarse_stride, fine_capacity, region_index};
 
 use super::residency::{self, Source};
@@ -511,13 +512,25 @@ fn textures(cache: &Path, list: &[ManifestTexture]) -> Vec<ClipmapTexture> {
         .collect()
 }
 
+/// A cache from before the noise values were exported draws a Noise background flat.
+fn background(m: &ManifestMaterial) -> Background {
+    match (m.world_background, &m.world_noise) {
+        (2, Some(n)) => Background::Noise(Noise {
+            scale: n.scale as f32,
+            height: n.height as f32,
+            offset: n.offset.map(|v| v as f32),
+            lod_distance: n.lod_distance as f32,
+            max_octaves: n.max_octaves,
+            min_octaves: n.min_octaves,
+        }),
+        (1 | 2, _) => Background::Flat,
+        _ => Background::None,
+    }
+}
+
 fn params(upm: f64, manifest: &Manifest, regions: &[Region], ranges: &HashMap<usize, [f32; 2]>, selected: bool, wire: [f32; 4]) -> ClipmapParams {
     let m = &manifest.material;
-    // Noise draws as Flat until the clipmap shader has Terrain3D's world noise.
-    let background = match m.world_background {
-        1 | 2 => Background::Flat,
-        _ => Background::None,
-    };
+    let background = background(m);
     let cached: HashMap<Loc, [f32; 2]> = manifest.regions.iter().map(|r| (r.loc, r.height_range)).collect();
     let mut range = [f32::INFINITY, f32::NEG_INFINITY];
     let mut take = |[lo, hi]: [f32; 2]| range = [range[0].min(lo), range[1].max(hi)];
@@ -531,6 +544,11 @@ fn params(upm: f64, manifest: &Manifest, regions: &[Region], ranges: &HashMap<us
 
     if background != Background::None {
         take([m.ground_level as f32; 2]);
+    }
+
+    if let Background::Noise(noise) = background {
+        let [lo, hi] = noise.range();
+        range = [range[0] + lo, range[1] + hi];
     }
 
     let upm = upm as f32;
@@ -559,6 +577,50 @@ mod tests {
 
     fn region(loc: Loc, hash: u8) -> Region {
         Region { loc, source: Source::Cached([hash; 32]), whole: true, pyramid: true }
+    }
+
+    #[test]
+    fn the_background_follows_the_material_and_widens_the_cull_range() {
+        use td_formats::terrain3d_cache::{self, ManifestRegion, RegionHash, WorldNoise};
+
+        let ranges = [([-2, 3], [4.0, 20.0]), ([5, -1], [-6.0, 1.5])];
+        let mut manifest = Manifest {
+            format: terrain3d_cache::FORMAT.into(),
+            version: terrain3d_cache::VERSION,
+            terrain3d: "1.1.0".into(),
+            godot: "4.7.2".into(),
+            data_version: 1.1,
+            region_size: 64,
+            vertex_spacing: 0.5,
+            material: ManifestMaterial { ground_level: 30.0, ..Default::default() },
+            map_transform_identity: true,
+            editor_open: false,
+            regions: ranges.iter().map(|&(loc, height_range)| ManifestRegion { loc, hash: RegionHash([1; 32]), height_range }).collect(),
+            dirty: Vec::new(),
+            textures: Vec::new(),
+            applied: Vec::new(),
+            ocean: None,
+            resources: None,
+        };
+        let regions = [region([-2, 3], 1), region([5, -1], 1)];
+        let drawn = |manifest: &Manifest| {
+            let p = params(32.0, manifest, &regions, &HashMap::new(), false, [1.0; 4]);
+            (p.background, p.heights)
+        };
+        assert_eq!(drawn(&manifest), (Background::None, [-6.0 * 32.0, 20.0 * 32.0]), "no background leaves out the ground level");
+        manifest.material.world_background = 1;
+        assert_eq!(drawn(&manifest), (Background::Flat, [-6.0 * 32.0, 30.0 * 32.0]));
+        manifest.material.world_background = 2;
+        assert_eq!(drawn(&manifest), (Background::Flat, [-6.0 * 32.0, 30.0 * 32.0]), "an old cache without noise values draws flat");
+
+        let offset = [0.25, 0.5, -1.0];
+        manifest.material.world_noise =
+            Some(WorldNoise { scale: 3.5, height: -20.0, offset, lod_distance: 600.0, max_octaves: 3, min_octaves: 1, fragment_normals: true });
+        let noise = Noise { scale: 3.5, height: -20.0, offset: offset.map(|v| v as f32), lod_distance: 600.0, max_octaves: 3, min_octaves: 1 };
+        // The noise reaches from 1.75 * -20 * 10 + 50 = -300 meters to the 50 of its offset, on top of -6 to 30.
+        assert_eq!(drawn(&manifest), (Background::Noise(noise), [-306.0 * 32.0, 80.0 * 32.0]));
+        manifest.material.world_background = 0;
+        assert_eq!(drawn(&manifest), (Background::None, [-6.0 * 32.0, 20.0 * 32.0]), "noise values without the mode draw nothing");
     }
 
     #[test]

@@ -3,6 +3,7 @@
 
 pub mod layout;
 pub mod look;
+pub mod noise;
 
 use glam::{DVec2, I64Vec2, Mat4, Vec3};
 
@@ -80,14 +81,15 @@ impl Slot {
 }
 
 /// Terrain3D's world background, what draws where no region is.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum Background {
     /// Nothing, and the cells touching the edge of the regions are dropped like Terrain3D drops them.
     #[default]
     None,
     /// A plane at the ground level the region edges blend into.
     Flat,
-    Noise,
+    /// Terrain3D's world noise hills on top of the Flat plane, away from the regions.
+    Noise(noise::Noise),
 }
 
 /// The size of a clipmap's GPU arrays. Changing any of it means a new [`GpuClipmap`].
@@ -200,6 +202,8 @@ pub(crate) struct ClipmapUniform {
     look: [f32; 4],
     wire: [f32; 4],
     auto_shader: [f32; 4],
+    noise: [f32; 4],
+    noise_offset: [f32; 4],
     regions: [[i32; 4]; 256],
     textures: [look::TextureUniform; look::MAX_TEXTURES],
 }
@@ -219,7 +223,7 @@ impl ClipmapUniform {
         let background = match p.background {
             Background::None => 0.0,
             Background::Flat => 1.0,
-            Background::Noise => 2.0,
+            Background::Noise(_) => 2.0,
         };
         let textures = match (listed, p.textures) {
             (false, _) => 0.0,
@@ -232,6 +236,13 @@ impl ClipmapUniform {
         self.wire = p.wire;
         let a = p.auto_shader.unwrap_or(AutoShader { slope: 0.0, height_reduction: 0.0, base: 0, overlay: 0 });
         self.auto_shader = [a.slope, a.height_reduction, a.base.min(31) as f32, a.overlay.min(31) as f32];
+        let n = match p.background {
+            Background::Noise(n) => n,
+            _ => noise::Noise { scale: 0.0, height: 0.0, offset: [0.0; 3], lod_distance: 0.0, max_octaves: 0, min_octaves: 0 },
+        };
+        let octaves = |o: u32| o.min(noise::MAX_OCTAVES) as f32;
+        self.noise = [n.scale, n.height, n.lod_distance, octaves(n.max_octaves)];
+        self.noise_offset = [n.offset[0], n.offset[1], n.offset[2], octaves(n.min_octaves)];
     }
 
     fn slot(&self, i: usize) -> Slot {
@@ -918,6 +929,53 @@ mod tests {
         assert!(fine_seen > 500 && coarse_seen > 500, "{fine_seen} fine and {coarse_seen} coarse pixels checked");
     }
 
+    /// The shader's world noise and its weight match the Rust twins around a region, with fewer octaves away from the
+    /// eye. GPUs round `sin` their own way, which the hash magnifies, so a few heights may stray.
+    #[test]
+    #[ignore = "needs a GPU"]
+    fn gpu_noise_matches_its_twin() {
+        let (device, queue) = device(false);
+        let layout = bind_group_layout(&device);
+        let desc = ClipmapDesc { region_size: 64, layers: 1, coarse_stride: 4, atlas: [[-3, 2], [-3, 2]] };
+        let mut clip = GpuClipmap::new(&device, &queue, &layout, &desc).unwrap();
+        let n = 64 * 64;
+        clip.write_fine(&queue, 0, [0, 0], [64, 64], &vec![0.0; n], &vec![0; n], &vec![[255; 4]; n]).unwrap();
+        clip.set_slots(&queue, &[([-3, 2], Slot::Fine(0))]).unwrap();
+        let noise = noise::Noise { scale: 7.0, height: 0.1, offset: [0.3, 0.004, -0.2], lod_distance: 12.0, max_octaves: 5, min_octaves: 2 };
+        let (cell, upm) = (24.0f32, 40.0f32);
+        clip.set_params(&queue, &ClipmapParams { cell, upm, background: Background::Noise(noise), heights: [-4000.0, 4000.0], ..Default::default() });
+
+        let [w, h] = [128u32, 64];
+        let eye = Vec3::new(-150.0 * cell, 2000.0, 140.0 * cell);
+        let view_proj = top_down(eye, [88.0 * cell, 44.0 * cell]);
+        let fragment = "@fragment fn fs_test(f: VOut) -> @location(0) vec4<f32> { let p = f.world.xz / clip.world.x;             return vec4<f32>(noise_height(p, noise_octaves(vec2<i32>(floor(p)))), noise_weight(p / f32(clip.grid.x)), p); }";
+        let pixels = draw(&device, &queue, &layout, &clip, eye, view_proj, [w, h], fragment);
+
+        let present = |loc: [i32; 2]| loc == [-3, 2];
+        let (mut flat, mut hills, mut close, mut octaves) = (0, 0, 0, std::collections::HashSet::new());
+        for (i, p) in pixels.iter().enumerate() {
+            let at = DVec2::new(f64::from(p[2]), f64::from(p[3]));
+            assert!(at != DVec2::ZERO, "pixel {i} is drawn");
+            let weight = noise::region_weight(at / 64.0, present);
+            assert!((f64::from(p[1]) - weight).abs() < 1e-4, "pixel {i} at {at}: weight {} != {weight}", p[1]);
+            let dist = (at.floor() * f64::from(cell) - DVec2::new(f64::from(eye.x), f64::from(eye.z))).length() / f64::from(upm);
+            let want = noise.height(at, 64, dist, present);
+            if want.abs() < 1e-6 {
+                assert!(p[0].abs() < 1e-4, "pixel {i} at {at} by the region: {}", p[0]);
+                flat += 1;
+                continue;
+            }
+
+            hills += 1;
+            close += usize::from((f64::from(p[0]) - want).abs() < 0.02);
+            octaves.insert(noise.octaves(dist));
+        }
+
+        assert!(flat > 1000 && hills > 3000, "{flat} pixels by the region and {hills} away from it");
+        assert!(close * 100 >= hills * 95, "{close} of {hills} noise heights match");
+        assert!(octaves.len() >= 3 && octaves.contains(&2), "falls off to the fewest octaves: {octaves:?}");
+    }
+
     #[test]
     fn texture_and_auto_settings_reach_the_uniform() {
         let mut u = ClipmapUniform::new(&DESC);
@@ -930,6 +988,17 @@ mod tests {
         assert_eq!(u.look[2], 2.0);
         u.set_params(&ClipmapParams { textures: false, auto_shader: None, ..params }, true);
         assert_eq!((u.look, u.auto_shader), ([1.0, 1.0, 1.0, 0.0], [0.0; 4]));
+    }
+
+    #[test]
+    fn noise_settings_reach_the_uniform_only_with_a_noise_background() {
+        let mut u = ClipmapUniform::new(&DESC);
+        let n = noise::Noise { scale: 3.5, height: -20.0, offset: [0.25, -0.1, 7.0], lod_distance: 600.0, max_octaves: 40, min_octaves: 3 };
+        let params = ClipmapParams { background: Background::Noise(n), ..Default::default() };
+        u.set_params(&params, false);
+        assert_eq!((u.look[0], u.noise, u.noise_offset), (2.0, [3.5, -20.0, 600.0, 15.0], [0.25, -0.1, 7.0, 3.0]), "octaves past 15 are clamped");
+        u.set_params(&ClipmapParams { background: Background::Flat, ..params }, false);
+        assert_eq!((u.look[0], u.noise, u.noise_offset), (1.0, [0.0; 4], [0.0; 4]));
     }
 
     #[test]

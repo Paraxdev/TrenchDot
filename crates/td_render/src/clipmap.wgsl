@@ -22,6 +22,10 @@ struct Clipmap {
     wire: vec4<f32>,
     // x: auto slope, y: auto height reduction, z: auto base texture, w: auto overlay texture
     auto_shader: vec4<f32>,
+    // Terrain3D's world noise. x: scale, y: height in meters, z: lod distance in meters, w: most octaves
+    noise: vec4<f32>,
+    // xyz: Terrain3D's world noise offset, w: fewest octaves
+    noise_offset: vec4<f32>,
     // Fine layer per region map location, COARSE_ONLY or NO_REGION, four to an element.
     regions: array<vec4<i32>, 256>,
     textures: array<Texture, 32>,
@@ -161,14 +165,85 @@ fn blended(pos: vec2<f32>, h: f32) -> f32 {
     return h + s * s * (3.0 - 2.0 * s) * (clip.world.z - h);
 }
 
-fn ground(cell: vec2<i32>) -> f32 {
-    return blended(vec2<f32>(cell), raw_height(cell));
+// Terrain3D's world noise from its backgrounds.glsl, the twins are in clipmap::noise.
+fn hashv2(v: vec2<f32>) -> f32 {
+    return fract(1e4 * sin(fma(17.0, v.x, v.y * 0.1)) * (0.1 + abs(sin(fma(v.y, 13.0, v.x)))));
+}
+
+fn noise2d(x: vec2<f32>) -> vec3<f32> {
+    let f = fract(x);
+    let f2 = f * f;
+    let s = f - 1.0;
+    let u = f2 * f * fma(vec2<f32>(6.0), f2, fma(vec2<f32>(-15.0), f, vec2<f32>(10.0)));
+    let du = 30.0 * f2 * s * s;
+    let p = floor(x);
+    let a = hashv2(p);
+    let b = hashv2(p + vec2<f32>(1.0, 0.0));
+    let c = hashv2(p + vec2<f32>(0.0, 1.0));
+    let d = hashv2(p + vec2<f32>(1.0, 1.0));
+    let k1 = b - a;
+    let k2 = c - a;
+    let k3 = d - (b + k2);
+    return vec3<f32>(fma(k2, u.y, fma(u.x, fma(k3, u.y, k1), a)), du * fma(vec2<f32>(k3), u.yx, vec2<f32>(k1, k2)));
+}
+
+fn world_noise(start: vec2<f32>, octaves: i32) -> f32 {
+    var p = start;
+    var a = 0.0;
+    var b = 1.0;
+    var d = vec2<f32>(0.0);
+    for (var i = 0; i < octaves; i++) {
+        let n = noise2d(p);
+        d += n.yz;
+        a += b * n.x / (1.0 + dot(d, d));
+        b *= 0.5;
+        p = mat2x2<f32>(vec2<f32>(0.8, -0.6), vec2<f32>(0.6, 0.8)) * p * 2.0;
+    }
+    return a;
+}
+
+// Octaves of the noise at a vertex, fewer with each lod distance between it and the eye.
+fn noise_octaves(cell: vec2<i32>) -> i32 {
+    let dist = length(vec2<f32>(cell) * clip.world.x - cam.eye.xz) / clip.world.y;
+    let steps = select(1e30, floor(dist / clip.noise.z), clip.noise.z > 0.0);
+    return i32(min(max(clip.noise.w - steps, clip.noise_offset.w), clip.noise.w));
+}
+
+// Terrain3D's `get_noise_region_blend`, `uv` in regions.
+fn noise_weight(uv: vec2<f32>) -> f32 {
+    let g = uv - 0.5011;
+    let a = present_at(g + vec2<f32>(0.0, 1.0));
+    let b = present_at(g + vec2<f32>(1.0, 1.0));
+    let c = present_at(g + vec2<f32>(1.0, 0.0));
+    let d = present_at(g);
+    let w = smoothstep(vec2<f32>(0.0), vec2<f32>(1.0), fract(g));
+    return 1.0 - mix(mix(d, c, w.x), mix(a, b, w.x), w.y) * 2.0;
+}
+
+// The meters a Noise background raises the ground at `pos` in cells, nothing near the regions.
+fn noise_height(pos: vec2<f32>, octaves: i32) -> f32 {
+    if (clip.look.x < 1.5) {
+        return 0.0;
+    }
+    let size = f32(clip.grid.x);
+    let uv = pos / size;
+    let weight = noise_weight(uv);
+    if (weight <= 0.5) {
+        return 0.0;
+    }
+    let p = (uv + clip.noise_offset.xz * 1024.0 / size) * clip.noise.x * size / 1024.0 * 0.1;
+    let h = world_noise(p, octaves) * clip.noise.y * 10.0 + clip.noise_offset.y * 100.0;
+    return smoothstep(0.5, 1.0, weight) * h;
+}
+
+fn ground(cell: vec2<i32>, octaves: i32) -> f32 {
+    return blended(vec2<f32>(cell), raw_height(cell)) + noise_height(vec2<f32>(cell), octaves);
 }
 
 // Normal from the heights `step` cells around a vertex, in map units.
-fn ground_normal(cell: vec2<i32>, step: i32) -> vec3<f32> {
-    let dx = ground(cell + vec2<i32>(step, 0)) - ground(cell - vec2<i32>(step, 0));
-    let dz = ground(cell + vec2<i32>(0, step)) - ground(cell - vec2<i32>(0, step));
+fn ground_normal(cell: vec2<i32>, step: i32, octaves: i32) -> vec3<f32> {
+    let dx = ground(cell + vec2<i32>(step, 0), octaves) - ground(cell - vec2<i32>(step, 0), octaves);
+    let dz = ground(cell + vec2<i32>(0, step), octaves) - ground(cell - vec2<i32>(0, step), octaves);
     return normalize(vec3<f32>(-dx * clip.world.y, 2.0 * f32(step) * clip.world.x, -dz * clip.world.y));
 }
 
@@ -178,6 +253,7 @@ struct RingVertex {
     end: vec2<i32>,
     scale: i32,
     lerp: f32,
+    octaves: i32,
 };
 
 // The twin of layout::Morph: odd vertices slide onto the next level's grid near the outer edge of their ring.
@@ -192,16 +268,21 @@ fn ring_vertex(v: VIn) -> RingVertex {
     let shift = vec2<i32>(r == vec2<i32>(1)) - vec2<i32>(r == vec2<i32>(3));
     let end = cell + shift * scale;
     let pos = mix(vec2<f32>(cell), vec2<f32>(end), lerp);
-    let h = blended(pos, mix(raw_height(cell), raw_height(end), lerp));
-    return RingVertex(vec3<f32>(pos.x * clip.world.x, h * clip.world.y, pos.y * clip.world.x), cell, end, scale, lerp);
+    let octaves = noise_octaves(cell);
+    var noise = noise_height(vec2<f32>(cell), octaves);
+    if (lerp > 0.0) {
+        noise = mix(noise, noise_height(vec2<f32>(end), octaves), lerp);
+    }
+    let h = blended(pos, mix(raw_height(cell), raw_height(end), lerp)) + noise;
+    return RingVertex(vec3<f32>(pos.x * clip.world.x, h * clip.world.y, pos.y * clip.world.x), cell, end, scale, lerp, octaves);
 }
 
 @vertex
 fn vs_main(v: VIn) -> VOut {
     let r = ring_vertex(v);
-    var n = ground_normal(r.cell, r.scale);
+    var n = ground_normal(r.cell, r.scale, r.octaves);
     if (r.lerp > 0.0) {
-        n = normalize(mix(n, ground_normal(r.end, r.scale * 2), r.lerp));
+        n = normalize(mix(n, ground_normal(r.end, r.scale * 2, r.octaves), r.lerp));
     }
 
     var o: VOut;

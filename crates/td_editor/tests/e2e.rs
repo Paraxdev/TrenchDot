@@ -8937,6 +8937,53 @@ fn terrain3d_regions_cast_and_catch_sun_shadows() {
     assert!(shown.0 + shown.1 > 14000, "the middle of the view is floor, shaded or lit: {shown:?}");
 }
 
+/// A Noise background raises Terrain3D's hills past the regions, above the horizon where a None background leaves
+/// the sky.
+#[test]
+#[ignore]
+fn terrain3d_noise_background_draws_hills_where_none_shows_sky() {
+    use td_formats::terrain3d_cache::{self, WorldNoise};
+
+    let (dir, none_map) = terrain3d_world("terrain3d_noise", None);
+    let hills = dir.join("hills").join(terrain3d_cache::DIR_NAME);
+    copy_dir(&dir.join("terrain").join(terrain3d_cache::DIR_NAME), &hills);
+    let mut manifest = terrain3d_cache::read_manifest(&hills).unwrap();
+    manifest.material.world_background = 2;
+    manifest.material.world_noise = Some(WorldNoise { height: 64.0, ..Default::default() });
+    terrain3d_cache::write_manifest(&hills, &manifest).unwrap();
+    let mut map = td_doc::Map::new();
+    let layer = map.default_layer();
+    map.insert(layer, td_doc::NodeKind::Terrain3D(td_doc::terrain3d::Terrain3DLink::new("res://hills")));
+    let noise_map = dir.join("maps/hills.tdm");
+    td_doc::format::save(&map, &noise_map).unwrap();
+
+    let ed = Editor::launch_with("terrain3d_noise", &["--project", dir.to_str().unwrap()]);
+    ed.call("set_editor", json!({ "shade": "lit", "tool": "select" }));
+    let args = json!({ "target": "3d", "width": 320, "height": 240 });
+    // Level with the eye over region [0, 0], higher than any of its ground, looking where no region is: the horizon is
+    // the middle row and everything over it is sky or hills.
+    let view = |map: &std::path::Path, label: &str| {
+        ed.call("map_file", json!({ "op": "open", "path": map }));
+        let node = ed.call("list_nodes", json!({ "type": "terrain3d" }))["nodes"][0]["id"].clone();
+        ed.call("set_camera", json!({ "view": "3d", "position": [256, 800, 256], "look_at": [-3000, 800, -3000] }));
+        clipmap_settled(&ed, &node, 3);
+        (node, shot(&ed, args.clone(), label))
+    };
+    let above = |a: &image::RgbaImage, b: &image::RgbaImage| {
+        let rows = 0..110;
+        let differ = a.enumerate_pixels().filter(|(x, y, p)| rows.contains(y) && (0..3).any(|c| p.0[c].abs_diff(b.get_pixel(*x, *y).0[c]) > 24));
+        differ.count()
+    };
+
+    let (node, none) = view(&none_map, "none");
+    ed.call("hierarchy", json!({ "op": "set_flags", "ids": [node], "hidden": true }));
+    let sky = shot(&ed, args.clone(), "sky");
+    assert_eq!(above(&none, &sky), 0, "with no background only sky is over the horizon");
+    let (_, noise) = view(&noise_map, "noise");
+    let hills = above(&noise, &sky);
+    assert!(hills > 320 * 110 / 4, "{hills} of {} pixels over the horizon show hills", 320 * 110);
+}
+
 /// Selecting the Terrain3D node fills the Inspector with the textures of the folder, each with a swatch of its color.
 #[test]
 #[ignore]
