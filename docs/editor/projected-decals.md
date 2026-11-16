@@ -4,14 +4,12 @@ A projected decal is a box that shines a material onto everything inside it. Unl
 which is a flat sheet, it follows whatever it hits, so a stain can spill over a step, wrap around a pipe or lie on
 bumpy ground. Props and models inside the box get it too.
 
-It is a Godot `Decal` node in the built scene, and it costs more to draw than a regular decal. Use it where a flat
-sheet will not do.
+It is a Godot `Decal` node in the built scene. Use it where a flat sheet will not do.
 
 > [!WARNING]
 > Projected decals are harder on the GPU than [regular decals](decals.md). Godot works out the decal for every pixel
 > its box covers on screen, so many boxes, or large ones, slow the game down, most of all on weaker graphics cards. Use
-> a regular decal on a flat surface, keep the box as small as the job allows, and save projected decals for places that
-> need the wrap.
+> a regular decal on a flat surface and keep the box as small as the job allows.
 
 ## Adding it to your project
 
@@ -63,10 +61,17 @@ setting it up is installing the pack.
 
 3. Size it
 
-    `size` takes three numbers in map units: width, depth and height. Width and height are the patch it covers on the
-    surface, depth is how far the box reaches into and out of it. The default is 64 32 64, a two meter square that
-    reaches half a meter each way. Leave it at the default and the patch takes the material's
-    [texture size](../godot/materials.md#texture-size) instead, if it has one, in the editor and in Godot.
+    `size` takes three numbers in map units:
+
+    | Number | Meaning |
+    | --- | --- |
+    | First, width | How wide a patch it covers on the surface |
+    | Second, depth | How far the box reaches into and out of the surface |
+    | Third, height | How tall a patch it covers on the surface |
+
+    The default is 64 32 64, a two meter square that reaches half a meter each way. Leave it at the default and the
+    patch takes the material's [texture size](../godot/materials.md#texture-size) instead, if it has one, in the editor
+    and in Godot.
 
 4. (Optionally) aim it
 
