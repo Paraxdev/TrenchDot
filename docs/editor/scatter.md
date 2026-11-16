@@ -23,12 +23,17 @@ Press B and the Scatter panel opens on the right, with a card for every model in
 
 ![The Preset menu open with forest, pines, mixed woodland, detailed forest, low-poly trees, bushes, undergrowth, rocks, boulders and grass, rocks hovered](../assets/scatter/preset-menu.png)
 
-The rocks, boulders, grass, undergrowth and low-poly trees presets use Blockbench models built into the editor.
-Picking one adds the models it needs to `res://trenchdot/nature`, offline. The forest, pines, mixed woodland,
-detailed forest and bushes presets use the glTF trees and bushes of the nature pack, a download of about 23 MB. In a
-project without it, picking one of those opens *Godot > Add Content to Project…* on the nature models instead of
-making a set whose models are missing. *Terrain > Scatter > Install Nature Models…*, or **Install Nature Models…** at
-the bottom of the panel, opens it too. Files already in the project are never overwritten.
+Presets come in two kinds:
+
+| Presets | Models |
+| --- | --- |
+| rocks, boulders, grass, undergrowth, low-poly trees | Blockbench models built into the editor. Picking one adds the models it needs to `res://trenchdot/nature`, offline |
+| forest, pines, mixed woodland, detailed forest, bushes | The glTF trees and bushes of the nature pack, a download of about 23 MB |
+
+In a project without the nature pack, picking one of the second kind opens *Godot > Add Content to Project…* on the
+nature models instead of making a set whose models are missing. *Terrain > Scatter > Install Nature Models…*, or
+**Install Nature Models…** at the bottom of the panel, opens it too. Files already in the project are never
+overwritten.
 
 ### Model cards
 
@@ -49,10 +54,12 @@ Open a card with its arrow to tune that one model.
 
 ## Targets
 
-A set only lands on its **targets**, so a forest painted on a terrain never covers the house on it. Alt+click in a view,
-or click the eyedropper at the right of *Targets* and then click in a view, to add or remove a target. A set without
-targets takes whatever its first stroke lands on. Another set can be a target too, which is how grass grows on
-boulders.
+A set only lands on its **targets**, so a forest painted on a terrain never covers the house on it. To add or remove a
+target, either Alt+click it in a view, or click the eyedropper at the right of *Targets* and then click it in a view.
+You should see it show up in the list under *Targets*.
+
+A set without targets takes whatever its first stroke lands on. Another set can be a target too, which is how grass
+grows on boulders.
 
 ![The Targets section of the Scatter panel with the terrain as its target, the eyedropper at the top right](../assets/scatter/targets.png)
 
@@ -70,7 +77,7 @@ slope, **Follow cursor**, the eyedropper and **Fill**. **Scatter Panel** brings 
 | Left drag | Paint |
 | Shift+left drag | Erase, from the active set only |
 | Ctrl+wheel | Resize the brush |
-| **Fill Targets** | Cover every target in one go, within the slope and height limits |
+| **Fill** in the bar, or **Fill Targets** in the panel | Cover every target in one go, within the slope and height limits |
 
 The *Brush* section of the panel holds the rest.
 
