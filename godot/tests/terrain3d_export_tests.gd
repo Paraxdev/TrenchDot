@@ -680,6 +680,27 @@ static func _test_cli(t) -> void:
 	header = _decode(FileAccess.get_file_as_bytes(TrenchDotTerrain3DCache.region_path(spaced, Vector2i(2, -1))))
 	t.check(third[0] == 0 and float(_manifest(spaced).get("vertex_spacing", 0.0)) == 2.0 and header.get("spacing") == 2.0, "without a manifest the CLI takes the vertex spacing of the region files, got %s %s" % [_manifest(spaced).get("vertex_spacing"), header.get("spacing")])
 
+	var adopting := WORK.path_join("cli_assets")
+	_clear(adopting)
+	DirAccess.make_dir_recursive_absolute(adopting)
+	DirAccess.copy_absolute("res://tests/terrain3d/probe/terrain3d-01_02.res", adopting.path_join("terrain3d-01_02.res"))
+	var assets: Resource = ClassDB.instantiate(&"Terrain3DAssets")
+	for i in 2:
+		var texture: Resource = ClassDB.instantiate(&"Terrain3DTextureAsset")
+		texture.set(&"name", ["Cliff", "Grass"][i])
+		texture.set(&"albedo_color", [Color(0.75, 0.5, 0.25), Color(0.25, 0.75, 0.5)][i])
+		assets.call(&"set_texture_asset", i, texture)
+	var material: Resource = ClassDB.instantiate(&"Terrain3DMaterial")
+	material.set(&"world_background", 2)
+	ResourceSaver.save(assets, adopting.path_join("assets.tres"))
+	ResourceSaver.save(material, adopting.path_join("M_terrain.tres"))
+	for run in ["a new cache", "a cache it wrote before"]:
+		var adopted := _cli(["export", adopting])
+		m = _manifest(adopting)
+		var listed: Array = m.get("textures", []).map(func(e): return [int(e["id"]), e["name"], e["albedo_color"]])
+		t.check(adopted[0] == 0 and listed == [[0, "Cliff", [0.75, 0.5, 0.25, 1.0]], [1, "Grass", [0.25, 0.75, 0.5, 1.0]]], "the CLI lists the textures of the folder's assets for %s, got %s %s" % [run, adopted, listed])
+		t.check(int(m.get("material", {}).get("world_background", -1)) == 2 and str(m.get("resources", {}).get("assets")).ends_with("cli_assets/assets.tres"), "the CLI exports the folder's material for %s, got %s %s" % [run, m.get("material"), m.get("resources")])
+
 	var missing := _cli(["export", WORK.path_join("nowhere")])
 	t.check(missing[0] == 1 and missing[1].get("ok") == false and str(missing[1].get("error")).contains("nowhere"), "the CLI refuses a missing folder, got %s" % [missing])
 	var usage := _cli(["import", folder])
