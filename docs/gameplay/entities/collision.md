@@ -34,8 +34,6 @@ Trimesh only works on static bodies. Doors, buttons, lifts and trains are animat
 they can use it. Triggers, `prop_physics` and `npc_walker` build convex hulls instead, and a trigger set to trimesh
 reports a warning when the map builds.
 
-A `prop_model` whose model already holds a collision body keeps that body and builds no shape of its own.
-
 ## Project defaults
 
 Model entities whose keys are empty follow three settings in Godot's *Project Settings*, under *Trenchdot >
@@ -51,13 +49,24 @@ Scatter sets pick their shape in the scatter set's own *Collision* row, see [Sca
 
 ## Your own brush entities
 
-A brush entity you define yourself collides as the body its *Node Class* names. With *Node Class* left empty it takes
-the body its script extends, and with no script, or a script extending `Node3D`, it becomes a `StaticBody3D`. Only a
-script extending some other node, such as a `Marker3D`, leaves it without collision, and the build warns about it. See
-[Custom entities in GDScript](../custom-entities.md).
+A brush entity you define yourself collides as the body its *Node Class* names. With *Node Class* left empty, the body
+comes from its script:
+
+| Script | Body |
+| --- | --- |
+| Extends a body such as `Area3D` | That body |
+| Extends `Node3D`, or no script | `StaticBody3D` |
+| Extends another node, such as a `Marker3D` | No collision, and the build warns about it |
+
+See [Custom entities in GDScript](../custom-entities.md).
+
+## Seeing the shapes
 
 The editor viewport does not draw collision shapes. Godot's *Debug > Visible Collision Shapes* shows them while the
-game runs, in the live session and in a full build alike. Brush entities and `prop_model` save their shapes in the
-built scene, `prop_physics` and `npc_walker` build theirs each time the scene loads, the way they load their model.
-A `prop_model` or `npc_walker` whose model scene already holds a physics body keeps that body and builds no
-shapes of its own.
+game runs, in the live session and in a full build alike.
+
+Brush entities and `prop_model` save their shapes in the built scene. `prop_physics` and `npc_walker` build theirs each
+time the scene loads, the way they load their model.
+
+A `prop_model` or `npc_walker` whose model scene already holds a physics body keeps that body and builds no shapes of
+its own.
