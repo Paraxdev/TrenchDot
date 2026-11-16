@@ -70,43 +70,70 @@ The node emits `build_complete` when it is done, or `build_failed` when the map 
 ## Environment and sun
 
 The sky, fog and sun keys on worldspawn build a `WorldEnvironment` and a light named `sun` into the map, so a map looks
-lit without any setup in Godot. Press Escape so nothing is selected, the Inspector then shows *Map (worldspawn)* with
-these keys listed. Its `environment` key picks what gets built. A key you leave unset stays out of the map, so a map
-with none of them builds no environment at all. If a project made with an older addon does not list the keys, update
-the addon and [export the game config](project-setup.md#the-game-config) again.
+lit without any setup in Godot.
 
-| `environment` | Builds |
-| --- | --- |
-| `1` | The environment and the sun. This is the default. |
-| `sun_only` | Only the sun, for a game that brings its own `WorldEnvironment` |
-| `0` or `none` | Nothing |
+1. Select nothing
+
+    Press Escape. The Inspector on the right then shows *Map (worldspawn)* with these keys listed. If your project was
+    made with an older addon and the keys are missing, update the addon and
+    [export the game config](project-setup.md#the-game-config) again.
+
+2. Choose what gets built
+
+    Pick a value in the *environment* drop-down. A sky, fog or sun key you leave unset stays out of the map, so a map
+    with none of them builds no environment at all.
+
+| Drop-down | Value in the `.tdm` | Builds |
+| --- | --- | --- |
+| environment and sun | `1` | The environment and the sun. This is the default. |
+| sun only | `sun_only` | Only the sun, for a game that brings its own `WorldEnvironment` |
+| none | `0` or `none` | Nothing |
 
 If the scene already has a `WorldEnvironment` or `DirectionalLight3D` of its own, the map keeps it and adds none, so a
 game with its own look always wins. When several maps share one scene, the first one built lights it.
 
 ## Faces that face the void
 
-A sealed map has outer walls whose outside faces nobody can ever see, and the build can leave them out of the mesh.
-This is off by default. Turn it on for a sealed indoor map, such as a set of rooms or a building, by setting
-`_cull_void_faces` to `1` on worldspawn. An open outdoor map has nothing to gain from it. The build then
-floods the empty space from every point entity (the player start, lights and so on) and drops each face that no part
-of that space can see. This is the same idea as the leak check of Quake map compilers, so a map has to be sealed for it
-to work. Sky brushes count as walls, and so do closed meshes. Doors, lifts, triggers and other moving or volume
-entities do not.
+A sealed map has outer walls whose outside faces nobody can ever see. The build can leave them out of the mesh, which
+saves rendering cost. It is off by default, and only a sealed indoor map, such as a set of rooms or a building, gains
+from it. An open outdoor map has nothing to gain.
 
-If the flood escapes through a gap, the map leaks. The build then keeps every face and warns in Godot's Output which
-entity reached the outside. TrenchDot shows the same leak in its Issues panel. Click the issue to select that entity,
-a line in the 2D and 3D views marks the way from it to the outside. A glass pane is not a wall either, so a window in an
-outer wall also counts as a gap. A fully open outdoor map always leaks and simply keeps all its faces.
+1. Select nothing
 
-To see what the build will draw, open **View > Preview void culling**. The views hide the dropped faces while it is on.
-It is off by default so you can still click an outer wall from outside. Without `_cull_void_faces` on worldspawn the
-editor does not look for leaks either.
+    Press Escape so the Inspector shows *Map (worldspawn)*.
+
+2. Turn it on
+
+    Tick `_cull_void_faces`, right below *environment*. You should see a check mark in it.
+
+    ![The worldspawn Inspector with environment set to environment and sun and _cull_void_faces ticked](../assets/building/worldspawn-cull-void-faces.png)
+
+3. Save and build
+
+    The build floods the empty space from every point entity (the player start, lights and so on) and drops each face
+    that no part of that space can see. It is the same idea as the leak check of Quake map compilers, so the map has to
+    be sealed. Sky brushes count as walls, and so do closed meshes. Doors, lifts, triggers and other moving or volume
+    entities do not.
+
+To see what the build will draw, switch on *View > Preview void culling*. The views then hide the dropped faces. It is
+off by default, so you can still click an outer wall from outside. Without `_cull_void_faces` on worldspawn the editor
+does not look for leaks either.
+
+![The View menu with Preview void culling hovered and its tooltip showing](../assets/building/menu-preview-void-culling.png)
 
 | Key | Where | What it does |
 | --- | --- | --- |
-| `_cull_void_faces` | worldspawn | Set to `1` to drop the faces that face the void. Default off. |
+| `_cull_void_faces` | worldspawn | Tick it, or set it to `1`, to drop the faces that face the void. Default off. |
 | `_cull_void_faces` | A brush entity | Set to `0` to keep that entity's faces even when worldspawn has it on. It does nothing while worldspawn has it off. |
+
+### When the map leaks
+
+If the flood escapes through a gap, the map leaks. The build then keeps every face and warns in Godot's Output which
+entity reached the outside. TrenchDot's Issues panel shows the same leak. Click the issue to select that entity, and a
+line in the 2D and 3D views marks the way from it to the outside.
+
+A glass pane is not a wall either, so a window in an outer wall also counts as a gap. A fully open outdoor map always
+leaks and simply keeps all its faces.
 
 ## Build report
 
