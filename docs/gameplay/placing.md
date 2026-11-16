@@ -7,15 +7,22 @@ there, grouped by category. Hover a card to see what it does.
 
 ![The Entities panel with the func_door card hovered, its tooltip says brush entity, sliding door](../assets/placing/entities-panel.png)
 
-Drag a card into any view to place it, or double click it to drop it at the 3D cursor. (Ctrl or Shift click picks
-several cards, drag them in together and they land in a row.) A brush entity card comes with a box. With brushes
-selected, double click it to wrap those brushes in the entity instead.
+| To | Do |
+| --- | --- |
+| Place one | Drag its card into any view, or double click the card to drop it at the 3D cursor |
+| Place several | Ctrl or Shift click the cards, then drag them in together, they land in a row |
+| Wrap brushes | A brush entity card comes with a box. With brushes selected, double click the card to wrap those brushes in the entity instead |
 
 The entity lands on the first solid surface under the pointer. Trigger volumes, brushes made only of tool textures and
-other entities are passed. While you drag, a cyan marker shows where it will land. A 2D view cannot show depth, so there
-the marker is labeled with the height (or depth) it lands at. In the Top view the roof of a room is in the way, so hold
-Alt while you drop and the entity passes the roof and lands on the floor inside. In the Front and Side views Alt passes
-the near wall and puts the entity halfway across the room.
+other entities are passed. While you drag, a cyan marker shows where it will land.
+
+A 2D view cannot show depth, so there the marker is labeled with the height (or depth) it lands at. When something is in
+the way, hold Alt while you drop:
+
+| View | Alt passes | The entity lands |
+| --- | --- | --- |
+| Top | The roof of a room | On the floor inside |
+| Front and Side | The near wall | Halfway across the room |
 
 ### Brush entities
 
@@ -75,21 +82,29 @@ The [Logic graph](logic-graph.md) shows all the wiring at once and connects enti
 
 Select an entity in the [Logic graph](logic-graph.md#simulate), press **Simulate** and pick an output. The graph
 highlights every `source.output → target.input` step that would follow and lists them with their delays, so you can
-follow a long chain without building and running the game. Red marks a target that does not exist, usually a typo in a
-targetname. Blue marks a runtime target like `!player` or `@enemies`, which only exists in game and is not followed
-further.
+follow a long chain without building and running the game.
+
+| You see | It means |
+| --- | --- |
+| Red | A target that does not exist, usually a typo in a targetname |
+| Blue | A runtime target like `!player` or `@enemies`, which only exists in game and is not followed further |
 
 ## Code for any entity
 
 The **Reference** panel shows GDScript and C# for any entity class. It comes in handy when game code has to talk to a
-map entity, for example to open a door or listen for a button. Open it with *View > Panels > Reference*, with
-*Help > Entity and Code Reference*, or with **Code Reference** in the Inspector, which jumps straight to the selected
-entity's class. Drag the divider between the class list and the details to resize the list, double click it to fit the
-names.
+map entity, for example to open a door or listen for a button.
+
+1. Open it with *View > Panels > Reference*, with *Help > Entity and Code Reference*, or with **Code Reference** in the
+   Inspector, which jumps straight to the selected entity's class.
+2. Pick a class on the left, then a tab on the right.
 
 ![The Reference panel with func_button picked: its inputs and outputs, and the Use from GDScript code](../assets/placing/reference-panel.png)
 
-Pick a class on the left, then a tab. *Use from GDScript* and *Use from C#* show how to call the entity, *GDScript
-class*, *C# class* and *FGD .tres* are skeletons for writing your own. **Copy** puts the code on the clipboard. On the
-skeleton tabs **Create in project** writes the file under `res://entities/`, and leaves a file that already exists
-alone.
+| Tab | Shows |
+| --- | --- |
+| *Use from GDScript*, *Use from C#* | How to call the entity |
+| *GDScript class*, *C# class*, *FGD .tres* | Skeletons for writing your own |
+
+**Copy** puts the code on the clipboard. On the skeleton tabs **Create in project** writes the file under
+`res://entities/`, and leaves a file that already exists alone. Drag the divider between the class list and the details
+to resize the list, double click it to fit the names.
