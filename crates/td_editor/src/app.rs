@@ -654,6 +654,11 @@ fn help_menu_links(ui: &mut Ui) {
         }
     };
     link(ui, en!("Getting Started Guide"), &crate::welcome::getting_started_url());
+    if ui.add(menu_button(None, tr("Discord Server"), None)).on_hover_text(tr("Ask questions and share ideas with other TrenchDot users")).clicked() {
+        ui.ctx().open_url(egui::OpenUrl::new_tab(crate::welcome::DISCORD_URL));
+        ui.close();
+    }
+
     link(ui, en!("Tips"), tr("Short tips that save time in the editor and in Godot"));
     link(ui, en!("Manual"), &manual);
     link(ui, en!("Mouse and Keys"), &mouse);

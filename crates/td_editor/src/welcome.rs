@@ -18,6 +18,8 @@ pub fn getting_started_url() -> String {
     format!("{}getting-started.html", crate::help::site())
 }
 
+pub const DISCORD_URL: &str = "https://discord.gg/Hu86UjRwMD";
+
 pub const CAMERA_3D_HELP: &str = en!("Hold the right mouse button to look around, WASD flies. Middle drag pans, the wheel moves forward and back.");
 pub const CAMERA_2D_HELP: &str = en!("Right or middle drag pans, the wheel zooms. Drag on empty space to draw a box brush.");
 /// The top of a view that its caption, like "3D  Textured", takes and the card stays out of.
