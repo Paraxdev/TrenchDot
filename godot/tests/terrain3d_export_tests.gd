@@ -22,6 +22,9 @@ static func run(t) -> void:
 	await _test_incremental(t)
 	await _test_data_versions(t)
 	await _test_textures(t)
+	await _test_texture_looks(t)
+	await _test_material(t)
+	await _test_ocean(t)
 	await _test_triggers(t)
 	await _test_build_exports_in_editor_only(t)
 	_test_cli(t)
@@ -322,6 +325,229 @@ static func _test_textures(t) -> void:
 		t.check(left.r8 > 170 and left.b8 < 70 and right.b8 > 190 and right.r8 < 50, "the thumbnail shows the albedo halves, got %s %s" % [left, right])
 	terrain.free()
 
+## A 128 pixel square image, [param left] on its left half and [param right] on the other.
+static func _halves(left: Color, right: Color) -> Image:
+	var image := Image.create_empty(128, 128, false, Image.FORMAT_RGBA8)
+	image.fill_rect(Rect2i(0, 0, 64, 128), left)
+	image.fill_rect(Rect2i(64, 0, 64, 128), right)
+	return image
+
+static func _near_all(a: Variant, b: Array) -> bool:
+	if not a is Array or a.size() != b.size():
+		return false
+	for i in b.size():
+		if absf(float(a[i]) - float(b[i])) > 0.001:
+			return false
+	return true
+
+## Whether [param image] shows [param left] at (100, 300) and [param right] at (400, 200), within a little.
+static func _shows(image: Image, left: Color, right: Color) -> bool:
+	if not image:
+		return false
+	var a := image.get_pixel(100, 300)
+	var b := image.get_pixel(400, 200)
+	return _near_all([a.r, a.g, a.b], [left.r, left.g, left.b]) and _near_all([b.r, b.g, b.b], [right.r, right.g, right.b])
+
+## Each texture carries its uv values, its albedo at 512 pixels and a hash that follows the image and the uv values.
+## An export reuses the images of a texture whose hash it already wrote.
+static func _test_texture_looks(t) -> void:
+	var folder := WORK.path_join("texture_looks")
+	var terrain := await _terrain(t, folder, 64, 1.0)
+	terrain.get(&"data").add_region_blank(Vector2i(-2, 3), false)
+	var red := Color8(200, 40, 30)
+	var blue := Color8(20, 90, 220)
+	var moss := Color8(40, 160, 50)
+	var lime := Color8(150, 210, 60)
+	var cliff: Resource = ClassDB.instantiate(&"Terrain3DTextureAsset")
+	cliff.set(&"name", "Cliff")
+	cliff.set(&"albedo_color", Color(0.75, 0.5, 0.25, 1.0))
+	cliff.set(&"uv_scale", 0.25)
+	cliff.set(&"detiling_rotation", 0.375)
+	cliff.set(&"detiling_shift", 0.125)
+	cliff.set(&"albedo_texture", ImageTexture.create_from_image(_halves(red, blue)))
+	var grass: Resource = ClassDB.instantiate(&"Terrain3DTextureAsset")
+	grass.set(&"name", "Grass")
+	grass.set(&"albedo_texture", ImageTexture.create_from_image(_halves(moss, lime)))
+	var assets: Resource = ClassDB.instantiate(&"Terrain3DAssets")
+	assets.call(&"set_texture_asset", 0, cliff)
+	assets.call(&"set_texture_asset", 1, grass)
+	terrain.set(&"assets", assets)
+	await t.process_frame
+	var cache := TrenchDotTerrain3DCache.cache_dir(folder)
+	var first := TrenchDotTerrain3DCache.export(terrain, folder)
+	var textures: Array = _manifest(folder).get("textures", [])
+	t.check(first.ok and textures.size() == 2, "both textures are listed, got %s %s" % [first, textures])
+	if textures.size() != 2:
+		terrain.free()
+		return
+	var rock: Dictionary = textures[0]
+	var lawn: Dictionary = textures[1]
+	t.check(_ints(rock["id"]) == 0 and rock["name"] == "Cliff" and _near_all(rock["albedo_color"], [0.75, 0.5, 0.25, 1.0]) and _near_all([rock["uv_scale"], rock["detiling_rotation"], rock["detiling_shift"]], [0.25, 0.375, 0.125]) and rock["albedo"] == "textures/0_albedo.png" and rock["thumbnail"] == "textures/0.png", "the first texture has its tint, uv values and albedo, got %s" % [rock])
+	t.check(_ints(lawn["id"]) == 1 and _near_all(lawn["albedo_color"], [1.0, 1.0, 1.0, 1.0]) and _near_all([lawn["uv_scale"], lawn["detiling_rotation"], lawn["detiling_shift"]], [0.1, 0.0, 0.0]) and lawn["albedo"] == "textures/1_albedo.png", "the second keeps Terrain3D's defaults, got %s" % [lawn])
+	var hashes := [str(rock.get("hash", "")), str(lawn.get("hash", ""))]
+	t.check(hashes.all(func(h: String): return h.length() == 64 and h.is_valid_hex_number()) and hashes[0] != hashes[1], "two textures have two hashes, got %s" % [hashes])
+	var albedo := Image.load_from_file(cache.path_join("textures/0_albedo.png"))
+	t.check(albedo and albedo.get_size() == Vector2i(512, 512) and albedo.get_format() == Image.FORMAT_RGB8, "the albedo is a 512 pixel RGB image, got %s %s" % [albedo.get_size() if albedo else null, albedo.get_format() if albedo else null])
+	t.check(_shows(albedo, red, blue), "the albedo shows the image's halves")
+
+	var marker := Image.create_empty(8, 8, false, Image.FORMAT_RGB8)
+	FileAccess.open(cache.path_join("textures/1_albedo.png"), FileAccess.WRITE).store_buffer(marker.save_png_to_buffer())
+	cliff.set(&"albedo_texture", ImageTexture.create_from_image(_halves(blue, red)))
+	TrenchDotTerrain3DCache.export(terrain, folder)
+	textures = _manifest(folder).get("textures", [])
+	t.check(textures.size() == 2 and textures[0]["hash"] != hashes[0] and textures[1]["hash"] == hashes[1], "a new image changes only its own texture's hash, got %s" % [textures])
+	t.check(_shows(Image.load_from_file(cache.path_join("textures/0_albedo.png")), blue, red), "the albedo shows the new image")
+	var kept := Image.load_from_file(cache.path_join("textures/1_albedo.png"))
+	t.check(kept and kept.get_size() == Vector2i(8, 8), "the unchanged texture's albedo is not written again, got %s" % [kept.get_size() if kept else null])
+
+	var swapped: String = textures[0]["hash"]
+	cliff.set(&"uv_scale", 0.5)
+	DirAccess.remove_absolute(cache.path_join("textures/1_albedo.png"))
+	TrenchDotTerrain3DCache.export(terrain, folder)
+	textures = _manifest(folder).get("textures", [])
+	t.check(textures.size() == 2 and textures[0]["hash"] != swapped and t.near(textures[0]["uv_scale"], 0.5), "a new uv scale changes the hash, got %s" % [textures])
+	var rewritten := Image.load_from_file(cache.path_join("textures/1_albedo.png"))
+	t.check(textures.size() == 2 and textures[1]["hash"] == hashes[1] and textures[1]["albedo"] == "textures/1_albedo.png" and _shows(rewritten, moss, lime), "a missing albedo is written again under the same hash, got %s" % [textures])
+
+	cliff.set(&"name", "Cliff Face")
+	TrenchDotTerrain3DCache.export(terrain, folder, null, { "scene_values_from_cache": true })
+	textures = _manifest(folder).get("textures", [])
+	t.check(textures.size() == 2 and textures[0]["name"] == "Cliff Face", "keeping the scene values of the cache still lists the textures of a node that has some, got %s" % [textures])
+	terrain.free()
+
+## The material's world background, noise, auto shader and blend values land in the manifest. Values the shader lacks,
+## like the noise ones without a noise background, are the Terrain3D shader defaults.
+static func _test_material(t) -> void:
+	var folder := WORK.path_join("material")
+	var terrain := await _terrain(t, folder, 64, 1.0)
+	terrain.get(&"data").add_region_blank(Vector2i(2, -1), false)
+	# Note: the headless renderer logs an error per mesh for a material swapped in early, so this edits Terrain3D's own.
+	var material: Resource = terrain.get(&"material")
+	material.set(&"world_background", 2)
+	material.set(&"auto_shader_enabled", true)
+	material.set(&"dual_scaling_enabled", true)
+	material.set(&"macro_variation_enabled", true)
+	material.set(&"projection_enabled", true)
+	await t.process_frame
+	var params := {
+		&"world_noise_scale": 7.25, &"world_noise_height": -64.5, &"world_noise_offset": Vector3(12.5, -3.0, 0.75),
+		&"world_noise_lod_distance": 9000.0, &"world_noise_max_octaves": 9, &"world_noise_min_octaves": 3,
+		&"world_noise_fragment_normals": true, &"auto_slope": 2.5, &"auto_height_reduction": 0.375,
+		&"auto_base_texture": 3, &"auto_overlay_texture": 5, &"blend_sharpness": 0.875,
+	}
+	for param: StringName in params:
+		material.call(&"set_shader_param", param, params[param])
+	ResourceSaver.save(material, folder.path_join("M_terrain.tres"))
+	material.take_over_path(folder.path_join("M_terrain.tres"))
+	var assets: Resource = ClassDB.instantiate(&"Terrain3DAssets")
+	assets.resource_path = "res://maps/level.tscn::Terrain3DAssets_k2"
+	terrain.set(&"assets", assets)
+	TrenchDotTerrain3DCache.export(terrain, folder)
+	var m := _manifest(folder)
+	var expected := {
+		"world_background": 2, "auto_shader": true,
+		"world_noise": { "scale": 7.25, "height": -64.5, "offset": [12.5, -3.0, 0.75], "lod_distance": 9000.0, "max_octaves": 9, "min_octaves": 3, "fragment_normals": true },
+		"auto": { "slope": 2.5, "height_reduction": 0.375, "base_texture": 3, "overlay_texture": 5 },
+		"blend_sharpness": 0.875, "dual_scaling": true, "macro_variation": true, "projection": true,
+	}
+	var got: Dictionary = m.get("material", {})
+	t.check(_same_values(got, expected), "a noise background exports its noise, auto shader and blend values, got %s" % [got])
+	var text := FileAccess.get_file_as_string(TrenchDotTerrain3DCache.cache_dir(folder).path_join("manifest.json"))
+	t.check(text.contains("\"max_octaves\": 9,") and text.contains("\"base_texture\": 3,"), "whole number values are written as integers for the editor")
+	var saved := folder.path_join("M_terrain.tres")
+	t.check(m.get("resources", {}) == { "material": saved, "assets": "", "ocean_material": "" }, "the resources name the saved material and leave out the scene's built in assets, got %s" % [m.get("resources")])
+
+	var plain: Resource = ClassDB.instantiate(&"Terrain3DMaterial")
+	plain.set(&"world_background", 0)
+	terrain.set(&"material", plain)
+	await t.process_frame
+	TrenchDotTerrain3DCache.export(terrain, folder)
+	got = _manifest(folder).get("material", {})
+	t.check(_ints(got.get("world_background")) == 0 and got.get("auto_shader") == false and got.get("projection") == false, "no background writes the mode, got %s" % [got])
+	t.check(_same_values(got, { "world_noise": { "scale": 5.0, "height": 32.0, "offset": [0.0, 0.0, 0.0], "lod_distance": 7500.0, "max_octaves": 4, "min_octaves": 2, "fragment_normals": false } }), "and the shader's noise defaults, got %s" % [got.get("world_noise")])
+	t.check(_same_values(got, { "auto": { "slope": 1.0, "height_reduction": 0.1, "base_texture": 0, "overlay_texture": 1 } }) and t.near(got.get("blend_sharpness", -1.0), 0.5), "and the shader's auto shader and blend defaults, got %s" % [got])
+	terrain.free()
+
+## Whether dictionary [param got] has the keys of [param expected] with the same values, numbers within a little.
+## Dictionaries inside have to match key for key.
+static func _same_values(got: Variant, expected: Dictionary) -> bool:
+	if not got is Dictionary:
+		return false
+	for key in expected:
+		var want: Variant = expected[key]
+		var have: Variant = got.get(key)
+		if want is Dictionary:
+			if not (have is Dictionary and have.size() == want.size() and _same_values(have, want)):
+				return false
+		elif want is Array:
+			if not _near_all(have, want):
+				return false
+		elif want is bool:
+			if have != want:
+				return false
+		elif not (have is float or have is int) or absf(float(have) - float(want)) > 0.001:
+			return false
+	return true
+
+## The ocean of the Terrain3D node: Terrain3D's own ShaderMaterial gives its sea level and water color, a uniform a
+## ShaderMaterial leaves unset takes its shader's default, a BaseMaterial3D gives its albedo color at sea level 0.
+static func _test_ocean(t) -> void:
+	var folder := WORK.path_join("ocean")
+	var terrain := await _terrain(t, folder, 64, 1.0)
+	terrain.get(&"data").add_region_blank(Vector2i(3, 1), false)
+	TrenchDotTerrain3DCache.export(terrain, folder)
+	var ocean: Dictionary = _manifest(folder).get("ocean", {})
+	t.check(ocean.get("enabled") == false and t.near(ocean.get("sea_level", -1.0), 0.0) and _near_all(ocean.get("water_color"), [0.1058, 0.1568, 0.2117, 1.0]) and ocean.get("source") == "", "an ocean that was never on is off with the defaults, got %s" % [ocean])
+
+	terrain.set(&"ocean_enabled", true)
+	await t.process_frame
+	TrenchDotTerrain3DCache.export(terrain, folder)
+	var m := _manifest(folder)
+	ocean = m.get("ocean", {})
+	const OWN := "res://addons/terrain_3d/extras/shaders/M_ocean.tres"
+	t.check(ocean.get("enabled") == true and t.near(ocean.get("sea_level", 0.0), 5.0) and _near_all(ocean.get("water_color"), [0.1058, 0.1568, 0.2117, 1.0]) and ocean.get("source") == OWN, "Terrain3D's own ocean material gives sea level 5, got %s" % [ocean])
+	t.check(m.get("resources", {}).get("ocean_material") == OWN, "the resources name the ocean material, got %s" % [m.get("resources")])
+
+	var shader := Shader.new()
+	shader.code = "shader_type spatial;\nuniform float sea_level = 1.0;\nuniform vec3 water_color : source_color = vec3(0.25, 0.5, 0.75);\nvoid fragment() { ALBEDO = water_color; }\n"
+	var water := ShaderMaterial.new()
+	water.shader = shader
+	water.set_shader_parameter(&"sea_level", -7.5)
+	var saved := folder.path_join("water.tres")
+	ResourceSaver.save(water, saved)
+	water.take_over_path(saved)
+	# Note: the headless renderer logs an error per ocean mesh for a material made in code, so the ocean goes off first.
+	terrain.set(&"ocean_enabled", false)
+	terrain.set(&"ocean_material", water)
+	TrenchDotTerrain3DCache.export(terrain, folder)
+	ocean = _manifest(folder).get("ocean", {})
+	# Note: the headless renderer knows no shader defaults, there the water takes the color Terrain3D's ocean shader has.
+	var known := RenderingServer.shader_get_parameter_default(shader.get_rid(), &"water_color") != null
+	var color := [0.25, 0.5, 0.75, 1.0] if known else [0.1058, 0.1568, 0.2117, 1.0]
+	t.check(ocean.get("enabled") == false and t.near(ocean.get("sea_level", 0.0), -7.5) and _near_all(ocean.get("water_color"), color) and ocean.get("source") == saved, "an ocean turned off still gives its ShaderMaterial's sea level and its shader's water color, got %s" % [ocean])
+
+	var bare := ShaderMaterial.new()
+	bare.shader = Shader.new()
+	bare.shader.code = "shader_type spatial;\nuniform vec3 water_color = vec3(0.0);\nvoid fragment() { ALBEDO = water_color; }\n"
+	bare.set_shader_parameter(&"water_color", Vector3(0.625, 0.375, 0.125))
+	terrain.set(&"ocean_material", bare)
+	TrenchDotTerrain3DCache.export(terrain, folder)
+	ocean = _manifest(folder).get("ocean", {})
+	t.check(t.near(ocean.get("sea_level", -1.0), 0.0) and _near_all(ocean.get("water_color"), [0.625, 0.375, 0.125, 1.0]) and ocean.get("source") == "", "a shader without a sea level puts the water at 0, got %s" % [ocean])
+
+	var base := StandardMaterial3D.new()
+	base.albedo_color = Color(0.125, 0.375, 0.625, 0.5)
+	terrain.set(&"ocean_material", base)
+	TrenchDotTerrain3DCache.export(terrain, folder)
+	ocean = _manifest(folder).get("ocean", {})
+	t.check(t.near(ocean.get("sea_level", -1.0), 0.0) and _near_all(ocean.get("water_color"), [0.125, 0.375, 0.625, 0.5]) and ocean.get("source") == "", "a BaseMaterial3D gives its albedo color at sea level 0, got %s" % [ocean])
+	terrain.free()
+
+	var older := Node3D.new()
+	var none := { "material": "", "assets": "", "ocean_material": "" }
+	t.check(TrenchDotTerrain3DCache._ocean(older) == null and TrenchDotTerrain3DCache._resources(older) == none and TrenchDotTerrain3DCache._number(older, &"detiling_shift", 0.25) == 0.25, "a node without the ocean, resources and detiling of Terrain3D 1.1 gets none of them")
+	older.free()
+
 static func _wait(t, seconds: float) -> void:
 	await t.create_timer(seconds).timeout
 
@@ -431,10 +657,20 @@ static func _test_cli(t) -> void:
 	t.check(m.get("editor_open") == false and float(m.get("vertex_spacing", 0.0)) == 1.0 and FileAccess.file_exists(TrenchDotTerrain3DCache.region_path(folder, Vector2i(-1, 2))), "it writes the manifest and the region file, got %s" % [m])
 
 	m["vertex_spacing"] = 2.5
+	var look := {
+		"material": { "world_background": 2.0, "auto_shader": true, "world_noise": { "scale": 7.25, "height": 64.0 }, "blend_sharpness": 0.875 },
+		"textures": [{ "id": 1.0, "name": "Grass", "albedo_color": [0.75, 1.0, 0.5, 1.0], "thumbnail": "textures/1.png", "uv_scale": 0.25, "albedo": "textures/1_albedo.png", "hash": "5d41402abc4b2a76" }],
+		"ocean": { "enabled": true, "sea_level": 5.25, "water_color": [0.25, 0.5, 0.75, 1.0], "source": "res://water/M_ocean.tres" },
+		"resources": { "material": "res://data/M_terrain.tres", "assets": "res://data/assets.tres", "ocean_material": "res://water/M_ocean.tres" },
+	}
+	m.merge(look, true)
 	FileAccess.open(folder.path_join(".trenchdot/manifest.json"), FileAccess.WRITE).store_string(JSON.stringify(m))
 	var second := _cli(["export", folder])
 	var header := _decode(FileAccess.get_file_as_bytes(TrenchDotTerrain3DCache.region_path(folder, Vector2i(-1, 2))))
 	t.check(second[0] == 0 and float(_manifest(folder).get("vertex_spacing", 0.0)) == 2.5 and header.get("spacing") == 2.5, "the CLI keeps the vertex spacing of the last manifest, got %s %s" % [second, header.get("spacing")])
+	m = _manifest(folder)
+	for key in look:
+		t.check(JSON.stringify(m.get(key), "", true) == JSON.stringify(look[key], "", true), "the CLI, which has no scene, keeps the %s of the last manifest, got %s" % [key, m.get(key)])
 
 	var spaced := WORK.path_join("cli_spaced")
 	_clear(spaced)
