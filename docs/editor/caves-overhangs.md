@@ -39,7 +39,7 @@ sits beyond it.
 | --- | --- |
 | [Brushes](brushes.md) | Tunnels and rooms. Make a box, hollow it with Ctrl+Shift+K, and carve the doorway with a second brush and Ctrl+K |
 | [Displacements](brushes.md#displacements) | A bumpy floor or a rubble slope inside the cave, sculpted with the Sculpt tool like a small terrain |
-| [Meshes](meshes.md) | Rocks, rounded arches and the lips of the opening. The [Shape Generator](brushes.md#shape-generator) makes a **Rock** or an **Arch wall** mesh in one step, and the Mesh tool reshapes it |
+| [Meshes](meshes.md) | Rocks, rounded arches and the lips of the opening. The [Shape Generator](brushes.md#shape-generator) makes a **Rock** or an **Arch Wall** mesh in one step, and the Mesh tool reshapes it |
 
 For a cave mouth that looks like it grew there:
 
@@ -56,9 +56,12 @@ For a cave mouth that looks like it grew there:
 
 ## Overhangs
 
-An overhang works the same way, only without the hole. The terrain stays a plain slope or cliff, and you build the part
-that leans out from a rock mesh or a brush, with its back buried in the cliff so no gap shows. If you want a hollow
-under it, cut a hole in the ground there and put a floor brush at the height you want.
+An overhang works the same way, only without the hole:
+
+1. Leave the terrain as a plain slope or cliff.
+2. Build the part that leans out from a rock mesh or a brush, with its back buried in the cliff so no gap shows.
+3. If you want a hollow under it, [cut a hole](#cut-the-opening) in the ground there and put a floor brush at the height
+   you want.
 
 ## In Godot
 
