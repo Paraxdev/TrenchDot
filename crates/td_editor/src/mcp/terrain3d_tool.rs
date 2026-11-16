@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 use td_core::NodeId;
 use td_doc::map::NodeKind;
 use td_doc::terrain3d::{ChangeKind, Grow, RegionSource, Terrain3DLink};
-use td_formats::terrain3d_cache::{self, Manifest, ManifestMaterial};
+use td_formats::terrain3d_cache::{self, ManifestMaterial};
 use td_geom::terrain3d::{LOC_MAX, LOC_MIN, Loc};
 
 use super::ToolResult;
@@ -19,6 +19,7 @@ use crate::state::EditorState;
 use crate::terrain3d::bridge::{self, Look, LookChange, Route, Settings};
 use crate::terrain3d::inspector::{self, Connection};
 use crate::terrain3d::link::{NewFolder, Problem};
+use crate::terrain3d::look::look_of;
 
 /// Every op of the tool, the schema text and the unknown op error list them.
 pub(crate) const OPS: &[&str] = &["link", "info", "regions", "grow", "settings", "send", "resolve", "probe", "export"];
@@ -140,13 +141,6 @@ fn parse_settings(a: &Value) -> Result<(Option<u32>, Option<f64>, LookChange), S
         Some(p @ (Problem::RegionSize | Problem::Spacing)) => Err(p.english().into()),
         _ => Ok((size, spacing, look)),
     }
-}
-
-/// The look the cache says the node has, None for a cache from an addon that does not export it.
-fn look_of(manifest: &Manifest) -> Option<Look> {
-    let resources = manifest.resources.as_ref()?;
-    let ocean_enabled = manifest.ocean.as_ref().is_some_and(|o| o.enabled);
-    Some(Look { material: resources.material.clone(), assets: resources.assets.clone(), ocean_enabled })
 }
 
 /// The settings reply for what Godot answered. An addon that predates the look takes the grid alone: that is a note
@@ -556,6 +550,8 @@ fn region_json(link: &Terrain3DLink, source: &dyn RegionSource, loc: Loc, height
 
 #[cfg(test)]
 mod tests {
+    use td_formats::terrain3d_cache::Manifest;
+
     use super::*;
 
     #[test]

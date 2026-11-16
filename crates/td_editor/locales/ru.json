@@ -2884,5 +2884,11 @@
   "Water": "Вода",
   "Off draws each texture as its average color": "Выключено: каждая текстура рисуется средним цветом",
   "The hills or flat ground Terrain3D draws past its regions": "Холмы или плоская земля, которые Terrain3D рисует за своими регионами",
-  "The ocean of a Terrain3D node": "Океан узла Terrain3D"
+  "The ocean of a Terrain3D node": "Океан узла Terrain3D",
+  "Look": "Вид",
+  "Assets": "Ресурсы",
+  "Ocean": "Океан",
+  "Sea Level": "Уровень моря",
+  "The cache has no material, assets or ocean, update the TrenchDot addon in Godot": "В кэше нет материала, ресурсов и океана, обновите аддон TrenchDot в Godot",
+  "This cache has no noise values, the hills draw flat until Godot exports again": "В этом кэше нет значений шума, холмы рисуются плоскими, пока Godot не экспортирует снова"
 }

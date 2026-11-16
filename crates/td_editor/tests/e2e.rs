@@ -9184,6 +9184,125 @@ fn terrain3d_inspector_shows_the_texture_swatches_of_the_selected_node() {
     }
 }
 
+/// `terrain3d_world` whose cache has the look of a node with the material of its folder, an ocean off and a noise
+/// background without noise values, and a data folder holding two materials, one assets file and a scene.
+fn look_world(name: &str) -> (PathBuf, PathBuf) {
+    use td_formats::terrain3d_cache::{self, ManifestOcean, ManifestResources};
+    let (dir, map) = terrain3d_world(name, None);
+    let folder = dir.join("terrain");
+    let cache = folder.join(terrain3d_cache::DIR_NAME);
+    let mut manifest = terrain3d_cache::read_manifest(&cache).unwrap();
+    manifest.material.world_background = 2;
+    manifest.ocean = Some(ManifestOcean { enabled: false, sea_level: 5.0, ..Default::default() });
+    manifest.resources = Some(ManifestResources { material: "res://terrain/M_terrain.tres".into(), ..Default::default() });
+    terrain3d_cache::write_manifest(&cache, &manifest).unwrap();
+    let header = |class: &str| format!("[gd_resource type=\"{class}\" load_steps=2 format=3]\n\n[resource]\n");
+    for (file, text) in [
+        ("M_terrain.tres", header("Terrain3DMaterial")),
+        ("M_alt.tres", header("Terrain3DMaterial")),
+        ("assets.tres", header("Terrain3DAssets")),
+        ("scene.tres", "[gd_scene format=3]\n".to_string()),
+    ] {
+        std::fs::write(folder.join(file), text).unwrap();
+    }
+
+    (dir, map)
+}
+
+fn look_rect(state: &Value, name: &str) -> Option<[f64; 4]> {
+    let r = state["ui"]["terrain3d_look"]["rects"][name].as_array()?;
+    Some([r[0].as_f64()?, r[1].as_f64()?, r[2].as_f64()?, r[3].as_f64()?])
+}
+
+fn click_look(ed: &Editor, name: &str) {
+    let r = look_rect(&ed.state(), name).unwrap_or_else(|| panic!("no {name} in the Look block: {}", ed.state()["ui"]["terrain3d_look"]));
+    ed.input("window", json!([{ "type": "click", "x": (r[0] + r[2]) / 2.0, "y": (r[1] + r[3]) / 2.0 }]));
+    std::thread::sleep(Duration::from_millis(300));
+}
+
+/// Whether the open list of the Look block holds an entry of `list`, entries are named `list:` and the res path.
+fn look_list_open(state: &Value, list: &str) -> bool {
+    let prefix = format!("{list}:");
+    state["ui"]["terrain3d_look"]["rects"].as_object().is_some_and(|r| r.keys().any(|k| k.starts_with(&prefix)))
+}
+
+/// Without a Godot editor the Look block of the Inspector is greyed out and a click on its controls changes nothing.
+#[test]
+#[ignore]
+fn terrain3d_inspector_look_is_greyed_out_without_godot() {
+    let (dir, map) = look_world("terrain3d_look_grey");
+    let ed = Editor::launch_with("terrain3d_look_grey", &["--project", dir.to_str().unwrap()]);
+    ed.call("map_file", json!({ "op": "open", "path": map }));
+    let node = ed.call("list_nodes", json!({ "type": "terrain3d" }))["nodes"][0]["id"].clone();
+    ed.call("select", json!({ "ids": [node] }));
+    let state = wait_state(&ed, "the Look block", |s| s["ui"]["terrain3d_look"].is_object());
+    assert_eq!(state["ui"]["terrain3d_look"]["enabled"], false);
+    for name in ["material", "assets", "ocean"] {
+        assert!(look_rect(&state, name).is_some(), "{name} is drawn, greyed out");
+    }
+
+    click_look(&ed, "material");
+    assert!(!look_list_open(&ed.state(), "material"), "a greyed out list never opens");
+    click_look(&ed, "ocean");
+    assert_eq!(ed.state()["undo"], state["undo"], "and a click on the checkbox does nothing");
+    ed.call("select", json!({ "ids": [] }));
+    wait_state(&ed, "the block to go with the selection", |s| s["ui"]["terrain3d_look"].is_null());
+}
+
+/// Choosing a material, None, assets and the ocean in the Inspector sends exactly that to Godot, and each list holds
+/// the resources of its class in the folder and nothing else.
+#[test]
+#[ignore]
+fn terrain3d_inspector_look_sends_the_chosen_paths_to_godot() {
+    let (dir, map) = look_world("terrain3d_look_send");
+    let answers = json!({
+        "terrain3d_settings": { "region_size": 64, "vertex_spacing": 0.25, "material": "res://terrain/M_alt.tres", "assets": "", "ocean_enabled": false }
+    });
+    let (godot, sent) = fake_godot_editor_with(&dir, &[&map], answers);
+    let ed = Editor::launch_with("terrain3d_look_send", &["--project", dir.to_str().unwrap()]);
+    ed.call("set_editor", json!({ "live_link_port": godot }));
+    wait_state(&ed, "the live link", |s| s["godot"]["project_open"] == true);
+    ed.call("map_file", json!({ "op": "open", "path": map }));
+    let node = ed.call("list_nodes", json!({ "type": "terrain3d" }))["nodes"][0]["id"].clone();
+    ed.call("select", json!({ "ids": [node] }));
+    wait_state(&ed, "the enabled Look block", |s| s["ui"]["terrain3d_look"]["enabled"] == true);
+
+    click_look(&ed, "material");
+    let open = wait_state(&ed, "the material list", |s| look_list_open(s, "material"));
+    let mut options: Vec<String> =
+        open["ui"]["terrain3d_look"]["rects"].as_object().unwrap().keys().filter_map(|k| k.strip_prefix("material:")).map(String::from).collect();
+    options.sort();
+    assert_eq!(options, ["", "res://terrain/M_alt.tres", "res://terrain/M_terrain.tres"], "None and the materials, not the assets or the scene");
+    click_look(&ed, "material:res://terrain/M_alt.tres");
+    wait_state(&ed, "the first request", |_| !sent_events(&sent, "terrain3d_settings").is_empty());
+    let asked = sent_events(&sent, "terrain3d_settings");
+    assert_eq!(asked.len(), 1);
+    assert_eq!(
+        (asked[0]["material"].clone(), asked[0]["region_size"].clone(), asked[0]["vertex_spacing"].clone()),
+        (json!("res://terrain/M_alt.tres"), json!(64), json!(0.25))
+    );
+    assert!(asked[0].get("assets").is_none() && asked[0].get("ocean_enabled").is_none(), "only the pick is asked, {}", asked[0]);
+
+    click_look(&ed, "ocean");
+    wait_state(&ed, "the ocean request", |_| sent_events(&sent, "terrain3d_settings").len() == 2);
+    let asked = sent_events(&sent, "terrain3d_settings");
+    assert_eq!((asked[1]["ocean_enabled"].clone(), asked[1].get("material")), (json!(true), None), "{}", asked[1]);
+
+    click_look(&ed, "assets");
+    wait_state(&ed, "the assets list", |s| look_rect(s, "assets:res://terrain/assets.tres").is_some());
+    assert!(look_rect(&ed.state(), "assets:res://terrain/M_alt.tres").is_none(), "a material is no assets");
+    click_look(&ed, "assets:res://terrain/assets.tres");
+    wait_state(&ed, "the assets request", |_| sent_events(&sent, "terrain3d_settings").len() == 3);
+    let asked = sent_events(&sent, "terrain3d_settings");
+    assert_eq!((asked[2]["assets"].clone(), asked[2].get("material")), (json!("res://terrain/assets.tres"), None));
+
+    click_look(&ed, "material");
+    wait_state(&ed, "the list again", |s| look_list_open(s, "material"));
+    click_look(&ed, "material:");
+    wait_state(&ed, "the clearing request", |_| sent_events(&sent, "terrain3d_settings").len() == 4);
+    assert_eq!(sent_events(&sent, "terrain3d_settings")[3]["material"], json!(""), "None clears the material");
+}
+
 /// A click selects the Terrain3D node where a tile is, an entity placed by x and z lands on the tile at its height, and a
 /// hidden node takes neither.
 #[test]

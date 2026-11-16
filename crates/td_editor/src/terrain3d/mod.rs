@@ -8,6 +8,7 @@ pub mod follow;
 pub mod gpu;
 pub mod inspector;
 pub mod link;
+pub mod look;
 pub mod overlay;
 pub mod pick;
 pub mod residency;
@@ -179,20 +180,34 @@ impl EditorState {
 
     /// Has the open Godot editor change the region size and vertex spacing of the Terrain3D node `id` shows.
     pub fn change_terrain3d_settings(&mut self, id: NodeId, region_size: u32, spacing: f64) {
+        self.send_terrain3d_settings(id, region_size, spacing, bridge::LookChange::default());
+    }
+
+    /// Has the open Godot editor change the material, assets or ocean switch of the Terrain3D node `id` shows.
+    pub fn change_terrain3d_look(&mut self, id: NodeId, change: bridge::LookChange) {
         let Some((_, cache)) = self.terrain3d_links().into_iter().find(|(node, _)| *node == id) else { return };
-        let Some(folder) = cache.parent().map(PathBuf::from) else { return };
+        let (Some(grid), Some(was)) = (self.terrain3d.grid(&cache), self.terrain3d.manifest(&cache).and_then(look::look_of)) else { return };
+        let ahead = self.terrain3d_look_shown.clone().filter(|a| a.node == id);
+        let was = ahead.as_ref().map_or(was, |a| a.was.clone());
+        let mut look = ahead.map_or_else(|| was.clone(), |a| a.look);
+        look.material = change.material.clone().unwrap_or(look.material);
+        look.assets = change.assets.clone().unwrap_or(look.assets);
+        look.ocean_enabled = change.ocean_enabled.unwrap_or(look.ocean_enabled);
+        if self.send_terrain3d_settings(id, grid.region_size, grid.spacing, change) {
+            self.terrain3d_look_shown = Some(look::Shown { node: id, look, was });
+        }
+    }
+
+    fn send_terrain3d_settings(&mut self, id: NodeId, region_size: u32, spacing: f64, look: bridge::LookChange) -> bool {
+        let Some((_, cache)) = self.terrain3d_links().into_iter().find(|(node, _)| *node == id) else { return false };
+        let Some(folder) = cache.parent().map(PathBuf::from) else { return false };
         if !self.godot_has_project() {
             self.fail_status(msg!("Needs the Godot editor open with this scene"));
-            return;
+            return false;
         }
 
-        self.terrain3d_bridge.send_settings(bridge::SettingsRequest {
-            port: self.prefs.live_link_port,
-            folder,
-            region_size,
-            spacing,
-            look: Default::default(),
-        });
+        self.terrain3d_bridge.send_settings(bridge::SettingsRequest { port: self.prefs.live_link_port, folder, region_size, spacing, look });
+        true
     }
 
     /// Takes back the edits an earlier session saved and Godot has not applied yet, so the map shows them again. A node
@@ -253,8 +268,17 @@ impl EditorState {
         self.tell_held_saves();
         if let Some(answer) = self.terrain3d_bridge.poll_settings() {
             match answer {
-                Ok(_) => self.set_status(msg!("Godot changed the Terrain3D settings, save the scene in Godot to keep them")),
-                Err(problem) => self.fail_status(msg!("Terrain3D settings were not changed: {problem}", problem)),
+                Ok(settings) => {
+                    if let (Some(look), Some(ahead)) = (settings.look, &mut self.terrain3d_look_shown) {
+                        ahead.look = look;
+                    }
+
+                    self.set_status(msg!("Godot changed the Terrain3D settings, save the scene in Godot to keep them"));
+                }
+                Err(problem) => {
+                    self.terrain3d_look_shown = None;
+                    self.fail_status(msg!("Terrain3D settings were not changed: {problem}", problem));
+                }
             }
 
             self.terrain3d.recheck();

@@ -2884,5 +2884,11 @@
   "Water": "水",
   "Off draws each texture as its average color": "オフにすると各テクスチャを平均色で描画します",
   "The hills or flat ground Terrain3D draws past its regions": "Terrain3D がリージョンの外側に描く丘や平らな地面",
-  "The ocean of a Terrain3D node": "Terrain3D ノードの海"
+  "The ocean of a Terrain3D node": "Terrain3D ノードの海",
+  "Look": "見た目",
+  "Assets": "アセット",
+  "Ocean": "海",
+  "Sea Level": "海面の高さ",
+  "The cache has no material, assets or ocean, update the TrenchDot addon in Godot": "キャッシュにマテリアル、アセット、海がありません。Godot の TrenchDot アドオンを更新してください",
+  "This cache has no noise values, the hills draw flat until Godot exports again": "このキャッシュにはノイズの値がないため、Godot が再び書き出すまで丘は平らに描かれます"
 }

@@ -729,6 +729,10 @@ pub struct EditorState {
     pub terrain3d_draft: Option<(NodeId, td_doc::terrain3d::Grow)>,
     /// The Region Size and Vertex Spacing the Terrain3D Inspector waits to confirm, for the node they were typed for.
     pub terrain3d_settings: Option<(NodeId, u32, f64)>,
+    /// The material, assets and ocean the Terrain3D Inspector shows for a node until the cache catches up with Godot.
+    pub terrain3d_look_shown: Option<crate::terrain3d::look::Shown>,
+    /// Where the Look block of the Terrain3D Inspector drew its controls in the last frame.
+    pub terrain3d_look_ui: Option<crate::terrain3d::look::LookUi>,
     /// The region bounds the draft would leave, drawn in the 2D views.
     pub terrain3d_outline: Option<(NodeId, td_geom::terrain3d::Loc, td_geom::terrain3d::Loc)>,
     /// Brushes the open Sweep Faces dialog would create, drawn as lines.
@@ -1003,6 +1007,8 @@ impl EditorState {
             terrain3d_texture: crate::terrain3d::brush::Texture { id: 0, spray: false },
             terrain3d_draft: None,
             terrain3d_settings: None,
+            terrain3d_look_shown: None,
+            terrain3d_look_ui: None,
             terrain3d_outline: None,
             sweep_preview: Vec::new(),
             shape_preview: Vec::new(),

@@ -1413,6 +1413,10 @@ impl App {
                 })),
                 "tool_buttons": self.tool_buttons.iter().map(|(t, r)| json!({ "tool": t.label(), "family": t.family().name(), "rect": [r.min.x, r.min.y, r.max.x, r.max.y] })).collect::<Vec<_>>(),
                 "mcp_prefs": self.mcp_pref_rects.iter().map(|(name, r)| (name.to_string(), json!([r.min.x, r.min.y, r.max.x, r.max.y]))).collect::<serde_json::Map<_, _>>(),
+                "terrain3d_look": s.terrain3d_look_ui.as_ref().map(|u| json!({
+                    "enabled": u.enabled,
+                    "rects": u.rects.iter().map(|(name, r)| (name.clone(), json!([r.min.x, r.min.y, r.max.x, r.max.y]))).collect::<serde_json::Map<_, _>>(),
+                })),
                 "tool_options": [self.tool_options_rect.min.x, self.tool_options_rect.min.y, self.tool_options_rect.max.x, self.tool_options_rect.max.y],
                 "trust_chip": self.trust_chip.map(|r| [r.min.x, r.min.y, r.max.x, r.max.y]),
                 "logic_canvas": self.panels.logic.canvas_on_screen().map(|r| [r.min.x, r.min.y, r.max.x, r.max.y]),

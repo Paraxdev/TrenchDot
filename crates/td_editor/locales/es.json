@@ -2884,5 +2884,11 @@
   "Water": "Agua",
   "Off draws each texture as its average color": "Desactivado, cada textura usa su color medio",
   "The hills or flat ground Terrain3D draws past its regions": "Las colinas o el suelo plano que Terrain3D dibuja más allá de sus regiones",
-  "The ocean of a Terrain3D node": "El océano de un nodo Terrain3D"
+  "The ocean of a Terrain3D node": "El océano de un nodo Terrain3D",
+  "Look": "Aspecto",
+  "Assets": "Recursos",
+  "Ocean": "Océano",
+  "Sea Level": "Nivel del mar",
+  "The cache has no material, assets or ocean, update the TrenchDot addon in Godot": "La caché no tiene material, recursos ni océano, actualiza el complemento de TrenchDot en Godot",
+  "This cache has no noise values, the hills draw flat until Godot exports again": "Esta caché no tiene valores de ruido, las colinas se dibujan planas hasta que Godot vuelva a exportar"
 }

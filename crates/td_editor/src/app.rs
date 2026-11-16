@@ -3576,6 +3576,7 @@ impl eframe::App for App {
             ctx.request_repaint();
         }
 
+        self.state.terrain3d_look_ui = None;
         if let Some(at) = self.mcp_off_at {
             match at.checked_duration_since(std::time::Instant::now()) {
                 Some(wait) if !wait.is_zero() => ctx.request_repaint_after(wait),

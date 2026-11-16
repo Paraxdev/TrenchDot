@@ -282,6 +282,7 @@ pub fn inspector(ui: &mut Ui, state: &mut EditorState, id: NodeId, actions: &mut
 
     ui.separator();
     settings(ui, state, id, &cache);
+    super::look::block(ui, state, id, &cache);
     regions(ui, state, id, &cache);
     ui.toggle_value(&mut state.terrain3d_edit_regions, tr("Edit Regions")).on_hover_text(tr("Click regions in the Top view to add or remove them"));
     if let Some(manifest) = &manifest {
