@@ -12,6 +12,8 @@ Click **Add Layer** at the top of the Outliner to make a new one, it becomes the
 go into the current layer, the one marked *(current)*, and clicking a layer makes it current. The eye in front of a
 row hides it, the lock stops it from being selected or edited.
 
+![The top of the Outliner with the Add Layer button, the Default layer and a new Layer 2 marked (current), each row with its eye and lock](../assets/organizing/outliner-add-layer.png)
+
 Hover a row to see its materials, size and bounds. The object is outlined in every view at the same time, so you can
 see which wall `brush7` is.
 
@@ -60,14 +62,20 @@ groups under *Edit > Groups*.
 | Click | Select the object inside the group |
 | Double click | Select the whole group |
 
-You can also group in the Outliner by dragging. Drag a row onto another brush and let go, and the two end up in a new
-group. A tip next to the pointer says what the drop does before you let go, and the target row gets an outline.
+You can also group in the Outliner by dragging. A tip next to the pointer says what the drop does before you let go, and
+the target row gets an outline.
 
 ![Dragging the brush4 row onto brush2 in the Outliner, brush2 has a cyan outline and a tip says Group with brush2](../assets/organizing/outliner-drag-group.png)
 
-Drop a row onto a group or a layer to move it in. Dropping onto an object that already sits in a group moves it into
-that group, and brushes dropped onto a brush entity such as a door join that entity. Drag a row onto its layer to take
-it out of a group again. When you drag a selected row, the whole selection moves with it.
+| Drop a row onto | What happens |
+| --- | --- |
+| Another brush | The two end up in a new group |
+| A group or a layer | The row moves in |
+| An object that already sits in a group | The row moves into that group |
+| A brush entity such as a door | The brushes join that entity |
+| Its own layer | The row leaves its group |
+
+When you drag a selected row, the whole selection moves with it.
 
 **Duplicate Linked** (Ctrl+Shift+D) makes a copy that stays in sync with its original, so fixing one window frame fixes
 all of them. Linked copies show *(linked)* in the Outliner, and a click on one selects the whole group, since its copies
@@ -145,22 +153,14 @@ targetname nothing has.
 ![The Issues panel with an error for a missing target, three warnings for a duplicate brush, an entity with no definition and two faces that z-fight, and an info line for an empty group, most of them with a Fix button](../assets/organizing/issues-panel.png)
 
 Click an issue to select and frame the object. Many have a **Fix** button, and **Fix all** in the header fixes every one
-it can.
+it can. Some warnings need more than a click:
 
-A warning that a face overlaps a face of another brush on the same plane means the two will flicker in Godot. Move one
-face off the plane or trim the overlap.
-
-A warning that a model does not exist means a prop's `model` names a file that is not there, so the prop builds with no
-mesh. When a file of the same name with another extension exists, `chair.gltf` for `chair.glb`, the warning names it.
-
-A warning that something runs GDScript from the map means the map carries code of its own, which runs as soon as the
-scene plays in Godot. You get one for each `logic_script` with a `source` or `expression`, each output or `logic_call`
-that can hand one code, such as an output that sends `source` to it, and each prefab that holds any of these. Read them
-before you play a map someone else made.
-
-Warnings that start with "Godot" come from the last build in Godot, after a save or *Build in Godot*: the classes it
-built without their definition, and the other warnings of that build. See
-[Entities that do nothing](../godot/entities-troubleshooting.md).
+| Warning | What it means | What to do |
+| --- | --- | --- |
+| A face overlaps a face of another brush on the same plane | The two will flicker in Godot | Move one face off the plane or trim the overlap |
+| A model does not exist | A prop's `model` names a file that is not there, so the prop builds with no mesh. When a file of the same name with another extension exists, `chair.gltf` for `chair.glb`, the warning names it | Fix the path in `model`, or copy the file into the project. If the warning names another file, point `model` at it |
+| Something runs GDScript from the map | The map carries code of its own, which runs as soon as the scene plays in Godot. You get one for each `logic_script` with a `source` or `expression`, each output or `logic_call` that can hand one code, such as an output that sends `source` to it, and each prefab that holds any of these | Read them before you play a map someone else made |
+| Starts with "Godot" | It comes from the last build in Godot, after a save or *Build in Godot*: the classes it built without their definition, and the other warnings of that build | See [Entities that do nothing](../godot/entities-troubleshooting.md) |
 
 ## History
 
