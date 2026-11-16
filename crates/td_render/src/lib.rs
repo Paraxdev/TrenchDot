@@ -4,6 +4,7 @@ pub use egui_wgpu::wgpu;
 use glam::{Mat4, Vec3};
 use wgpu::util::DeviceExt;
 
+pub mod clipmap;
 pub mod ink;
 
 pub const MSAA_SAMPLES: u32 = 4;
