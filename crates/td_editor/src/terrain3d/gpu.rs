@@ -7,12 +7,12 @@ use std::sync::Arc;
 
 use td_core::NodeId;
 use td_doc::terrain3d::{RegionSource, Terrain3DLink};
-use td_formats::terrain3d_cache::{LodLevel, Manifest, ManifestMaterial, ManifestTexture};
+use td_formats::terrain3d_cache::{LodLevel, Manifest, ManifestMaterial, ManifestOcean, ManifestTexture};
 use td_geom::terrain3d::{Control, Loc, Region3D};
-use td_render::Renderer;
 use td_render::clipmap::look::{Albedo, ClipmapTexture};
 use td_render::clipmap::noise::Noise;
 use td_render::clipmap::{AutoShader, Background, ClipmapDesc, ClipmapParams, GpuClipmap, Slot, coarse_stride, fine_capacity, region_index};
+use td_render::{Renderer, Water};
 
 use super::residency::{self, Source};
 use crate::state::EditorState;
@@ -330,11 +330,16 @@ pub struct NodeClipmap {
     pins: HashMap<usize, Arc<Region3D>>,
     shown: Vec<Loc>,
     uploads: Uploads,
+    water: Option<Water>,
 }
 
 impl NodeClipmap {
     pub fn clip(&self) -> &GpuClipmap {
         &self.clip
+    }
+
+    pub fn water(&self) -> Option<Water> {
+        self.water
     }
 
     pub fn status(&self) -> Status {
@@ -374,7 +379,15 @@ pub fn sync(renderer: &Renderer, slot: &mut Option<NodeClipmap>, state: &EditorS
         *slot = match renderer.new_clipmap(&desc) {
             Ok(clip) => {
                 let held = Held::new(desc.layers);
-                Some(NodeClipmap { clip, held, textures: None, pins: HashMap::new(), shown: Vec::new(), uploads: Uploads::default() })
+                Some(NodeClipmap {
+                    clip,
+                    held,
+                    textures: None,
+                    pins: HashMap::new(),
+                    shown: Vec::new(),
+                    uploads: Uploads::default(),
+                    water: None,
+                })
             }
             Err(e) => {
                 eprintln!("Terrain3D clipmap: {e}");
@@ -389,6 +402,7 @@ pub fn sync(renderer: &Renderer, slot: &mut Option<NodeClipmap>, state: &EditorS
         node.textures = Some(manifest.textures.clone());
     }
 
+    node.water = water(state.terrain3d.upm, manifest.ocean.as_ref());
     let ranges: HashMap<usize, [f32; 2]> = regions
         .iter()
         .filter_map(|r| match r.source {
@@ -512,6 +526,13 @@ fn textures(cache: &Path, list: &[ManifestTexture]) -> Vec<ClipmapTexture> {
         .collect()
 }
 
+/// The ocean's water at its sea level, its color made linear. None when the node has no ocean or it is off.
+fn water(upm: f64, ocean: Option<&ManifestOcean>) -> Option<Water> {
+    let ocean = ocean.filter(|o| o.enabled)?;
+    let [r, g, b, a] = ocean.water_color;
+    Some(Water { level: (ocean.sea_level * upm) as f32, color: [td_render::srgb_to_linear(r), td_render::srgb_to_linear(g), td_render::srgb_to_linear(b), a] })
+}
+
 /// A cache from before the noise values were exported draws a Noise background flat.
 fn background(m: &ManifestMaterial) -> Background {
     match (m.world_background, &m.world_noise) {
@@ -621,6 +642,20 @@ mod tests {
         assert_eq!(drawn(&manifest), (Background::Noise(noise), [-306.0 * 32.0, 80.0 * 32.0]));
         manifest.material.world_background = 0;
         assert_eq!(drawn(&manifest), (Background::None, [-6.0 * 32.0, 20.0 * 32.0]), "noise values without the mode draw nothing");
+    }
+
+    #[test]
+    fn an_ocean_that_is_on_gives_water_at_its_sea_level_in_linear_color() {
+        let ocean =
+            |enabled: bool, sea_level: f64| ManifestOcean { enabled, sea_level, water_color: [0.5, 0.04045, 1.0, 0.75], source: "res://sea.tres".into() };
+        assert_eq!(water(32.0, None), None, "no ocean");
+        assert_eq!(water(32.0, Some(&ocean(false, 5.0))), None, "an ocean that is off");
+        let sea = water(32.0, Some(&ocean(true, -2.5))).unwrap();
+        assert_eq!(sea.level, -80.0);
+        let want = [0.21404114, 0.04045 / 12.92, 1.0, 0.75];
+        assert!(sea.color.iter().zip(want).all(|(a, b)| (a - b).abs() < 1e-6), "{:?}", sea.color);
+        assert_eq!(water(40.0, Some(&ocean(true, 5.0))).unwrap().level, 200.0, "the level follows the units per meter");
+        assert_eq!(water(32.0, Some(&ocean(true, 0.0))).unwrap().level, 0.0);
     }
 
     #[test]

@@ -166,6 +166,10 @@ fn clipmap_shader() -> String {
     format!("{}\n{}\n{}\n{}", include_str!("common.wgsl"), ink::wgsl(), clipmap::wgsl_consts(), include_str!("clipmap.wgsl"))
 }
 
+fn water_shader() -> String {
+    format!("{}\n{}", include_str!("common.wgsl"), include_str!("water.wgsl"))
+}
+
 fn mesh_shader() -> String {
     format!("{}\n{}\n{}\n{}", include_str!("common.wgsl"), include_str!("lightmap.wgsl"), ink::wgsl(), include_str!("mesh.wgsl"))
 }
@@ -572,6 +576,22 @@ pub struct FrameParams {
     pub line_flip: Option<f32>,
 }
 
+/// A water surface that reaches the horizon around the camera.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Water {
+    /// Map units.
+    pub level: f32,
+    /// Linear color, alpha scales the opacity.
+    pub color: [f32; 4],
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+struct WaterUniform {
+    color: [f32; 4],
+    plane: [f32; 4],
+}
+
 #[derive(Default)]
 pub struct Frame<'a> {
     pub opaque: Vec<&'a GpuMesh>,
@@ -590,6 +610,8 @@ pub struct Frame<'a> {
     pub terrain: Vec<&'a GpuMesh>,
     /// Terrain3D worlds, at most [`MAX_CLIPMAPS`] are drawn.
     pub clipmaps: Vec<&'a clipmap::GpuClipmap>,
+    /// Drawn over the opaque geometry and under the translucent meshes, never in wireframe.
+    pub water: Option<Water>,
 }
 
 pub struct Renderer {
@@ -629,6 +651,9 @@ pub struct Renderer {
     clipmap_shadow_camera: wgpu::Buffer,
     clipmap_shadow_bg: wgpu::BindGroup,
     clipmap_shadow_instances: wgpu::Buffer,
+    water_pipeline: wgpu::RenderPipeline,
+    water_buffer: wgpu::Buffer,
+    water_bg: wgpu::BindGroup,
     /// The one record a mesh without instances is drawn with.
     identity_instance: wgpu::Buffer,
     shadow_uniform: wgpu::Buffer,
@@ -815,6 +840,21 @@ impl Renderer {
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        let water_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("water"),
+            entries: &[uniform_entry(0, wgpu::ShaderStages::VERTEX_FRAGMENT)],
+        });
+        let water_buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("water"),
+            size: std::mem::size_of::<WaterUniform>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let water_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("water"),
+            layout: &water_bgl,
+            entries: &[wgpu::BindGroupEntry { binding: 0, resource: water_buffer.as_entire_binding() }],
+        });
         let lights_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("lights"),
             size: std::mem::size_of::<LightsUniform>() as u64,
@@ -838,6 +878,8 @@ impl Renderer {
             device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("line shapes"), source: wgpu::ShaderSource::Wgsl(shape_shader().into()) });
         let clipmap_shader =
             device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("clipmap"), source: wgpu::ShaderSource::Wgsl(clipmap_shader().into()) });
+        let water_shader =
+            device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("water"), source: wgpu::ShaderSource::Wgsl(water_shader().into()) });
         let sky_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("sky"),
             source: wgpu::ShaderSource::Wgsl(format!("{common}\n{}", include_str!("sky.wgsl")).into()),
@@ -858,6 +900,11 @@ impl Renderer {
         let clipmap_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("clipmap"),
             bind_group_layouts: &[Some(&camera_bgl), Some(&clipmap_bgl)],
+            immediate_size: 0,
+        });
+        let water_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("water"),
+            bind_group_layouts: &[Some(&camera_bgl), Some(&water_bgl)],
             immediate_size: 0,
         });
         let shadow_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -986,6 +1033,7 @@ impl Renderer {
         // translucent trigger or tool brush sees out of it instead of through a screen filling back face.
         let mesh_transparent = make("mesh transparent", &mesh_shader, &mesh_layout, &mesh_buffers, tri, true, true, false, GreaterEqual);
         let mesh_transparent_double = make("mesh transparent double sided", &mesh_shader, &mesh_layout, &mesh_buffers, tri, false, true, false, GreaterEqual);
+        let water_pipeline = make("water", &water_shader, &water_layout, &[], tri, false, true, false, GreaterEqual);
         let mesh_overlay = make("mesh overlay", &mesh_shader, &mesh_layout, &mesh_buffers, tri, false, true, false, Always);
         let line_depth = make("line depth", &line_shader, &line_layout, &line_buffers, tri, false, true, false, GreaterEqual);
         let line_overlay = make("line overlay", &line_shader, &line_layout, &line_buffers, tri, false, true, false, Always);
@@ -1135,6 +1183,9 @@ impl Renderer {
             clipmap_shadow,
             clipmap_shadow_camera,
             clipmap_shadow_bg,
+            water_pipeline,
+            water_buffer,
+            water_bg,
             clipmap_shadow_instances,
             shadow_uniform,
             shadow_bg,
@@ -1937,6 +1988,14 @@ impl Renderer {
             }
 
             draw_clipmaps(&mut pass, false);
+            if let Some(water) = frame.water {
+                let uniform = WaterUniform { color: water.color, plane: [water.level, 0.0, 0.0, 0.0] };
+                self.queue.write_buffer(&self.water_buffer, 0, bytemuck::bytes_of(&uniform));
+                pass.set_pipeline(&self.water_pipeline);
+                pass.set_bind_group(1, &self.water_bg, &[]);
+                pass.draw(0..6, 0..1);
+                pass.set_bind_group(2, &self.lightmap_bg, &[]);
+            }
 
             draw_lines(&mut pass, [&self.line_depth, &self.shape_depth], &frame.lines);
             let mut double_sided: Option<bool> = None;
@@ -2132,6 +2191,7 @@ mod tests {
 
         validate("clipmap", &super::clipmap_shader());
         validate("sky", &format!("{common}\n{}", include_str!("sky.wgsl")));
+        validate("water", &super::water_shader());
 
         validate("line", &super::line_shader());
         validate("line shapes", &super::shape_shader());
@@ -2303,6 +2363,7 @@ mod tests {
         assert_eq!(std::mem::size_of::<super::TerrainUniform>(), 176);
         assert_eq!(std::mem::size_of::<super::clipmap::ClipmapUniform>(), 7 * 16 + 256 * 16 + 32 * 48);
         assert_eq!(std::mem::size_of::<super::LightsUniform>(), 28 * 4 + 64 + super::MAX_LIGHTS * 48);
+        assert_eq!(std::mem::size_of::<super::WaterUniform>(), 32);
     }
 
     #[test]

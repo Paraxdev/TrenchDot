@@ -2408,6 +2408,7 @@ impl SceneCache {
 
         if !is_2d {
             frame.clipmaps.extend(self.terrain3d.values().map(|n| n.clip()));
+            frame.water = self.terrain3d.iter().filter_map(|(id, n)| Some((*id, n.water()?))).min_by_key(|(id, _)| *id).map(|(_, w)| w);
         }
 
         for t in self.terrains.values() {

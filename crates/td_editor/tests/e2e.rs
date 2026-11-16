@@ -8984,6 +8984,66 @@ fn terrain3d_noise_background_draws_hills_where_none_shows_sky() {
     assert!(hills > 320 * 110 / 4, "{hills} of {} pixels over the horizon show hills", 320 * 110);
 }
 
+/// A Terrain3D node with its ocean on fills the 3D view below the horizon with its water color and leaves the sky alone.
+/// An ocean that is off, the 2D views and wireframe draw no water.
+#[test]
+#[ignore]
+fn terrain3d_ocean_draws_water_below_the_horizon() {
+    use td_formats::terrain3d_cache::{self, ManifestOcean};
+
+    let (dir, dry_map) = terrain3d_world("terrain3d_water", None);
+    let ocean_map = |name: &str, enabled: bool| {
+        let cache = dir.join(name).join(terrain3d_cache::DIR_NAME);
+        copy_dir(&dir.join("terrain").join(terrain3d_cache::DIR_NAME), &cache);
+        let mut manifest = terrain3d_cache::read_manifest(&cache).unwrap();
+        manifest.ocean = Some(ManifestOcean { enabled, sea_level: 3.0, water_color: [0.1, 0.75, 0.25, 1.0], ..Default::default() });
+        terrain3d_cache::write_manifest(&cache, &manifest).unwrap();
+        let mut map = td_doc::Map::new();
+        let layer = map.default_layer();
+        map.insert(layer, td_doc::NodeKind::Terrain3D(td_doc::terrain3d::Terrain3DLink::new(format!("res://{name}"))));
+        let path = dir.join(format!("maps/{name}.tdm"));
+        td_doc::format::save(&map, &path).unwrap();
+        path
+    };
+    let (sea_map, calm_map) = (ocean_map("sea", true), ocean_map("calm", false));
+
+    let ed = Editor::launch_with("terrain3d_water", &["--project", dir.to_str().unwrap()]);
+    ed.call("set_editor", json!({ "shade": "lit", "tool": "select" }));
+    let args = json!({ "target": "3d", "width": 320, "height": 240 });
+    // Over region [0, 0] at 25 m, looking level away from every region: the horizon is the middle row, sky over it and
+    // nothing but sky or water under it.
+    let views = |map: &std::path::Path, label: &str| {
+        ed.call("map_file", json!({ "op": "open", "path": map }));
+        let node = ed.call("list_nodes", json!({ "type": "terrain3d" }))["nodes"][0]["id"].clone();
+        ed.call("set_editor", json!({ "shade": "lit" }));
+        ed.call("set_camera", json!({ "view": "3d", "position": [256, 800, 256], "look_at": [-3000, 800, -3000] }));
+        ed.call("set_camera", json!({ "view": "top", "center": [256, 0, 256], "zoom": 0.5 }));
+        clipmap_settled(&ed, &node, 3);
+        let lit = shot(&ed, args.clone(), label);
+        let top = shot(&ed, json!({ "target": "top", "width": 320, "height": 240 }), &format!("{label}_top"));
+        ed.call("set_editor", json!({ "shade": "wireframe" }));
+        let wire = shot(&ed, args.clone(), &format!("{label}_wire"));
+        (lit, top, wire)
+    };
+    let differ = |a: &image::RgbaImage, b: &image::RgbaImage, rows: std::ops::Range<u32>| {
+        let moved = |(x, y, p): &(u32, u32, &image::Rgba<u8>)| (0..3).any(|c| p.0[c].abs_diff(b.get_pixel(*x, *y).0[c]) > 24);
+        a.enumerate_pixels().filter(|px| rows.contains(&px.1) && moved(px)).count()
+    };
+
+    let (dry, dry_top, dry_wire) = views(&dry_map, "dry");
+    let (sea, sea_top, sea_wire) = views(&sea_map, "sea");
+    let (calm, calm_top, calm_wire) = views(&calm_map, "calm");
+    assert_eq!(differ(&sea, &dry, 0..110), 0, "the sky over the horizon stays as it was");
+    let under = 320 * 110;
+    let water = sea.enumerate_pixels().filter(|(_, y, p)| (130..240).contains(y) && p.0[1] > p.0[0] + 40 && p.0[1] > p.0[2] + 40).count();
+    assert!(water > under * 95 / 100, "{water} of {under} pixels under the horizon read as the green water");
+    assert_eq!(differ(&dry, &calm, 0..240), 0, "an ocean that is off draws no water");
+    assert_eq!(image_difference(&sea_top, &dry_top), 0.0, "the top view draws no water");
+    assert_eq!(image_difference(&calm_top, &dry_top), 0.0);
+    assert_eq!(image_difference(&sea_wire, &dry_wire), 0.0, "wireframe draws no water");
+    assert_eq!(image_difference(&calm_wire, &dry_wire), 0.0);
+}
+
 /// Selecting the Terrain3D node fills the Inspector with the textures of the folder, each with a swatch of its color.
 #[test]
 #[ignore]
