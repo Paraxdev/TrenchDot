@@ -29,6 +29,8 @@ static func run(t) -> void:
 	_test_cli(t)
 	await _test_cli_instances(t)
 	_test_new_folder_settings(t)
+	await _test_lost_settings(t)
+	await _test_spacing_sources(t)
 	await _test_settings_overflow(t)
 	_test_parse_region_file(t)
 	await _test_reload_in_game(t)
@@ -475,6 +477,112 @@ static func _test_changed_while_closed(t) -> void:
 	t.check(slot._stale_regions() == [north], "a region whose cached hash differs is stale, got %s" % [slot._stale_regions()])
 	TrenchDotTerrain3D.export_outside_editor = false
 	slot.get_parent().free()
+
+## Godot closed without saving a settings change the live link had made, so the cache names a region size and spacing
+## the region files do not have. The cache has to follow the files again.
+static func _lost_settings(t, name: String, size_factor: int, spacing_factor: float) -> String:
+	var terrain := await _world(t, name)
+	TrenchDotTerrain3D.export_outside_editor = true
+	var slot := await _slot(t, terrain)
+	slot.change_settings(SIZE * size_factor, SPACING * spacing_factor)
+	slot.get_parent().free()
+	TrenchDotTerrain3D.export_outside_editor = false
+	return WORK.path_join(name)
+
+## Every region of the manifest has a cache file of the saved size and spacing with the hash the manifest names, and
+## the manifest lists the regions on disk and nothing else.
+static func _follows_files(t, folder: String, label: String) -> void:
+	var manifest := TrenchDotTerrain3DCache.read_manifest(folder)
+	t.check(int(manifest.get("region_size", 0)) == SIZE and is_equal_approx(float(manifest.get("vertex_spacing", 0.0)), SPACING), "%s: the manifest holds region size %d and spacing %s, got %s and %s" % [label, SIZE, SPACING, manifest.get("region_size"), manifest.get("vertex_spacing")])
+	var listed := []
+	var wrong := []
+	for entry in manifest.get("regions", []):
+		var loc := Vector2i(int(entry["loc"][0]), int(entry["loc"][1]))
+		listed.append([loc.x, loc.y])
+		var file := Export._decode(FileAccess.get_file_as_bytes(TrenchDotTerrain3DCache.region_path(folder, loc)))
+		if file.get("size") != SIZE or not is_equal_approx(file.get("spacing", 0.0), SPACING) or file.get("hash") != entry["hash"]:
+			wrong.append([loc, file.get("size"), file.get("spacing")])
+	listed.sort()
+	t.check(listed == [[-1, 0], [0, -1], [3, -2]] and wrong.is_empty(), "%s: the cache files of the regions on disk agree with the manifest, got %s and %s" % [label, listed, wrong])
+
+static func _test_lost_settings(t) -> void:
+	var west := Vector2i(-1, 0)
+	# Region size and spacing lost, the edit TrenchDot made at the lost size is refused and the cache heals.
+	var folder := await _lost_settings(t, "lost_both", 2, 2.0)
+	var lost := TrenchDotTerrain3DCache.read_manifest(folder)
+	t.check(int(lost["region_size"]) == SIZE * 2 and is_equal_approx(float(lost["vertex_spacing"]), SPACING * 2.0), "the live link settings reached the cache and not the files")
+	var big := { "height": Image.create_empty(SIZE * 2, SIZE * 2, false, Image.FORMAT_RF), "control": Image.create_empty(SIZE * 2, SIZE * 2, false, Image.FORMAT_RF) }
+	_pending(folder, west, big, NO_BASE, FORCE, SIZE * 2)
+	var applied := Export._cli(["apply", folder])
+	t.check(applied[0] == 0 and applied[1].get("accepted") == [] and Export._ints(applied[1].get("refused", []).map(func(r: Dictionary): return [r["loc"], r["reason"]])) == [[[-1, 0], "size"]], "the edit at the lost region size is refused as size, got %s" % [applied])
+	_follows_files(t, folder, "after a refused apply")
+	# Only the spacing lost, an edit at the real size is applied and the cache keeps the files' spacing.
+	folder = await _lost_settings(t, "lost_spacing", 1, 2.0)
+	var small := { "height": _slanted(west, 11.0), "control": Image.create_empty(SIZE, SIZE, false, Image.FORMAT_RF) }
+	_pending(folder, west, small, _hash(folder, west))
+	applied = Export._cli(["apply", folder])
+	t.check(applied[0] == 0 and Export._ints(applied[1].get("accepted")) == [[-1, 0]] and applied[1].get("refused") == [], "the edit at the real region size is applied, got %s" % [applied])
+	_follows_files(t, folder, "after an accepted apply")
+	t.check(_saved_height(folder, west).get_data() == small["height"].get_data(), "and the region file holds it")
+	# A bare export without pending edits.
+	folder = await _lost_settings(t, "lost_export", 2, 2.0)
+	var exported := Export._cli(["export", folder])
+	t.check(exported[0] == 0, "the CLI exports a folder with a stale cache, got %s" % [exported])
+	_follows_files(t, folder, "after a CLI export")
+	# A saved scene opened again, the node has the files' spacing and the hashes of the regions did not change.
+	for config in [[1, 2.0], [2, 2.0]]:
+		folder = await _lost_settings(t, "lost_reopen_%d" % config[0], config[0], config[1])
+		var terrain := ClassDB.instantiate(&"Terrain3D") as Node3D
+		terrain.set(&"vertex_spacing", SPACING)
+		terrain.set(&"data_directory", folder)
+		t.root.add_child(terrain)
+		await t.process_frame
+		TrenchDotTerrain3D.export_outside_editor = true
+		var slot := await _slot(t, terrain)
+		await t.process_frame
+		_follows_files(t, folder, "after reopening with size factor %d" % config[0])
+		t.check(slot._stale_regions() == [], "nothing is stale once the cache follows the files, got %s" % [slot._stale_regions()])
+		var before := FileAccess.get_file_as_bytes(TrenchDotTerrain3DCache.cache_dir(folder).path_join(TrenchDotTerrain3DCache.MANIFEST))
+		slot._export_stale()
+		t.check(FileAccess.get_file_as_bytes(TrenchDotTerrain3DCache.cache_dir(folder).path_join(TrenchDotTerrain3DCache.MANIFEST)) == before, "and opening it again leaves the manifest as it is")
+		TrenchDotTerrain3D.export_outside_editor = false
+		slot.get_parent().free()
+
+static func _with_manifest(folder: String, spacing: float, dirty: Array) -> void:
+	var manifest := TrenchDotTerrain3DCache.read_manifest(folder)
+	manifest["vertex_spacing"] = spacing
+	manifest["dirty"] = dirty
+	FileAccess.open(TrenchDotTerrain3DCache.cache_dir(folder).path_join(TrenchDotTerrain3DCache.MANIFEST), FileAccess.WRITE).store_string(JSON.stringify(manifest))
+
+## A Terrain3D draws with the spacing of its scene node, which a node made by hand on an old folder need not share with
+## the region files. The CLI keeps the manifest's spacing then, and turns to the region file saved last only when the
+## manifest lists unsaved regions.
+static func _test_spacing_sources(t) -> void:
+	var folder := WORK.path_join("spacing_sources")
+	var terrain := await _world(t, "spacing_sources")
+	terrain.free()
+	t.check(is_equal_approx(TrenchDotTerrain3DCache.region_spacing(folder), SPACING), "three region files saved at one spacing give it, got %s" % TrenchDotTerrain3DCache.region_spacing(folder))
+	await t.create_timer(1.1).timeout
+	var by_hand := ClassDB.instantiate(&"Terrain3D") as Node3D
+	by_hand.set(&"vertex_spacing", 1.0)
+	by_hand.set(&"data_directory", folder)
+	t.root.add_child(by_hand)
+	await t.process_frame
+	Export._fill(by_hand, Vector2i(-2, 1), Export._pattern(Vector2i(-2, 1), false))
+	by_hand.get(&"data").save_directory(folder)
+	var old: Resource = ResourceLoader.load(folder.path_join("terrain3d-01_00.res"), "", ResourceLoader.CACHE_MODE_IGNORE)
+	t.check(is_equal_approx(float(old.get(&"vertex_spacing")), SPACING) and is_equal_approx(TrenchDotTerrain3DCache.region_spacing(folder), 1.0), "the region file saved last wins over three older ones that sort around it, got %s and %s" % [old.get(&"vertex_spacing"), TrenchDotTerrain3DCache.region_spacing(folder)])
+	TrenchDotTerrain3DCache.export(by_hand, folder, null, { "editor_open": true })
+	by_hand.free()
+	var exported := Export._cli(["export", folder])
+	var manifest := TrenchDotTerrain3DCache.read_manifest(folder)
+	t.check(exported[0] == 0 and exported[1].get("written") == [] and is_equal_approx(float(manifest.get("vertex_spacing", 0.0)), 1.0), "the CLI keeps the spacing the editor exported and rewrites nothing, got %s and %s" % [exported, manifest.get("vertex_spacing")])
+	for config in [[[], 2.0], [[[3, -2]], 1.0], [[[3, -2], [-1, 0], [0, -1], [-2, 1]], 1.0]]:
+		_with_manifest(folder, 2.0, config[0])
+		exported = Export._cli(["export", folder])
+		manifest = TrenchDotTerrain3DCache.read_manifest(folder)
+		var header := Export._decode(FileAccess.get_file_as_bytes(TrenchDotTerrain3DCache.region_path(folder, Vector2i(3, -2))))
+		t.check(exported[0] == 0 and is_equal_approx(float(manifest.get("vertex_spacing", 0.0)), config[1]) and is_equal_approx(header.get("spacing", 0.0), config[1]) and manifest.get("dirty") == [], "with %d unsaved regions the CLI exports at spacing %s, got %s and %s" % [config[0].size(), config[1], manifest.get("vertex_spacing"), header.get("spacing")])
 
 ## A region size that would spread the regions past the locations Terrain3D keeps is refused and leaves the terrain as
 ## it was, one that keeps them inside is taken.
