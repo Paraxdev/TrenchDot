@@ -8,12 +8,12 @@ Godot build and the game work exactly the same whether you use the graph or not.
 
 ## Opening it
 
-Choose *View > Panels > Logic*.
+Choose *View > Panels > Logic*, or *Gameplay > Logic > Logic Graph*.
 
 ![The View menu with Panels open and Logic hovered](../assets/logic-graph/menu-panels-logic.png)
 
-It opens next to Materials below the views and grows that dock to about half the middle of the window, since a graph
-needs room. Drag the divider or the tab to change that.
+A **Logic** tab appears next to Materials below the views, and that dock grows to about half the middle of the
+window, since a graph needs room. Drag the divider or the tab to change that.
 
 ![The Logic panel of the Night District demo map: buttons wired to doors, a trigger and a timer, with headers colored by category, and a frame titled Hall lights around a trigger that switches three lights on with delays](../assets/logic-graph/graph.png)
 
@@ -68,18 +68,30 @@ category of your own, set with the `group` of a definition, gets a color of its 
 
 ## Wiring
 
-Drag from an output pin to an input pin. While you drag, the pins the wire fits get a ring, and the pin it would end on
-fills in. Let go and the connection is added to the source entity's outputs.
+1. Drag from an output pin on the right of a node to an input pin on the left of another.
 
-![Dragging a wire from the released output of button_1 to the turn_off input of hall_light, the pins it fits show rings](../assets/logic-graph/wire-drag.gif)
+    While you drag, the pins the wire fits get a ring, and the pin it would end on fills in.
 
-A pulse fits any pin and a value fits a pin of its own type, so an `activator` node does not fit an `int` input. (An
-int also fits a float or bool pin and the other way round, and a variant fits anything.) Any pin still takes the wire,
-the names in entity I/O are only checked when the game runs.
+    ![Dragging a wire from the released output of button_1 to the turn_off input of hall_light, the pins it fits show rings](../assets/logic-graph/wire-drag.gif)
 
-A target without a targetname gets one in the same step: the name you gave it with *Rename* in the Outliner, so a light
-you called `lamp` becomes the target `lamp`, else a free one like `door_2`. A name another entity has gets a number
-after it.
+2. Let go.
+
+    The wire stays and the connection is added to the source entity's outputs.
+
+If the target has no targetname, it gets one in the same step: the name you gave it with *Rename* in the Outliner, so a
+light you called `lamp` becomes the target `lamp`, else a free one like `door_2`. A name another entity already has gets
+a number after it.
+
+Which pins a wire fits:
+
+| Wire from | Fits |
+| --- | --- |
+| A pulse | Any pin |
+| A value | A pin of the same type, so an `activator` node does not fit an `int` input. An int also fits a float or bool pin and the other way round |
+| A variant | Any pin |
+| Any wire | A pulse or variant pin, whatever it comes from |
+
+A pin that does not fit still takes the wire, and the names in entity I/O are only checked when the game runs.
 
 You can also drop the wire somewhere else:
 
@@ -97,9 +109,10 @@ outputs. Type to search all of them: classes whose name starts with or contains 
 category or description does. The up and down arrow keys move the highlight and Enter adds that class.
 
 New entities are point entities, and the Godot build makes a node for each, so they need a place in the map. They go
-on a layer called *Logic*, next to the entity they are wired to, or in front of the 3D view's camera. Each gets a free
-targetname at once, like `relay_2`, which titles its node. Change it in the Inspector, since *Rename* only sets the
-Outliner name.
+on a layer called *Logic*, next to the entity they are wired to, or in front of the 3D view's camera.
+
+Each gets a free targetname at once, like `relay_2`, which titles its node. Change it in the Inspector, since *Rename*
+only sets the Outliner name.
 
 > [!NOTE]
 > Without the Gameplay entities pack there are no logic entities to add. The Add menu then offers to
@@ -159,9 +172,11 @@ over the graph.
 | See the selection | F with the pointer over the graph frames the selected nodes |
 
 Nodes nobody moved follow the automatic layout, left to right the way signals flow, and the view zooms to fit the
-panel until you zoom or pan yourself. Once you move a node or wire something in the graph, the others keep their
-places, and a new node appears next to what it is wired to. Blue and red marker nodes are not entities, so you cannot
-move them. They sit next to the node that targets them.
+panel until you zoom or pan yourself.
+
+Once you move a node or wire something in the graph, the others keep their places, and a new node appears next to what
+it is wired to. Blue and red marker nodes are not entities, so you cannot move them. They sit next to the node that
+targets them.
 
 ## Frames
 
@@ -180,9 +195,14 @@ Frames are saved in the map as editor data, the Godot build ignores them.
 
 ## Simulate
 
-Select one entity, press **Simulate** and pick one of its outputs, or right click a node. The graph numbers every wire
-the output would set off in yellow, and a list below the graph shows each step by the node titles, in the order the
-steps arrive, with the time in seconds after the delays. **Clear** ends the preview. Click a step to select its wire.
+Select one entity, press **Simulate** in the panel's toolbar and pick one of its outputs, or right click a node. You
+should see:
+
+* Every wire the output would set off, numbered in yellow.
+* Below the graph, a list with one line per step, by node titles, in the order the steps arrive, with the time in
+  seconds after the delays.
+
+Click a step to select its wire. **Clear** ends the preview.
 
 ![Simulate on button_2: the wires to garage_door and on to garage_beacon are yellow and numbered 1 to 3, and the list below the graph names each step](../assets/logic-graph/simulate.png)
 
@@ -190,9 +210,11 @@ It follows the runtime's rules: targets are found by targetname, and relays, tim
 other common entities pass the chain on. Runtime targets like `!player` are shown but not followed.
 
 An entity that fires one of several outputs shows every wire it might set off. Those steps, and everything after them,
-end in `(maybe)` in the list and in `?` on the wire's number, and hovering one says what it waits for. A counter fed
-by `add` or `subtract` continues to `hit_max` and `hit_min` this way, since the preview does not count presses: the
-step is there, and it happens once the counter reaches its `max` or `min`. A `logic_sequence` fires its steps at the
-times of its `interval`, `times` and `steps` properties, so a cutscene reads as a timeline.
+end in `(maybe)` in the list and in `?` on the wire's number, and hovering one says what it waits for.
+
+* A counter fed by `add` or `subtract` continues to `hit_max` and `hit_min` this way. The preview does not count
+  presses, so the step is there, and it happens once the counter reaches its `max` or `min`.
+* A `logic_sequence` fires its steps at the times of its `interval`, `times` and `steps` properties, so a cutscene
+  reads as a timeline.
 
 Simulate works on paper, without Godot. What really happens in game is covered in [Debugging wiring](debugging.md).
