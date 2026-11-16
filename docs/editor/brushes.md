@@ -66,8 +66,8 @@ For slopes, ramps and angled walls, press C for the **Clip** tool:
 
 To drag single corners, press V for the **Vertex** tool, or Tab with brushes selected. It shows handles on the corners,
 and small blue dots on the edge midpoints and face centers. Click a dot to select it, or drag it away from the brush
-to add a corner there. In the 3D view a face dot slides straight out along its face, so look at the face from a bit
-to the side, a face pointing right at the camera does not move. Delete removes the selected vertices.
+to add a corner there. In the 3D view a dot slides straight out of the brush, so look at its face or edge from a bit
+to the side, a dot pointing right at the camera does not move. Delete removes the selected vertices.
 
 ![The Vertex tool on a clipped box, yellow corner handles and blue dots on the edges and faces](../assets/brushes/vertex-handles.png)
 

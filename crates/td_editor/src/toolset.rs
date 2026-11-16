@@ -73,7 +73,7 @@ pub struct VertexTool {
 struct VertexDrag {
     start: DVec3,
     plane: Plane,
-    /// A 3D face dot only slides along this line through `start`, see [`pull_along`].
+    /// A 3D dot only slides along this line through `start`, see [`pull_along`].
     line: Option<DVec3>,
     base: Vec<DVec3>,
     /// Alt only moves a vertex vertically, a dot keeps its own plane.
@@ -92,10 +92,6 @@ impl VertexDot {
     /// Direction that leaves the brush: the face normal, or the normalized sum of both normals on an edge.
     pub fn out(&self) -> DVec3 {
         (self.normals[0] + self.normals[1]).try_normalize().unwrap_or(self.normals[0])
-    }
-
-    pub fn is_face(&self) -> bool {
-        self.normals[0] == self.normals[1]
     }
 }
 
@@ -1555,10 +1551,10 @@ pub(crate) fn vertex_drag_plane(cam: &Camera, handle: &Handle, alt: bool) -> Pla
     }
 }
 
-/// The line a handle is confined to while dragged: a face dot in 3D follows its face normal.
+/// The line a handle is confined to while dragged: a dot in 3D follows its outward direction.
 pub(crate) fn vertex_drag_line(cam: &Camera, handle: &Handle) -> Option<DVec3> {
     match handle {
-        Handle::Dot(d) if cam.kind == ViewKind::Perspective && d.is_face() => Some(d.out()),
+        Handle::Dot(d) if cam.kind == ViewKind::Perspective => Some(d.out()),
         _ => None,
     }
 }
@@ -2076,6 +2072,47 @@ mod tests {
         assert!(on_normal.dot(dot.out()) > 30.0, "40 px along the normal pulls {on_normal:?}");
     }
 
+    fn edge_dot() -> VertexDot {
+        let (state, _) = state_with_wedge();
+        let (_, dots) = ToolSet::vertex_handles(&state);
+        *dots.iter().filter(|d| d.normals[0] != d.normals[1]).max_by(|a, b| a.out().y.total_cmp(&b.out().y)).unwrap()
+    }
+
+    #[test]
+    fn a_3d_edge_dot_follows_its_outward_direction_at_a_grazing_angle() {
+        let dot = edge_dot();
+        let state = unsnapped();
+        let cam = camera_off_normal(&dot, 30.0, -38.0);
+        let drag = dot_drag(&cam, &dot);
+        let rect = view_rect();
+        assert!(rect.contains(cam.project(rect, dot.pos).unwrap()), "the dot is on screen");
+
+        let mut longest: f64 = 0.0;
+        for deg in [0.0, 15.0, -15.0, 90.0, -90.0, 135.0, 180.0] {
+            let delta = vertex_drag_delta(&state, &cam, rect, &drag, pointer_from_dot(&cam, &dot, 40.0, deg), false).unwrap();
+            assert!((delta - dot.out() * delta.dot(dot.out())).length() < 1e-6, "{deg} degrees off the direction leaves its line: {delta:?}");
+            longest = longest.max(delta.length());
+        }
+
+        let px_per_unit = ((cam.project(rect, dot.pos + dot.out() * 10.0).unwrap() - cam.project(rect, dot.pos).unwrap()).length() / 10.0) as f64;
+        assert!(longest < 1.5 * 40.0 / px_per_unit, "40 px moved the dot {longest} units at {px_per_unit} px per unit");
+        for want in [7.0, 64.0, -30.0] {
+            let pointer = cam.project(rect, dot.pos + dot.out() * want).unwrap();
+            let delta = vertex_drag_delta(&state, &cam, rect, &drag, pointer, false).unwrap();
+            assert!((delta - dot.out() * want).length() < 1e-3, "wanted {want}, got {delta:?}");
+        }
+    }
+
+    #[test]
+    fn a_3d_edge_dot_holds_still_when_the_view_looks_along_its_direction() {
+        let dot = edge_dot();
+        let state = unsnapped();
+        let cam = camera_off_normal(&dot, 3.0, 0.0);
+        let drag = dot_drag(&cam, &dot);
+        let pointer = pointer_from_dot(&cam, &dot, 120.0, 45.0);
+        assert_eq!(vertex_drag_delta(&state, &cam, view_rect(), &drag, pointer, false), None);
+    }
+
     #[test]
     fn a_3d_face_dot_pull_matches_the_pointer_head_on_and_off_center() {
         let dot = top_dot();
@@ -2161,14 +2198,14 @@ mod tests {
     }
 
     #[test]
-    fn only_a_3d_face_dot_drags_along_a_line() {
+    fn only_a_3d_dot_drags_along_a_line() {
         let (state, _) = state_with_wedge();
         let (_, dots) = ToolSet::vertex_handles(&state);
         let persp = perspective();
-        assert!(dots.iter().any(|d| d.is_face()) && dots.iter().any(|d| !d.is_face()));
+        assert!(dots.iter().any(|d| d.normals[0] == d.normals[1]) && dots.iter().any(|d| d.normals[0] != d.normals[1]));
         for d in &dots {
             let line = vertex_drag_line(&persp, &Handle::Dot(*d));
-            assert_eq!(line, d.is_face().then(|| d.out()), "dot at {:?}", d.pos);
+            assert_eq!(line, Some(d.out()), "dot at {:?}", d.pos);
             assert_eq!(vertex_drag_line(&view_2d(ViewKind::Top), &Handle::Dot(*d)), None);
             assert_eq!(vertex_drag_line(&persp, &Handle::Vertex(d.pos)), None);
         }
