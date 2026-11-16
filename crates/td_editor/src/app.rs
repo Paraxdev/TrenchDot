@@ -1311,6 +1311,7 @@ impl App {
                     m.item(ui, None, en!("All"), Action::SelectAll);
                     m.item(ui, None, en!("None"), Action::SelectNone);
                     m.item(ui, None, en!("Inverse"), Action::SelectInverse);
+                    m.item(ui, None, en!("Brush Faces"), Action::SelectBrushFaces);
                     ui.separator();
                     m.item(ui, None, en!("Touching"), Action::SelectTouching);
                     m.item(ui, None, en!("Inside"), Action::SelectInside);

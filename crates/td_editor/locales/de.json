@@ -2302,5 +2302,10 @@
   "Resized the terrain to {cx} x {cz} cells": "Terraingröße auf {cx} x {cz} Zellen geändert",
   "After: {cx} x {cz} cells, {w} x {d} units ({mw} x {md} m)": "Danach: {cx} x {cz} Zellen, {w} x {d} Einheiten ({mw} x {md} m)",
   "Apply": "Anwenden",
-  "Puts the size back as it is": "Setzt die Größe zurück"
+  "Puts the size back as it is": "Setzt die Größe zurück",
+  "Select Brush Faces": "Brush-Flächen auswählen",
+  "Brush Faces": "Brush-Flächen",
+  "Selects every face of the selected brushes and meshes instead of the objects": "Wählt statt der Objekte jede Fläche der ausgewählten Brushes und Meshes aus",
+  "Select a brush or mesh first": "Zuerst einen Brush oder ein Mesh auswählen",
+  "Selected {n} face": { "one": "{n} Fläche ausgewählt", "other": "{n} Flächen ausgewählt" }
 }

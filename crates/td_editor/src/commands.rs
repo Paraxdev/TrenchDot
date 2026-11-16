@@ -37,6 +37,7 @@ pub enum Action {
     SelectAll,
     SelectNone,
     SelectInverse,
+    SelectBrushFaces,
     SelectTouching,
     SelectInside,
     SelectSiblings,
@@ -280,6 +281,7 @@ impl Action {
             Action::SelectAll => en!("Select All"),
             Action::SelectNone => en!("Select None"),
             Action::SelectInverse => en!("Select Inverse"),
+            Action::SelectBrushFaces => en!("Select Brush Faces"),
             Action::SelectTouching => en!("Select Touching"),
             Action::SelectInside => en!("Select Inside"),
             Action::SelectSiblings => en!("Select Siblings"),
@@ -459,6 +461,7 @@ impl Action {
             Action::SelectTouching => en!("Uses the selected brushes as a selection box, selecting everything they touch and deleting the box"),
             Action::SelectInside => en!("Selects everything fully inside the selected brushes, then deletes them"),
             Action::SelectSiblings => en!("Selects everything in the same group or brush entity as the selection"),
+            Action::SelectBrushFaces => en!("Selects every face of the selected brushes and meshes instead of the objects"),
             Action::IsolateSelected => en!("Hides everything except the selection, Show All brings it back"),
             Action::DuplicateLinked => en!("Copies the selection as a linked group, editing one copy changes every copy"),
             Action::UnlinkGroups => en!("Makes the selected linked groups independent copies again"),
@@ -552,6 +555,7 @@ fn trenchbroom_bindings() -> Vec<(KeyboardShortcut, Action)> {
         (sc(CTRL, Key::F), Action::ShowFindDialog),
         (sc(NONE, Key::Escape), Action::SelectNone),
         (sc(CTRL, Key::I), Action::SelectInverse),
+        (sc(CTRL_SHIFT, Key::A), Action::SelectBrushFaces),
         (sc(CTRL, Key::T), Action::SelectTouching),
         (sc(CTRL_SHIFT, Key::T), Action::SelectInside),
         (sc(CTRL, Key::G), Action::Group),
@@ -635,6 +639,7 @@ pub fn preset_bindings(preset: &str) -> Vec<(KeyboardShortcut, Action)> {
         "blender" => vec![
             (sc(NONE, Key::A), Action::SelectAll),
             (sc(ALT, Key::A), Action::SelectNone),
+            (sc(NONE, Key::Num3), Action::SelectBrushFaces),
             (sc(NONE, Key::X), Action::Delete),
             (sc(SHIFT, Key::D), Action::Duplicate),
             (sc(ALT, Key::D), Action::DuplicateLinked),
@@ -1105,6 +1110,23 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             }
         }
         Action::SelectInverse => state.doc.select(|m, s| ops::select_inverse(m, s, &open_groups)),
+        Action::SelectBrushFaces => {
+            let objects: Vec<NodeId> = state
+                .doc
+                .selection
+                .geometry(&state.doc.map)
+                .into_iter()
+                .filter(|id| state.doc.map.brush(*id).is_some() || state.doc.map.mesh(*id).is_some())
+                .collect();
+            if objects.is_empty() {
+                state.fail_status(msg!("Select a brush or mesh first"));
+            } else {
+                state.doc.select(|m, s| s.select_faces_of(m, objects));
+                let n = state.doc.selection.faces.len();
+                state.set_status(msg_n!(n, "Selected {n} face", "Selected {n} faces"));
+            }
+        }
+
         // Not pure selection changes: like TrenchBroom they delete the selecting brushes, so they stay undoable edits.
         Action::SelectTouching | Action::SelectInside => {
             let inside = action == Action::SelectInside;
@@ -3035,6 +3057,9 @@ mod tests {
             assert!(has(Action::Delete, sc(NONE, Key::Delete)), "{preset}");
             assert!(has(Action::SelectNone, sc(NONE, Key::Escape)), "{preset}");
             assert!(has(Action::ShowCommandPalette, sc(CTRL_SHIFT, Key::P)), "{preset}");
+            assert!(has(Action::SelectBrushFaces, sc(CTRL_SHIFT, Key::A)), "{preset}");
+            assert!(has(Action::SelectAll, sc(CTRL, Key::A)), "{preset}");
+            assert_eq!(has(Action::SelectBrushFaces, sc(NONE, Key::Num3)), preset == "blender", "{preset}");
             for action in [Action::CloseTab, Action::CsgMerge, Action::CsgIntersect, Action::ShowShapeDialog, Action::ShowCommandPalette] {
                 assert!(bindings.iter().any(|(_, a)| *a == action), "{preset} leaves {action:?} unbound");
             }
@@ -3060,6 +3085,68 @@ mod tests {
         let min = DVec3::new(x, 0.0, 0.0);
         let brush = td_geom::Brush::from_aabb(&Aabb::new(min, min + DVec3::splat(32.0)), "dev/grey").unwrap();
         state.doc.edit("Create Brush", |m, _| ops::create_brush(m, parent, brush))
+    }
+
+    fn mesh_at(state: &mut EditorState, x: f64) -> (NodeId, usize) {
+        let parent = state.insert_parent();
+        let min = DVec3::new(x, 11.0, -5.0);
+        let mesh = td_geom::Mesh::from_brush(&td_geom::Brush::from_aabb(&Aabb::new(min, min + DVec3::new(24.0, 40.0, 8.0)), "dev/grey").unwrap());
+        let n = mesh.faces.len();
+        (state.doc.edit("Create Mesh", |m, _| m.insert(parent, td_doc::NodeKind::Mesh(mesh))), n)
+    }
+
+    #[test]
+    fn select_brush_faces_swaps_brushes_and_meshes_for_their_faces() {
+        let mut state = EditorState::new(Default::default());
+        let ctx = egui::Context::default();
+        let (a, b, c) = (brush_at(&mut state, 96.0), brush_at(&mut state, -160.0), brush_at(&mut state, 400.0));
+        let (m, mesh_faces) = mesh_at(&mut state, 224.0);
+
+        execute(&mut state, Action::SelectBrushFaces, &ctx);
+        assert!(state.status_failed(), "nothing selected");
+        assert!(state.doc.selection.is_empty());
+
+        state.doc.select(|_, s| {
+            s.select_node(a);
+            s.select_node(b);
+            s.select_node(m);
+        });
+        execute(&mut state, Action::SelectBrushFaces, &ctx);
+        let mut want: std::collections::BTreeSet<(NodeId, usize)> = (0..6).map(|f| (a, f)).chain((0..6).map(|f| (b, f))).collect();
+        want.extend((0..mesh_faces).map(|f| (m, f)));
+        assert!(state.doc.selection.nodes.is_empty());
+        assert_eq!(state.doc.selection.faces, want);
+        assert!(!state.status_failed());
+
+        // A face already selected on another brush stays, like Ctrl+click with the UV Editor showing.
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_face(c, 2);
+            s.nodes.insert(a);
+        });
+        execute(&mut state, Action::SelectBrushFaces, &ctx);
+        let want: std::collections::BTreeSet<(NodeId, usize)> = (0..6).map(|f| (a, f)).chain([(c, 2)]).collect();
+        assert!(state.doc.selection.nodes.is_empty());
+        assert_eq!(state.doc.selection.faces, want);
+    }
+
+    #[test]
+    fn select_brush_faces_does_nothing_without_a_brush_or_mesh() {
+        let mut state = EditorState::new(Default::default());
+        let ctx = egui::Context::default();
+        let a = brush_at(&mut state, 32.0);
+        let parent = state.insert_parent();
+        let light = state.doc.edit("Create Light", |m, _| m.insert(parent, td_doc::NodeKind::Entity(td_doc::Entity::new("light"))));
+        state.doc.select(|_, s| s.select_face(a, 3));
+        execute(&mut state, Action::SelectBrushFaces, &ctx);
+        assert!(state.status_failed(), "faces only");
+        assert_eq!(state.doc.selection.faces, std::collections::BTreeSet::from([(a, 3)]));
+
+        state.doc.select(|_, s| s.select_node(light));
+        execute(&mut state, Action::SelectBrushFaces, &ctx);
+        assert!(state.status_failed(), "a light has no faces");
+        assert_eq!(state.doc.selection.nodes, std::collections::BTreeSet::from([light]));
+        assert!(state.doc.selection.faces.is_empty());
     }
 
     #[test]

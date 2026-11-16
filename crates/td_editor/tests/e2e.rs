@@ -3088,6 +3088,27 @@ fn ctrl_click_adds_to_the_selection_with_the_uv_editor_showing() {
     assert_eq!(state["selection"]["faces"].as_array().unwrap().len(), 12, "both boxes' faces for UV work: {}", state["selection"]);
 }
 
+/// Ctrl+Shift+A turns the selected brushes into their faces, and is not swallowed by Ctrl+A (select all).
+#[test]
+#[ignore]
+fn ctrl_shift_a_selects_the_faces_of_the_selected_brushes() {
+    let ed = Editor::launch("select_brush_faces");
+    let a = ed.box_brush([8.0, -16.0, 0.0], [72.0, 48.0, 40.0]);
+    let b = ed.box_brush([136.0, 4.0, 12.0], [200.0, 52.0, 76.0]);
+    ed.box_brush([300.0, 0.0, 0.0], [332.0, 32.0, 32.0]);
+    ed.call("select", json!({ "ids": [] }));
+    ed.input("top", json!([{ "type": "move" }, { "type": "key", "key": "A", "modifiers": ["ctrl", "shift"] }]));
+    let state = ed.state();
+    assert_eq!(state["selection"]["faces"].as_array().unwrap().len(), 0, "nothing selected changes nothing: {}", state["selection"]);
+
+    ed.call("select", json!({ "ids": [a, b] }));
+    ed.input("top", json!([{ "type": "move" }, { "type": "key", "key": "A", "modifiers": ["ctrl", "shift"] }]));
+    let state = ed.state();
+    assert_eq!(state["selection"]["nodes"].as_array().unwrap().len(), 0, "{}", state["selection"]);
+    let faces = state["selection"]["faces"].as_array().unwrap();
+    assert_eq!(faces.len(), 12, "{}", state["selection"]);
+}
+
 /// Script ergonomics found building the night maps: ids that follow CSG, joined id lists, carve materials, full mesh
 /// rotation, exposed-only scatter fills, forward slash paths, lamp fixtures and Node methods as inputs.
 #[test]

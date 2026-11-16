@@ -82,6 +82,11 @@ gets a yellow outline.
 With no face selected, a selected brush counts as all its faces, so you can select a brush, press **Shift+T** and
 scroll straight away. Several selected faces or brushes change together.
 
+To work on faces one by one, for example to leave a few out, select the brushes and press **Ctrl+Shift+A**, or choose
+*Edit > Select > Brush Faces*. The brushes and meshes are swapped for all their faces, tinted red, and **Ctrl+click**
+removes the ones you do not want. With the [UV Editor](uv-editor.md) as the visible tab, Ctrl+click on a brush does the
+same for that brush.
+
 Alt+right click is how a texture, like a trim or a row of bricks, runs cleanly around a corner.
 
 The tool options bar at the top has the **Justify** buttons. **Left**, **Right**, **Top**, **Bottom** and **Center**

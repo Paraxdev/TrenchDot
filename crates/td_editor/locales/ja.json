@@ -2302,5 +2302,10 @@
   "Resized the terrain to {cx} x {cz} cells": "地形を {cx} x {cz} セルにリサイズしました",
   "After: {cx} x {cz} cells, {w} x {d} units ({mw} x {md} m)": "変更後: {cx} x {cz}セル、{w} x {d}ユニット ({mw} x {md} m)",
   "Apply": "適用",
-  "Puts the size back as it is": "サイズを元に戻します"
+  "Puts the size back as it is": "サイズを元に戻します",
+  "Select Brush Faces": "ブラシの面を選択",
+  "Brush Faces": "ブラシの面",
+  "Selects every face of the selected brushes and meshes instead of the objects": "選択したブラシとメッシュの全ての面を選択します",
+  "Select a brush or mesh first": "先にブラシかメッシュを選択してください",
+  "Selected {n} face": { "other": "{n} 個の面を選択しました" }
 }

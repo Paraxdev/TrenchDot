@@ -95,6 +95,7 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
         entry(en!("Select"), en!("All"), Action::SelectAll),
         entry(en!("Select"), en!("None"), Action::SelectNone),
         entry(en!("Select"), en!("Inverse"), Action::SelectInverse),
+        entry(en!("Select"), en!("Brush Faces"), Action::SelectBrushFaces),
         entry(en!("Select"), en!("Touching"), Action::SelectTouching),
         entry(en!("Select"), en!("Inside"), Action::SelectInside),
         entry(en!("Select"), en!("Siblings"), Action::SelectSiblings),

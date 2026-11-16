@@ -63,6 +63,8 @@ Select it clears the selection.
 | Ctrl+R | Repeat the last rotate, flip, nudge or duplicate. In mesh editing it makes a loop cut |
 | Delete or Backspace | Delete |
 | Ctrl+A, Esc, Ctrl+I | Select all, none, inverse |
+| Ctrl+Shift+A | Select every face of the selected brushes and meshes, for the Texture tool and the Inspector, like face select mode in Blender |
+| Ctrl+click on a brush or mesh | While the [UV Editor](uv-editor.md) is the visible tab, select all its faces and turn the selected brushes and meshes into faces |
 | Ctrl+F | Find entities and replace a material, see [Find and Replace](find-replace.md) |
 | Ctrl+T, Ctrl+Shift+T | Use the selected brushes as a stencil and select what they touch, or what lies inside them. The stencil brushes are deleted |
 | Ctrl+G, Ctrl+Shift+G | Group, ungroup |
@@ -121,6 +123,7 @@ A preset only changes the keys below, everything else stays as above. Your own b
 | Key | Blender preset |
 | --- | --- |
 | A, Alt+A | Select all, none |
+| 3 | Select every face of the selected brushes and meshes, like face select mode |
 | X | Delete |
 | Shift+D, Alt+D | Duplicate, duplicate linked |
 | S | Scale tool |

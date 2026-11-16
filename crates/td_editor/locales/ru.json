@@ -2302,5 +2302,10 @@
   "Resized the terrain to {cx} x {cz} cells": "Размер ландшафта изменён на {cx} x {cz} ячеек",
   "After: {cx} x {cz} cells, {w} x {d} units ({mw} x {md} m)": "После: {cx} x {cz} ячеек, {w} x {d} единиц ({mw} x {md} м)",
   "Apply": "Применить",
-  "Puts the size back as it is": "Возвращает прежний размер"
+  "Puts the size back as it is": "Возвращает прежний размер",
+  "Select Brush Faces": "Выделить грани браша",
+  "Brush Faces": "Грани браша",
+  "Selects every face of the selected brushes and meshes instead of the objects": "Выделяет каждую грань выбранных брашей и мешей вместо самих объектов",
+  "Select a brush or mesh first": "Сначала выберите браш или меш",
+  "Selected {n} face": { "one": "Выделена {n} грань", "few": "Выделено {n} грани", "many": "Выделено {n} граней" }
 }

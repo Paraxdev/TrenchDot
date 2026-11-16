@@ -2302,5 +2302,10 @@
   "Resized the terrain to {cx} x {cz} cells": "地形已调整为 {cx} x {cz} 个单元格",
   "After: {cx} x {cz} cells, {w} x {d} units ({mw} x {md} m)": "之后：{cx} x {cz} 个单元格，{w} x {d} 单位（{mw} x {md} 米）",
   "Apply": "应用",
-  "Puts the size back as it is": "恢复原来的大小"
+  "Puts the size back as it is": "恢复原来的大小",
+  "Select Brush Faces": "选择笔刷的面",
+  "Brush Faces": "笔刷的面",
+  "Selects every face of the selected brushes and meshes instead of the objects": "选中笔刷和网格的每个面，取代选中对象",
+  "Select a brush or mesh first": "请先选择笔刷或网格",
+  "Selected {n} face": { "other": "已选择 {n} 个面" }
 }
