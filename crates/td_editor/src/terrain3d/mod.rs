@@ -457,6 +457,19 @@ impl EditorState {
         layout.locs.iter().filter_map(region_box).collect()
     }
 
+    /// The region boxes of [`Self::terrain3d_boxes`] all as tall as the whole node, for the selection outline. A side view
+    /// would show neighbours with different peaks as a cliff at their border while the ground between them is smooth.
+    pub fn terrain3d_level_boxes(&self, id: NodeId) -> Vec<Aabb> {
+        let mut boxes = self.terrain3d_boxes(id);
+        let all = self.terrain3d_bounds(id);
+        for b in &mut boxes {
+            b.min.y = all.min.y;
+            b.max.y = all.max.y;
+        }
+
+        boxes
+    }
+
     /// The box around every region of a shown linked node, empty when none shows.
     pub fn terrain3d_bounds(&self, id: NodeId) -> Aabb {
         self.terrain3d_boxes(id).iter().fold(Aabb::EMPTY, |all, b| all.union(b))
@@ -658,6 +671,27 @@ mod tests {
         let second = tops(&state);
         assert!(second[0].1 > first[0].1, "a second dab raises the box again: {second:?} after {first:?}");
         assert_eq!(second[1], (10240.0, 64.0));
+    }
+
+    #[test]
+    fn level_boxes_share_the_height_of_the_whole_node() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, _) = state_over(dir.path(), &[L, M]);
+        update_until(&mut state, |s| s.terrain3d_boxes(id).len() == 2);
+        let span = |boxes: Vec<Aabb>| boxes.iter().map(|b| (b.min.x, b.min.y, b.max.y)).collect::<Vec<_>>();
+        let flat = span(state.terrain3d_level_boxes(id));
+        assert_eq!(flat[0].1, flat[1].1);
+        assert_eq!(flat[0].2, flat[1].2);
+
+        dab(&mut state, id, L, 1000.0);
+        let raised = span(state.terrain3d_boxes(id));
+        assert!(raised[0].2 > raised[1].2, "the per region boxes differ now: {raised:?}");
+        let level = span(state.terrain3d_level_boxes(id));
+        assert_eq!(level.iter().map(|b| b.0).collect::<Vec<_>>(), [5120.0, 10240.0], "still one box per region");
+        assert_eq!(level[0].2, raised[0].2, "both reach the highest region");
+        assert_eq!(level[1].2, raised[0].2);
+        assert_eq!(level[0].1, level[1].1);
+        assert_eq!(level[0].1, raised[0].1.min(raised[1].1), "and the lowest");
     }
 
     /// Where the clipmap would take a region held whole from.

@@ -2426,7 +2426,7 @@ impl SceneCache {
     fn update_terrain3d_boxes(&mut self, renderer: &mut Renderer, state: &EditorState, is_selected: &dyn Fn(NodeId) -> bool) {
         let mut lines = Vec::new();
         for id in state.terrain3d_residency.layouts.keys().filter(|id| is_selected(**id)) {
-            for b in state.terrain3d_boxes(*id) {
+            for b in state.terrain3d_level_boxes(*id) {
                 let corners = b.corners();
                 for (i, j) in Aabb::EDGES {
                     push_line(&mut lines, corners[i], corners[j], SELECTED_COLOR);
