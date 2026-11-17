@@ -27,6 +27,22 @@ fn ok(v: Value) -> ToolResult {
     ToolResult::Json(v)
 }
 
+/// Largest map unit distance a terrain_edit position, radius, spacing, margin or width may have, past Terrain3D's whole region map.
+const REACH_LIMIT: f64 = 1.0e7;
+/// Largest map unit height or strength, 31 km, beyond any ground and where Terrain3D's 32 bit heights lose their detail.
+const HEIGHT_LIMIT: f64 = 1.0e6;
+
+/// Most dabs one path may resample into.
+const MAX_DABS: f64 = 100_000.0;
+
+fn within(name: &str, v: f64, limit: f64) -> Result<(), String> {
+    if v.abs() <= limit { Ok(()) } else { Err(format!("{name} {v} is out of range, it must be within {limit} map units")) }
+}
+
+fn positive(name: &str, v: f64) -> Result<(), String> {
+    if v > 0.0 { within(name, v, REACH_LIMIT) } else { Err(format!("{name} {v} must be above 0")) }
+}
+
 fn xz(p: DVec3) -> DVec2 {
     DVec2::new(p.x, p.z)
 }
@@ -42,13 +58,57 @@ pub(crate) enum Job {
 
 impl Job {
     pub(crate) fn parse(op: &str, a: &Value) -> Result<Job, String> {
+        let job = Self::parse_unchecked(op, a)?;
+        job.check_range()?;
+        Ok(job)
+    }
+
+    /// Refuses values past what the ground can hold, they would write heights of billions of meters into the regions.
+    fn check_range(&self) -> Result<(), String> {
+        let spot = |p: &DVec3| within("position", p.x, REACH_LIMIT).and_then(|_| within("position", p.z, REACH_LIMIT));
+        match self {
+            Job::Dabs { brush, points } => {
+                positive("radius", brush.radius)?;
+                within("strength", brush.strength, HEIGHT_LIMIT)?;
+                within("height", brush.flatten_height, HEIGHT_LIMIT)?;
+                positive("step", brush.terrace_step)?;
+                points.iter().try_for_each(spot)
+            }
+            Job::Paint { radius, points, .. } => {
+                positive("radius", *radius)?;
+                points.iter().try_for_each(spot)
+            }
+            Job::Flatten { min, max, height, margin } => {
+                within("height", *height, HEIGHT_LIMIT)?;
+                within("margin", *margin, REACH_LIMIT)?;
+                [min, max].into_iter().try_for_each(|p| spot(&DVec3::new(p.x, 0.0, p.y)))
+            }
+            Job::Ramp { from, to, width, margin } => {
+                positive("width", *width)?;
+                within("margin", *margin, REACH_LIMIT)?;
+                [from, to].into_iter().try_for_each(|p| spot(p).and_then(|_| within("height", p.y, HEIGHT_LIMIT)))
+            }
+        }
+    }
+
+    fn parse_unchecked(op: &str, a: &Value) -> Result<Job, String> {
         let radius = a["radius"].as_f64().unwrap_or(256.0);
         let strength = a["strength"].as_f64().unwrap_or(16.0);
         let center = point(&a["center"]);
         let one = || center.map(|c| vec![c]).ok_or_else(|| "center [x, z] required".to_string());
         let many = |spacing: f64| {
             let points: Vec<DVec3> = a["points"].as_array().into_iter().flatten().filter_map(point).collect();
-            if points.is_empty() { Err("points [[x, z], ...] required".to_string()) } else { Ok(resample(&points, spacing)) }
+            if points.is_empty() {
+                return Err("points [[x, z], ...] required".to_string());
+            }
+
+            points.iter().try_for_each(|p| within("position", p.x, REACH_LIMIT).and_then(|_| within("position", p.z, REACH_LIMIT)))?;
+            let length: f64 = points.windows(2).map(|w| (w[1] - w[0]).length()).sum();
+            if length / spacing.max(1.0) > MAX_DABS {
+                return Err(format!("the path would take more than {MAX_DABS} dabs, raise spacing or shorten it"));
+            }
+
+            Ok(resample(&points, spacing))
         };
         let mut brush = SculptBrush {
             radius,
@@ -318,6 +378,44 @@ mod tests {
         for op in ["erode", "auto_paint", "set_layers", "clear_layer", "paint_path", "bogus"] {
             assert!(parse(op, json!({})).unwrap_err().contains("does not apply to Terrain3D"), "{op}");
         }
+    }
+
+    #[test]
+    fn absurd_numbers_are_refused_at_their_limit() {
+        let sculpt = |extra: Value| {
+            let mut a = json!({ "center": [-130.5, 77.0], "mode": "raise", "radius": 90.0 });
+            a.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            parse("sculpt", a)
+        };
+        assert!(sculpt(json!({})).is_ok());
+        assert!(sculpt(json!({ "radius": 1.0e7 })).is_ok());
+        assert!(sculpt(json!({ "radius": 1.0e9 })).unwrap_err().contains("radius"));
+        assert!(sculpt(json!({ "radius": -5.0 })).unwrap_err().contains("above 0"));
+        assert!(sculpt(json!({ "radius": 0.0 })).unwrap_err().contains("above 0"));
+        assert!(sculpt(json!({ "center": [1.0e12, 3.0] })).unwrap_err().contains("position"));
+        assert!(sculpt(json!({ "center": [3.0, -1.0e7 - 1.0] })).unwrap_err().contains("position"));
+        assert!(sculpt(json!({ "center": [-1.0e7, 1.0e7] })).is_ok());
+        assert!(sculpt(json!({ "strength": 1.0e6 })).is_ok());
+        assert!(sculpt(json!({ "strength": -1.0e9 })).unwrap_err().contains("strength"));
+        assert!(sculpt(json!({ "mode": "flatten", "height": 1.0e12 })).unwrap_err().contains("height"));
+        assert!(sculpt(json!({ "mode": "flatten", "height": -1.0e6 })).is_ok());
+        assert!(sculpt(json!({ "mode": "terrace", "step": 0.0 })).unwrap_err().contains("step"));
+    }
+
+    #[test]
+    fn rectangles_ramps_paths_and_paint_check_their_range_too() {
+        assert!(parse("flatten_rect", json!({ "min": [0.0, 0.0], "max": [1.0e12, 4.0] })).unwrap_err().contains("position"));
+        assert!(parse("flatten_rect", json!({ "min": [-9.0, 3.0], "max": [40.0, 4.0], "height": 1.0e12 })).unwrap_err().contains("height"));
+        assert!(parse("flatten_rect", json!({ "min": [-9.0, 3.0], "max": [40.0, 4.0], "height": 12.5 })).is_ok());
+        assert!(parse("ramp", json!({ "from": [0.0, 5.0, 0.0], "to": [10.0, 1.0e12, 3.0] })).unwrap_err().contains("height"));
+        assert!(parse("ramp", json!({ "from": [0.0, 5.0, 0.0], "to": [10.0, 9.0, 3.0], "width": -1.0 })).unwrap_err().contains("width"));
+        assert!(parse("ramp", json!({ "from": [0.0, 5.0, 0.0], "to": [10.0, 9.0, 3.0] })).is_ok());
+        assert!(parse("paint_texture", json!({ "texture": 1, "center": [4.0, 5.0], "radius": 1.0e9 })).unwrap_err().contains("radius"));
+        let path = |points: Value, spacing: f64| parse("sculpt_path", json!({ "points": points, "mode": "raise", "radius": 10.0, "spacing": spacing }));
+        assert!(path(json!([[0.0, 0.0], [1.0e12, 0.0]]), 25.0).unwrap_err().contains("position"));
+        assert!(path(json!([[0.0, 0.0], [5.0e6, 0.0]]), 1.0).unwrap_err().contains("dabs"));
+        assert!(path(json!([[0.0, 0.0], [99_999.0, 0.0]]), 1.0).is_ok());
+        assert!(path(json!([[0.0, 0.0], [100_001.0, 0.0]]), 1.0).unwrap_err().contains("dabs"));
     }
 
     #[test]

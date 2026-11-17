@@ -67,6 +67,22 @@ fn parse_regions(a: &Value) -> Result<(Vec<Loc>, Vec<Loc>), String> {
     Ok((add, remove))
 }
 
+/// Says which asked regions changed nothing, an add on an existing region and a remove of a missing one are skipped.
+fn skipped_note(add: &[Loc], remove: &[Loc], added: &[Loc], removed: &[Loc]) -> Option<String> {
+    let left = |asked: &[Loc], done: &[Loc]| asked.iter().filter(|l| !done.contains(l)).copied().collect::<Vec<_>>();
+    let (exists, missing) = (left(add, added), left(remove, removed));
+    let mut parts = Vec::new();
+    if !exists.is_empty() {
+        parts.push(format!("already have a region: {exists:?}"));
+    }
+
+    if !missing.is_empty() {
+        parts.push(format!("no region to remove: {missing:?}"));
+    }
+
+    (!parts.is_empty()).then(|| format!("skipped, {}", parts.join(", ")))
+}
+
 fn parse_grow(a: &Value) -> Result<(Grow, bool), String> {
     check_fill(a)?;
     let side = |key: &str| -> Result<i32, String> {
@@ -376,7 +392,12 @@ impl App {
         self.state.terrain3d_editable(id)?;
         let (added, removed) = self.state.change_terrain3d_regions(id, &add, &remove)?;
         let cache = self.state.terrain3d_cache_of(id)?;
-        Ok(json!({ "id": id.0, "added": added, "removed": removed, "regions": self.state.terrain3d_regions_json(id, &cache) }))
+        let mut reply = json!({ "id": id.0, "added": added, "removed": removed, "regions": self.state.terrain3d_regions_json(id, &cache) });
+        if let Some(note) = skipped_note(&add, &remove, &added, &removed) {
+            reply["note"] = json!(note);
+        }
+
+        Ok(reply)
     }
 
     fn terrain3d_grow(&mut self, args: &Value) -> Result<Value, String> {
@@ -583,6 +604,17 @@ mod tests {
         assert!(parse(json!({ "add": [[1.5, 2]] })).is_err());
         assert!(parse(json!({ "add": "0,0" })).unwrap_err().contains("list"));
         assert!(parse(json!({ "add": [[2, 3]], "remove": [[2, 3]] })).unwrap_err().contains("both"));
+    }
+
+    #[test]
+    fn a_skipped_region_is_named_in_the_reply() {
+        assert_eq!(skipped_note(&[[1, 2]], &[[-3, 4]], &[[1, 2]], &[[-3, 4]]), None);
+        assert_eq!(skipped_note(&[], &[], &[], &[]), None);
+        let note = skipped_note(&[[1, 2], [5, -6]], &[[-3, 4], [0, 9]], &[[5, -6]], &[[0, 9]]).unwrap();
+        assert!(note.contains("already have a region: [[1, 2]]") && note.contains("no region to remove: [[-3, 4]]"), "{note}");
+        assert!(!note.contains("[5, -6]") && !note.contains("[0, 9]"), "{note}");
+        let only_add = skipped_note(&[[7, 7]], &[], &[], &[]).unwrap();
+        assert!(only_add.contains("[[7, 7]]") && !only_add.contains("remove"), "{only_add}");
     }
 
     #[test]
