@@ -60,7 +60,7 @@ Select it clears the selection.
 | Ctrl+X, Ctrl+C, Ctrl+V | Cut, copy, paste under the mouse |
 | Ctrl+D, Ctrl+Shift+D | Duplicate, duplicate linked |
 | F2 | Rename the selected object in the Outliner |
-| Ctrl+R | Repeat the last rotate, flip, nudge or duplicate. In mesh editing it makes a loop cut |
+| Ctrl+R | Repeat the last rotate, flip, mirror linked, nudge or duplicate. In mesh editing it makes a loop cut |
 | Delete or Backspace | Delete |
 | Ctrl+A, Esc, Ctrl+I | Select all, none, inverse |
 | Ctrl+Shift+A | Select every face of the selected brushes and meshes, for the Texture tool and the Inspector, like face select mode in Blender |

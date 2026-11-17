@@ -86,6 +86,28 @@ pointing right at the camera does not move.
 > line in the status bar. Pull the dot outward instead, or convert the brush to a [mesh](meshes.md) for dents and
 > overhangs.
 
+### Symmetric editing
+
+To shape both sides of a brush at once, turn on symmetry in the Vertex tool. Its options bar has a menu that reads
+**symmetry off**. Pick **X**, **Y** or **Z** and the closed menu reads **symmetry X**, **symmetry Y** or
+**symmetry Z**. A second menu after the label **Symmetry Plane** then shows where the plane sits, **selection center** (the middle of the selected
+brushes), **world origin** or **custom**, and a number field appears next to it for **custom**. The field starts at the
+plane you were just using, so nothing jumps.
+
+![The symmetry menu open in the Vertex tool's options bar, listing off, X, Y and Z](../assets/brushes/vertex-symmetry.png)
+
+While symmetry is on, the views draw the plane over the selected brushes, red for X, green for Y and blue for Z.
+Drag a handle, or pull a dot out of a face or an edge, and the corner on the other side of the plane moves the mirrored
+way, in the same undo step. A corner counts as the other side when it sits within half a unit of the mirror image, so a
+corner without a partner just moves alone. It also works across brushes: select both pillars of a pair, drag a corner of
+one, and the matching corner of the other follows.
+
+A corner you have selected yourself always moves exactly as you drag it. That keeps whole-object moves working with
+symmetry on. If either side would turn a brush concave, the whole move is refused, so the halves never drift apart.
+
+The setting is not saved. It is off again every time you start the editor, and it is shared by the
+[Mesh tool](meshes.md).
+
 ## Polygon brush
 
 For a floor plan, a pillar with five sides or any outline a box cannot make, press the **Polygon** tool in the toolbar,
@@ -142,6 +164,72 @@ object, and a group or brush entity moves as a whole.
 Each command is one undo step and moves by exact amounts, so the results are not snapped to the grid. If the objects
 already line up, the status bar says so and nothing changes. Objects that overlap along the axis end up with the same
 overlap between each pair.
+
+## Mirror
+
+For a symmetric building, a pair of windows or a left and a right wing, build one half and let the editor keep the other
+half as its reflection. **Mirror Linked** copies the selection as a [linked copy](organizing.md#groups) flipped across a
+plane, so a change in either half shows up in both.
+
+1. Select what you built. A selected group is mirrored as it is, and anything else you selected is wrapped in a group
+    named *Mirrored* first.
+2. Open the **Transform** section of the Inspector and look at **Mirror Plane**. It decides where the plane sits, see
+    the table below. The default is **max side**, which puts the plane on the selection's edge so the halves meet.
+3. Click **Mirror Linked X**, **Mirror Linked Y** or **Mirror Linked Z**, the axis the plane stands across. The mirrored
+    copy is selected afterwards, and the status bar says where the plane went.
+
+![The Transform section of the Inspector with the Mirror Plane menu open](../assets/brushes/mirror-inspector.png)
+
+You can also use *Brush > Transform*, where the three **Mirror Linked** items sit below the **Flip** ones and the
+**Mirror Plane** submenu holds the same choices as radio buttons.
+
+![The Brush menu with Transform open, showing Mirror Linked X, Y and Z, Apply Mirror and the Mirror Plane submenu](../assets/brushes/mirror-menu.png)
+
+| Mirror Plane | Where the plane goes |
+| --- | --- |
+| **selection center** | Through the middle of the selection. The copy lands on top of it, so use this for something that sits across the plane already |
+| **max side** | On the side of the selection with the larger coordinate. The copy sits beside it and the halves meet |
+| **min side** | The same on the side with the smaller coordinate |
+| **world origin** | Through 0 on the axis, however far away the selection is |
+| **custom** | At the position you type next to the menu, in map units (32 per meter) |
+
+The setting is shared by every map tab and is not saved, it starts at **max side** again when you launch the editor.
+
+While a half of a mirrored pair is selected, the views draw the plane as an outline in the color of its axis, red for
+X, green for Y and blue for Z, and the Inspector says *Mirror plane X at 128 u*. Move one half and the outline moves
+with it, it stays halfway between the halves as in the picture below. Rotate it so it is no longer a plain mirror, and
+the outline goes away.
+
+![The 3D view with the halves of a mirrored wedge pair pulled apart, a red outline marks the plane halfway between them](../assets/brushes/mirror-plane.png)
+
+You edit as in any linked group, and the other half follows when you finish the edit, for example when you let go of a
+drag. That includes moved vertices, resized brushes and face materials, all mirrored, with the faces still pointing
+outwards and the textures mirrored too.
+
+When the design is done, select either half and click **Apply Mirror** (below the Mirror Linked buttons in the
+Inspector, and in *Brush > Transform*, where it is greyed out until a mirrored pair is selected). It turns the pair into plain geometry in one undo step, with the link gone.
+
+* Brushes whose two halves form one convex shape are joined into a single brush.
+* Meshes are joined and their seam is welded, so a closed shape stays closed. Vertices within half a unit of the plane
+  count as part of the seam. Only the seam is welded, so mesh halves should meet at the plane rather than overlap, or
+  the overlapping part stays doubled.
+* Everything else, such as a brush pair that would not be convex together, stays as separate plain brushes in one group.
+
+The result stays in the group of the first half, *Mirrored* when the editor made it, and *Edit > Groups > Ungroup*
+takes it out. The halves have to meet. If they do not, the status bar tells you so and nothing changes, and
+*Edit > Groups > Unlink Groups* is the way to keep both halves as separate plain copies instead.
+
+> [!NOTE]
+> Mirror Linked flips everything the way **Flip** does. A terrain mirrors across X and Z, and across Y it stays upright
+> instead of turning upside down. An entity mirrors its angles, and Terrain3D nodes are skipped.
+
+<div class="td-mcp" markdown>
+
+The MCP action `mirror_linked` takes `axis`, `plane` (center, max, min, world or custom) and `at`, and `apply_mirror`
+takes `distance`, the weld tolerance in units. `get_state` lists the planes of the selection as `mirror_planes`, and
+`set_editor` takes `edit_symmetry` for the Vertex tool.
+
+</div>
 
 ## Shear
 

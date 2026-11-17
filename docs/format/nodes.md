@@ -65,12 +65,15 @@ Nodes gathered so you select and move them together.
 | Key | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | `name` | string | required | Name shown in the Outliner |
-| `link_id` | integer | omitted | Groups sharing a link id are linked copies, made with *Duplicate Linked* |
+| `link_id` | integer | omitted | Groups sharing a link id are linked copies, made with *Duplicate Linked* or *Mirror Linked* |
 | `transform` | 16 numbers | identity, omitted | This copy's placement relative to the others, a 4x4 matrix in column major order |
 
 Group contents are stored in world space, already in place. A [linked copy](../editor/organizing.md#groups) repeats an
 edit made in one copy in all the others, and `transform` is just what the editor uses to carry the edit from one copy
 to the next. The Godot build ignores both `transform` and `link_id`.
+
+A copy made with *Mirror Linked* has a `transform` that is a mirror, its upper left 3x3 part has a determinant of -1. An
+older release reads and syncs it like any other linked copy, so a map with a mirrored pair needs no format change.
 
 ## Entity
 

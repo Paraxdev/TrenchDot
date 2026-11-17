@@ -79,7 +79,8 @@ When you drag a selected row, the whole selection moves with it.
 
 **Duplicate Linked** (Ctrl+Shift+D) makes a copy that stays in sync with its original, so fixing one window frame fixes
 all of them. Linked copies show *(linked)* in the Outliner, and a click on one selects the whole group, since its copies
-are edited as one. *Edit > Groups > Unlink Groups* breaks the link when one copy has to differ.
+are edited as one. *Edit > Groups > Unlink Groups* breaks the link when one copy has to differ. A linked copy can also be a reflection of its original, see
+[Mirror](brushes.md#mirror).
 
 ## Array copies
 
