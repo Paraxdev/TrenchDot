@@ -4323,6 +4323,7 @@ fn dialogs_open_in_the_middle_of_the_window() {
     let titles = ["Shape Generator", "Find and Replace", "Keyboard Shortcuts"];
     for title in titles {
         ed.input("window", json!([{ "type": "key", "key": "F1" }, { "type": "text", "text": title.to_lowercase() }, { "type": "key", "key": "Enter" }]));
+        wait_state(&ed, title, |s| s["ui"]["windows"].as_array().is_some_and(|w| w.iter().any(|w| w["title"] == title)));
     }
 
     std::thread::sleep(Duration::from_millis(500));
