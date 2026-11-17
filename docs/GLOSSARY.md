@@ -108,6 +108,9 @@ A point in open space that stores the light arriving from every direction. Movin
 ## LightmapGI
 The Godot node that draws a light map and its light probes. A map built from a baked .tdm gets one named baked_lighting.
 
+## linked copy
+A copy of a group that stays in sync with its original, so an edit to either one shows in both. Duplicate Linked makes one, and Mirror Linked makes one that is also a reflection, see Mirror in the brushes page.
+
 ## Lit Preview
 A shading mode of the editor's 3D view, toggled with F3, that shows the map's lights, sun shadows, sky and fog. Good for judging lighting before you build in Godot, but it only draws the 64 strongest point and spot lights.
 
@@ -128,6 +131,9 @@ A FuncGodotMapSettings resource that says where textures, materials and entity d
 
 ## MCP
 Model Context Protocol, a standard way for AI agents and scripts to call a program's tools. The editor can run an MCP server so an agent can inspect and edit maps. You don't need it to build levels, and these docs hide the MCP parts until you turn on the MCP switch in the header.
+
+## mirror plane
+The flat plane across which a linked copy is reflected, and the plane the Vertex and Mesh tools use to move matching vertices together. It stands across one axis, X, Y or Z, at a position along it, and the views draw it as an outline in that axis color.
 
 ## MultiMeshes
 Godot's way of drawing many copies of one mesh in a single pass. Scattered trees, rocks and grass are built as MultiMeshes, which keeps thousands of them cheap to render.
