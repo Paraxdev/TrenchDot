@@ -3,7 +3,7 @@
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use serde::{Deserialize, Serialize};
-use td_core::{Aabb, DMat4, DVec2, DVec3, Plane, Ray};
+use td_core::{Aabb, AxisPlane, DMat4, DVec2, DVec3, Plane, Ray};
 
 use crate::brush::{Brush, BrushError, FaceData};
 use crate::polygon;
@@ -564,6 +564,62 @@ impl Mesh {
     pub fn weld(&mut self, eps: f64) -> usize {
         let all: Vec<u32> = (0..self.vertices.len() as u32).collect();
         self.merge_by_distance(&all, eps)
+    }
+
+    /// Joins a half and its mirror image along the plane: vertices within `dist` of it are snapped onto it, the ones
+    /// that then coincide are merged and the back-to-back caps left on it are removed. Unlike [`Mesh::weld`] it
+    /// leaves close vertices away from the plane alone. Returns how many vertices were removed.
+    pub fn weld_seam(&mut self, plane: AxisPlane, dist: f64) -> usize {
+        let before = self.vertices.len();
+        let mut seam = Vec::new();
+        for (i, v) in self.vertices.iter_mut().enumerate() {
+            if plane.distance(*v).abs() <= dist {
+                v[plane.axis] = plane.at;
+                seam.push(i as u32);
+            }
+        }
+
+        if seam.is_empty() {
+            return 0;
+        }
+
+        self.merge_by_distance(&seam, WELD);
+        self.remove_back_to_back_faces(plane);
+        before - self.vertices.len()
+    }
+
+    /// Removes pairs of faces lying exactly on the plane that share their vertices with opposite winding. A
+    /// double-sided sheet anywhere else is kept.
+    fn remove_back_to_back_faces(&mut self, plane: AxisPlane) {
+        let mut by_corners: BTreeMap<Vec<u32>, Vec<usize>> = BTreeMap::new();
+        for (fi, f) in self.faces.iter().enumerate() {
+            if f.indices.iter().all(|v| self.vertices.get(*v as usize).is_some_and(|p| p[plane.axis] == plane.at)) {
+                let mut corners = f.indices.clone();
+                corners.sort_unstable();
+                by_corners.entry(corners).or_default().push(fi);
+            }
+        }
+
+        let reversed = |a: &[u32], b: &[u32]| {
+            let n = a.len();
+            n == b.len() && b.iter().position(|v| *v == a[0]).is_some_and(|k| (0..n).all(|i| b[(k + n - i) % n] == a[i]))
+        };
+        let mut gone: BTreeSet<usize> = BTreeSet::new();
+        for faces in by_corners.values() {
+            for (k, &a) in faces.iter().enumerate() {
+                if gone.contains(&a) {
+                    continue;
+                }
+
+                if let Some(&b) = faces[k + 1..].iter().find(|b| !gone.contains(*b) && reversed(&self.faces[a].indices, &self.faces[**b].indices)) {
+                    gone.extend([a, b]);
+                }
+            }
+        }
+
+        if !gone.is_empty() {
+            self.delete_faces(&gone.into_iter().collect::<Vec<_>>());
+        }
     }
 
     /// Closed and every vertex behind every face plane.
@@ -1828,5 +1884,135 @@ mod tests {
         let json = serde_json::to_string(&m).unwrap();
         let back: Mesh = serde_json::from_str(&json).unwrap();
         assert_eq!(m, back);
+    }
+
+    const SEAM: AxisPlane = AxisPlane { axis: 0, at: 96.0 };
+
+    /// A box from (40, 16, -24) to `max` whose top rises to 100 at the end near `SEAM`.
+    fn hut(max: DVec3) -> Mesh {
+        let mut m = Mesh::from_brush(&Brush::from_aabb(&Aabb::new(DVec3::new(40.0, 16.0, -24.0), max), "m").unwrap());
+        for v in &mut m.vertices {
+            if v.x > 90.0 && v.y > 70.0 {
+                v.y = 100.0;
+            }
+        }
+
+        m
+    }
+
+    fn half_hut(gap: f64) -> Mesh {
+        hut(DVec3::new(96.0 - gap, 80.0, 40.0))
+    }
+
+    fn with_mirror(half: &Mesh, plane: AxisPlane) -> Mesh {
+        let mut m = half.clone();
+        m.join(&half.transformed(&plane.matrix(), true));
+        m
+    }
+
+    fn sorted(mut points: Vec<DVec3>) -> Vec<DVec3> {
+        points.sort_by(|a, b| a.to_array().partial_cmp(&b.to_array()).unwrap());
+        points
+    }
+
+    /// The corners of a welded hut, split at the given x and z.
+    fn hut_corners(xs: &[f64], zs: &[f64]) -> Vec<DVec3> {
+        let top = |x: f64| if x == SEAM.at { 100.0 } else { 80.0 };
+        sorted(xs.iter().flat_map(|x| zs.iter().flat_map(move |z| [DVec3::new(*x, 16.0, *z), DVec3::new(*x, top(*x), *z)])).collect())
+    }
+
+    fn faces_on(m: &Mesh, plane: AxisPlane) -> usize {
+        (0..m.faces.len()).filter(|fi| m.face_points(*fi).iter().all(|p| plane.distance(*p).abs() < 1e-9)).count()
+    }
+
+    const HUT_VOLUME: f64 = 2.0 * 56.0 * 74.0 * 64.0;
+
+    #[test]
+    fn weld_seam_joins_capped_and_open_halves_into_one_closed_mesh() {
+        for capped in [true, false] {
+            let mut half = half_hut(0.0);
+            if !capped {
+                let cap = (0..half.faces.len()).find(|fi| half.face_normal(*fi).x > 0.9).unwrap();
+                half.delete_faces(&[cap]);
+            }
+
+            let mut m = with_mirror(&half, SEAM);
+            assert_eq!(m.weld_seam(SEAM, 0.5), 4, "capped {capped}");
+            assert!(m.is_closed(), "capped {capped}");
+            assert_eq!(m.faces.len(), 10);
+            assert_eq!(faces_on(&m, SEAM), 0);
+            assert_eq!(sorted(m.vertices.clone()), hut_corners(&[40.0, 96.0, 152.0], &[-24.0, 40.0]));
+            assert!((m.volume() - HUT_VOLUME).abs() < 1e-6, "{}", m.volume());
+        }
+    }
+
+    #[test]
+    fn weld_seam_reaches_exactly_the_distance() {
+        for (gap, dist) in [(0.0, 0.0), (0.49, 0.5), (0.5, 0.5)] {
+            let mut m = with_mirror(&half_hut(gap), SEAM);
+            assert_eq!(m.weld_seam(SEAM, dist), 4, "gap {gap}, distance {dist}");
+            assert!(m.is_closed(), "gap {gap}, distance {dist}");
+            assert_eq!(m.faces.len(), 10);
+            assert_eq!(sorted(m.vertices.clone()), hut_corners(&[40.0, 96.0, 152.0], &[-24.0, 40.0]));
+        }
+
+        for (gap, dist) in [(0.51, 0.5), (0.5, 0.49), (0.5, 0.0)] {
+            let before = with_mirror(&half_hut(gap), SEAM);
+            let mut m = before.clone();
+            assert_eq!(m.weld_seam(SEAM, dist), 0, "gap {gap}, distance {dist}");
+            assert_eq!(m, before, "gap {gap}, distance {dist}");
+        }
+
+        let mut empty = Mesh::default();
+        assert_eq!(empty.weld_seam(SEAM, 0.5), 0);
+        assert_eq!(empty, Mesh::default());
+    }
+
+    #[test]
+    fn weld_seam_merges_a_single_touching_tip() {
+        let corners = [DVec3::new(40.0, 16.0, -24.0), DVec3::new(40.0, 80.0, -24.0), DVec3::new(40.0, 16.0, 40.0), DVec3::new(95.7, 40.0, 8.0)];
+        let mut m = with_mirror(&Mesh::from_brush(&Brush::from_points(&corners, &[], "m").unwrap()), SEAM);
+        assert_eq!(m.weld_seam(SEAM, 0.5), 1);
+        assert_eq!(m.faces.len(), 8);
+        let tips = m.vertices.iter().filter(|v| v.x > 90.0 && v.x < 100.0).collect::<Vec<_>>();
+        assert_eq!(tips, [&DVec3::new(96.0, 40.0, 8.0)]);
+        assert_eq!(m.vertices.len(), 7);
+    }
+
+    #[test]
+    fn weld_seam_only_removes_back_to_back_faces_on_the_plane() {
+        let mut m = with_mirror(&half_hut(0.0), SEAM);
+        let sheet = |m: &mut Mesh, corners: [DVec3; 4], windings: &[[u32; 4]]| {
+            let base = m.vertices.len() as u32;
+            m.vertices.extend(corners);
+            for w in windings {
+                m.faces.push(MeshFace::new(w.iter().map(|i| base + i).collect(), FaceData::with_normal("sheet", DVec3::Y)));
+            }
+        };
+        let off = [DVec3::new(120.0, 200.0, 0.0), DVec3::new(140.0, 200.0, 0.0), DVec3::new(140.0, 200.0, 20.0), DVec3::new(120.0, 200.0, 20.0)];
+        sheet(&mut m, off, &[[0, 1, 2, 3], [3, 2, 1, 0]]);
+        // Two faces wound the same way and one against them: only one pair goes.
+        let on = [DVec3::new(96.0, 200.0, 0.0), DVec3::new(96.0, 230.0, 0.0), DVec3::new(96.0, 230.0, 20.0), DVec3::new(96.0, 200.0, 20.0)];
+        sheet(&mut m, on, &[[0, 1, 2, 3], [1, 2, 3, 0], [3, 2, 1, 0]]);
+
+        assert_eq!(m.weld_seam(SEAM, 0.5), 4);
+        assert_eq!(m.faces.iter().filter(|f| f.data.material == "m").count(), 10);
+        assert_eq!(m.faces.iter().filter(|f| f.data.material == "sheet").count(), 3);
+        assert_eq!(faces_on(&m, SEAM), 1);
+        assert_eq!(m.vertices.len(), 20);
+    }
+
+    #[test]
+    fn weld_seam_welds_quarters_on_both_planes() {
+        let along_z = AxisPlane { axis: 2, at: 8.0 };
+        let mut half = with_mirror(&hut(DVec3::new(96.0, 80.0, 8.0)), SEAM);
+        assert_eq!(half.weld_seam(SEAM, 0.5), 4);
+        let mut whole = with_mirror(&half, along_z);
+        assert_eq!(whole.weld_seam(along_z, 0.5), 6);
+        assert!(whole.is_closed());
+        assert_eq!(whole.faces.len(), 16);
+        assert_eq!((faces_on(&whole, SEAM), faces_on(&whole, along_z)), (0, 0));
+        assert_eq!(sorted(whole.vertices.clone()), hut_corners(&[40.0, 96.0, 152.0], &[-24.0, 8.0, 40.0]));
+        assert!((whole.volume() - HUT_VOLUME).abs() < 1e-6, "{}", whole.volume());
     }
 }
