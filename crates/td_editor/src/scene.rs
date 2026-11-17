@@ -1445,8 +1445,7 @@ const SHADOW_REACH: f64 = 3200.0;
 /// What the sun shadow map fits: the map's layers and the regions of every shown Terrain3D node, which the map's own
 /// bounds leave out.
 fn shadow_bounds(state: &EditorState) -> Aabb {
-    let map = &state.doc.map;
-    state.terrain3d_residency.layouts.keys().fold(map.bounds_of(map.layers.iter().copied()), |all, id| all.union(&state.terrain3d_bounds(*id)))
+    state.bounds_of(state.doc.map.layers.iter().copied())
 }
 
 /// The box the sun shadow map covers: [`SHADOW_REACH`] across x and z around `focus` pulled into `bounds`, no wider than

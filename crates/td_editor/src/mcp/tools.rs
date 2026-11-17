@@ -1141,7 +1141,9 @@ impl App {
                 }
 
                 if args["compact"].as_bool().unwrap_or(false) {
-                    return ok(super::review_tools::compact_node(&self.state.doc.map, id));
+                    let mut v = super::review_tools::compact_node(&self.state.doc.map, id);
+                    v["bounds"] = bounds_json(&self.state.bounds_of([id]));
+                    return ok(v);
                 }
 
                 let text = format::nodes_to_string(&self.state.doc.map, &[id]);
@@ -1368,7 +1370,7 @@ impl App {
             "selection": {
                 "nodes": sel.nodes.iter().map(|i| i.0).collect::<Vec<_>>(),
                 "faces": sel.faces.iter().map(|(i, f)| json!([i.0, f])).collect::<Vec<_>>(),
-                "bounds": bounds_json(&map.bounds_of(sel.nodes.iter().copied())),
+                "bounds": bounds_json(&s.bounds_of(sel.nodes.iter().copied())),
             },
             "editor": {
                 "tool": s.tool.label(), "grid": s.grid, "snap": s.snap, "uv_lock": s.uv_lock, "material": s.current_material,
@@ -1465,7 +1467,7 @@ impl App {
             }
 
             let resolved = self.state.instance_bounds.get(&id).or_else(|| self.state.model_bounds.get(&id));
-            let bounds = resolved.copied().unwrap_or_else(|| map.bounds(id));
+            let bounds = resolved.copied().unwrap_or_else(|| self.state.bounds_of([id]));
             if !filter.matches(map, id, &bounds) {
                 continue;
             }

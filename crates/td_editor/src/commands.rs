@@ -1079,7 +1079,7 @@ pub(crate) fn selection_bounds(state: &EditorState) -> Aabb {
         return b;
     }
 
-    map.bounds_of(state.doc.selection.nodes.iter().copied())
+    state.bounds_of(state.doc.selection.nodes.iter().copied())
 }
 
 /// The folder file dialogs start in: the current map's, else the Godot project's, since maps have to live inside it.
@@ -1927,7 +1927,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         }
         Action::FocusSelection => {
             let b = selection_bounds(state);
-            state.focus_request = Some(if b.is_empty() { state.doc.map.bounds_of(state.doc.map.layers.clone()) } else { b });
+            state.focus_request = Some(if b.is_empty() { state.bounds_of(state.doc.map.layers.clone()) } else { b });
         }
         Action::CreateBrushEntity(classname) => {
             edit_or(state, "Create Brush Entity", msg!("Select brushes first"), |m, s| ops::create_brush_entity(m, s, &classname, parent));

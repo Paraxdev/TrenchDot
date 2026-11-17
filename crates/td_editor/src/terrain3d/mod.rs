@@ -461,6 +461,22 @@ impl EditorState {
     pub fn terrain3d_bounds(&self, id: NodeId) -> Aabb {
         self.terrain3d_boxes(id).iter().fold(Aabb::EMPTY, |all, b| all.union(b))
     }
+
+    /// `Map::bounds_of` plus the regions of every shown Terrain3D node in or under `ids`, which the map cannot know.
+    pub fn bounds_of(&self, ids: impl IntoIterator<Item = NodeId>) -> Aabb {
+        let map = &self.doc.map;
+        let mut b = Aabb::EMPTY;
+        for id in ids {
+            b.include(&map.bounds(id));
+            for node in std::iter::once(id).chain(map.descendants(id)) {
+                if matches!(map.get(node).map(|n| &n.kind), Some(NodeKind::Terrain3D(_))) {
+                    b.include(&self.terrain3d_bounds(node));
+                }
+            }
+        }
+
+        b
+    }
 }
 
 fn links_in(map: &td_doc::Map, root: &Path) -> Vec<(NodeId, PathBuf)> {
@@ -599,6 +615,31 @@ mod tests {
             assert!(start.elapsed().as_secs() < 20, "the regions did not load");
             std::thread::sleep(Duration::from_millis(5));
         }
+    }
+
+    #[test]
+    fn bounds_of_frames_a_terrain3d_node_alone_and_inside_a_group() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, _) = state_over(dir.path(), &[L, M]);
+        update_until(&mut state, |s| s.terrain3d_boxes(id).len() == 2);
+        let b = state.bounds_of([id]);
+        assert_eq!((b.min.x, b.max.x, b.min.z, b.max.z), (5120.0, 15360.0, -5120.0, 0.0), "{b:?}");
+        assert_eq!(state.doc.map.bounds_of([id]), Aabb::EMPTY, "the map alone does not know the regions");
+
+        let layer = state.doc.map.default_layer();
+        let cube = td_geom::Brush::from_aabb(&Aabb::new(DVec3::new(-640.0, 0.0, 0.0), DVec3::new(-576.0, 64.0, 64.0)), "m").unwrap();
+        let brush = state.doc.map.insert(layer, NodeKind::Brush(cube));
+        let group = state.doc.map.insert(layer, NodeKind::Group(td_doc::Group::new("g")));
+        state.doc.map.reparent(id, group);
+        let with_brush = state.bounds_of([brush, group]);
+        assert_eq!((with_brush.min.x, with_brush.max.x), (-640.0, 15360.0), "{with_brush:?}");
+        assert_eq!(state.bounds_of([brush]).max.x, -576.0, "a brush alone stays its own");
+        assert_eq!(state.bounds_of(Vec::new()), Aabb::EMPTY);
+
+        state.doc.selection.clear();
+        state.doc.selection.select_node(brush);
+        state.doc.selection.select_node(group);
+        assert_eq!(crate::commands::selection_bounds(&state), with_brush, "Focus Selection frames the same box");
     }
 
     #[test]
