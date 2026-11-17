@@ -453,6 +453,7 @@ static func _test_material(t) -> void:
 		&"world_noise_lod_distance": 9000.0, &"world_noise_max_octaves": 9, &"world_noise_min_octaves": 3,
 		&"world_noise_fragment_normals": true, &"auto_slope": 2.5, &"auto_height_reduction": 0.375,
 		&"auto_base_texture": 3, &"auto_overlay_texture": 5, &"blend_sharpness": 0.875,
+		&"dual_scale_texture": 4, &"dual_scale_reduction": 0.125, &"dual_scale_near": 40.5, &"dual_scale_far": 250.0,
 	}
 	for param: StringName in params:
 		material.call(&"set_shader_param", param, params[param])
@@ -468,6 +469,7 @@ static func _test_material(t) -> void:
 		"world_noise": { "scale": 7.25, "height": -64.5, "offset": [12.5, -3.0, 0.75], "lod_distance": 9000.0, "max_octaves": 9, "min_octaves": 3, "fragment_normals": true },
 		"auto": { "slope": 2.5, "height_reduction": 0.375, "base_texture": 3, "overlay_texture": 5 },
 		"blend_sharpness": 0.875, "dual_scaling": true, "macro_variation": true, "projection": true,
+		"dual_scale": { "texture": 4, "reduction": 0.125, "near": 40.5, "far": 250.0 },
 	}
 	var got: Dictionary = m.get("material", {})
 	t.check(_same_values(got, expected), "a noise background exports its noise, auto shader and blend values, got %s" % [got])
@@ -485,6 +487,7 @@ static func _test_material(t) -> void:
 	t.check(_ints(got.get("world_background")) == 0 and got.get("auto_shader") == false and got.get("projection") == false, "no background writes the mode, got %s" % [got])
 	t.check(_same_values(got, { "world_noise": { "scale": 5.0, "height": 32.0, "offset": [0.0, 0.0, 0.0], "lod_distance": 7500.0, "max_octaves": 4, "min_octaves": 2, "fragment_normals": false } }), "and the shader's noise defaults, got %s" % [got.get("world_noise")])
 	t.check(_same_values(got, { "auto": { "slope": 1.0, "height_reduction": 0.1, "base_texture": 0, "overlay_texture": 1 } }) and t.near(got.get("blend_sharpness", -1.0), 0.5), "and the shader's auto shader and blend defaults, got %s" % [got])
+	t.check(_same_values(got, { "dual_scale": { "texture": 0, "reduction": 0.3, "near": 100.0, "far": 170.0 } }), "and the shader's dual scaling defaults, got %s" % [got.get("dual_scale")])
 	terrain.free()
 
 ## Whether dictionary [param got] has the keys of [param expected] with the same values, numbers within a little.
