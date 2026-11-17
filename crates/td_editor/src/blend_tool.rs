@@ -129,6 +129,9 @@ pub fn set_blend_tiling(state: &mut EditorState, detile: f64, uv_scale: f64, sha
     state.doc.edit("Blend Tiling", |m, _| blend::set_blend_options(m, &faces, detile, uv_scale, sharpen))
 }
 
+/// The brush ring color in linear space.
+pub const RING_COLOR: [f32; 4] = [0.95, 0.6, 1.0, 0.95];
+
 #[derive(Default)]
 pub struct BlendTool {
     pub hover: Option<(DVec3, DVec3)>,
@@ -213,7 +216,7 @@ impl BlendTool {
         let Some((p, n)) = self.hover else { return };
         let r = state.blend.radius;
         let basis = Plane::from_point_normal(p, n).basis();
-        let color = [0.95, 0.6, 1.0, 0.95];
+        let color = RING_COLOR;
         let ring = |scale: f64| -> Vec<DVec3> {
             (0..=48)
                 .map(|i| {

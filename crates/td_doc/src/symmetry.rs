@@ -68,8 +68,12 @@ impl Symmetry {
             return self.planes(DVec3::ZERO);
         }
 
-        let bounds = Aabb::from_points(faces.iter().flat_map(|(id, face)| face_points(map, *id, *face)));
-        if bounds.is_empty() { Mirror::NONE } else { self.planes(bounds.center()) }
+        self.for_bounds(&faces_bounds(map, faces))
+    }
+
+    /// [`Symmetry::for_faces`] for faces whose [`faces_bounds`] are already known.
+    pub fn for_bounds(&self, bounds: &Aabb) -> Mirror {
+        if self.center == SymmetryCenter::Terrain && bounds.is_empty() { Mirror::NONE } else { self.planes(bounds.center()) }
     }
 
     fn planes(&self, middle: DVec3) -> Mirror {
@@ -80,6 +84,11 @@ impl Symmetry {
         };
         Mirror { x: self.axes.x().then_some(at.x), z: self.axes.z().then_some(at.z) }
     }
+}
+
+/// The box around the corners of `faces`, empty without any.
+pub fn faces_bounds(map: &Map, faces: &[(NodeId, usize)]) -> Aabb {
+    Aabb::from_points(faces.iter().flat_map(|(id, face)| face_points(map, *id, *face)))
 }
 
 fn face_points(map: &Map, id: NodeId, face: usize) -> Vec<DVec3> {
@@ -151,6 +160,18 @@ mod tests {
         assert_eq!(symmetry(SymmetryAxes::Off, SymmetryCenter::Terrain).for_faces(&m, &both), Mirror::NONE);
         assert_eq!(symmetry(SymmetryAxes::Xz, SymmetryCenter::World).for_faces(&m, &[]), Mirror { x: Some(0.0), z: Some(0.0) });
         assert_eq!(symmetry(SymmetryAxes::X, SymmetryCenter::Custom).for_faces(&m, &both), Mirror { x: Some(300.25), z: None });
+
+        let sets: [&[(NodeId, usize)]; 4] = [&both, &both[..1], &mesh_and_stale, &[]];
+        for s in [
+            xz,
+            symmetry(SymmetryAxes::Off, SymmetryCenter::Terrain),
+            symmetry(SymmetryAxes::Z, SymmetryCenter::World),
+            symmetry(SymmetryAxes::X, SymmetryCenter::Custom),
+        ] {
+            for faces in sets {
+                assert_eq!(s.for_bounds(&faces_bounds(&m, faces)), s.for_faces(&m, faces), "{s:?} {faces:?}");
+            }
+        }
     }
 
     #[test]

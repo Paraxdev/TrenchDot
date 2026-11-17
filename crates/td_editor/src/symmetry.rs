@@ -1,12 +1,21 @@
 //! The symmetry controls of the Sculpt and Blend options bars.
 
 use egui::Ui;
-use td_core::NodeId;
-use td_doc::symmetry::{Symmetry, SymmetryAxes, SymmetryCenter};
+use td_core::{Aabb, DVec3, Mirror, NodeId, Plane};
+use td_doc::symmetry::{Symmetry, SymmetryAxes, SymmetryCenter, faces_bounds};
+use td_geom::Terrain;
+use td_render::LineVertex;
 
 use crate::blend_tool::{self, StrokeScope};
 use crate::i18n::{en, tr};
+use crate::scene::v3;
 use crate::state::EditorState;
+use crate::{theme, toolset};
+
+/// How far a plane rectangle reaches above and below what it mirrors, one meter.
+const PLANE_MARGIN: f64 = 32.0;
+const GROUND_SEGMENTS: u32 = 256;
+const RING_SEGMENTS: usize = 40;
 
 fn axes_name(axes: SymmetryAxes) -> &'static str {
     match axes {
@@ -104,4 +113,132 @@ pub fn options(ui: &mut Ui, state: &mut EditorState, blend: bool) {
     }
 
     state.symmetry = s;
+}
+
+/// What one dab edits: the mirror its planes resolve to and the footprint it covers.
+struct Target<'a> {
+    mirror: Mirror,
+    bounds: Aabb,
+    terrain: Option<&'a Terrain>,
+}
+
+fn targets(state: &EditorState, blend: bool) -> Vec<Target<'_>> {
+    let map = &state.doc.map;
+    let (terrains, faces) = edited(state, blend);
+    let mut out: Vec<Target> = terrains
+        .iter()
+        .filter_map(|id| map.terrain(*id))
+        .map(|t| Target { mirror: state.symmetry.for_terrain(t), bounds: t.bounds(), terrain: Some(t) })
+        .collect();
+    let bounds = faces_bounds(map, &faces);
+    if !bounds.is_empty() {
+        out.push(Target { mirror: state.symmetry.for_bounds(&bounds), bounds, terrain: None });
+    }
+
+    out
+}
+
+fn plane_color(axis: usize) -> [f32; 4] {
+    let [r, g, b, _] = theme::linear(theme::VIEW.axis()[axis]);
+    [r as f32, g as f32, b as f32, 0.9]
+}
+
+fn segment(out: &mut Vec<LineVertex>, a: DVec3, b: DVec3, color: [f32; 4]) {
+    out.push(LineVertex { pos: v3(a), color });
+    out.push(LineVertex { pos: v3(b), color });
+}
+
+/// The plane at `at` on `axis` (0 is x, 2 is z) as a rectangle over the target, and for a terrain the line where it
+/// meets the ground.
+fn plane_lines(target: &Target, axis: usize, at: f64, out: &mut Vec<LineVertex>) {
+    let color = plane_color(axis);
+    let along = 2 - axis;
+    let (lo, hi) = (target.bounds.min[along], target.bounds.max[along]);
+    let point = |a: f64, y: f64| {
+        let mut p = DVec3::new(0.0, y, 0.0);
+        p[axis] = at;
+        p[along] = a;
+        p
+    };
+    let (low, high) = (target.bounds.min.y - PLANE_MARGIN, target.bounds.max.y + PLANE_MARGIN);
+    let corners = [point(lo, low), point(hi, low), point(hi, high), point(lo, high)];
+    for i in 0..4 {
+        segment(out, corners[i], corners[(i + 1) % 4], color);
+    }
+
+    let Some(terrain) = target.terrain else { return };
+    let n = terrain.cells()[along / 2].clamp(1, GROUND_SEGMENTS);
+    let ground = |i: u32| {
+        let a = lo + (hi - lo) * i as f64 / n as f64;
+        let p = point(a, 0.0);
+        terrain.height_at(p.x, p.z).map(|y| point(a, y))
+    };
+    let mut prev = ground(0);
+    for i in 1..=n {
+        let next = ground(i);
+        if let (Some(a), Some(b)) = (prev, next) {
+            segment(out, a, b, color);
+        }
+
+        prev = next;
+    }
+}
+
+/// Where the brush at `hover` would also dab: its mirror through each target it is over, when that lands within brush
+/// reach of any target. Each spot is a center and the mirrored surface normal.
+fn mirrored_spots(targets: &[Target], hover: (DVec3, DVec3), radius: f64) -> Vec<(DVec3, DVec3)> {
+    let reaches = |t: &Target, p: DVec3| {
+        (t.bounds.min.x - radius..=t.bounds.max.x + radius).contains(&p.x) && (t.bounds.min.z - radius..=t.bounds.max.z + radius).contains(&p.z)
+    };
+    let (p, normal) = hover;
+    let mut out: Vec<(DVec3, DVec3)> = Vec::new();
+    for target in targets.iter().filter(|t| reaches(t, p)) {
+        for fold in target.mirror.folds().filter(|f| !f.is_identity()) {
+            let mut spot = fold.point(p);
+            if (spot.x - p.x).hypot(spot.z - p.z) < 1e-6 || !targets.iter().any(|t| reaches(t, spot)) {
+                continue;
+            }
+
+            if let Some(y) = targets.iter().find_map(|t| t.terrain?.height_at(spot.x, spot.z)) {
+                spot.y = y;
+            }
+
+            if !out.iter().any(|(q, _)| (q.x - spot.x).hypot(q.z - spot.z) < 1e-6) {
+                out.push((spot, fold.vector(normal)));
+            }
+        }
+    }
+
+    out
+}
+
+/// The mirror planes of the Sculpt or Blend tool over everything it edits, and a dimmer brush ring at each mirrored
+/// spot of `hover`. Draws nothing with symmetry off.
+pub fn lines(state: &EditorState, blend: bool, hover: Option<(DVec3, DVec3)>, out: &mut Vec<LineVertex>) {
+    if state.symmetry.is_off() {
+        return;
+    }
+
+    let targets = targets(state, blend);
+    for target in &targets {
+        for (axis, at) in [(0, target.mirror.x), (2, target.mirror.z)] {
+            if let Some(at) = at {
+                plane_lines(target, axis, at, out);
+            }
+        }
+    }
+
+    let Some(hover) = hover else { return };
+    let (radius, mut color) = if blend { (state.blend.radius, blend_tool::RING_COLOR) } else { (state.sculpt.radius, toolset::SCULPT_RING_COLOR) };
+    color[3] *= 0.5;
+    for (center, normal) in mirrored_spots(&targets, hover, radius) {
+        let basis = Plane::from_point_normal(center, normal).basis();
+        let ring = |i: usize| {
+            let a = std::f64::consts::TAU * i as f64 / RING_SEGMENTS as f64;
+            center + (basis.0 * a.cos() + basis.1 * a.sin()) * radius + normal * 0.5
+        };
+        for i in 0..RING_SEGMENTS {
+            segment(out, ring(i), ring(i + 1), color);
+        }
+    }
 }

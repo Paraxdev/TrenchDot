@@ -180,6 +180,9 @@ struct ShearDrag {
 /// Pixels from a side in a 2D view that still picks it.
 const SHEAR_PICK_PIXELS: f32 = 10.0;
 
+/// The Sculpt brush ring color in linear space.
+pub const SCULPT_RING_COLOR: [f32; 4] = [0.4, 1.0, 0.6, 0.9];
+
 #[derive(Default)]
 pub struct BrushStrokeTool {
     /// Surface point and normal under the cursor.
@@ -1257,7 +1260,10 @@ impl ToolSet {
             }
             ToolKind::Mesh => out.extend(self.mesh.lines(cam, rect, state)),
             ToolKind::Scatter => self.scatter.lines(state, &mut out),
-            ToolKind::Blend => self.blend.lines(state, &mut out),
+            ToolKind::Blend => {
+                self.blend.lines(state, &mut out);
+                crate::symmetry::lines(state, true, self.blend.hover, &mut out);
+            }
             ToolKind::Volume => self.volume.lines(state, cam, &mut out),
             ToolKind::Measure => self.measure.lines(&mut out),
             ToolKind::Texture => out.extend(self.texture.lines(state)),
@@ -1265,7 +1271,7 @@ impl ToolSet {
                 if let Some((p, n)) = self.stroke.hover {
                     let basis = Plane::from_point_normal(p, n).basis();
                     let r = state.sculpt.radius;
-                    let color = if state.tool == ToolKind::Sculpt { [0.4, 1.0, 0.6, 0.9] } else { [1.0, 0.6, 0.9, 0.9] };
+                    let color = if state.tool == ToolKind::Sculpt { SCULPT_RING_COLOR } else { [1.0, 0.6, 0.9, 0.9] };
                     let ring: Vec<DVec3> = (0..=40)
                         .map(|i| {
                             let a = std::f64::consts::TAU * i as f64 / 40.0;
@@ -1277,6 +1283,10 @@ impl ToolSet {
                     }
 
                     line(&mut out, p, p + n * r * 0.4, color);
+                }
+
+                if state.tool == ToolKind::Sculpt {
+                    crate::symmetry::lines(state, false, self.stroke.hover, &mut out);
                 }
             }
             _ => {}
@@ -2821,5 +2831,329 @@ mod tests {
         assert!(timed_sculpt_brush(default, 1.0).strength >= 32.0, "the default brush raises at least 32 units a second");
         let big = td_doc::terrain::SculptBrush { radius: 2800.0, ..default };
         assert_eq!(timed_sculpt_brush(big, 0.5).strength, timed_sculpt_brush(default, 0.5).strength, "a big brush is not faster");
+    }
+
+    type Segment = ([f32; 3], [f32; 3]);
+
+    fn axis_color(axis: usize) -> [f32; 4] {
+        let [r, g, b, _] = crate::theme::linear(crate::theme::VIEW.axis()[axis]);
+        [r as f32, g as f32, b as f32, 0.9]
+    }
+
+    fn sorted(mut segments: Vec<Segment>) -> Vec<Segment> {
+        for s in &mut segments {
+            if s.0 > s.1 {
+                *s = (s.1, s.0);
+            }
+        }
+
+        segments.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        segments
+    }
+
+    fn segments_of(lines: &[LineVertex], color: [f32; 4]) -> Vec<Segment> {
+        sorted(lines.chunks(2).filter(|pair| pair[0].color == color).map(|pair| (pair[0].pos, pair[1].pos)).collect())
+    }
+
+    /// The outline of a plane at `at` on `axis` (0 is x, 2 is z), spanning `along` on the other horizontal axis and `y`.
+    fn plane_outline(axis: usize, at: f32, along: (f32, f32), y: (f32, f32)) -> Vec<Segment> {
+        let p = |a: f32, h: f32| if axis == 0 { [at, h, a] } else { [a, h, at] };
+        sorted(vec![
+            (p(along.0, y.0), p(along.1, y.0)),
+            (p(along.1, y.0), p(along.1, y.1)),
+            (p(along.1, y.1), p(along.0, y.1)),
+            (p(along.0, y.1), p(along.0, y.0)),
+        ])
+    }
+
+    /// `state_with_terrains` with the first terrain tilted 3 units a cell along x and 2 along z, so its heights run
+    /// from 12 to 76 and its middle sits at x 159.5, z 168.25.
+    fn tilted_terrains() -> (EditorState, NodeId, NodeId) {
+        let (mut state, a, b) = state_with_terrains();
+        state.doc.edit("tilt", |m, _| {
+            let t = m.terrain_mut(a).unwrap();
+            for j in 0..9 {
+                for i in 0..17 {
+                    let k = t.index(i, j);
+                    t.heights[k] = (3 * i + 2 * j) as f32;
+                }
+            }
+        });
+        (state, a, b)
+    }
+
+    fn all_cameras() -> [Camera; 4] {
+        [perspective(), view_2d(ViewKind::Top), view_2d(ViewKind::Front), view_2d(ViewKind::Side)]
+    }
+
+    fn axis_drawn(tools: &ToolSet, state: &EditorState, axis: usize) -> Vec<Vec<Segment>> {
+        all_cameras().iter().map(|cam| segments_of(&tools.lines(cam, view_rect(), state), axis_color(axis))).collect()
+    }
+
+    #[test]
+    fn the_x_plane_is_drawn_in_every_view_with_the_ground_line_under_it() {
+        let (mut state, _, _) = tilted_terrains();
+        state.tool = ToolKind::Sculpt;
+        state.symmetry = sym(SymmetryAxes::X, SymmetryCenter::Terrain);
+        let tools = ToolSet::default();
+        let mut expected = plane_outline(0, 159.5, (40.25, 296.25), (-20.0, 108.0));
+        let y = |j: i32| 36.0 + 2.0 * j as f32;
+        let z = |j: i32| 40.25 + 32.0 * j as f32;
+        for j in 0..8 {
+            expected.push(([159.5, y(j), z(j)], [159.5, y(j + 1), z(j + 1)]));
+        }
+
+        let expected = sorted(expected);
+        for (cam, drawn) in all_cameras().iter().zip(axis_drawn(&tools, &state, 0)) {
+            assert_eq!(drawn, expected, "{:?}", cam.kind);
+        }
+
+        for drawn in axis_drawn(&tools, &state, 2) {
+            assert!(drawn.is_empty(), "no Z plane for X");
+        }
+    }
+
+    #[test]
+    fn the_z_plane_and_both_planes_take_their_own_axis_colors() {
+        let (mut state, _, _) = tilted_terrains();
+        state.tool = ToolKind::Sculpt;
+        let tools = ToolSet::default();
+        let mut z_plane = plane_outline(2, 168.25, (-96.5, 415.5), (-20.0, 108.0));
+        let y = |i: i32| 20.0 + 3.0 * i as f32;
+        let x = |i: i32| -96.5 + 32.0 * i as f32;
+        for i in 0..16 {
+            z_plane.push(([x(i), y(i), 168.25], [x(i + 1), y(i + 1), 168.25]));
+        }
+
+        let z_plane = sorted(z_plane);
+        state.symmetry = sym(SymmetryAxes::Z, SymmetryCenter::Terrain);
+        for drawn in axis_drawn(&tools, &state, 2) {
+            assert_eq!(drawn, z_plane);
+        }
+
+        for drawn in axis_drawn(&tools, &state, 0) {
+            assert!(drawn.is_empty(), "no X plane for Z");
+        }
+
+        state.symmetry = sym(SymmetryAxes::Xz, SymmetryCenter::Terrain);
+        for (x, z) in axis_drawn(&tools, &state, 0).into_iter().zip(axis_drawn(&tools, &state, 2)) {
+            assert_eq!((x.len(), z), (12, z_plane.clone()), "the X plane has its outline and eight ground segments");
+        }
+    }
+
+    #[test]
+    fn the_ground_line_stops_at_256_segments() {
+        let mut state = EditorState::new(Default::default());
+        let layer = state.doc.map.default_layer();
+        state.doc.edit("wide", |m, s| {
+            let id = m.insert(layer, td_doc::NodeKind::Terrain(td_geom::Terrain::new(DVec3::new(-10.5, 3.0, 7.25), [301, 4], 4.0, "dev/grey")));
+            s.select_node(id);
+        });
+        state.tool = ToolKind::Sculpt;
+        state.symmetry = sym(SymmetryAxes::Z, SymmetryCenter::Terrain);
+        let tools = ToolSet::default();
+        for drawn in axis_drawn(&tools, &state, 2) {
+            assert_eq!(drawn.len(), 4 + 256, "the outline and the capped ground line");
+        }
+
+        state.symmetry = sym(SymmetryAxes::X, SymmetryCenter::Terrain);
+        for drawn in axis_drawn(&tools, &state, 0) {
+            assert_eq!(drawn.len(), 4 + 3, "a short axis gets one segment per cell");
+        }
+    }
+
+    #[test]
+    fn symmetry_planes_follow_the_center_choice() {
+        let (mut state, _, _) = tilted_terrains();
+        state.tool = ToolKind::Sculpt;
+        let tools = ToolSet::default();
+        let has_plane = |state: &EditorState, at: f32| {
+            let drawn = segments_of(&tools.lines(&view_2d(ViewKind::Top), view_rect(), state), axis_color(0));
+            plane_outline(0, at, (40.25, 296.25), (-20.0, 108.0)).iter().all(|s| drawn.contains(s))
+        };
+
+        state.symmetry = sym(SymmetryAxes::X, SymmetryCenter::World);
+        assert!(has_plane(&state, 0.0), "the world origin puts the plane at x 0");
+        state.symmetry = Symmetry { axes: SymmetryAxes::X, center: SymmetryCenter::Custom, x: -50.5, z: 99.0 };
+        assert!(has_plane(&state, -50.5), "a custom plane sits where it was typed");
+        let drawn = segments_of(&tools.lines(&view_2d(ViewKind::Top), view_rect(), &state), axis_color(2));
+        assert!(drawn.is_empty(), "the typed z is ignored without a Z plane");
+    }
+
+    #[test]
+    fn each_target_in_reach_gets_its_own_plane() {
+        let (mut state, _, _) = tilted_terrains();
+        state.tool = ToolKind::Sculpt;
+        state.symmetry = sym(SymmetryAxes::X, SymmetryCenter::Terrain);
+        let tools = ToolSet::default();
+        for drawn in axis_drawn(&tools, &state, 0) {
+            assert_eq!(drawn.len(), 12, "only the selected terrain");
+        }
+
+        state.doc.selection.clear();
+        let want = plane_outline(0, 628.0, (500.0, 756.0), (-32.0, 32.0));
+        for drawn in axis_drawn(&tools, &state, 0) {
+            assert_eq!(drawn.len(), 12 + 4 + 4, "with nothing selected both terrains are in reach");
+            assert!(want.iter().all(|s| drawn.contains(s)), "the second terrain mirrors about its own middle");
+        }
+    }
+
+    #[test]
+    fn the_planes_are_drawn_for_blend_without_a_hover_and_never_for_paint_or_off() {
+        let (mut state, _, _) = tilted_terrains();
+        state.symmetry = sym(SymmetryAxes::Xz, SymmetryCenter::Terrain);
+        let tools = ToolSet::default();
+        for tool in [ToolKind::Sculpt, ToolKind::Blend] {
+            state.tool = tool;
+            assert!(tools.stroke.hover.is_none() && tools.blend.hover.is_none());
+            for (x, z) in axis_drawn(&tools, &state, 0).into_iter().zip(axis_drawn(&tools, &state, 2)) {
+                assert_eq!((x.len(), z.len()), (12, 20), "{tool:?}");
+            }
+        }
+
+        for tool in [ToolKind::Paint, ToolKind::Select, ToolKind::Scatter] {
+            state.tool = tool;
+            for axis in [0, 2] {
+                for drawn in axis_drawn(&tools, &state, axis) {
+                    assert!(drawn.is_empty(), "{tool:?} draws no plane");
+                }
+            }
+        }
+
+        state.symmetry = Symmetry { center: SymmetryCenter::World, ..Symmetry::OFF };
+        for tool in [ToolKind::Sculpt, ToolKind::Blend] {
+            state.tool = tool;
+            for axis in [0, 2] {
+                for drawn in axis_drawn(&tools, &state, axis) {
+                    assert!(drawn.is_empty(), "{tool:?} with symmetry off draws no plane");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_displacement_gets_a_plane_through_the_middle_of_its_face_and_no_ground_line() {
+        let mut brush = Brush::from_aabb(&Aabb::new(DVec3::new(-40.5, 0.0, 25.25), DVec3::new(87.5, 16.0, 153.25)), "dev/grey").unwrap();
+        let top = brush.faces.iter().position(|f| f.plane.normal.y > 0.9).unwrap();
+        brush.faces[top].data.disp = Some(td_geom::displacement::Displacement::new(3));
+        let mut state = EditorState::new(Default::default());
+        let layer = state.doc.map.default_layer();
+        state.doc.edit("brush", |m, _| m.insert(layer, td_doc::NodeKind::Brush(brush)));
+        state.symmetry = sym(SymmetryAxes::X, SymmetryCenter::Terrain);
+        let tools = ToolSet::default();
+        for tool in [ToolKind::Sculpt, ToolKind::Blend] {
+            state.tool = tool;
+            let want = plane_outline(0, 23.5, (25.25, 153.25), (-16.0, 48.0));
+            for drawn in axis_drawn(&tools, &state, 0) {
+                assert_eq!(drawn, want, "{tool:?}");
+            }
+        }
+    }
+
+    /// The mean of each ring of 40 segments drawn in `color`, from the start points of its segments.
+    fn ring_centers(lines: &[LineVertex], color: [f32; 4]) -> Vec<[f32; 3]> {
+        let points: Vec<[f32; 3]> = lines.chunks(2).filter(|pair| pair[0].color == color).map(|pair| pair[0].pos).collect();
+        assert_eq!(points.len() % 40, 0, "rings of 40 segments");
+        let mut centers: Vec<[f32; 3]> = points
+            .chunks(40)
+            .map(|ring| {
+                let sum = ring.iter().fold([0.0f32; 3], |a, p| [a[0] + p[0], a[1] + p[1], a[2] + p[2]]);
+                [sum[0] / 40.0, sum[1] / 40.0, sum[2] / 40.0]
+            })
+            .collect();
+        centers.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        centers
+    }
+
+    fn near(a: [f32; 3], b: [f32; 3]) -> bool {
+        a.iter().zip(b).all(|(x, y)| (x - y).abs() < 2e-3)
+    }
+
+    /// A hover on the tilted terrain at x 50, z 100 (height 29.46875) and the surface normal there.
+    fn hover_on_tilt() -> (DVec3, DVec3) {
+        (DVec3::new(50.0, 29.46875, 100.0), DVec3::new(-3.0 / 32.0, 1.0, -2.0 / 32.0).normalize())
+    }
+
+    #[test]
+    fn a_sculpt_hover_gets_a_dimmer_ring_at_every_mirrored_spot() {
+        let (mut state, _, _) = tilted_terrains();
+        state.tool = ToolKind::Sculpt;
+        state.sculpt.radius = 40.0;
+        let mut tools = ToolSet::default();
+        let (p, n) = hover_on_tilt();
+        tools.stroke.hover = Some((p, n));
+        let ghost = [0.4, 1.0, 0.6, 0.45];
+        let at = |x: f64, y: f64, z: f64, nx: f64, nz: f64| {
+            let c = DVec3::new(x, y, z) + DVec3::new(n.x * nx, n.y, n.z * nz) * 0.5;
+            [c.x as f32, c.y as f32, c.z as f32]
+        };
+        let cases = [
+            (SymmetryAxes::Off, vec![]),
+            (SymmetryAxes::X, vec![at(269.0, 50.0, 100.0, -1.0, 1.0)]),
+            (SymmetryAxes::Z, vec![at(50.0, 38.0, 236.5, 1.0, -1.0)]),
+            (SymmetryAxes::Xz, vec![at(50.0, 38.0, 236.5, 1.0, -1.0), at(269.0, 50.0, 100.0, -1.0, 1.0), at(269.0, 58.53125, 236.5, -1.0, -1.0)]),
+        ];
+        for (axes, mut want) in cases {
+            want.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            state.symmetry = sym(axes, SymmetryCenter::Terrain);
+            for cam in all_cameras() {
+                let got = ring_centers(&tools.lines(&cam, view_rect(), &state), ghost);
+                assert_eq!(got.len(), want.len(), "{axes:?} in {:?}", cam.kind);
+                assert!(got.iter().zip(&want).all(|(g, w)| near(*g, *w)), "{axes:?} in {:?}: {got:?} vs {want:?}", cam.kind);
+            }
+        }
+
+        state.symmetry = sym(SymmetryAxes::X, SymmetryCenter::Terrain);
+        let real = tools.lines(&perspective(), view_rect(), &state).iter().filter(|v| v.color == [0.4, 1.0, 0.6, 0.9]).count();
+        assert_eq!(real, 82, "the real ring and its normal tick stay");
+    }
+
+    #[test]
+    fn a_ghost_ring_needs_a_target_under_the_hover_and_a_spot_that_is_not_the_hover() {
+        let (mut state, _, _) = tilted_terrains();
+        state.tool = ToolKind::Sculpt;
+        state.sculpt.radius = 64.0;
+        let mut tools = ToolSet::default();
+        let ghosts =
+            |tools: &ToolSet, state: &EditorState| ring_centers(&tools.lines(&view_2d(ViewKind::Top), view_rect(), state), [0.4, 1.0, 0.6, 0.45]).len();
+        let hover = |x: f64| Some((DVec3::new(x, 40.0, 100.0), DVec3::Y));
+
+        state.symmetry = sym(SymmetryAxes::X, SymmetryCenter::Terrain);
+        tools.stroke.hover = hover(159.5);
+        assert_eq!(ghosts(&tools, &state), 0, "a dab on the plane lands on itself");
+        tools.stroke.hover = hover(159.75);
+        assert_eq!(ghosts(&tools, &state), 1, "a quarter unit off the plane is a mirror");
+        tools.stroke.hover = hover(1000.0);
+        assert_eq!(ghosts(&tools, &state), 0, "a hover past the terrain mirrors nothing");
+
+        state.symmetry = sym(SymmetryAxes::X, SymmetryCenter::World);
+        tools.stroke.hover = hover(160.5);
+        assert_eq!(ghosts(&tools, &state), 1, "the mirrored brush still reaches the terrain edge by its radius");
+        tools.stroke.hover = hover(160.75);
+        assert_eq!(ghosts(&tools, &state), 0, "past the radius it reaches nothing");
+
+        state.doc.selection.clear();
+        state.symmetry = sym(SymmetryAxes::X, SymmetryCenter::Terrain);
+        tools.stroke.hover = hover(50.0);
+        assert_eq!(ghosts(&tools, &state), 1, "the second terrain in reach adds no ring of its own");
+    }
+
+    #[test]
+    fn a_blend_hover_gets_dimmer_rings_in_the_blend_color() {
+        let (mut state, _, _) = tilted_terrains();
+        state.tool = ToolKind::Blend;
+        state.blend.radius = 40.0;
+        let mut tools = ToolSet::default();
+        let (p, n) = hover_on_tilt();
+        tools.blend.hover = Some((p, n));
+        state.symmetry = sym(SymmetryAxes::Z, SymmetryCenter::Terrain);
+        let ghost = [0.95, 0.6, 1.0, 0.95 * 0.5];
+        let centers = ring_centers(&tools.lines(&perspective(), view_rect(), &state), ghost);
+        let c = DVec3::new(50.0, 38.0, 236.5) + DVec3::new(n.x, n.y, -n.z) * 0.5;
+        assert_eq!(centers.len(), 1);
+        assert!(near(centers[0], [c.x as f32, c.y as f32, c.z as f32]), "{centers:?}");
+
+        state.symmetry = Symmetry::OFF;
+        assert!(ring_centers(&tools.lines(&perspective(), view_rect(), &state), ghost).is_empty());
     }
 }
