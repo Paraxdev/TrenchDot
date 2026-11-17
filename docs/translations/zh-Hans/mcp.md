@@ -1,5 +1,5 @@
 ---
-source: d5a662c31724dba93b77bd318ab3a570c43e95b6
+source: 880449c5803160fffd9bbfaca60bea2c7c1cd435
 ---
 
 # MCP 服务器 { #mcp-server }
@@ -112,7 +112,7 @@ python tools/mcp_client.py call screenshot '{"source":"godot","position":[0,256,
 | 文件对话框 | 会打开对话框的操作会被拒绝，请用带路径的 `map_file`。`run_action save` 需要一张已经有文件的地图 |
 | 未保存的标签页 | `run_action close_tab` 会拒绝丢弃未保存的更改，除非 `args.discard` 为 true。`args.close_others` 则会关闭除当前标签页以外的所有标签页 |
 | 文件路径 | `map_file`、`run_script`、`import_model`、`changes_since` 和 `validate_map` 里的 `res://` 和相对路径从打开的项目开始算，没有项目时从编辑器的工作目录开始算。`map_file open` 和 `open_tab` 会在打开之前把路径解析成绝对路径，所以之后的 `save` 不会落到别的地方 |
-| 编辑器设置 | `transform` 以及 `run_action rotate` 和 `flip` 以选区中心为轴，只有在吸附开启时才吸附到网格，并且在 UV 锁定开启时保持纹理锁定。`transform` 接受 `snap` 和 `uv_lock` 来为一次调用覆盖这一点，`duplicate` 接受 `uv_lock`。`run_action sculpt` 和 `blend` 使用人可以修改的工具设置，`terrain_edit` 使用固定的默认值 |
+| 编辑器设置 | `transform` 以及 `run_action rotate` 和 `flip` 以选区中心为轴，只有在吸附开启时才吸附到网格，并且在 UV 锁定开启时保持纹理锁定。`transform` 接受 `snap` 和 `uv_lock` 来为一次调用覆盖这一点，`duplicate` 接受 `uv_lock`。`run_action sculpt` 和 `blend` 使用人可以修改的工具设置，包括对称，`terrain_edit` 使用固定的默认值 |
 | 选择 | `select` 会拒绝未知的 id，并跳过隐藏或锁定的节点，把它们列在 `skipped` 里 |
 | CSG | `csg_subtract`、`csg_merge`、`csg_intersect`、`csg_hollow` 和 `clip_apply` 会返回 `replaced`，把旧 id 映射到新 id |
 | 超时 | 调用在 120 秒后超时，`run_script`、`project_content` 和 `bake_lighting` 除外 |
@@ -124,15 +124,17 @@ python tools/mcp_client.py call screenshot '{"source":"godot","position":[0,256,
 | 工具 | 说明 |
 | --- | --- |
 | `run_action` `copy`、`cut`、`paste` | 复制和剪切会返回剪贴板文本，粘贴把它当作 `args.text`，可以再带一个 `offset` 或 `origin` |
+| `run_action` `align`、`distribute` | `align` 接受 `args.axis` 和 `args.to`（`min`、`center` 或 `max`），`distribute` 接受 `args.axis`。两者都把每个选中的组、笔刷实体或对象当作一个整体，并且不吸附到网格 |
 | `run_action` `clip_apply` | 接受一个平面（`point` 和 `normal`，或三个 `points`）和 `keep`：`front`、`back` 或 `both` |
 | `run_action` `create_decal` | 放置一个[贴花](editor/decals.md)，请用它来代替很薄的笔刷 |
 | `create_brush` | `openings` 会开出门和窗，`{min, max, count, step, rows, row_step}` 会把其中一个重复成网格 |
 | `create_mesh` `rotate` | 以 Godot 的 YXZ 顺序给出 `[x, y, z]` 度数，所以 `[0, 0, 90]` 会让圆柱体沿 X 轴躺下 |
-| `transform` | 按平移、旋转、翻转、scale_to 的顺序应用，作为一个撤销步骤。除非另有说明，`rotate` 会绕 Y 轴转 90 度 |
+| `transform` | 按平移、旋转、翻转、scale_to、shear 的顺序应用，作为一个撤销步骤。除非另有说明，`rotate` 会绕 Y 轴转 90 度，`shear` 会滑动选区边界的一侧，例如 `{"side": "+y", "along": "x", "amount": 32}` |
 | `create_terrain` | 和其他工具不同，`origin` 是地形的最小角。`center` 则改为把它放在某个点周围 |
 | `create_brush`、`create_mesh` | 对笔刷来说，山形屋脊沿 Z 轴延伸，对网格来说沿 X 轴延伸。两个工具都接受 `ridge_x` 和 `ridge_z` |
 | `map_file` 导出 | `path` 是写出的文件，为了旧的调用方而保留，`exported` 同样给出它，`map_path` 是打开的地图 |
-| `terrain_edit` | 不带 `op` 的 `probe [x, z]` 只读取高度。`clear_layer` 需要 `layer` |
+| `terrain_edit` | 不带 `op` 的 `probe [x, z]` 只读取高度。`clear_layer` 需要 `layer`。`op: "resize"` 按每条边的整数个单元格扩大或裁剪地形，用 `north`、`south`、`west` 和 `east`（正数添加，负数去掉），或者用围绕中心的 `cells: [x, z]`，多出的奇数个单元格归东边或南边，`cell_size` 则在同一区域上重新采样。先应用各条边，再应用单元大小，`cells` 不能和 `cell_size` 一起用。`fill` 是 `edge`（默认，新地面重复边缘）或 `zero`，`scatter` 是 `drop`（默认，移除地形上被去掉的地面之上的散布）或 `keep`。`dry_run: true` 只返回计划而不改任何东西，什么都没改变的 resize 会返回 `changed: false`，也不记录撤销步骤。地形沿每个轴有 1 到 2048 个单元格，单元大小从 0.001 到 100000，超出范围的一律整个拒绝 |
+| `symmetry` | `run_action` 的 `sculpt`、`blend` 和 `terrain_edit` 都接受它，`set_editor` 设置雕刻和混合工具栏所用的那个，`get_state` 把它报告为 `editor.symmetry`。它是 `off`、`x`、`z` 或 `xz`（穿过每块地形中心的平面），或者对象 `{axes, center, x, z}`，其中 `center` 是 `terrain`、`world` 或 `custom`，`x` 和 `z` 是自定义中心时平面的世界位置。给出一个值会替换整个设置。`sculpt` 和 `blend` 缺省时跟随工具栏，`terrain_edit` 缺省为关，所以脚本回放结果一致。`terrain_edit` 在 `sculpt`、`sculpt_path`、`paint_path` 和带 `center` 的 `holes` 上接受它，其他操作都会拒绝 |
 | `validate_map` | 接受目标的 Godot 类或脚本里的任何方法或属性作为输入。`coplanar_faces` 会标出会闪烁的面。每个问题都带有 `bounds`。`path` 会检查一张保存好的地图而不打开它，`project: true` 会检查项目里的每张地图 |
 | `run_action` `place_entities` | 接受 `args.classnames`，以及 `at` 和 `normal`，让实体像从实体标签页里拖出来那样落在某个表面上。没有 classnames 会报错 |
 | `simulate_input` 拖动 | 带 `"release": false` 的拖动会在调用返回后继续按住按钮和它的修饰键，这样截图就能显示拖动进行中的样子，例如光标旁边的一张卡片。之后某次调用里的 `release` 事件会在指针所在的位置，或者它的 `x` 和 `y`，或者 `world` 处放下它，只带 `x` 和 `y` 之一的 release 是错误。拖动和它的修饰键会一直保持按住，真实键盘上也是，直到那次 release、一次 `new_map` 或成功的 `close_tab` 操作，或者 MCP 关闭，所以千万别忘了 release。在那之前，点击和拖动都会被拒绝 |
