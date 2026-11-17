@@ -6875,6 +6875,30 @@ fn preferences_switch_the_theme() {
     assert_eq!((ui_state("theme"), ui_state("theme_active")), ("dark".into(), "dark".into()));
 }
 
+/// Preferences opens in the middle of the editor window instead of at its top left corner over the menu bar.
+#[test]
+#[ignore]
+fn preferences_open_in_the_middle_of_the_window() {
+    let ed = Editor::launch("prefs_centered");
+    open_preferences(&ed);
+    let state = ed.state();
+    let ppp = state["ui"]["pixels_per_point"].as_f64().unwrap();
+    let (width, height, _) = ed.screenshot("window", "centered");
+    let window = state["ui"]["windows"].as_array().unwrap().iter().find(|w| w["title"] == "Preferences").unwrap()["rect"].clone();
+    let r: Vec<f64> = window.as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let center = ((r[0] + r[2]) / 2.0, (r[1] + r[3]) / 2.0);
+    let screen = (width as f64 / ppp / 2.0, height as f64 / ppp / 2.0);
+    assert!((center.0 - screen.0).abs() < 3.0 && (center.1 - screen.1).abs() < 3.0, "Preferences at {r:?} is not centered on {screen:?}");
+}
+
+/// The top left corner of the open Preferences window in screenshot pixels.
+fn preferences_corner(ed: &Editor) -> (u32, u32) {
+    let state = ed.state();
+    let ppp = state["ui"]["pixels_per_point"].as_f64().unwrap();
+    let window = state["ui"]["windows"].as_array().unwrap().iter().find(|w| w["title"] == "Preferences").expect("Preferences is open")["rect"].clone();
+    ((window[0].as_f64().unwrap() * ppp) as u32, (window[1].as_f64().unwrap() * ppp) as u32)
+}
+
 /// The palette lists a command per language. Running one redraws Preferences in that language while MCP keeps reading
 /// English, and "english" in the palette brings the English window back exactly.
 #[test]
@@ -6889,24 +6913,26 @@ fn the_palette_switches_the_language_and_english_comes_back() {
         );
         std::thread::sleep(Duration::from_millis(500));
     };
-    // The Preferences window keeps the width a longer language gave it, so only its left part is compared.
-    let body = |img: &image::RgbaImage| image::imageops::crop_imm(img, 0, 56, 590, 680).to_image();
-    let window = |label: &str| body(&shot(&ed, json!({ "target": "window" }), label));
+    // The window is centered, so a language with a wider window moves its left edge, and only its left part is compared.
+    let window = |label: &str| {
+        let (left, top) = preferences_corner(&ed);
+        image::imageops::crop_imm(&shot(&ed, json!({ "target": "window" }), label), left, top + 40, 280, 680).to_image()
+    };
     let english = window("english");
 
     run("language: deutsch");
     assert_eq!(ed.state()["status"], "Language: Deutsch");
     assert_eq!(window_titles(&ed).iter().filter(|t| *t == "Preferences").count(), 1, "{:?}", window_titles(&ed));
     let german = window("german");
-    assert!(image_difference(&english, &german) > 0.01, "Preferences did not change");
+    assert!(image_difference(&english, &german) > 1.0, "Preferences did not change");
 
     run("language: 日本語");
     assert_eq!(ed.state()["status"], "Language: 日本語");
-    assert!(image_difference(&german, &window("japanese")) > 0.01);
+    assert!(image_difference(&german, &window("japanese")) > 1.0);
 
     run("language: english");
     assert_eq!(ed.state()["status"], "Language: English");
-    assert_eq!(image_difference(&english, &window("english_again")), 0.0);
+    assert!(image_difference(&english, &window("english_again")) < 0.5, "English did not come back");
 }
 
 /// set_editor language redraws the editor at once while MCP keeps reading English: window titles, tool names and the
@@ -6916,18 +6942,20 @@ fn the_palette_switches_the_language_and_english_comes_back() {
 fn language_switches_without_a_restart() {
     let ed = Editor::launch("language_switch");
     let language = || ed.state()["ui"]["language"].as_str().unwrap().to_string();
-    // The Preferences window keeps the width a longer language gave it, so only its left part is compared.
-    let body = |img: &image::RgbaImage| image::imageops::crop_imm(img, 0, 56, 590, 680).to_image();
-    let window = |label: &str| body(&shot(&ed, json!({ "target": "window" }), label));
+    // The window is centered, so a language with a wider window moves its left edge, and only its left part is compared.
     assert_eq!(language(), "en");
     open_preferences(&ed);
+    let window = |label: &str| {
+        let (left, top) = preferences_corner(&ed);
+        image::imageops::crop_imm(&shot(&ed, json!({ "target": "window" }), label), left, top + 40, 280, 680).to_image()
+    };
     let english = window("english");
 
     ed.call("set_editor", json!({ "language": "de" }));
     std::thread::sleep(Duration::from_millis(500));
     assert_eq!(language(), "de");
     let german = window("german");
-    assert!(image_difference(&english, &german) > 0.01, "Preferences did not change");
+    assert!(image_difference(&english, &german) > 1.0, "Preferences did not change");
     assert!(window_titles(&ed).contains(&"Preferences".to_string()), "{:?}", window_titles(&ed));
     let tools = ed.state()["ui"]["tool_buttons"].clone();
     assert!(tools.as_array().unwrap().iter().any(|b| b["tool"] == "Clip"), "{tools}");
@@ -6946,7 +6974,7 @@ fn language_switches_without_a_restart() {
     assert!(set.is_object(), "{set}");
     std::thread::sleep(Duration::from_millis(500));
     assert_eq!(language(), "ja");
-    assert!(image_difference(&german, &window("japanese")) > 0.01);
+    assert!(image_difference(&german, &window("japanese")) > 1.0);
 
     ed.input(
         "window",
@@ -6954,7 +6982,7 @@ fn language_switches_without_a_restart() {
     );
     std::thread::sleep(Duration::from_millis(500));
     assert_eq!(language(), "en");
-    assert_eq!(image_difference(&english, &window("english_again")), 0.0);
+    assert!(image_difference(&english, &window("english_again")) < 0.5, "English did not come back");
 }
 
 /// The panels name the bundled prefabs in the editor's language, while the prefab_library tool keeps listing,

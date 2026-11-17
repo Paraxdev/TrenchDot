@@ -3032,7 +3032,7 @@ impl App {
     fn prefs_window(&mut self, ctx: &egui::Context) {
         self.mcp_pref_rects.clear();
         let mut open = self.show_prefs;
-        crate::widgets::window(en!("Preferences")).open(&mut open).resizable(false).show(ctx, |ui| {
+        crate::widgets::centered_window(en!("Preferences"), ctx).open(&mut open).resizable(false).show(ctx, |ui| {
             egui::Grid::new("prefs_ui").num_columns(2).min_col_width(PREFS_LABEL_WIDTH).show(ui, |ui| self.ui_scale_prefs(ui));
             ui.separator();
             let p = &mut self.state.prefs;
