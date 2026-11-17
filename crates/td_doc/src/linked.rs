@@ -196,8 +196,8 @@ pub fn sync(before: &Map, after: &mut Map) -> usize {
 mod tests {
     use super::*;
     use crate::Document;
-    use td_core::Aabb;
-    use td_geom::Brush;
+    use td_core::{Aabb, DMat3, DVec2};
+    use td_geom::{Brush, Mesh};
 
     #[test]
     fn edits_propagate_to_linked_copies() {
@@ -370,5 +370,201 @@ mod tests {
         assert!(materials.iter().all(|m| m == "glass"), "{materials:?}");
         assert!(doc.map.contains(window) && doc.map.contains(house) && doc.map.contains(house_copy));
         assert_eq!(format::from_str(&format::to_string(&doc.map)).unwrap().nodes.len(), doc.map.nodes.len(), "every node is saved");
+    }
+
+    fn wedge() -> Brush {
+        let points = [
+            DVec3::new(8.0, 2.0, 4.0),
+            DVec3::new(40.0, 2.0, 4.0),
+            DVec3::new(8.0, 2.0, 20.0),
+            DVec3::new(40.0, 2.0, 20.0),
+            DVec3::new(8.0, 30.0, 4.0),
+            DVec3::new(8.0, 34.0, 20.0),
+            DVec3::new(40.0, 14.0, 4.0),
+            DVec3::new(40.0, 18.0, 20.0),
+        ];
+        Brush::from_points(&points, &[], "wall").unwrap()
+    }
+
+    fn mirror() -> DMat4 {
+        ops::flip_about(DVec3::new(40.0, 0.0, 0.0), 0)
+    }
+
+    /// Groups `kind` and adds a linked copy mirrored across x = 40, the wedge's max side, so the halves meet.
+    fn mirrored_pair(doc: &mut Document, kind: NodeKind) -> (NodeId, NodeId) {
+        let layer = doc.map.default_layer();
+        doc.edit("add", |m, s| {
+            let id = m.insert(layer, kind);
+            s.select_node(id);
+        });
+        let group = doc.edit("group", |m, s| ops::group_selection(m, s, "half", layer)).unwrap();
+        let copy = doc.edit("mirror", |m, s| {
+            let copy = ops::duplicate_linked(m, s, DVec3::ZERO, EditOptions::default())[0];
+            ops::transform_selection(m, s, &mirror(), EditOptions::default());
+            copy
+        });
+        (group, copy)
+    }
+
+    fn child(doc: &Document, group: NodeId) -> NodeId {
+        let children = &doc.map.get(group).unwrap().children;
+        assert_eq!(children.len(), 1, "{children:?}");
+        children[0]
+    }
+
+    fn facing(b: &Brush, dir: DVec3) -> usize {
+        (0..b.faces.len()).max_by(|x, y| b.faces[*x].plane.normal.dot(dir).total_cmp(&b.faces[*y].plane.normal.dot(dir))).unwrap()
+    }
+
+    /// Moves one corner, retextures the face looking most along -Z and shifts and turns the top face's texture.
+    fn reshape(map: &mut Map, id: NodeId, corner: DVec3, delta: DVec3) {
+        let b = map.brush(id).unwrap();
+        let mut points = b.vertices.clone();
+        let k = points.iter().position(|p| close(*p, corner)).unwrap_or_else(|| panic!("no corner at {corner}"));
+        points[k] += delta;
+        let mut moved = Brush::from_points(&points, &b.planes(), "wall").unwrap();
+        let back = facing(&moved, DVec3::NEG_Z);
+        moved.faces[back].data.material = "brick".into();
+        let top = facing(&moved, DVec3::Y);
+        moved.faces[top].data.uv.offset += DVec2::new(5.0, 3.0);
+        moved.faces[top].data.uv.rotate(30.0);
+        *map.brush_mut(id).unwrap() = moved;
+    }
+
+    /// `copy` is `source` under the rigid or mirroring `m`: the same corners moved, a valid brush wound outward with the
+    /// same volume, and every face keeping its data with each texel staying on the moved surface.
+    fn assert_brush_maps(source: &Brush, copy: &Brush, m: &DMat4) {
+        copy.validate().unwrap();
+        assert_eq!(copy.vertices.len(), source.vertices.len());
+        for v in &source.vertices {
+            let want = m.transform_point3(*v);
+            assert!(copy.vertices.iter().any(|p| close(*p, want)), "{want} missing from {:?}", copy.vertices);
+        }
+
+        assert!(copy.volume() > 0.0 && (copy.volume() - source.volume()).abs() < 1e-2, "volume {} vs {}", copy.volume(), source.volume());
+        let centroid = copy.vertices.iter().sum::<DVec3>() / copy.vertices.len() as f64;
+        let linear = DMat3::from_mat4(*m);
+        assert_eq!(copy.faces.len(), source.faces.len());
+        for (fi, face) in source.faces.iter().enumerate() {
+            let center = m.transform_point3(source.face_center(fi));
+            let ci = (0..copy.faces.len()).find(|c| close(copy.face_center(*c), center)).unwrap_or_else(|| panic!("no face at {center}"));
+            let moved = &copy.faces[ci];
+            assert!((moved.plane.normal - linear * face.plane.normal).length() < 1e-4, "face {ci} normal {}", moved.plane.normal);
+            assert!(moved.plane.normal.dot(copy.face_center(ci) - centroid) > 0.0, "face {ci} faces inward");
+            assert_eq!(moved.data.material, face.data.material);
+            assert_eq!(moved.data.props, face.data.props);
+            for p in source.face_points(fi) {
+                let (a, b) = (face.data.uv.texel(p), moved.data.uv.texel(m.transform_point3(p)));
+                assert!((a - b).length() < 1e-3, "face {fi} texel {a} at {p} became {b}");
+            }
+        }
+    }
+
+    /// `copy` is `source` reflected by `m` corner for corner, each face with its winding, corner UVs and colors reversed.
+    fn assert_mesh_mirrors(source: &Mesh, copy: &Mesh, m: &DMat4) {
+        copy.validate().unwrap();
+        assert!(copy.is_closed());
+        assert_eq!(copy.vertices.len(), source.vertices.len());
+        for (v, p) in source.vertices.iter().zip(&copy.vertices) {
+            assert!(close(m.transform_point3(*v), *p), "{v} became {p}");
+        }
+
+        assert!(copy.volume() > 0.0 && (copy.volume() - source.volume()).abs() < 1e-6, "volume {} vs {}", copy.volume(), source.volume());
+        let centroid = copy.vertices.iter().sum::<DVec3>() / copy.vertices.len() as f64;
+        let size = DVec2::new(64.0, 32.0);
+        assert_eq!(copy.faces.len(), source.faces.len());
+        for (fi, (face, mirrored)) in source.faces.iter().zip(&copy.faces).enumerate() {
+            assert_eq!(mirrored.indices, face.indices.iter().rev().copied().collect::<Vec<_>>());
+            assert_eq!(mirrored.data.colors, face.data.colors.iter().rev().copied().collect::<Vec<_>>());
+            assert_eq!(mirrored.data.material, face.data.material);
+            assert!(copy.face_normal(fi).dot(copy.face_center(fi) - centroid) > 0.0, "face {fi} faces inward");
+            let n = face.indices.len();
+            for k in 0..n {
+                let (a, b) = (source.corner_uv(fi, k, size), copy.corner_uv(fi, n - 1 - k, size));
+                assert!((a - b).length() < 1e-6, "face {fi} corner {k} uv {a} became {b}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_mirrored_copy_follows_vertex_material_and_uv_edits() {
+        let mut doc = Document::new();
+        let (group, copy) = mirrored_pair(&mut doc, NodeKind::Brush(wedge()));
+        assert_brush_maps(doc.map.brush(child(&doc, group)).unwrap(), doc.map.brush(child(&doc, copy)).unwrap(), &mirror());
+
+        let source = child(&doc, group);
+        doc.edit("reshape", |m, _| reshape(m, source, DVec3::new(8.0, 2.0, 20.0), DVec3::new(-4.0, -4.0, 4.0)));
+        let src = doc.map.brush(source).unwrap();
+        assert!(src.vertices.iter().any(|p| close(*p, DVec3::new(4.0, -2.0, 24.0))), "{:?}", src.vertices);
+        let mirrored = doc.map.brush(child(&doc, copy)).unwrap();
+        assert!(mirrored.vertices.iter().any(|p| close(*p, DVec3::new(76.0, -2.0, 24.0))), "{:?}", mirrored.vertices);
+        assert_eq!(mirrored.faces[facing(mirrored, DVec3::NEG_Z)].data.material, "brick");
+        assert_brush_maps(src, mirrored, &mirror());
+    }
+
+    #[test]
+    fn edits_in_the_mirrored_copy_flow_back_mirrored() {
+        let mut doc = Document::new();
+        let (group, copy) = mirrored_pair(&mut doc, NodeKind::Brush(wedge()));
+        let mirrored = child(&doc, copy);
+        doc.edit("reshape", |m, _| reshape(m, mirrored, DVec3::new(72.0, 2.0, 4.0), DVec3::new(5.0, -3.0, -2.0)));
+        let edited = doc.map.brush(mirrored).unwrap();
+        assert!(edited.vertices.iter().any(|p| close(*p, DVec3::new(77.0, -1.0, 2.0))), "{:?}", edited.vertices);
+        let original = doc.map.brush(child(&doc, group)).unwrap();
+        assert!(original.vertices.iter().any(|p| close(*p, DVec3::new(3.0, -1.0, 2.0))), "{:?}", original.vertices);
+        assert_eq!(original.faces[facing(original, DVec3::NEG_Z)].data.material, "brick");
+        assert_brush_maps(edited, original, &mirror().inverse());
+    }
+
+    #[test]
+    fn a_mirrored_mesh_copy_keeps_faces_outward_after_a_vertex_edit() {
+        let mut doc = Document::new();
+        let mut mesh = Mesh::from_brush(&wedge());
+        mesh.faces[2].uvs = vec![[0.0, 0.0], [0.5, 0.0], [0.75, 1.0], [0.0, 0.25]];
+        mesh.faces[2].data.colors = vec![[1.0, 0.0, 0.0, 1.0], [0.0, 1.0, 0.0, 1.0], [0.0, 0.0, 1.0, 1.0], [1.0, 1.0, 1.0, 0.5]];
+        let (group, copy) = mirrored_pair(&mut doc, NodeKind::Mesh(mesh));
+        assert_mesh_mirrors(doc.map.mesh(child(&doc, group)).unwrap(), doc.map.mesh(child(&doc, copy)).unwrap(), &mirror());
+
+        let source = child(&doc, group);
+        doc.edit("drag", |m, _| {
+            let mesh = m.mesh_mut(source).unwrap();
+            let k = mesh.vertices.iter().position(|p| close(*p, DVec3::new(8.0, 2.0, 20.0))).unwrap();
+            mesh.vertices[k] += DVec3::new(-4.0, -4.0, 4.0);
+        });
+        let src = doc.map.mesh(source).unwrap();
+        let mirrored = doc.map.mesh(child(&doc, copy)).unwrap();
+        assert!(mirrored.vertices.iter().any(|p| close(*p, DVec3::new(76.0, -2.0, 24.0))), "{:?}", mirrored.vertices);
+        assert_mesh_mirrors(src, mirrored, &mirror());
+    }
+
+    #[test]
+    fn a_set_of_three_follows_one_edit() {
+        let mut doc = Document::new();
+        let (group, mirrored) = mirrored_pair(&mut doc, NodeKind::Brush(wedge()));
+        let shift = DVec3::new(12.0, 0.0, 96.0);
+        let moved = doc.edit("link", |m, s| {
+            s.clear();
+            s.select_node(group);
+            ops::duplicate_linked(m, s, shift, EditOptions::default())[0]
+        });
+        let source = child(&doc, group);
+        doc.edit("reshape", |m, _| reshape(m, source, DVec3::new(40.0, 14.0, 4.0), DVec3::new(3.0, 5.0, -2.0)));
+        let src = doc.map.brush(source).unwrap();
+        assert!(src.vertices.iter().any(|p| close(*p, DVec3::new(43.0, 19.0, 2.0))), "{:?}", src.vertices);
+        assert_brush_maps(src, doc.map.brush(child(&doc, moved)).unwrap(), &DMat4::from_translation(shift));
+        assert_brush_maps(src, doc.map.brush(child(&doc, mirrored)).unwrap(), &mirror());
+
+        let turn = ops::rotation_about(DVec3::new(56.0, 10.0, 12.0), DVec3::Y, 30.0);
+        doc.edit("turn", |m, s| {
+            s.clear();
+            s.select_node(mirrored);
+            ops::transform_selection(m, s, &turn, EditOptions::default());
+        });
+        let source = child(&doc, group);
+        doc.edit("reshape", |m, _| reshape(m, source, DVec3::new(8.0, 30.0, 4.0), DVec3::new(-2.0, 6.0, -3.0)));
+        let src = doc.map.brush(source).unwrap();
+        assert!(src.vertices.iter().any(|p| close(*p, DVec3::new(6.0, 36.0, 1.0))), "{:?}", src.vertices);
+        assert_brush_maps(src, doc.map.brush(child(&doc, moved)).unwrap(), &DMat4::from_translation(shift));
+        assert_brush_maps(src, doc.map.brush(child(&doc, mirrored)).unwrap(), &(turn * mirror()));
     }
 }
