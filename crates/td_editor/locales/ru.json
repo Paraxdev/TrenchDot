@@ -2894,5 +2894,6 @@
   "This cache has no noise values, the hills draw flat until Godot exports again": "В этом кэше нет значений шума, холмы рисуются плоскими, пока Godot не экспортирует снова",
   "Terrain3D cannot be drawn: {problem}": "Не удаётся отрисовать Terrain3D: {problem}",
   "Region {x}, {y} was made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "Регион {x}, {y} создан с другим размером региона, чем у террейна в Godot, использовать версию Godot или вернуть размер в Godot",
-  "Some regions were made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "Некоторые регионы созданы с другим размером региона, чем у террейна в Godot, использовать версию Godot или вернуть размер в Godot"
+  "Some regions were made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "Некоторые регионы созданы с другим размером региона, чем у террейна в Godot, использовать версию Godot или вернуть размер в Godot",
+  "File dialogs are off with --offscreen, use the map_file tool": "С --offscreen файловые диалоги отключены, используйте инструмент map_file"
 }

@@ -1047,6 +1047,7 @@ impl App {
 
         state.code_scans.set_repaint(cc.egui_ctx.clone());
         let mut updater = crate::updater::Updater::default();
+        crate::commands::set_native_dialogs(!args.offscreen);
         let automated =
             args.default_prefs || args.offscreen || args.mcp_stdio || args.mcp_http.is_some() || std::env::var_os("CI").is_some_and(|v| !v.is_empty());
         updater.startup(&mut state.prefs, automated, cc.egui_ctx.clone());
@@ -3082,7 +3083,7 @@ impl App {
                     }
 
                     if ui.button("…").clicked()
-                        && let Some(f) = rfd::FileDialog::new().pick_file()
+                        && let Some(f) = crate::commands::file_dialog_in(None, rfd::FileDialog::pick_file)
                     {
                         p.godot_path = f;
                     }

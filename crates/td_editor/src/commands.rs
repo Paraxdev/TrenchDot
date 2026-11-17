@@ -1088,13 +1088,29 @@ pub fn dialog_dir(state: &EditorState) -> Option<std::path::PathBuf> {
     map_dir.or(state.game.project_root.as_deref()).and_then(|d| std::path::absolute(d).ok())
 }
 
+static NATIVE_DIALOGS: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+/// Turns the native file dialogs off for an --offscreen editor. They are modal, would open on the desktop of whoever
+/// sits at the machine and stall every MCP call until someone closes them.
+pub fn set_native_dialogs(on: bool) {
+    NATIVE_DIALOGS.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+pub fn native_dialogs() -> bool {
+    NATIVE_DIALOGS.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Shows a file dialog that starts in `dialog_dir`.
-pub fn file_dialog<T>(state: &EditorState, show: impl FnOnce(rfd::FileDialog) -> T) -> T {
+pub fn file_dialog<T: Default>(state: &EditorState, show: impl FnOnce(rfd::FileDialog) -> T) -> T {
     file_dialog_in(dialog_dir(state), show)
 }
 
-/// Shows a file dialog that starts in `dir`.
-pub fn file_dialog_in<T>(dir: Option<std::path::PathBuf>, show: impl FnOnce(rfd::FileDialog) -> T) -> T {
+/// Shows a file dialog that starts in `dir`, or picks nothing while native dialogs are off.
+pub fn file_dialog_in<T: Default>(dir: Option<std::path::PathBuf>, show: impl FnOnce(rfd::FileDialog) -> T) -> T {
+    if !native_dialogs() {
+        return T::default();
+    }
+
     let Some(dir) = dir.and_then(|d| std::path::absolute(d).ok()) else { return show(rfd::FileDialog::new()) };
     // rfd falls back to zenity when the desktop portal is missing or has no file chooser, and zenity ignores the start
     // folder and opens the working directory. Which one shows cannot be told beforehand, the portal ignores the working
@@ -1290,6 +1306,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             let (titles, active) = state.tab_titles();
             state.switch_tab((active + 1) % titles.len());
         }
+        Action::OpenMap | Action::SaveAs if !native_dialogs() => state.fail_status(msg!("File dialogs are off with --offscreen, use the map_file tool")),
         Action::OpenMap => {
             let picked = file_dialog(state, |d| {
                 d.add_filter(tr("TrenchDot map"), &td_doc::legacy::MAP_EXTS)
@@ -1309,7 +1326,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             }
         }
         Action::OpenProject => {
-            if let Some(dir) = rfd::FileDialog::new().set_title(tr("Select Godot project folder")).pick_folder() {
+            if let Some(dir) = file_dialog_in(None, |d| d.set_title(tr("Select Godot project folder")).pick_folder()) {
                 match td_formats::game::find_project_root(&dir) {
                     Some(root) => state.load_project(&root),
                     None => state.fail_status(msg!("No project.godot found in that folder or its parents")),
@@ -3438,6 +3455,26 @@ mod tests {
         state.doc.path = Some(maps.join("level.tdm"));
         assert_eq!(dialog_dir(&state).as_deref(), Some(maps.as_path()), "a saved map starts in its own folder");
         std::fs::remove_dir_all(&project).ok();
+    }
+
+    #[test]
+    fn an_offscreen_editor_opens_no_file_dialog() {
+        set_native_dialogs(false);
+        let mut state = EditorState::new(Default::default());
+        let ctx = egui::Context::default();
+        for action in [Action::Save, Action::SaveAs, Action::OpenMap] {
+            state.set_status(msg!("Undo {l}", l = "Move"));
+            execute(&mut state, action.clone(), &ctx);
+            assert!(state.status.contains("--offscreen") && state.status.contains("map_file") && state.status_failed(), "{action:?}: {}", state.status);
+        }
+
+        assert_eq!(state.doc.path, None);
+        assert_eq!(file_dialog_in(Some(std::env::temp_dir()), rfd::FileDialog::pick_file), None);
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("kept.tdm");
+        state.doc.path = Some(path.clone());
+        execute(&mut state, Action::Save, &ctx);
+        assert!(path.is_file() && !state.status_failed(), "a map with a path still saves: {}", state.status);
     }
 
     #[test]

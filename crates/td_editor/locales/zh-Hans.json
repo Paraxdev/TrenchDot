@@ -2894,5 +2894,6 @@
   "This cache has no noise values, the hills draw flat until Godot exports again": "此缓存没有噪声数值，在 Godot 重新导出前山丘会画成平地",
   "Terrain3D cannot be drawn: {problem}": "无法绘制 Terrain3D：{problem}",
   "Region {x}, {y} was made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "区域 {x}, {y} 的区域大小与 Godot 中的地形不同，请使用 Godot 的版本，或在 Godot 中改回该大小",
-  "Some regions were made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "部分区域的区域大小与 Godot 中的地形不同，请使用 Godot 的版本，或在 Godot 中改回该大小"
+  "Some regions were made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "部分区域的区域大小与 Godot 中的地形不同，请使用 Godot 的版本，或在 Godot 中改回该大小",
+  "File dialogs are off with --offscreen, use the map_file tool": "使用 --offscreen 时文件对话框已关闭，请使用 map_file 工具"
 }

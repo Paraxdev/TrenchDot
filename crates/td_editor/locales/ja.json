@@ -2894,5 +2894,6 @@
   "This cache has no noise values, the hills draw flat until Godot exports again": "このキャッシュにはノイズの値がないため、Godot が再び書き出すまで丘は平らに描かれます",
   "Terrain3D cannot be drawn: {problem}": "Terrain3D を描画できません: {problem}",
   "Region {x}, {y} was made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "リージョン {x}, {y} はGodotの地形と異なるリージョンサイズで作られています。Godot側を使うか、Godotでサイズを元に戻してください",
-  "Some regions were made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "一部のリージョンはGodotの地形と異なるリージョンサイズで作られています。Godot側を使うか、Godotでサイズを元に戻してください"
+  "Some regions were made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "一部のリージョンはGodotの地形と異なるリージョンサイズで作られています。Godot側を使うか、Godotでサイズを元に戻してください",
+  "File dialogs are off with --offscreen, use the map_file tool": "--offscreen ではファイルダイアログを開けません。map_file ツールを使ってください"
 }
