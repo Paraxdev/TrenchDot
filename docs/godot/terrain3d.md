@@ -317,10 +317,11 @@ changed in Godot too", with the region outlined in the warning color in every vi
 
 So unsaved work in Godot is never overwritten behind your back, and edits in different regions never conflict.
 
-A region you sculpted at another region size than Godot's terrain has, for example because you changed the region size
-in Godot and closed it without saving, shows "Region 0, 0 was made at another region size than Godot's terrain has".
-Godot cannot take such an edit, so there is no **Keep Mine**, only **Use Godot's**. To keep the edit instead, set the
-region size in Godot's Terrain3D node back to the size you sculpted at and send again.
+A region you sculpted or removed at another region size than Godot's terrain has, for example because you changed the
+region size in Godot and closed it without saving, shows "Region 0, 0 was made at another region size than Godot's
+terrain has". Godot cannot take such an edit, and the removal would take away another area at Godot's size, so there is
+no **Keep Mine**, only **Use Godot's**. To keep your change instead, set the region size in Godot's Terrain3D node back
+to the size you made it at and send again.
 
 ## Scatter on Terrain3D
 

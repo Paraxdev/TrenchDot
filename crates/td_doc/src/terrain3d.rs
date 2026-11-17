@@ -75,9 +75,17 @@ pub struct Terrain3DLink {
     /// Regions edited in TrenchDot. A map save sends them as pending patches, the map file never holds them.
     #[serde(skip)]
     pub edits: imbl::OrdMap<Loc, RegionEdit>,
-    /// Cached regions TrenchDot removed, with the hash each had.
+    /// Cached regions TrenchDot removed.
     #[serde(skip)]
-    pub removed: imbl::OrdMap<Loc, RegionHash>,
+    pub removed: imbl::OrdMap<Loc, Removal>,
+}
+
+/// A cached region TrenchDot removed, with the hash it had and the region size of the terrain then. The same location
+/// covers another area at another region size.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Removal {
+    pub hash: RegionHash,
+    pub region_size: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -96,7 +104,8 @@ pub struct RegionChange {
     pub base_hash: Option<RegionHash>,
     /// Godot changed the region since the edit started from it, or the world's region size no longer fits the edit.
     pub conflict: bool,
-    /// The edit has another region size than the world, which Godot refuses whatever the base hash says.
+    /// The edit or removal was made at another region size than the world has. Godot refuses such an edit whatever the
+    /// base hash says, and the removal would take another area.
     pub resized: bool,
 }
 
@@ -272,7 +281,7 @@ impl Terrain3DLink {
                 continue;
             }
 
-            let base_hash = self.removed.remove(&loc).filter(|_| source.hash(loc).is_some());
+            let base_hash = self.removed.remove(&loc).map(|r| r.hash).filter(|_| source.hash(loc).is_some());
             self.edits.insert(loc, RegionEdit::new(Arc::new(Region3D::blank(loc, size)), base_hash));
             added.push(loc);
         }
@@ -295,7 +304,7 @@ impl Terrain3DLink {
                 _ => source.hash(loc),
             };
             if let Some(hash) = base {
-                self.removed.insert(loc, hash);
+                self.removed.insert(loc, Removal { hash, region_size: source.grid().region_size });
             }
 
             gone.push(loc);
@@ -397,9 +406,17 @@ impl Terrain3DLink {
             });
         }
 
-        for (loc, hash) in &self.removed {
+        for (loc, removal) in &self.removed {
             let Some(now) = source.hash(*loc) else { continue };
-            out.push(RegionChange { loc: *loc, kind: ChangeKind::Remove, region: None, base_hash: Some(*hash), conflict: now != *hash, resized: false });
+            let resized = removal.region_size != size;
+            out.push(RegionChange {
+                loc: *loc,
+                kind: ChangeKind::Remove,
+                region: None,
+                base_hash: Some(removal.hash),
+                conflict: now != removal.hash || resized,
+                resized,
+            });
         }
 
         out.sort_by_key(|c| (c.loc[1], c.loc[0]));
@@ -424,10 +441,10 @@ impl Terrain3DLink {
             return false;
         }
 
-        if let Some(&hash) = self.removed.get(&s.loc) {
-            if Some(hash) == s.base_hash {
+        if let Some(&removal) = self.removed.get(&s.loc) {
+            if Some(removal.hash) == s.base_hash {
                 match s.now {
-                    Some(now) => self.removed.insert(s.loc, now),
+                    Some(now) => self.removed.insert(s.loc, Removal { hash: now, ..removal }),
                     None => self.removed.remove(&s.loc),
                 };
             }
@@ -436,8 +453,8 @@ impl Terrain3DLink {
         }
 
         match (&s.region, s.base_hash, &s.before, s.now) {
-            (Some(_), None, _, Some(now)) => {
-                self.removed.insert(s.loc, now);
+            (Some(region), None, _, Some(now)) => {
+                self.removed.insert(s.loc, Removal { hash: now, region_size: region.size });
             }
             (Some(region), Some(_), Some(before), now) => {
                 self.edits.insert(s.loc, RegionEdit { region: before.clone(), base_hash: now, base: Some(region.clone()) });
@@ -1148,7 +1165,7 @@ mod edit_tests {
         link.add_regions(&source, &[[1, 1]]).unwrap();
         assert_eq!(link.remove_regions(&source, &[[2, -3], [9, 9], [1, 1], [4, -3]]), vec![[2, -3], [1, 1], [4, -3]]);
         assert!(link.edits.is_empty());
-        assert_eq!(link.removed.iter().map(|(l, h)| (*l, *h)).collect::<Vec<_>>(), vec![([2, -3], hash([2, -3], 1)), ([4, -3], hash([4, -3], 1))]);
+        assert_eq!(link.removed.iter().map(|(l, r)| (*l, r.hash)).collect::<Vec<_>>(), vec![([2, -3], hash([2, -3], 1)), ([4, -3], hash([4, -3], 1))]);
         assert!(link.remove_regions(&source, &[[2, -3]]).is_empty());
 
         assert_eq!(link.add_regions(&source, &[[2, -3]]), Ok(vec![[2, -3]]));
@@ -1243,7 +1260,7 @@ mod edit_tests {
         let resized = link.changed_regions(&source);
         assert!(resized.iter().all(|c| c.conflict));
         let flags: Vec<_> = resized.iter().map(|c| (c.loc, c.resized)).collect();
-        assert_eq!(flags, vec![([0, 0], true), ([2, 0], false), ([5, 0], true), ([6, 0], true)]);
+        assert_eq!(flags, vec![([0, 0], true), ([2, 0], true), ([5, 0], true), ([6, 0], true)]);
     }
 
     #[test]
@@ -1468,6 +1485,31 @@ mod edit_tests {
     }
 
     #[test]
+    fn a_removal_keeps_the_region_size_it_was_made_at() {
+        let mut source = Fake::new(&[[-3, 2], [4, -1], [5, 5]]);
+        let mut link = Terrain3DLink::new("res://t3d");
+        assert!(link.changed_regions(&source).is_empty());
+        link.remove_regions(&source, &[[-3, 2]]);
+        source.grid.region_size = 128;
+        link.remove_regions(&source, &[[4, -1]]);
+        let removed: Vec<_> = link.removed.iter().map(|(l, r)| (*l, *r)).collect();
+        let at = |loc: Loc, region_size| (loc, Removal { hash: hash(loc, 1), region_size });
+        assert_eq!(removed, vec![at([-3, 2], 64), at([4, -1], 128)]);
+        let flags = |link: &Terrain3DLink, source: &Fake| link.changed_regions(source).into_iter().map(|c| (c.loc, c.conflict, c.resized)).collect::<Vec<_>>();
+        assert_eq!(flags(&link, &source), vec![([4, -1], false, false), ([-3, 2], true, true)]);
+        source.grid.region_size = 64;
+        assert_eq!(flags(&link, &source), vec![([4, -1], true, true), ([-3, 2], false, false)]);
+
+        let godot_changed = Settled { loc: [4, -1], region: None, base_hash: Some(hash([4, -1], 1)), before: None, now: Some(hash([4, -1], 3)) };
+        link.settle(&godot_changed);
+        assert_eq!(link.removed[&[4, -1]], Removal { hash: hash([4, -1], 3), region_size: 128 }, "a refused removal keeps its size");
+        let add_undone =
+            Settled { loc: [7, -2], region: Some(Arc::new(Region3D::blank([7, -2], 256))), base_hash: None, before: None, now: Some(hash([7, -2], 2)) };
+        link.settle(&add_undone);
+        assert_eq!(link.removed[&[7, -2]], Removal { hash: hash([7, -2], 2), region_size: 256 });
+    }
+
+    #[test]
     fn settling_a_removal_or_another_send_leaves_unrelated_edits_alone() {
         let source = Fake::new(&[L, [3, -3]]);
         let mut link = Terrain3DLink::new("res://t3d");
@@ -1516,7 +1558,7 @@ mod edit_tests {
     fn a_stale_removal_left_behind_does_not_turn_an_add_into_an_edit() {
         let source = Fake::new(&[]);
         let mut link = Terrain3DLink::new("res://t3d");
-        link.removed.insert(L, hash(L, 1));
+        link.removed.insert(L, Removal { hash: hash(L, 1), region_size: 64 });
         link.add_regions(&source, &[L]).unwrap();
         assert!(link.removed.is_empty());
         assert_eq!(changes(&link, &source), vec![(L, ChangeKind::Add, None, false)]);

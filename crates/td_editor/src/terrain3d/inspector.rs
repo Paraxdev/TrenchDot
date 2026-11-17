@@ -409,7 +409,7 @@ pub fn inspector(ui: &mut Ui, state: &mut EditorState, id: NodeId, actions: &mut
 mod tests {
     use std::sync::Arc;
 
-    use td_doc::terrain3d::{ChangeKind, RegionEdit};
+    use td_doc::terrain3d::{ChangeKind, RegionEdit, Removal};
     use td_geom::terrain3d::Region3D;
 
     use super::*;
@@ -481,7 +481,7 @@ mod tests {
         let edit = |loc: Loc| RegionEdit::new(Arc::new(Region3D::blank(loc, 64)), Some([3; 32]));
         link.edits.insert([1, -2], edit([1, -2]));
         link.edits.insert([4, 0], edit([4, 0]));
-        link.removed.insert([-5, 2], [9; 32]);
+        link.removed.insert([-5, 2], Removal { hash: [9; 32], region_size: 64 });
         assert!(use_godots(&mut link, [1, -2]));
         assert!(use_godots(&mut link, [-5, 2]));
         assert!(!use_godots(&mut link, [1, -2]), "nothing left to drop");

@@ -11,7 +11,7 @@ use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
-use td_doc::terrain3d::{RegionChange, RegionEdit, Terrain3DLink};
+use td_doc::terrain3d::{RegionChange, RegionEdit, Removal, Terrain3DLink};
 use td_formats::terrain3d_cache::{self, CacheError, PendingRegion, RegionHash};
 use td_geom::terrain3d::{Grid, Loc, Region3D};
 
@@ -104,7 +104,7 @@ pub fn restore_pending(cache: &Path, region_size: u32, link: &mut Terrain3DLink)
         };
 
         if pending.remove {
-            link.removed.insert(loc, pending.base.0);
+            link.removed.insert(loc, Removal { hash: pending.base.0, region_size: pending.region.size });
         } else {
             let base_hash = (pending.base != RegionHash::ZERO).then_some(pending.base.0);
             link.edits.insert(loc, RegionEdit::new(Arc::new(pending.region), base_hash));
@@ -739,7 +739,7 @@ mod tests {
         assert_eq!(link.edits[&B].base_hash, None, "a region TrenchDot added has no base");
         assert_eq!(*link.edits[&[2, 2]].region, *region([2, 2], 99.0), "the link's own edit wins over the file");
         assert_eq!(link.removed.len(), 1);
-        assert_eq!(link.removed[&[0, 0]], [9; 32]);
+        assert_eq!(link.removed[&[0, 0]], Removal { hash: [9; 32], region_size: 64 });
 
         let mut empty = Terrain3DLink::new("res://terrain");
         assert_eq!(restore_pending(&dir.path().join("none"), 64, &mut empty), Restored::default());

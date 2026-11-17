@@ -125,7 +125,8 @@ fn parse_resolve(a: &Value) -> Result<(Loc, Take), String> {
 }
 
 /// Why `take` cannot settle `change` on a terrain of `region_size`. Godot refuses an edit made at another region size
-/// whatever it is sent over, so only dropping it settles the region.
+/// whatever it is sent over, and a removal made at another size would remove another area, so only dropping either
+/// settles the region.
 fn resolve_refusal(change: &RegionChange, take: &Take, region_size: u32) -> Option<String> {
     if matches!(take, Take::Godot) && !change.conflict {
         return Some(format!(
@@ -135,7 +136,16 @@ fn resolve_refusal(change: &RegionChange, take: &Take, region_size: u32) -> Opti
         ));
     }
 
-    let edit = change.region.as_ref().filter(|_| change.resized && matches!(take, Take::Mine))?;
+    if !change.resized || !matches!(take, Take::Mine) {
+        return None;
+    }
+
+    let Some(edit) = change.region.as_ref() else {
+        return Some(format!(
+            "region {:?} was removed at another region size than the {region_size} Godot's terrain uses, so it would remove another area. Take godot to keep Godot's region, or set region_size back with the settings op",
+            change.loc
+        ));
+    };
     Some(format!(
         "region {:?} was made at region size {}, Godot's terrain uses {region_size}. Take godot to drop the edit, or set region_size back to {} with the settings op",
         change.loc, edit.size, edit.size
@@ -685,8 +695,13 @@ mod tests {
 
         assert_eq!(resolve_refusal(&edit([-3, 7], 256, true), &Take::Godot, 128), None);
         assert_eq!(resolve_refusal(&edit([5, -2], 128, false), &Take::Mine, 128), None);
-        let removal = RegionChange { region: None, kind: ChangeKind::Remove, ..edit([0, 0], 64, false) };
-        assert_eq!(resolve_refusal(&removal, &Take::Mine, 128), None);
+        let removal = |resized| RegionChange { region: None, kind: ChangeKind::Remove, ..edit([-6, 2], 64, resized) };
+        assert_eq!(resolve_refusal(&removal(false), &Take::Mine, 128), None);
+        assert_eq!(resolve_refusal(&removal(true), &Take::Godot, 128), None);
+        let refusal = resolve_refusal(&removal(true), &Take::Mine, 128).unwrap();
+        for fact in ["[-6, 2]", "removed at another region size", "the 128", "take godot"] {
+            assert!(refusal.to_lowercase().contains(fact), "{fact} missing from {refusal}");
+        }
     }
 
     #[test]
