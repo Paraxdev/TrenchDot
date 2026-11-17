@@ -9,7 +9,7 @@ use std::time::Instant;
 
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Vec2};
 use serde_json::{Value, json};
-use td_core::{Aabb, DVec2, DVec3, NodeId};
+use td_core::{Aabb, DVec2, DVec3, Mirror, NodeId};
 use td_doc::{IoConnection, NodeKind, format, issues, ops};
 use td_geom::{Brush, shapes};
 
@@ -1425,10 +1425,10 @@ impl App {
                 let scope = crate::blend_tool::StrokeScope::of(&self.state);
                 let faces = scope.displacements(&self.state);
                 let terrains = scope.terrains;
-                let changed = self
-                    .state
-                    .doc
-                    .edit("Sculpt", |m, _| td_doc::terrain::sculpt(m, &faces, center, &brush) | td_doc::terrain::sculpt_terrains(m, &terrains, center, &brush));
+                let changed = self.state.doc.edit("Sculpt", |m, _| {
+                    td_doc::terrain::sculpt(m, &faces, center, &brush, &Mirror::NONE)
+                        | td_doc::terrain::sculpt_terrains(m, &terrains, center, &brush, &td_doc::symmetry::Symmetry::OFF)
+                });
                 return ok(json!({ "changed": changed, "faces": faces.len(), "terrains": terrains.len() }));
             }
             "sprinkle" => {

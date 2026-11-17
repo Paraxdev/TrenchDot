@@ -3,10 +3,11 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use td_core::{DVec3, Mirror, NodeId, Ray};
+use td_core::{DVec3, Fold, Mirror, NodeId, Ray};
 use td_geom::displacement::{self, Displacement};
 
 use crate::map::Map;
+use crate::symmetry::Symmetry;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -169,15 +170,17 @@ fn hash_noise(p: DVec3, seed: u32) -> f64 {
     v.fract() * 2.0 - 1.0
 }
 
-/// Applies one sculpt dab at `center`. Returns true if anything changed.
-pub fn sculpt(map: &mut Map, faces: &[(NodeId, usize)], center: DVec3, brush: &SculptBrush) -> bool {
+/// Applies one sculpt dab at `center` and at its images across `mirror`. Returns true if anything changed.
+pub fn sculpt(map: &mut Map, faces: &[(NodeId, usize)], center: DVec3, brush: &SculptBrush, mirror: &Mirror) -> bool {
     let mut changed = false;
     for (id, face) in faces {
         let Some(b) = map.brush(*id) else { continue };
         let Some(grid) = displacement::grid(b, *face) else { continue };
         let normal = b.faces[*face].plane.normal;
         let n = grid.size;
-        let weights: Vec<f64> = grid.positions.iter().map(|p| falloff((*p - center).length(), brush.radius)).collect();
+        // A vertex is weighed at its image on the dab's side, so a dab overlapping its own mirror counts once.
+        let folds: Vec<Fold> = grid.positions.iter().map(|p| mirror.fold(*p, center)).collect();
+        let weights: Vec<f64> = grid.positions.iter().zip(&folds).map(|(p, f)| falloff((f.point(*p) - center).length(), brush.radius)).collect();
         if weights.iter().all(|w| *w <= 0.0) {
             continue;
         }
@@ -214,12 +217,12 @@ pub fn sculpt(map: &mut Map, faces: &[(NodeId, usize)], center: DVec3, brush: &S
                     disp.heights[k] = (old_heights[k] as f64 * (1.0 - t) + avg * t) as f32;
                 }
                 SculptMode::Flatten => {
-                    let base_height = grid.base[k].dot(normal);
+                    let base_height = folds[k].point(grid.base[k]).dot(folds[k].vector(normal));
                     let target = brush.flatten_height - base_height;
                     let t = (w * brush.strength.clamp(0.0, 16.0) / 16.0).clamp(0.0, 1.0);
                     disp.heights[k] = (old_heights[k] as f64 * (1.0 - t) + target * t) as f32;
                 }
-                SculptMode::Noise => disp.heights[k] += (hash_noise(grid.base[k], brush.seed) * brush.strength * w) as f32,
+                SculptMode::Noise => disp.heights[k] += (hash_noise(folds[k].point(grid.base[k]), brush.seed) * brush.strength * w) as f32,
                 SculptMode::PaintAlpha | SculptMode::PaintLayer => disp.alphas[k] = (disp.alphas[k] as f64 + brush.strength * w).clamp(0.0, 1.0) as f32,
                 SculptMode::EraseAlpha => disp.alphas[k] = (disp.alphas[k] as f64 - brush.strength * w).clamp(0.0, 1.0) as f32,
                 SculptMode::Terrace => {
@@ -249,33 +252,34 @@ pub fn terrain_ray_cast(map: &Map, terrains: &[NodeId], ray: &Ray) -> Option<(f6
     terrains.iter().filter_map(|id| map.terrain(*id).and_then(|t| t.ray_cast(ray)).map(|(d, p)| (d, p, *id))).min_by(|a, b| a.0.total_cmp(&b.0))
 }
 
-/// Applies one dab to terrains. Returns true if anything changed.
-pub fn sculpt_terrains(map: &mut Map, terrains: &[NodeId], center: DVec3, brush: &SculptBrush) -> bool {
+/// Applies one dab to terrains, mirrored on each by `symmetry`. Returns true if anything changed.
+pub fn sculpt_terrains(map: &mut Map, terrains: &[NodeId], center: DVec3, brush: &SculptBrush, symmetry: &Symmetry) -> bool {
     let mut changed = false;
     for id in terrains {
         if let Some(t) = map.terrain_mut(*id) {
-            changed |= sculpt_terrains_single(t, center, brush);
+            let mirror = symmetry.for_terrain(t);
+            changed |= sculpt_terrains_single(t, center, brush, &mirror);
         }
     }
 
     changed
 }
 
-/// One dab on one terrain.
-pub fn sculpt_terrains_single(t: &mut td_geom::Terrain, center: DVec3, brush: &SculptBrush) -> bool {
+/// One dab on one terrain, and its images across `mirror`.
+pub fn sculpt_terrains_single(t: &mut td_geom::Terrain, center: DVec3, brush: &SculptBrush, mirror: &Mirror) -> bool {
     let r = brush.radius;
     let soft = (brush.strength.clamp(0.0, 16.0) / 16.0).clamp(0.0, 1.0);
     match brush.mode {
-        SculptMode::Raise => t.raise(center, r, brush.strength, &Mirror::NONE),
-        SculptMode::Lower => t.raise(center, r, -brush.strength, &Mirror::NONE),
-        SculptMode::Smooth => t.smooth(center, r, soft, &Mirror::NONE),
-        SculptMode::Flatten => t.flatten(center, r, brush.flatten_height, soft, &Mirror::NONE),
-        SculptMode::Noise => t.add_noise(center, r, brush.strength, brush.seed, &Mirror::NONE),
-        SculptMode::Terrace => t.terrace(center, r, brush.terrace_step, soft, &Mirror::NONE),
-        SculptMode::PaintLayer | SculptMode::PaintAlpha => t.paint_layer(center, r, brush.layer as usize, brush.strength.min(1.0), &Mirror::NONE),
-        SculptMode::EraseAlpha => t.paint_layer(center, r, 0, brush.strength.min(1.0), &Mirror::NONE),
-        SculptMode::Hole => t.set_holes(center, r, true, &Mirror::NONE),
-        SculptMode::Unhole => t.set_holes(center, r, false, &Mirror::NONE),
+        SculptMode::Raise => t.raise(center, r, brush.strength, mirror),
+        SculptMode::Lower => t.raise(center, r, -brush.strength, mirror),
+        SculptMode::Smooth => t.smooth(center, r, soft, mirror),
+        SculptMode::Flatten => t.flatten(center, r, brush.flatten_height, soft, mirror),
+        SculptMode::Noise => t.add_noise(center, r, brush.strength, brush.seed, mirror),
+        SculptMode::Terrace => t.terrace(center, r, brush.terrace_step, soft, mirror),
+        SculptMode::PaintLayer | SculptMode::PaintAlpha => t.paint_layer(center, r, brush.layer as usize, brush.strength.min(1.0), mirror),
+        SculptMode::EraseAlpha => t.paint_layer(center, r, 0, brush.strength.min(1.0), mirror),
+        SculptMode::Hole => t.set_holes(center, r, true, mirror),
+        SculptMode::Unhole => t.set_holes(center, r, false, mirror),
     }
 }
 
@@ -356,8 +360,9 @@ pub fn paint_vertices(map: &mut Map, brushes: &[NodeId], center: DVec3, radius: 
 mod tests {
     use super::*;
     use crate::NodeKind;
+    use crate::symmetry::{SymmetryAxes, SymmetryCenter};
     use td_core::Aabb;
-    use td_geom::Brush;
+    use td_geom::{Brush, Terrain};
 
     fn terrain_map() -> (Map, NodeId, NodeId) {
         let mut m = Map::new();
@@ -376,7 +381,7 @@ mod tests {
         let faces = displacement_faces(&m, &[]);
         let brush = SculptBrush { mode: SculptMode::Raise, radius: 40.0, strength: 10.0, flatten_height: 0.0, ..Default::default() };
         // Dab near the left brush only, so its edge rises while the neighbour stays flat.
-        assert!(sculpt(&mut m, &faces[..1], DVec3::new(60.0, 0.0, 32.0), &brush));
+        assert!(sculpt(&mut m, &faces[..1], DVec3::new(60.0, 0.0, 32.0), &brush, &Mirror::NONE));
         let hit = ray_cast(&m, &faces, &Ray::new(DVec3::new(62.0, 100.0, 32.0), DVec3::NEG_Y)).unwrap();
         assert!(hit.1.y > 5.0, "surface raised: {:?}", hit.1);
         assert!(sew(&mut m, &faces) > 0);
@@ -394,16 +399,16 @@ mod tests {
         let (mut m, a, _) = terrain_map();
         let faces = displacement_faces(&m, &[a]);
         let paint = SculptBrush { mode: SculptMode::PaintAlpha, radius: 20.0, strength: 0.5, flatten_height: 0.0, ..Default::default() };
-        sculpt(&mut m, &faces, DVec3::new(32.0, 0.0, 32.0), &paint);
+        sculpt(&mut m, &faces, DVec3::new(32.0, 0.0, 32.0), &paint, &Mirror::NONE);
         let d = m.brush(a).unwrap().faces[faces[0].1].data.disp.clone().unwrap();
         assert!(d.alphas.iter().any(|v| *v > 0.4) && d.alphas.contains(&0.0));
 
         let raise = SculptBrush { mode: SculptMode::Raise, radius: 8.0, strength: 16.0, ..paint };
-        sculpt(&mut m, &faces, DVec3::new(32.0, 0.0, 32.0), &raise);
+        sculpt(&mut m, &faces, DVec3::new(32.0, 0.0, 32.0), &raise, &Mirror::NONE);
         let peak = |m: &Map| m.brush(a).unwrap().faces[faces[0].1].data.disp.as_ref().unwrap().heights.iter().cloned().fold(0.0f32, f32::max);
         let before = peak(&m);
         let smooth = SculptBrush { mode: SculptMode::Smooth, radius: 32.0, strength: 16.0, ..paint };
-        sculpt(&mut m, &faces, DVec3::new(32.0, 0.0, 32.0), &smooth);
+        sculpt(&mut m, &faces, DVec3::new(32.0, 0.0, 32.0), &smooth, &Mirror::NONE);
         assert!(peak(&m) < before);
     }
 
@@ -436,8 +441,169 @@ mod tests {
         let (mut m, a, _) = terrain_map();
         let faces = displacement_faces(&m, &[a]);
         let paint = SculptBrush { mode: SculptMode::PaintLayer, radius: 20.0, strength: 0.5, ..Default::default() };
-        assert!(sculpt(&mut m, &faces, DVec3::new(32.0, 0.0, 32.0), &paint));
+        assert!(sculpt(&mut m, &faces, DVec3::new(32.0, 0.0, 32.0), &paint, &Mirror::NONE));
         let d = m.brush(a).unwrap().faces[faces[0].1].data.disp.clone().unwrap();
         assert!(d.alphas.iter().any(|v| *v > 0.4));
+    }
+
+    const P: f64 = 21.5;
+    const X: Mirror = Mirror { x: Some(P), z: None };
+
+    fn mirror_x(p: DVec3) -> DVec3 {
+        DVec3::new(2.0 * P - p.x, p.y, p.z)
+    }
+
+    /// Base position, height and alpha of every vertex of a displacement.
+    fn surface(m: &Map, (id, face): (NodeId, usize)) -> Vec<(DVec3, f32, f32)> {
+        let b = m.brush(id).unwrap();
+        let d = b.faces[face].data.disp.as_ref().unwrap();
+        let base = displacement::grid(b, face).unwrap().base;
+        base.iter().enumerate().map(|(k, p)| (*p, d.heights[k], d.alphas.get(k).copied().unwrap_or(0.0))).collect()
+    }
+
+    fn assert_mirrored(m: &Map, a: (NodeId, usize), b: (NodeId, usize), what: &str) {
+        let (sa, sb) = (surface(m, a), surface(m, b));
+        assert_eq!(sa.len(), sb.len(), "{what}");
+        for (p, h, alpha) in &sa {
+            let (_, hb, ab) = sb.iter().find(|(q, ..)| (*q - mirror_x(*p)).length() < 1e-6).unwrap_or_else(|| panic!("{what}: no mirror of {p}"));
+            assert!((h - hb).abs() < 1e-4 && (alpha - ab).abs() < 1e-5, "{what} at {p}: {h} and {alpha}, mirrored {hb} and {ab}");
+        }
+    }
+
+    /// A displaced face of the brush `a` facing along `normal`, and its mirror image across x = P, with mirrored slanted
+    /// start heights.
+    fn mirrored_pair(a: Aabb, normal: DVec3) -> (Map, [(NodeId, usize); 2]) {
+        let mut m = Map::new();
+        let l = m.default_layer();
+        let mut place = |bounds: Aabb, normal: DVec3| {
+            let brush = Brush::from_aabb(&bounds, "m").unwrap();
+            let face = brush.faces.iter().position(|f| f.plane.normal.dot(normal) > 0.5).unwrap();
+            (m.insert(l, NodeKind::Brush(brush)), face)
+        };
+        let faces = [place(a, normal), place(Aabb::new(mirror_x(a.min), mirror_x(a.max)), DVec3::new(-normal.x, normal.y, normal.z))];
+        assert_eq!(create_displacements(&mut m, &faces, 3), 2);
+        let g = |p: DVec3| (0.07 * (p.x + 50.0) + 0.031 * (p.z - 40.0) + 0.0021 * p.y * p.z) as f32;
+        for (k, face) in faces.into_iter().enumerate() {
+            let base = displacement::grid(m.brush(face.0).unwrap(), face.1).unwrap().base;
+            let d = m.brush_mut(face.0).unwrap().faces[face.1].data.disp.as_mut().unwrap();
+            for (h, p) in d.heights.iter_mut().zip(base) {
+                *h = g(if k == 0 { p } else { mirror_x(p) });
+            }
+        }
+
+        (m, faces)
+    }
+
+    #[test]
+    fn mirrored_dabs_on_displacements_land_on_the_mirrored_brush() {
+        let floor = Aabb::new(DVec3::new(P - 64.0, -4.0, 40.0), DVec3::new(P, 12.0, 104.0));
+        // More than the radius from the plane, so only the mirrored dab reaches the second brush.
+        let dab = DVec3::new(P - 37.0, 12.0, 61.0);
+        for mode in [SculptMode::Raise, SculptMode::Smooth, SculptMode::Noise, SculptMode::Terrace, SculptMode::PaintAlpha] {
+            let brush = SculptBrush { mode, radius: 30.0, strength: 6.0, terrace_step: 1.5, seed: 7, ..Default::default() };
+            let (mut alone, faces) = mirrored_pair(floor, DVec3::Y);
+            let start = surface(&alone, faces[1]);
+            assert!(sculpt(&mut alone, &faces, dab, &brush, &Mirror::NONE));
+            assert_eq!(surface(&alone, faces[1]), start, "{mode:?} without a mirror");
+
+            let (mut m, faces) = mirrored_pair(floor, DVec3::Y);
+            assert!(sculpt(&mut m, &faces, dab, &brush, &X));
+            assert_ne!(surface(&m, faces[1]), start, "{mode:?}");
+            assert_mirrored(&m, faces[0], faces[1], &format!("{mode:?}"));
+        }
+    }
+
+    #[test]
+    fn a_displacement_dab_on_the_plane_counts_once() {
+        let floor = Aabb::new(DVec3::new(P - 64.0, -4.0, 40.0), DVec3::new(P, 12.0, 104.0));
+        let raise = SculptBrush { mode: SculptMode::Raise, radius: 30.0, strength: 6.0, ..Default::default() };
+        let dab = DVec3::new(P, 12.0, 61.0);
+        let (mut once, faces) = mirrored_pair(floor, DVec3::Y);
+        let (mut m, _) = mirrored_pair(floor, DVec3::Y);
+        assert!(sculpt(&mut once, &faces, dab, &raise, &Mirror::NONE));
+        assert!(sculpt(&mut m, &faces, dab, &raise, &X));
+        for face in faces {
+            for ((p, h, _), (_, want, _)) in surface(&m, face).iter().zip(surface(&once, face)) {
+                assert!((h - want).abs() < 1e-5, "at {p}: {h}, one dab gives {want}");
+            }
+        }
+
+        assert_mirrored(&m, faces[0], faces[1], "on the plane");
+    }
+
+    #[test]
+    fn flatten_on_a_wall_flattens_the_facing_wall_to_the_mirrored_height() {
+        let wall = Aabb::new(DVec3::new(P - 56.0, 12.0, 40.0), DVec3::new(P - 40.0, 76.0, 104.0));
+        let (mut m, faces) = mirrored_pair(wall, DVec3::X);
+        // Ten units out of the wall facing +X, like a stroke started on a vertex raised by ten.
+        let flatten = SculptBrush { mode: SculptMode::Flatten, radius: 40.0, strength: 16.0, flatten_height: P - 40.0 + 10.0, ..Default::default() };
+        assert!(sculpt(&mut m, &faces, DVec3::new(P - 38.0, 44.0, 72.0), &flatten, &X));
+        assert_mirrored(&m, faces[0], faces[1], "walls");
+        for (face, x) in [(faces[0], P - 40.0), (faces[1], P + 40.0)] {
+            let (_, h, _) = surface(&m, face).into_iter().find(|(p, ..)| (*p - DVec3::new(x, 44.0, 72.0)).length() < 1e-6).unwrap();
+            assert!((h - 10.0).abs() < 0.5, "the wall at x {x} is {h} out");
+        }
+    }
+
+    /// Two 17 by 9 cell terrains with slanted heights, mirror images of each other across x = 0.
+    fn twin_terrains() -> (Map, NodeId, NodeId) {
+        let mut west = Terrain::new(DVec3::new(-300.5, 12.0, 40.25), [18, 10], 16.0, "m");
+        for (k, h) in west.heights.iter_mut().enumerate() {
+            *h = (k % 18) as f32 * 0.7 + (k / 18) as f32 * 0.3 + ((k * 7) % 5) as f32 * 0.1;
+        }
+
+        let mut east = Terrain::new(DVec3::new(28.5, 12.0, 40.25), [18, 10], 16.0, "m");
+        east.heights = flip_x(&west.heights);
+        let mut m = Map::new();
+        let l = m.default_layer();
+        let (w, e) = (m.insert(l, NodeKind::Terrain(west)), m.insert(l, NodeKind::Terrain(east)));
+        (m, w, e)
+    }
+
+    fn flip_x(heights: &[f32]) -> Vec<f32> {
+        (0..heights.len()).map(|k| heights[k / 18 * 18 + 17 - k % 18]).collect()
+    }
+
+    fn raised(m: &Map, start: &Map, id: NodeId) -> Vec<f32> {
+        m.terrain(id).unwrap().heights.iter().zip(&start.terrain(id).unwrap().heights).map(|(a, b)| a - b).collect()
+    }
+
+    fn assert_close(got: &[f32], want: &[f32], what: &str) {
+        for (k, (g, w)) in got.iter().zip(want).enumerate() {
+            assert!((g - w).abs() < 1e-4, "{what}: vertex {k} is {g}, want {w}");
+        }
+    }
+
+    #[test]
+    fn terrains_mirror_around_their_own_middle_or_one_world_plane() {
+        let raise = SculptBrush { mode: SculptMode::Raise, radius: 40.0, strength: 5.0, ..Default::default() };
+        // East of the middle of the west terrain at x -164.5, by more than the radius.
+        let dab = DVec3::new(-110.5, 20.0, 90.25);
+        let west_half_still = |d: &[f32]| (0..d.len()).filter(|k| k % 18 < 9).all(|k| d[k] == 0.0);
+        let (start, w, e) = twin_terrains();
+
+        let mut m = start.clone();
+        assert!(sculpt_terrains(&mut m, &[w, e], dab, &raise, &Symmetry::OFF));
+        let (dw, de) = (raised(&m, &start, w), raised(&m, &start, e));
+        assert!(dw.iter().any(|d| *d > 4.0) && west_half_still(&dw) && de.iter().all(|d| *d == 0.0), "off: {dw:?}");
+
+        let mut m = start.clone();
+        let own = Symmetry { axes: SymmetryAxes::X, ..Symmetry::OFF };
+        assert!(sculpt_terrains(&mut m, &[w, e], dab, &raise, &own));
+        let (dw, de) = (raised(&m, &start, w), raised(&m, &start, e));
+        assert!(dw.iter().any(|d| *d > 4.0) && !west_half_still(&dw), "terrain center: {dw:?}");
+        assert_close(&dw, &flip_x(&dw), "the west terrain around its middle");
+        assert!(de.iter().all(|d| *d == 0.0), "the east terrain mirrors around its own middle, out of reach");
+
+        let mut m = start.clone();
+        let world = Symmetry { axes: SymmetryAxes::X, center: SymmetryCenter::World, ..Symmetry::OFF };
+        assert!(sculpt_terrains(&mut m, &[w, e], dab, &raise, &world));
+        let (dw, de) = (raised(&m, &start, w), raised(&m, &start, e));
+        assert!(dw.iter().any(|d| *d > 4.0) && west_half_still(&dw), "world: {dw:?}");
+        assert_close(&de, &flip_x(&dw), "the east terrain across x 0");
+
+        let mut m = start.clone();
+        assert!(sculpt_terrains(&mut m, &[w], dab, &raise, &world));
+        assert!(raised(&m, &start, e).iter().all(|d| *d == 0.0), "a terrain left out of the stroke stays as it was");
     }
 }

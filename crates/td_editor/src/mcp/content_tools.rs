@@ -1674,7 +1674,7 @@ impl App {
                     let mut any = false;
                     for (k, p) in resample(&points, a["spacing"].as_f64().unwrap_or(radius * 0.5)).into_iter().enumerate() {
                         brush.seed = seed.wrapping_add(k as u32);
-                        any |= td_doc::terrain::sculpt_terrains_single(t, p, &brush);
+                        any |= td_doc::terrain::sculpt_terrains_single(t, p, &brush, &Mirror::NONE);
                     }
 
                     any

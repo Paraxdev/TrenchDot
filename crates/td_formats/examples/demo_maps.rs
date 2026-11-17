@@ -113,12 +113,14 @@ fn terrain() -> Map {
         &faces,
         DVec3::new(128.0, 0.0, 128.0),
         &SculptBrush { mode: SculptMode::Raise, radius: 96.0, strength: 64.0, flatten_height: 0.0, ..Default::default() },
+        &Mirror::NONE,
     );
     terrain::sculpt(
         &mut m,
         &faces,
         DVec3::new(64.0, 0.0, 64.0),
         &SculptBrush { mode: SculptMode::PaintAlpha, radius: 48.0, strength: 1.0, flatten_height: 0.0, ..Default::default() },
+        &Mirror::NONE,
     );
 
     let mut decal = Entity::new("infodecal");

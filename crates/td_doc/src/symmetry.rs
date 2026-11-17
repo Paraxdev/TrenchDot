@@ -1,0 +1,178 @@
+//! Sculpt and blend symmetry: the axis planes a dab is mirrored across and where they sit.
+
+use serde::{Deserialize, Serialize};
+use td_core::{Aabb, DVec3, Mirror, NodeId};
+use td_geom::Terrain;
+
+use crate::map::Map;
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SymmetryAxes {
+    #[default]
+    Off,
+    X,
+    Z,
+    Xz,
+}
+
+impl SymmetryAxes {
+    pub fn x(self) -> bool {
+        matches!(self, SymmetryAxes::X | SymmetryAxes::Xz)
+    }
+
+    pub fn z(self) -> bool {
+        matches!(self, SymmetryAxes::Z | SymmetryAxes::Xz)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SymmetryCenter {
+    /// Each terrain's middle, and the middle of the displacements and blend faces one dab edits.
+    #[default]
+    Terrain,
+    World,
+    /// At [`Symmetry::x`] and [`Symmetry::z`].
+    Custom,
+}
+
+/// Which planes sculpt and blend dabs are mirrored across. Session state, never saved in a map.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Symmetry {
+    pub axes: SymmetryAxes,
+    pub center: SymmetryCenter,
+    /// World x of the X plane with a custom center.
+    pub x: f64,
+    /// World z of the Z plane with a custom center.
+    pub z: f64,
+}
+
+impl Symmetry {
+    pub const OFF: Symmetry = Symmetry { axes: SymmetryAxes::Off, center: SymmetryCenter::Terrain, x: 0.0, z: 0.0 };
+
+    pub fn is_off(&self) -> bool {
+        self.axes == SymmetryAxes::Off
+    }
+
+    pub fn for_terrain(&self, t: &Terrain) -> Mirror {
+        let size = t.size();
+        self.planes(t.origin + DVec3::new(size.x * 0.5, 0.0, size.y * 0.5))
+    }
+
+    /// Planes for displacements and blend faces edited together. A terrain center is the middle of their combined
+    /// footprint, and there is none without faces.
+    pub fn for_faces(&self, map: &Map, faces: &[(NodeId, usize)]) -> Mirror {
+        if self.is_off() || self.center != SymmetryCenter::Terrain {
+            return self.planes(DVec3::ZERO);
+        }
+
+        let bounds = Aabb::from_points(faces.iter().flat_map(|(id, face)| face_points(map, *id, *face)));
+        if bounds.is_empty() { Mirror::NONE } else { self.planes(bounds.center()) }
+    }
+
+    fn planes(&self, middle: DVec3) -> Mirror {
+        let at = match self.center {
+            SymmetryCenter::Terrain => middle,
+            SymmetryCenter::World => DVec3::ZERO,
+            SymmetryCenter::Custom => DVec3::new(self.x, 0.0, self.z),
+        };
+        Mirror { x: self.axes.x().then_some(at.x), z: self.axes.z().then_some(at.z) }
+    }
+}
+
+fn face_points(map: &Map, id: NodeId, face: usize) -> Vec<DVec3> {
+    match map.brush(id) {
+        Some(b) if face < b.faces.len() => b.face_points(face),
+        Some(_) => Vec::new(),
+        None => map.mesh(id).map(|m| m.face_points(face)).unwrap_or_default(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+    use td_geom::{Brush, Mesh};
+
+    use super::*;
+    use crate::NodeKind;
+
+    fn symmetry(axes: SymmetryAxes, center: SymmetryCenter) -> Symmetry {
+        Symmetry { axes, center, x: 300.25, z: -77.5 }
+    }
+
+    #[test]
+    fn terrain_planes_follow_the_axes_and_center() {
+        // 17 by 9 cells of 16 units from an off origin corner: the middle is half of 272 by 144 past it.
+        let t = Terrain::new(DVec3::new(-96.5, 12.0, 40.25), [18, 10], 16.0, "m");
+        let (mx, mz) = (-96.5 + 136.0, 40.25 + 72.0);
+        let cases = [
+            (SymmetryAxes::Off, SymmetryCenter::Terrain, Mirror::NONE),
+            (SymmetryAxes::Off, SymmetryCenter::Custom, Mirror::NONE),
+            (SymmetryAxes::X, SymmetryCenter::Terrain, Mirror { x: Some(mx), z: None }),
+            (SymmetryAxes::Z, SymmetryCenter::Terrain, Mirror { x: None, z: Some(mz) }),
+            (SymmetryAxes::Xz, SymmetryCenter::Terrain, Mirror { x: Some(mx), z: Some(mz) }),
+            (SymmetryAxes::Xz, SymmetryCenter::World, Mirror { x: Some(0.0), z: Some(0.0) }),
+            (SymmetryAxes::X, SymmetryCenter::Custom, Mirror { x: Some(300.25), z: None }),
+            (SymmetryAxes::Xz, SymmetryCenter::Custom, Mirror { x: Some(300.25), z: Some(-77.5) }),
+        ];
+        for (axes, center, want) in cases {
+            assert_eq!(symmetry(axes, center).for_terrain(&t), want, "{axes:?} {center:?}");
+        }
+
+        assert!(Symmetry::OFF.is_off() && Symmetry::default() == Symmetry::OFF);
+        assert!(!symmetry(SymmetryAxes::Z, SymmetryCenter::World).is_off());
+    }
+
+    #[test]
+    fn face_planes_sit_at_the_middle_of_every_face_together() {
+        let mut m = Map::new();
+        let l = m.default_layer();
+        let small = Brush::from_aabb(&Aabb::new(DVec3::new(-200.5, -16.0, 30.0), DVec3::new(-136.5, 4.0, 94.0)), "m").unwrap();
+        let wide = Brush::from_aabb(&Aabb::new(DVec3::new(-136.5, -16.0, 30.0), DVec3::new(55.5, 9.0, 158.0)), "m").unwrap();
+        let mesh = Mesh::from_brush(&Brush::from_aabb(&Aabb::new(DVec3::new(500.0, 0.0, -900.0), DVec3::new(564.0, 8.0, -836.0)), "m").unwrap());
+        let top = |b: &Brush| b.faces.iter().position(|f| f.plane.normal.y > 0.5).unwrap();
+        let (small_top, wide_top, mesh_faces) = (top(&small), top(&wide), mesh.faces.len());
+        let (a, b, c) = (m.insert(l, NodeKind::Brush(small)), m.insert(l, NodeKind::Brush(wide)), m.insert(l, NodeKind::Mesh(mesh)));
+        let xz = symmetry(SymmetryAxes::Xz, SymmetryCenter::Terrain);
+
+        let both = [(a, small_top), (b, wide_top)];
+        assert_eq!(xz.for_faces(&m, &both), Mirror { x: Some((-200.5 + 55.5) / 2.0), z: Some((30.0 + 158.0) / 2.0) });
+        assert_eq!(xz.for_faces(&m, &both[..1]), Mirror { x: Some(-168.5), z: Some(62.0) });
+        assert_eq!(symmetry(SymmetryAxes::Z, SymmetryCenter::Terrain).for_faces(&m, &both), Mirror { x: None, z: Some(94.0) });
+
+        let mesh_and_stale = [(c, 0), (c, mesh_faces), (a, 99)];
+        let mesh_mid = Aabb::from_points(m.mesh(c).unwrap().face_points(0)).center();
+        assert_eq!(xz.for_faces(&m, &mesh_and_stale), Mirror { x: Some(mesh_mid.x), z: Some(mesh_mid.z) });
+
+        assert_eq!(xz.for_faces(&m, &[]), Mirror::NONE);
+        assert_eq!(xz.for_faces(&m, &[(a, 99), (c, mesh_faces)]), Mirror::NONE);
+        assert_eq!(symmetry(SymmetryAxes::Off, SymmetryCenter::Terrain).for_faces(&m, &both), Mirror::NONE);
+        assert_eq!(symmetry(SymmetryAxes::Xz, SymmetryCenter::World).for_faces(&m, &[]), Mirror { x: Some(0.0), z: Some(0.0) });
+        assert_eq!(symmetry(SymmetryAxes::X, SymmetryCenter::Custom).for_faces(&m, &both), Mirror { x: Some(300.25), z: None });
+    }
+
+    #[test]
+    fn serde_uses_lowercase_names_and_refuses_unknown_fields() {
+        let cases = [
+            (SymmetryAxes::Off, SymmetryCenter::Terrain, json!({"axes": "off", "center": "terrain", "x": 300.25, "z": -77.5})),
+            (SymmetryAxes::X, SymmetryCenter::World, json!({"axes": "x", "center": "world", "x": 300.25, "z": -77.5})),
+            (SymmetryAxes::Z, SymmetryCenter::Custom, json!({"axes": "z", "center": "custom", "x": 300.25, "z": -77.5})),
+            (SymmetryAxes::Xz, SymmetryCenter::Custom, json!({"axes": "xz", "center": "custom", "x": 300.25, "z": -77.5})),
+        ];
+        for (axes, center, value) in cases {
+            let s = symmetry(axes, center);
+            assert_eq!(serde_json::to_value(s).unwrap(), value);
+            assert_eq!(serde_json::from_value::<Symmetry>(value).unwrap(), s);
+        }
+
+        let partial: Symmetry = serde_json::from_value(json!({"axes": "xz"})).unwrap();
+        assert_eq!(partial, Symmetry { axes: SymmetryAxes::Xz, ..Symmetry::OFF });
+        assert_eq!(serde_json::from_value::<Symmetry>(json!({})).unwrap(), Symmetry::OFF);
+        assert!(serde_json::from_value::<Symmetry>(json!({"axes": "x", "y": 4.0})).is_err());
+        assert!(serde_json::from_value::<Symmetry>(json!({"axes": "diagonal"})).is_err());
+        assert!(serde_json::from_value::<Symmetry>(json!({"center": "brush"})).is_err());
+        assert!(serde_json::from_value::<Symmetry>(json!("x")).is_err());
+    }
+}

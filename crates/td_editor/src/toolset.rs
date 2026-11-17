@@ -1,5 +1,5 @@
 use egui::{Align2, Color32, FontId, Key, PointerButton, Pos2, Rect, Response, Stroke, Ui, Vec2};
-use td_core::{Aabb, DMat4, DVec3, NodeId, Plane, Ray};
+use td_core::{Aabb, DMat4, DVec3, Mirror, NodeId, Plane, Ray};
 use td_doc::ops;
 use td_geom::Brush;
 use td_render::LineVertex;
@@ -538,8 +538,8 @@ impl ToolSet {
                     let strength = state.sculpt.strength;
                     state.doc.edit("Stroke", |m, _| {
                         if sculpting {
-                            td_doc::terrain::sculpt(m, &faces, p, &brush);
-                            td_doc::terrain::sculpt_terrains(m, &terrains, p, &brush);
+                            td_doc::terrain::sculpt(m, &faces, p, &brush, &Mirror::NONE);
+                            td_doc::terrain::sculpt_terrains(m, &terrains, p, &brush, &td_doc::symmetry::Symmetry::OFF);
                         } else {
                             td_doc::terrain::paint_vertices(m, &targets, p, radius, color, (strength * seconds).min(1.0));
                         }
