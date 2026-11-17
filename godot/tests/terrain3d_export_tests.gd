@@ -349,14 +349,15 @@ static func _shows(image: Image, left: Color, right: Color) -> bool:
 	var b := image.get_pixel(400, 200)
 	return _near_all([a.r, a.g, a.b], [left.r, left.g, left.b]) and _near_all([b.r, b.g, b.b], [right.r, right.g, right.b])
 
-## Each texture carries its uv values, its albedo at 512 pixels and a hash that follows the image and the uv values.
-## An export reuses the images of a texture whose hash it already wrote.
+## Each texture carries its uv values, its albedo at 512 pixels with the height in alpha and a hash that follows the
+## image and the uv values. An export reuses the images of a texture whose hash it already wrote, but not the RGB ones
+## an older addon wrote.
 static func _test_texture_looks(t) -> void:
 	var folder := WORK.path_join("texture_looks")
 	var terrain := await _terrain(t, folder, 64, 1.0)
 	terrain.get(&"data").add_region_blank(Vector2i(-2, 3), false)
-	var red := Color8(200, 40, 30)
-	var blue := Color8(20, 90, 220)
+	var red := Color8(200, 40, 30, 60)
+	var blue := Color8(20, 90, 220, 230)
 	var moss := Color8(40, 160, 50)
 	var lime := Color8(150, 210, 60)
 	var cliff: Resource = ClassDB.instantiate(&"Terrain3DTextureAsset")
@@ -388,8 +389,25 @@ static func _test_texture_looks(t) -> void:
 	var hashes := [str(rock.get("hash", "")), str(lawn.get("hash", ""))]
 	t.check(hashes.all(func(h: String): return h.length() == 64 and h.is_valid_hex_number()) and hashes[0] != hashes[1], "two textures have two hashes, got %s" % [hashes])
 	var albedo := Image.load_from_file(cache.path_join("textures/0_albedo.png"))
-	t.check(albedo and albedo.get_size() == Vector2i(512, 512) and albedo.get_format() == Image.FORMAT_RGB8, "the albedo is a 512 pixel RGB image, got %s %s" % [albedo.get_size() if albedo else null, albedo.get_format() if albedo else null])
+	t.check(albedo and albedo.get_size() == Vector2i(512, 512) and albedo.get_format() == Image.FORMAT_RGBA8, "the albedo is a 512 pixel RGBA image, got %s %s" % [albedo.get_size() if albedo else null, albedo.get_format() if albedo else null])
 	t.check(_shows(albedo, red, blue), "the albedo shows the image's halves")
+	var heights := [albedo.get_pixel(100, 300).a8, albedo.get_pixel(400, 200).a8] if albedo else []
+	t.check(heights == [60, 230], "the albedo keeps the height in alpha, got %s" % [heights])
+
+	var rgb_era := HashingContext.new()
+	rgb_era.start(HashingContext.HASH_SHA256)
+	rgb_era.update(var_to_bytes([rock["uv_scale"], rock["detiling_rotation"], rock["detiling_shift"], TrenchDotTerrain3DCache.THUMBNAIL_SIZE, TrenchDotTerrain3DCache.ALBEDO_SIZE]))
+	var source: Image = cliff.get(&"albedo_texture").get_image()
+	rgb_era.update(var_to_bytes([source.get_size(), source.get_format(), source.has_mipmaps()]))
+	rgb_era.update(source.get_data())
+	var manifest := _manifest(folder)
+	manifest["textures"][0]["hash"] = rgb_era.finish().hex_encode()
+	FileAccess.open(cache.path_join(TrenchDotTerrain3DCache.MANIFEST), FileAccess.WRITE).store_string(JSON.stringify(manifest))
+	var flat := Image.create_empty(8, 8, false, Image.FORMAT_RGB8)
+	FileAccess.open(cache.path_join("textures/0_albedo.png"), FileAccess.WRITE).store_buffer(flat.save_png_to_buffer())
+	TrenchDotTerrain3DCache.export(terrain, folder)
+	var upgraded := Image.load_from_file(cache.path_join("textures/0_albedo.png"))
+	t.check(_manifest(folder)["textures"][0]["hash"] == hashes[0] and upgraded and upgraded.get_size() == Vector2i(512, 512) and upgraded.get_pixel(100, 300).a8 == 60, "an RGB albedo an older addon wrote is written again, got %s" % [upgraded.get_size() if upgraded else null])
 
 	var marker := Image.create_empty(8, 8, false, Image.FORMAT_RGB8)
 	FileAccess.open(cache.path_join("textures/1_albedo.png"), FileAccess.WRITE).store_buffer(marker.save_png_to_buffer())
