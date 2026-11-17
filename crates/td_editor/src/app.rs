@@ -1001,7 +1001,10 @@ impl App {
         help::open_on_f1(ctx, self.manual_under_pointer.as_deref());
         let pointer = self.pointer;
         let open = open_views(&self.dock);
-        let view_hovered = self.viewports.iter().enumerate().any(|(i, v)| v.hovered || (open.contains(&i) && pointer.is_some_and(|p| v.rect.contains(p))));
+        // A dialog floats over the views, so the pointer inside a view's rect only counts when no window is on top.
+        let over_window = pointer.and_then(|p| ctx.layer_id_at(p)).is_some_and(|layer| layer.order != egui::Order::Background);
+        let view_hovered =
+            self.viewports.iter().enumerate().any(|(i, v)| v.hovered || (!over_window && open.contains(&i) && pointer.is_some_and(|p| v.rect.contains(p))));
         let scope =
             key_scope(ctx, self.ui_had_focus || self.keymap.open || self.content_wizard.open, view_hovered, |id| self.viewports.iter().any(|v| v.id == id));
         if scope == KeyScope::Ui {
@@ -3622,12 +3625,14 @@ mod tests {
                     scan(&path, titles);
                 } else if path.extension().is_some_and(|e| e == "rs") {
                     let text = std::fs::read_to_string(&path).unwrap();
-                    for (at, _) in text.match_indices("widgets::window(") {
-                        let rest = &text[at..];
-                        if let Some(title) =
-                            rest.strip_prefix("widgets::window(").and_then(|r| r.split(')').next()).and_then(|r| r.split('"').nth(1)).filter(|t| !t.is_empty())
-                        {
-                            titles.push(title.to_string());
+                    for call in ["window(", "centered_window("].map(|f| format!("widgets::{f}")) {
+                        for (at, _) in text.match_indices(&call) {
+                            let rest = &text[at..];
+                            if let Some(title) =
+                                rest.strip_prefix(&call).and_then(|r| r.split(')').next()).and_then(|r| r.split('"').nth(1)).filter(|t| !t.is_empty())
+                            {
+                                titles.push(title.to_string());
+                            }
                         }
                     }
                 }

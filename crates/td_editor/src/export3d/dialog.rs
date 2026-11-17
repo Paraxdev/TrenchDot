@@ -71,13 +71,7 @@ impl ExportDialog {
         self.show_progress(ctx, state);
         let mut open = self.open;
         let mut export = false;
-        crate::widgets::window(TITLE)
-            .open(&mut open)
-            .resizable(false)
-            .collapsible(false)
-            .pivot(egui::Align2::CENTER_CENTER)
-            .default_pos(ctx.content_rect().center())
-            .show(ctx, |ui| export = self.ui(ui, state));
+        crate::widgets::centered_window(TITLE, ctx).open(&mut open).resizable(false).collapsible(false).show(ctx, |ui| export = self.ui(ui, state));
         self.open = open && !export;
         if export && let Some(path) = save_path(state, self.format) {
             self.start(state, path);
@@ -114,8 +108,7 @@ impl ExportDialog {
         let (writing, done) = job.progress.get();
         let cancelling = job.progress.is_cancelled();
         let file = job.path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
-        let window = crate::widgets::window(PROGRESS_TITLE).resizable(false).collapsible(false).pivot(egui::Align2::CENTER_CENTER);
-        window.default_pos(ctx.content_rect().center()).show(ctx, |ui| {
+        crate::widgets::centered_window(PROGRESS_TITLE, ctx).resizable(false).collapsible(false).show(ctx, |ui| {
             ui.label(if writing { trf!("Writing {file}", file) } else { tr("Collecting geometry and textures").to_string() });
             ui.add(egui::ProgressBar::new(done).show_percentage().desired_width(300.0));
             ui.label(egui::RichText::new(tr("You can keep editing. Changes made now do not go into the file.")).weak());

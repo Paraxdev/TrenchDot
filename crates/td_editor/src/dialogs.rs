@@ -703,7 +703,7 @@ impl ShapeDialog {
 
         let mut open = self.open;
         let (sources, mut bounds) = self.sources_and_bounds(state);
-        widgets::window(en!("Shape Generator")).open(&mut open).resizable(false).show(ctx, |ui| {
+        widgets::centered_window(en!("Shape Generator"), ctx).open(&mut open).resizable(false).show(ctx, |ui| {
             egui::ComboBox::new("shape_kind", tr("Shape")).selected_text(tr(self.kind.label())).show_ui(ui, |ui| {
                 for k in ShapeKind::ALL {
                     ui.selectable_value(&mut self.kind, k, tr(k.label()));
@@ -951,7 +951,7 @@ fn terrain_shape_label(shape: TerrainShape) -> &'static str {
 impl TerrainDialog {
     pub fn show(&mut self, ctx: &egui::Context, state: &mut EditorState) {
         let mut open = self.open;
-        widgets::window(en!("Create Terrain")).open(&mut open).resizable(false).show(ctx, |ui| {
+        widgets::centered_window(en!("Create Terrain"), ctx).open(&mut open).resizable(false).show(ctx, |ui| {
             egui::Grid::new("terrain_grid").num_columns(2).show(ui, |ui| {
                 ui.label(tr("Resolution"));
                 egui::ComboBox::from_id_salt("terrain_res").selected_text(format!("{0} x {0}", self.resolution)).show_ui(ui, |ui| {
@@ -1118,7 +1118,7 @@ impl KeymapWindow {
         }
 
         let mut open = self.open;
-        widgets::window(en!("Keyboard Shortcuts")).open(&mut open).default_size([520.0, 520.0]).show(ctx, |ui| {
+        widgets::centered_window(en!("Keyboard Shortcuts"), ctx).open(&mut open).default_size([520.0, 520.0]).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(tr("Preset"));
                 egui::ComboBox::from_id_salt("keymap_preset").selected_text(commands::preset_label(&state.prefs.keymap_preset)).show_ui(ui, |ui| {
@@ -1236,7 +1236,7 @@ impl LinkDialog {
         let mut open = self.open;
         let mut apply = false;
         let mut swap = false;
-        widgets::window(en!("Link Entities")).open(&mut open).resizable(false).show(ctx, |ui| {
+        widgets::centered_window(en!("Link Entities"), ctx).open(&mut open).resizable(false).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(&from_name).strong());
                 swap = ui.small_button("⇄").on_hover_text(tr("Swap")).clicked();

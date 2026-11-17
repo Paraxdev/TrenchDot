@@ -197,7 +197,7 @@ impl RandomFillDialog {
         }
 
         let mut open = self.open;
-        crate::widgets::window(en!("Random Fill")).open(&mut open).resizable(false).default_width(360.0).show(ctx, |ui| {
+        crate::widgets::centered_window(en!("Random Fill"), ctx).open(&mut open).resizable(false).default_width(360.0).show(ctx, |ui| {
             ui.label(tr("Covers a grid with prefab pieces picked by weight. Build pieces one cell wide, centered on the origin."));
             ui.separator();
             let mut remove = None;

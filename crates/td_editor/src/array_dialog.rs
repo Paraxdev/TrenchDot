@@ -93,7 +93,7 @@ impl ArrayDialog {
         let preview = &mut self.preview;
         let mut open = self.open;
         let mut create = false;
-        crate::widgets::window(en!("Array Copies")).open(&mut open).resizable(false).show(ctx, |ui| {
+        crate::widgets::centered_window(en!("Array Copies"), ctx).open(&mut open).resizable(false).show(ctx, |ui| {
             egui::Grid::new("array_options").num_columns(2).show(ui, |ui| {
                 ui.label(tr("Copies"));
                 ui.add(egui::Slider::new(&mut spec.count, 1..=MAX_COPIES).logarithmic(true));

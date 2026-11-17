@@ -248,7 +248,7 @@ impl TrimDialog {
         let mut open = self.open;
         let selected = faces_for(&state.doc.map, &state.doc.selection);
         let faces = selected.len();
-        crate::widgets::window(en!("Add Trim")).open(&mut open).resizable(false).show(ctx, |ui| {
+        crate::widgets::centered_window(en!("Add Trim"), ctx).open(&mut open).resizable(false).show(ctx, |ui| {
             ui.label(tr("Strips along face edges: baseboards on the bottom, crown molding on top, borders around floors."));
             egui::Grid::new("trim_options").num_columns(2).show(ui, |ui| {
                 ui.label(tr("Edges"));

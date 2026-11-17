@@ -165,7 +165,7 @@ impl SweepDialog {
         let cached = &mut self.picked;
         let mut open = self.open;
         let mut create = None;
-        crate::widgets::window(en!("Sweep Faces")).open(&mut open).resizable(false).show(ctx, |ui| {
+        crate::widgets::centered_window(en!("Sweep Faces"), ctx).open(&mut open).resizable(false).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 for (path, label) in
                     [(SweepPath::Straight, en!("Straight")), (SweepPath::Arc, en!("Arc")), (SweepPath::SBend, en!("S-bend")), (SweepPath::Curve, en!("Curve"))]

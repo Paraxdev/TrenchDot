@@ -252,6 +252,11 @@ pub fn window(title: &str) -> egui::Window<'_> {
     egui::Window::new(crate::i18n::tr(title)).id(egui::Id::new(Some(crate::i18n::english(title))))
 }
 
+/// A window that opens in the middle of the editor and stays where it is dragged after that.
+pub fn centered_window<'a>(title: &'a str, ctx: &egui::Context) -> egui::Window<'a> {
+    window(title).pivot(egui::Align2::CENTER_CENTER).default_pos(ctx.content_rect().center())
+}
+
 /// Where a tool's hint goes at the bottom left of a viewport, and its text. It wraps at the viewport width and grows
 /// upward, so a long translation stays inside the view.
 fn corner_hint_galley(painter: &egui::Painter, rect: Rect, text: String, color: Color32) -> (Pos2, std::sync::Arc<egui::Galley>) {
@@ -329,6 +334,64 @@ mod tests {
         let id = window.show(ctx, |_| {}).expect("the window is visible").response.layer_id.id;
         ctx.end_pass().drop_without_applying_deltas();
         id
+    }
+
+    #[test]
+    fn a_centered_window_opens_in_the_middle_and_stays_where_it_is_dragged() {
+        let ctx = egui::Context::default();
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1600.0, 960.0));
+        let pass = |events: Vec<egui::Event>| {
+            ctx.begin_pass(egui::RawInput { screen_rect: Some(screen), events, ..Default::default() });
+            let shown = centered_window("Preferences", &ctx).resizable(false).show(&ctx, |ui| ui.label("A label wide enough to measure"));
+            ctx.end_pass().drop_without_applying_deltas();
+            shown.expect("the window is visible").response.rect
+        };
+        let mut rect = pass(vec![]);
+        for _ in 0..2 {
+            rect = pass(vec![]);
+        }
+
+        assert!((rect.center() - screen.center()).length() < 2.0, "{rect:?} is centered on {screen:?}");
+
+        let grab = rect.center_top() + egui::vec2(0.0, 8.0);
+        let to = grab - egui::vec2(300.0, 200.0);
+        let button = |pos, pressed| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+        pass(vec![egui::Event::PointerMoved(grab)]);
+        pass(vec![button(grab, true)]);
+        pass(vec![egui::Event::PointerMoved(to)]);
+        pass(vec![button(to, false)]);
+        let moved = pass(vec![]);
+        assert!((moved.center() - (rect.center() - egui::vec2(300.0, 200.0))).length() < 2.0, "{moved:?} stays where it was dragged");
+    }
+
+    /// A plain window opens at the top left corner over the menu bar, so a dialog goes through centered_window.
+    #[test]
+    fn no_dialog_opens_a_plain_window() {
+        fn scan(dir: &std::path::Path, found: &mut Vec<String>) {
+            for entry in std::fs::read_dir(dir).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    scan(&path, found);
+                } else if path.extension().is_some_and(|e| e == "rs") && !path.ends_with("widgets.rs") {
+                    let text = std::fs::read_to_string(&path).unwrap();
+                    for (line, text) in text.lines().enumerate().filter(|(_, l)| l.contains("widgets::window(") && !l.contains("Preferences")) {
+                        found.push(format!("{}:{} {}", path.display(), line + 1, text.trim()));
+                    }
+                }
+            }
+        }
+
+        let mut found = Vec::new();
+        scan(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut found);
+        assert!(
+            found.is_empty(),
+            "these windows open at the top left, use widgets::centered_window:
+{}",
+            found.join(
+                "
+"
+            )
+        );
     }
 
     #[test]

@@ -269,7 +269,7 @@ impl SplineDialog {
         let preview = &mut self.preview;
         let mut open = self.open;
         let mut create = None;
-        crate::widgets::window(en!("Place Along Path")).open(&mut open).resizable(false).show(ctx, |ui| {
+        crate::widgets::centered_window(en!("Place Along Path"), ctx).open(&mut open).resizable(false).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 for (mode, label, tip) in [
                     (SplineMode::Repeat, en!("Repeat"), en!("Copies of the selection along the path, like fence posts")),

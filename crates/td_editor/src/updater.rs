@@ -404,7 +404,7 @@ impl Updater {
         }
 
         let mut open = true;
-        let shown = crate::widgets::window(HEADING).open(&mut open).resizable(false).collapsible(false).show(ctx, |ui| {
+        let shown = crate::widgets::centered_window(HEADING, ctx).open(&mut open).resizable(false).collapsible(false).show(ctx, |ui| {
             ui.set_max_width(440.0);
             self.ui(ui, state);
         });

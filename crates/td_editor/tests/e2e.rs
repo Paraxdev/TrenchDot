@@ -716,13 +716,14 @@ fn keys_stay_with_windows_menus_and_the_palette() {
 
     // With the pointer over a floating window, keys meant for it must not delete, convert or reselect anything.
     ed.input("top", json!([{ "type": "move" }, { "type": "key", "key": "B", "modifiers": ["ctrl", "shift"] }]));
-    // A new window is laid out on its first frame and shown on the next.
+    // A new window is laid out on its first frame and shown on the next, and a centered one settles on the one after.
+    ed.input("top", json!([{ "type": "move" }]));
     ed.input("top", json!([{ "type": "move" }]));
     let state = ed.state();
     let window = state["ui"]["windows"].as_array().unwrap().iter().find(|w| w["title"] == "Shape Generator").expect("Shape Generator open")["rect"].clone();
     let r: Vec<f64> = window.as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
     let keys = ["Delete", "Backspace", "Tab", "Escape"].map(|k| json!({ "type": "key", "key": k }));
-    let mut events = vec![json!({ "type": "move", "x": (r[0] + r[2]) / 2.0, "y": r[3] - 6.0 })];
+    let mut events = vec![json!({ "type": "move", "x": (r[0] + r[2]) / 2.0, "y": (r[1] + r[3]) / 2.0 })];
     events.extend(keys);
     events.push(json!({ "type": "key", "key": "A", "modifiers": ["ctrl"] }));
     ed.input("window", Value::Array(events));
@@ -4312,6 +4313,30 @@ fn fake_release(asset: &'static str, bytes: Vec<u8>) -> String {
         }
     });
     url
+}
+
+/// Dialogs open in the middle of the editor window instead of at its top left corner over the menu bar.
+#[test]
+#[ignore]
+fn dialogs_open_in_the_middle_of_the_window() {
+    let ed = Editor::launch("dialogs_centered");
+    let titles = ["Shape Generator", "Find and Replace", "Keyboard Shortcuts"];
+    for title in titles {
+        ed.input("window", json!([{ "type": "key", "key": "F1" }, { "type": "text", "text": title.to_lowercase() }, { "type": "key", "key": "Enter" }]));
+    }
+
+    std::thread::sleep(Duration::from_millis(500));
+    let state = ed.state();
+    let ppp = state["ui"]["pixels_per_point"].as_f64().unwrap();
+    let (width, height, _) = ed.screenshot("window", "dialogs_centered");
+    let screen = (width as f64 / ppp / 2.0, height as f64 / ppp / 2.0);
+    let windows = state["ui"]["windows"].as_array().unwrap();
+    for title in titles {
+        let window = windows.iter().find(|w| w["title"] == title).unwrap_or_else(|| panic!("{title} is not open: {:?}", window_titles(&ed)));
+        let r: Vec<f64> = window["rect"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+        let center = ((r[0] + r[2]) / 2.0, (r[1] + r[3]) / 2.0);
+        assert!((center.0 - screen.0).abs() < 3.0 && (center.1 - screen.1).abs() < 3.0, "{title} at {r:?} is not centered on {screen:?}");
+    }
 }
 
 fn window_titles(ed: &Editor) -> Vec<String> {

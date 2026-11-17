@@ -98,7 +98,7 @@ impl FindDialog {
         let in_use: &[(String, usize)] = self.in_use.as_ref().map_or(&[], |(_, m)| m);
         let mut open = self.open;
         let (mut select_all, mut pick, mut replace_now) = (false, None, false);
-        crate::widgets::window(en!("Find and Replace")).open(&mut open).resizable(false).show(ctx, |ui| {
+        crate::widgets::centered_window(en!("Find and Replace"), ctx).open(&mut open).resizable(false).show(ctx, |ui| {
             ui.label(RichText::new(tr("Find entities")).strong());
             egui::Grid::new("find_entity_fields").num_columns(2).show(ui, |ui| {
                 for (label, text) in [(en!("Class"), &mut self.query.classname), (en!("Key"), &mut self.query.key), (en!("Value"), &mut self.query.value)] {

@@ -29,13 +29,7 @@ impl BakeDialog {
         self.show_progress(ctx, state);
         let mut open = self.open;
         let mut bake = false;
-        crate::widgets::window(TITLE)
-            .open(&mut open)
-            .resizable(false)
-            .collapsible(false)
-            .pivot(egui::Align2::CENTER_CENTER)
-            .default_pos(ctx.content_rect().center())
-            .show(ctx, |ui| bake = self.ui(ui, state));
+        crate::widgets::centered_window(TITLE, ctx).open(&mut open).resizable(false).collapsible(false).show(ctx, |ui| bake = self.ui(ui, state));
         self.open = open && !bake;
         if bake {
             self.start(state);
@@ -75,21 +69,16 @@ impl BakeDialog {
         let progress = &job.progress;
         let cancelling = progress.is_cancelled();
         let elapsed = job.started.elapsed().as_secs();
-        crate::widgets::window(PROGRESS_TITLE)
-            .resizable(false)
-            .collapsible(false)
-            .pivot(egui::Align2::CENTER_CENTER)
-            .default_pos(ctx.content_rect().center())
-            .show(ctx, |ui| {
-                ui.label(stage_text(progress.stage()));
-                ui.add(egui::ProgressBar::new(progress.fraction()).show_percentage().desired_width(300.0));
-                let time = format!("{}:{:02}", elapsed / 60, elapsed % 60);
-                ui.label(egui::RichText::new(trf!("{time} elapsed. You can keep editing, changes made now are not in this bake.", time)).weak());
-                let label = if cancelling { tr("Cancelling…") } else { tr("Cancel") };
-                if ui.add_enabled(!cancelling, egui::Button::new(label)).on_hover_text(tr("Stops the bake, the map keeps the lighting it has")).clicked() {
-                    progress.cancel();
-                }
-            });
+        crate::widgets::centered_window(PROGRESS_TITLE, ctx).resizable(false).collapsible(false).show(ctx, |ui| {
+            ui.label(stage_text(progress.stage()));
+            ui.add(egui::ProgressBar::new(progress.fraction()).show_percentage().desired_width(300.0));
+            let time = format!("{}:{:02}", elapsed / 60, elapsed % 60);
+            ui.label(egui::RichText::new(trf!("{time} elapsed. You can keep editing, changes made now are not in this bake.", time)).weak());
+            let label = if cancelling { tr("Cancelling…") } else { tr("Cancel") };
+            if ui.add_enabled(!cancelling, egui::Button::new(label)).on_hover_text(tr("Stops the bake, the map keeps the lighting it has")).clicked() {
+                progress.cancel();
+            }
+        });
         ctx.request_repaint_after(std::time::Duration::from_millis(100));
     }
 
