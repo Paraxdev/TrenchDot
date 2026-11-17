@@ -1078,6 +1078,16 @@ fn selection_summary(ui: &mut Ui, state: &mut EditorState, actions: &mut Vec<Act
                 (en!("Snap Vertices"), en!("Snap every vertex to the grid"), Action::SnapVertices),
             ],
         );
+        ui.horizontal_wrapped(|ui| {
+            ui.label(tr("Mirror Plane"));
+            crate::symmetry::plane_combo(ui, &mut state.mirror_plane);
+            for axis in 0..3 {
+                let action = Action::MirrorLinked { axis };
+                if ui.small_button(action.title()).on_hover_text(action.help().map(|t| tr(t).to_string()).unwrap_or_default()).clicked() {
+                    actions.push(action);
+                }
+            }
+        });
     });
     section(ui, en!("Gameplay"), en!("Doors, lifts and trigger volumes from the selection"), false, |ui| {
         sub_heading(ui, tr("Doors and movers"));

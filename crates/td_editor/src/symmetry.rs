@@ -2,7 +2,7 @@
 
 use egui::Ui;
 use td_core::{Aabb, DVec3, Mirror, NodeId, Plane};
-use td_doc::symmetry::{Symmetry, SymmetryAxes, SymmetryCenter, faces_bounds};
+use td_doc::symmetry::{PlaneAt, PlaneChoice, Symmetry, SymmetryAxes, SymmetryCenter, faces_bounds};
 use td_geom::Terrain;
 use td_render::LineVertex;
 
@@ -113,6 +113,47 @@ pub fn options(ui: &mut Ui, state: &mut EditorState, blend: bool) {
     }
 
     state.symmetry = s;
+}
+
+fn plane_name(at: PlaneAt) -> &'static str {
+    match at {
+        PlaneAt::Center => en!("selection center"),
+        PlaneAt::Max => en!("max side"),
+        PlaneAt::Min => en!("min side"),
+        PlaneAt::World => en!("world origin"),
+        PlaneAt::Custom => en!("custom"),
+    }
+}
+
+const PLANE_CHOICES: [PlaneAt; 5] = [PlaneAt::Center, PlaneAt::Max, PlaneAt::Min, PlaneAt::World, PlaneAt::Custom];
+
+fn custom_plane(ui: &mut Ui, choice: &mut PlaneChoice) {
+    if choice.at == PlaneAt::Custom {
+        ui.add(egui::DragValue::new(&mut choice.custom).speed(1.0).suffix(" u")).on_hover_text(tr("Where the mirror plane sits along the axis, in map units"));
+    }
+}
+
+/// Radio rows for where Mirror Linked puts its plane, with the typed position under them while custom is picked.
+pub fn plane_rows(ui: &mut Ui, choice: &mut PlaneChoice) {
+    for at in PLANE_CHOICES {
+        ui.radio_value(&mut choice.at, at, tr(plane_name(at)));
+    }
+
+    custom_plane(ui, choice);
+}
+
+/// The same choice as a drop-down with the typed position beside it, for the Inspector.
+pub fn plane_combo(ui: &mut Ui, choice: &mut PlaneChoice) {
+    egui::ComboBox::from_id_salt("mirror_plane")
+        .selected_text(tr(plane_name(choice.at)))
+        .show_ui(ui, |ui| {
+            for at in PLANE_CHOICES {
+                ui.selectable_value(&mut choice.at, at, tr(plane_name(at)));
+            }
+        })
+        .response
+        .on_hover_text(tr("Where the plane sits: selection middle, larger or smaller side, world origin or a typed position"));
+    custom_plane(ui, choice);
 }
 
 /// What one dab edits: the mirror its planes resolve to and the footprint it covers.

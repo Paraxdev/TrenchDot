@@ -2321,5 +2321,15 @@
   "custom": "personnalisé",
   "Mirrors every dab across the chosen planes, both sides change in one undo step": "Reflète chaque coup de pinceau sur les plans choisis, les deux côtés changent en une seule annulation",
   "Where the mirror planes sit: each terrain's middle, the world origin or typed positions": "Où se trouvent les plans de miroir : milieu de chaque terrain, origine du monde ou positions saisies",
-  "Where this mirror plane sits, in map units. It mirrors evenly on a line of vertices or halfway between two": "Où se trouve ce plan de miroir, en unités de carte. Il reflète de façon régulière sur une rangée de sommets ou à mi-chemin entre deux"
+  "Where this mirror plane sits, in map units. It mirrors evenly on a line of vertices or halfway between two": "Où se trouve ce plan de miroir, en unités de carte. Il reflète de façon régulière sur une rangée de sommets ou à mi-chemin entre deux",
+  "Mirror Linked {axis}": "Miroir en lien {axis}",
+  "Mirror Plane": "Plan de miroir",
+  "selection center": "centre de la sélection",
+  "max side": "côté max",
+  "min side": "côté min",
+  "Where the mirror plane sits along the axis, in map units": "Où se trouve le plan de miroir sur l'axe, en unités de carte",
+  "Where the plane sits: selection middle, larger or smaller side, world origin or a typed position": "Où se place le plan : milieu de la sélection, côté max ou min, origine du monde ou position saisie",
+  "Copies the selection as a linked group mirrored across a plane, edits in either half show in both": "Copie la sélection en groupe lié reflété sur un plan, modifier une moitié met à jour l'autre",
+  "Made {n} mirrored copy across {axis} at {at} u. Edits in either half show in both": { "one": "{n} copie reflétée sur {axis} à {at} u. Modifier une moitié met à jour l'autre", "other": "{n} copies reflétées sur {axis} à {at} u. Modifier une moitié met à jour l'autre" },
+  "Select objects or groups to mirror linked": "Sélectionnez des objets ou groupes à refléter en lien"
 }

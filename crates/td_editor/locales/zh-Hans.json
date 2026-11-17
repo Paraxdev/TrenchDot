@@ -2321,5 +2321,15 @@
   "custom": "自定义",
   "Mirrors every dab across the chosen planes, both sides change in one undo step": "按所选平面镜像每一笔，两侧在一个撤销步骤内一起改变",
   "Where the mirror planes sit: each terrain's middle, the world origin or typed positions": "镜像平面的位置：每个地形的中心、世界原点或输入的位置",
-  "Where this mirror plane sits, in map units. It mirrors evenly on a line of vertices or halfway between two": "此镜像平面的位置，单位为地图单位。位于一排顶点上或两排正中间时镜像均匀"
+  "Where this mirror plane sits, in map units. It mirrors evenly on a line of vertices or halfway between two": "此镜像平面的位置，单位为地图单位。位于一排顶点上或两排正中间时镜像均匀",
+  "Mirror Linked {axis}": "链接镜像 {axis}",
+  "Mirror Plane": "镜像平面",
+  "selection center": "选择的中心",
+  "max side": "较大一侧",
+  "min side": "较小一侧",
+  "Where the mirror plane sits along the axis, in map units": "镜像平面在该轴上的位置，单位为地图单位",
+  "Where the plane sits: selection middle, larger or smaller side, world origin or a typed position": "平面位置：选择的中间、较大或较小一侧、世界原点或输入的位置",
+  "Copies the selection as a linked group mirrored across a plane, edits in either half show in both": "把选择复制为沿平面镜像的链接组，编辑任一半都会同步",
+  "Made {n} mirrored copy across {axis} at {at} u. Edits in either half show in both": { "other": "已沿 {axis} 在 {at} u 创建 {n} 个镜像副本，编辑任一半都会同步" },
+  "Select objects or groups to mirror linked": "请选择要关联镜像的对象或组"
 }

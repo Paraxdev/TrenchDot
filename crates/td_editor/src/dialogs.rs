@@ -269,6 +269,7 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
         out.push(entry_with(en!("Transform"), || trf!("Rotate {axis} +90", axis = a), Action::Rotate { axis, degrees: 90.0 }));
         out.push(entry_with(en!("Transform"), || trf!("Rotate {axis} -90", axis = a), Action::Rotate { axis, degrees: -90.0 }));
         out.push(entry_with(en!("Transform"), || trf!("Flip {axis}", axis = a), Action::Flip { axis }));
+        out.push(entry_with(en!("Transform"), || trf!("Mirror Linked {axis}", axis = a), Action::MirrorLinked { axis }));
         for to in [td_doc::ops::AlignTo::Min, td_doc::ops::AlignTo::Center, td_doc::ops::AlignTo::Max] {
             let action = Action::Align { axis, to };
             out.push(entry_with(en!("Transform"), || action.title(), action.clone()));

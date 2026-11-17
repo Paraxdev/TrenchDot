@@ -1801,6 +1801,42 @@ fn the_inspector_headers_are_german_and_keep_their_open_state() {
 }
 
 #[test]
+fn the_inspector_mirror_row_runs_each_axis_and_keeps_the_plane_choice() {
+    use td_doc::symmetry::PlaneAt;
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(520.0, 900.0))
+        .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), brushes_selected(1));
+    harness.run();
+    harness.get_by_label("Transform").click();
+    harness.run();
+    for axis in 0..3 {
+        harness.get_by_label(&format!("Mirror Linked {}", ["X", "Y", "Z"][axis])).click();
+        harness.run();
+        assert_eq!(harness.state().actions, [Action::MirrorLinked { axis }]);
+        harness.state_mut().actions.clear();
+    }
+
+    assert_eq!(harness.state().state.mirror_plane.at, PlaneAt::Max, "the default puts the halves side by side");
+    let fields = number_fields(&harness);
+    pick_menu(&mut harness, "max side", "selection center");
+    assert_eq!(harness.state().state.mirror_plane.at, PlaneAt::Center);
+    pick_menu(&mut harness, "selection center", "min side");
+    pick_menu(&mut harness, "min side", "world origin");
+    assert_eq!(harness.state().state.mirror_plane.at, PlaneAt::World);
+    assert_eq!(number_fields(&harness), fields, "no typed position for a plane that is not custom");
+
+    pick_menu(&mut harness, "world origin", "custom");
+    assert_eq!(harness.state().state.mirror_plane.at, PlaneAt::Custom);
+    assert_eq!(number_fields(&harness), fields + 1, "a typed position shows for custom");
+    type_number(&mut harness, fields, "-37.5");
+    assert_eq!(harness.state().state.mirror_plane.custom, -37.5);
+    harness.get_by_label("Mirror Linked Y").click();
+    harness.run();
+    assert_eq!(harness.state().actions, [Action::MirrorLinked { axis: 1 }]);
+    assert_eq!(harness.state().state.mirror_plane.custom, -37.5, "using the button keeps the typed plane");
+}
+
+#[test]
 fn the_selection_summary_counts_with_russian_plurals() {
     let _russian = td_editor::i18n::scope(td_editor::i18n::Lang::Ru);
     for (n, objects, brushes) in [

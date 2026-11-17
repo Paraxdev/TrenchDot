@@ -2321,5 +2321,15 @@
   "custom": "заданный",
   "Mirrors every dab across the chosen planes, both sides change in one undo step": "Отражает каждый мазок относительно выбранных плоскостей, обе стороны меняются за один шаг отмены",
   "Where the mirror planes sit: each terrain's middle, the world origin or typed positions": "Где лежат плоскости зеркала: в центре каждого ландшафта, в начале координат или в заданных позициях",
-  "Where this mirror plane sits, in map units. It mirrors evenly on a line of vertices or halfway between two": "Где лежит эта плоскость зеркала, в единицах карты. Ровно отражает на ряду вершин или точно посередине между двумя рядами"
+  "Where this mirror plane sits, in map units. It mirrors evenly on a line of vertices or halfway between two": "Где лежит эта плоскость зеркала, в единицах карты. Ровно отражает на ряду вершин или точно посередине между двумя рядами",
+  "Mirror Linked {axis}": "Зеркало со связью {axis}",
+  "Mirror Plane": "Плоскость зеркала",
+  "selection center": "центр выделения",
+  "max side": "большая сторона",
+  "min side": "меньшая сторона",
+  "Where the mirror plane sits along the axis, in map units": "Где плоскость зеркала лежит на оси, в единицах карты",
+  "Where the plane sits: selection middle, larger or smaller side, world origin or a typed position": "Где лежит плоскость: середина выделения, большая или меньшая сторона, начало координат или введённая позиция",
+  "Copies the selection as a linked group mirrored across a plane, edits in either half show in both": "Копирует выделение как связанную группу, отражённую плоскостью, правка одной половины меняет обе",
+  "Made {n} mirrored copy across {axis} at {at} u. Edits in either half show in both": { "one": "Создана {n} зеркальная копия, ось {axis}, позиция {at} u. Правка одной половины меняет обе", "few": "Созданы {n} зеркальные копии, ось {axis}, позиция {at} u. Правка одной половины меняет обе", "many": "Создано {n} зеркальных копий, ось {axis}, позиция {at} u. Правка одной половины меняет обе" },
+  "Select objects or groups to mirror linked": "Выберите объекты или группы для связанного отражения"
 }

@@ -78,6 +78,10 @@ pub enum Action {
     Flip {
         axis: usize,
     },
+    /// Copies the selected groups as a linked group mirrored across a plane on one axis.
+    MirrorLinked {
+        axis: usize,
+    },
     /// Lines the selected objects up on one axis, each object counting as one unit.
     Align {
         axis: usize,
@@ -313,6 +317,7 @@ impl Action {
             Action::CsgHollow => en!("Hollow"),
             Action::Rotate { axis, degrees } => return trf!("Rotate {axis} {degrees}°", axis = axis_name(*axis), degrees),
             Action::Flip { axis } => return trf!("Flip {axis}", axis = axis_name(*axis)),
+            Action::MirrorLinked { axis } => return trf!("Mirror Linked {axis}", axis = axis_name(*axis)),
             Action::Align { axis, to } => {
                 let axis = axis_name(*axis);
                 return match to {
@@ -464,6 +469,7 @@ impl Action {
             Action::SelectBrushFaces => en!("Selects every face of the selected brushes and meshes instead of the objects"),
             Action::IsolateSelected => en!("Hides everything except the selection, Show All brings it back"),
             Action::DuplicateLinked => en!("Copies the selection as a linked group, editing one copy changes every copy"),
+            Action::MirrorLinked { .. } => en!("Copies the selection as a linked group mirrored across a plane, edits in either half show in both"),
             Action::UnlinkGroups => en!("Makes the selected linked groups independent copies again"),
             Action::OpenGroup => en!("Lets you click and edit the objects inside the selected group"),
             Action::CreatePrefab => en!("Saves the selection as a prefab map file and puts a linked instance in its place"),
@@ -969,7 +975,16 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         return;
     }
 
-    if matches!(action, Action::Rotate { .. } | Action::Flip { .. } | Action::Align { .. } | Action::Distribute { .. } | Action::Nudge(_) | Action::Duplicate) {
+    if matches!(
+        action,
+        Action::Rotate { .. }
+            | Action::Flip { .. }
+            | Action::MirrorLinked { .. }
+            | Action::Align { .. }
+            | Action::Distribute { .. }
+            | Action::Nudge(_)
+            | Action::Duplicate
+    ) {
         state.last_repeatable = Some(action.clone());
     }
 
@@ -1098,6 +1113,32 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             });
             if let Some(ids) = linked {
                 state.set_status(msg!("Created {n} linked group(s). Edits inside one update the others", n = ids.len()));
+            }
+        }
+        Action::MirrorLinked { axis } => {
+            let choice = state.mirror_plane;
+            let mirrored = edit_or(state, "Mirror Linked", msg!("Select objects or groups to mirror linked"), |m, s| {
+                let is_group = |id: &NodeId| matches!(m.get(*id).map(|n| &n.kind), Some(td_doc::NodeKind::Group(_)));
+                let (groups, loose): (Vec<NodeId>, Vec<NodeId>) = ops::selection_roots(m, s).into_iter().partition(is_group);
+                if !loose.is_empty() {
+                    let mut wrap = td_doc::Selection::default();
+                    wrap.nodes.extend(loose);
+                    let group = ops::group_selection(m, &mut wrap, "Mirrored", parent)?;
+                    s.clear();
+                    s.nodes.extend(groups);
+                    s.nodes.insert(group);
+                }
+
+                td_doc::mirror::mirror_linked(m, s, axis, &choice)
+            });
+            if let Some((copies, plane)) = mirrored {
+                state.set_status(msg_n!(
+                    copies.len(),
+                    "Made {n} mirrored copy across {axis} at {at} u. Edits in either half show in both",
+                    "Made {n} mirrored copies across {axis} at {at} u. Edits in either half show in both",
+                    axis = axis_name(axis),
+                    at = crate::gizmos::fmt_num(plane.at)
+                ));
             }
         }
         Action::UnlinkGroups => state.doc.edit("Unlink Groups", |m, s| ops::unlink_groups(m, s)),
@@ -3202,6 +3243,7 @@ mod tests {
             Action::SelectTouching,
             Action::SelectInside,
             Action::DuplicateLinked,
+            Action::MirrorLinked { axis: 0 },
             Action::Paste("not a map".into()),
         ] {
             execute(&mut state, action.clone(), &ctx);
@@ -3249,6 +3291,151 @@ mod tests {
         assert_eq!(b.center().x, 512.0);
         execute(&mut state, Action::Undo, &ctx);
         assert_eq!(state.doc.map.brushes().count(), 2, "one undo takes the paste and its move back");
+    }
+
+    fn slanted_brush(state: &mut EditorState) -> NodeId {
+        let points = [
+            DVec3::new(8.0, 2.0, -4.0),
+            DVec3::new(40.0, 2.0, -4.0),
+            DVec3::new(8.0, 2.0, 20.0),
+            DVec3::new(40.0, 2.0, 20.0),
+            DVec3::new(8.0, 30.0, -4.0),
+            DVec3::new(8.0, 34.0, 20.0),
+            DVec3::new(40.0, 14.0, -4.0),
+            DVec3::new(40.0, 18.0, 20.0),
+        ];
+        let brush = td_geom::Brush::from_points(&points, &[], "wall").unwrap();
+        let parent = state.insert_parent();
+        state.doc.edit("Create Brush", |m, _| ops::create_brush(m, parent, brush))
+    }
+
+    fn sorted(points: impl IntoIterator<Item = DVec3>) -> Vec<[i64; 3]> {
+        let mut out: Vec<[i64; 3]> = points.into_iter().map(|p| [p.x, p.y, p.z].map(|v| (v * 1000.0).round() as i64)).collect();
+        out.sort();
+        out
+    }
+
+    #[test]
+    fn mirror_linked_puts_the_copy_across_the_plane_each_choice_picks() {
+        use td_doc::symmetry::{PlaneAt, PlaneChoice};
+        let ctx = egui::Context::default();
+        let bounds = [(8.0, 40.0), (2.0, 34.0), (-4.0, 20.0)];
+        for axis in 0..3 {
+            let (min, max) = bounds[axis];
+            let typed = 71.5;
+            let cases = [(PlaneAt::Center, (min + max) / 2.0), (PlaneAt::Max, max), (PlaneAt::Min, min), (PlaneAt::World, 0.0), (PlaneAt::Custom, typed)];
+            for (at, plane) in cases {
+                let mut state = EditorState::new(Default::default());
+                let brush = slanted_brush(&mut state);
+                let source = state.doc.map.brush(brush).unwrap().vertices.clone();
+                state.doc.select(|_, s| s.select_node(brush));
+                state.mirror_plane = PlaneChoice { at, custom: typed };
+                let steps = state.doc.history.undo_labels().count();
+                execute(&mut state, Action::MirrorLinked { axis }, &ctx);
+                let case = format!("axis {axis} {at:?}");
+                assert!(!state.status_failed(), "{case}: {}", state.status);
+                assert_eq!(state.doc.history.undo_labels().count(), steps + 1, "{case}: wrapping and mirroring are one step");
+                assert_eq!(state.doc.history.undo_labels().next(), Some("Mirror Linked"), "{case}");
+
+                let groups: Vec<_> = state
+                    .doc
+                    .map
+                    .nodes
+                    .iter()
+                    .filter_map(|(id, n)| match &n.kind {
+                        td_doc::NodeKind::Group(g) if g.name == "Mirrored" => Some((*id, g.link_id)),
+                        _ => None,
+                    })
+                    .collect();
+                assert_eq!(groups.len(), 2, "{case}: a loose brush is wrapped in Mirrored and copied");
+                assert!(groups[0].1.is_some() && groups[0].1 == groups[1].1, "{case}: both halves share a link set");
+                let copy = state.doc.selection.nodes.iter().copied().find(|id| groups.iter().any(|g| g.0 == *id)).expect("the copy is selected");
+                assert_eq!(state.doc.selection.nodes.len(), 1, "{case}");
+                let copied = state.doc.map.descendants(copy).into_iter().find_map(|id| state.doc.map.brush(id)).unwrap();
+                let mut expected: Vec<DVec3> = source.clone();
+                for v in &mut expected {
+                    v[axis] = 2.0 * plane - v[axis];
+                }
+
+                assert_eq!(sorted(copied.vertices.iter().copied()), sorted(expected), "{case}");
+                let at_text = crate::gizmos::fmt_num(plane);
+                assert!(state.status.contains(&format!("1 mirrored copy across {} at {at_text} u", axis_name(axis))), "{case}: {}", state.status);
+            }
+        }
+    }
+
+    #[test]
+    fn mirror_linked_copies_a_selected_group_without_wrapping_it_again() {
+        let mut state = EditorState::new(Default::default());
+        let ctx = egui::Context::default();
+        let brush = slanted_brush(&mut state);
+        state.doc.select(|_, s| s.select_node(brush));
+        execute(&mut state, Action::Group, &ctx);
+        let groups = |state: &EditorState| state.doc.map.nodes.values().filter(|n| matches!(n.kind, td_doc::NodeKind::Group(_))).count();
+        let before = groups(&state);
+        execute(&mut state, Action::MirrorLinked { axis: 0 }, &ctx);
+        assert_eq!(groups(&state), before + 1, "only the copy is new");
+        assert_eq!(state.doc.map.brushes().count(), 2);
+    }
+
+    #[test]
+    fn mirror_linked_wraps_loose_objects_beside_a_selected_group() {
+        let mut state = EditorState::new(Default::default());
+        let ctx = egui::Context::default();
+        let grouped = slanted_brush(&mut state);
+        state.doc.select(|_, s| s.select_node(grouped));
+        execute(&mut state, Action::Group, &ctx);
+        let group = state.doc.map.get(grouped).unwrap().parent.unwrap();
+        let loose = slanted_brush(&mut state);
+        state.doc.select(|_, s| {
+            s.clear();
+            s.nodes.extend([group, loose]);
+        });
+        let steps = state.doc.history.undo_labels().count();
+        execute(&mut state, Action::MirrorLinked { axis: 0 }, &ctx);
+
+        assert!(!state.status_failed(), "{}", state.status);
+        assert_eq!(state.doc.history.undo_labels().count(), steps + 1);
+        let wrapper = state.doc.map.get(loose).unwrap().parent.unwrap();
+        assert!(matches!(&state.doc.map.get(wrapper).unwrap().kind, td_doc::NodeKind::Group(g) if g.name == "Mirrored"));
+        assert_eq!(state.doc.map.get(grouped).unwrap().parent, Some(group), "the selected group is not wrapped again");
+        assert_eq!(state.doc.map.brushes().count(), 4, "both the group and the loose box got a mirrored copy");
+        assert_eq!(state.doc.selection.nodes.len(), 2, "the two copies are selected");
+        assert!(state.status.starts_with("Made 2 mirrored copies across X"), "{}", state.status);
+        let mirrored = |id: NodeId| td_doc::mirror::partners(&state.doc.map, id).len();
+        assert_eq!((mirrored(group), mirrored(wrapper)), (1, 1));
+    }
+
+    #[test]
+    fn mirror_linked_with_nothing_selected_fails_without_an_undo_step() {
+        let mut state = EditorState::new(Default::default());
+        let ctx = egui::Context::default();
+        slanted_brush(&mut state);
+        state.doc.select(|_, s| s.clear());
+        state.doc.mark_saved();
+        let steps = state.doc.history.undo_labels().count();
+        execute(&mut state, Action::MirrorLinked { axis: 1 }, &ctx);
+        assert!(state.status_failed(), "{}", state.status);
+        assert!(!state.doc.is_modified());
+        assert_eq!(state.doc.history.undo_labels().count(), steps);
+        assert!(state.doc.map.nodes.values().all(|n| !matches!(n.kind, td_doc::NodeKind::Group(_))), "no stray Mirrored group is left behind");
+    }
+
+    #[test]
+    fn repeat_last_mirrors_the_copy_again() {
+        let mut state = EditorState::new(Default::default());
+        let ctx = egui::Context::default();
+        let brush = slanted_brush(&mut state);
+        state.doc.select(|_, s| s.select_node(brush));
+        execute(&mut state, Action::MirrorLinked { axis: 0 }, &ctx);
+        execute(&mut state, Action::RepeatLast, &ctx);
+        let xs: Vec<(f64, f64)> = {
+            let mut v: Vec<_> = state.doc.map.brushes().map(|(_, b)| (b.bounds().min.x, b.bounds().max.x)).collect();
+            v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            v
+        };
+        assert_eq!(xs, [(8.0, 40.0), (40.0, 72.0), (72.0, 104.0)], "each repeat mirrors across the newest copy's far side");
+        assert_eq!(state.doc.selection.nodes.len(), 1);
     }
 
     #[test]

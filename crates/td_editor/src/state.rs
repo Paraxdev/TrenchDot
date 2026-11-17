@@ -6,7 +6,7 @@ use std::time::Instant;
 use serde::{Deserialize, Serialize};
 use td_core::{Aabb, DVec3, NodeId};
 use td_doc::ops::EditOptions;
-use td_doc::symmetry::{Symmetry, SymmetryCenter};
+use td_doc::symmetry::{PlaneChoice, Symmetry, SymmetryCenter};
 use td_doc::{Document, format};
 use td_formats::GameConfig;
 use td_render::ShadeMode;
@@ -618,6 +618,8 @@ pub struct EditorState {
     /// Mirror planes for Sculpt and Blend strokes on the active map. Session only, like the brush settings, and each
     /// tab keeps its own.
     pub symmetry: Symmetry,
+    /// Where Mirror Linked puts its plane. Session only and shared by every tab.
+    pub mirror_plane: PlaneChoice,
     /// World height Auto Paint measures its bands from, such as sea level. None measures from the lowest point.
     pub auto_paint_base: Option<f64>,
     pub paint_color: [f32; 4],
@@ -812,6 +814,7 @@ impl EditorState {
             live: LiveTick::default(),
             sculpt: td_doc::terrain::SculptBrush::default(),
             symmetry: Symmetry::OFF,
+            mirror_plane: PlaneChoice::default(),
             auto_paint_base: None,
             paint_color: [0.55, 0.45, 0.35, 1.0],
             prefabs: Default::default(),

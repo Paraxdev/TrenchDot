@@ -2321,5 +2321,15 @@
   "custom": "personalizado",
   "Mirrors every dab across the chosen planes, both sides change in one undo step": "Espelha cada pincelada nos planos escolhidos, os dois lados mudam em um só passo de desfazer",
   "Where the mirror planes sit: each terrain's middle, the world origin or typed positions": "Onde ficam os planos de espelho: o meio de cada terreno, a origem do mundo ou posições digitadas",
-  "Where this mirror plane sits, in map units. It mirrors evenly on a line of vertices or halfway between two": "Onde fica este plano de espelho, em unidades de mapa. Ele espelha por igual sobre uma fileira de vértices ou no meio entre duas"
+  "Where this mirror plane sits, in map units. It mirrors evenly on a line of vertices or halfway between two": "Onde fica este plano de espelho, em unidades de mapa. Ele espelha por igual sobre uma fileira de vértices ou no meio entre duas",
+  "Mirror Linked {axis}": "Espelhar vinculado {axis}",
+  "Mirror Plane": "Plano de espelho",
+  "selection center": "centro da seleção",
+  "max side": "lado máximo",
+  "min side": "lado mínimo",
+  "Where the mirror plane sits along the axis, in map units": "Onde o plano de espelho fica no eixo, em unidades do mapa",
+  "Where the plane sits: selection middle, larger or smaller side, world origin or a typed position": "Onde o plano fica: meio da seleção, lado maior ou menor, origem do mundo ou posição digitada",
+  "Copies the selection as a linked group mirrored across a plane, edits in either half show in both": "Copia a seleção como grupo vinculado espelhado em um plano, editar uma metade atualiza a outra",
+  "Made {n} mirrored copy across {axis} at {at} u. Edits in either half show in both": { "one": "{n} cópia espelhada em {axis} em {at} u. Editar uma metade atualiza a outra", "other": "{n} cópias espelhadas em {axis} em {at} u. Editar uma metade atualiza a outra" },
+  "Select objects or groups to mirror linked": "Selecione objetos ou grupos para espelhar vinculados"
 }

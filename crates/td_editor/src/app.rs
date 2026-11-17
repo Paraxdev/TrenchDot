@@ -1400,6 +1400,14 @@ impl App {
                     }
 
                     ui.separator();
+                    let any = !self.state.doc.selection.nodes.is_empty();
+                    for axis in 0..3 {
+                        let label = msg!("Mirror Linked {axis}", axis = commands::axis_name(axis));
+                        m.item_enabled(ui, None, &label, Action::MirrorLinked { axis }, any, tr("Select objects or groups to mirror linked"));
+                    }
+
+                    sub_menu(ui, None, en!("Mirror Plane"), |ui| crate::symmetry::plane_rows(ui, &mut self.state.mirror_plane));
+                    ui.separator();
                     sub_menu(ui, None, en!("Align"), |ui| {
                         for axis in 0..3 {
                             let a = commands::axis_name(axis);
