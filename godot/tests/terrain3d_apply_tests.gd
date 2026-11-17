@@ -29,6 +29,7 @@ static func run(t) -> void:
 	await _test_instances_follow(t)
 	await _test_neighbours_stay_saved(t)
 	await _test_neighbours_mid_stroke(t)
+	await _test_apply_fills_missing_textures(t)
 	_test_cli(t)
 	await _test_cli_instances(t)
 	_test_new_folder_settings(t)
@@ -405,6 +406,25 @@ static func _test_neighbours_stay_saved(t) -> void:
 	var before: Array = TrenchDotTerrain3DCache.snapshot_region(data, west)
 	var skipped := TrenchDotTerrain3DCache.restore_regions(terrain, { corner: [_slanted(corner, 2.0), Image.create_empty(SIZE, SIZE, false, Image.FORMAT_RF), data.get_region(corner).get_map(TYPE_COLOR).duplicate()] })
 	t.check(skipped.is_empty() and unsaved.call() == [corner] and TrenchDotTerrain3DCache.snapshot_region(data, west)[0].get_data() == before[0].get_data(), "a restore flags only the regions it puts back, got %s unsaved and %s skipped" % [unsaved.call(), skipped])
+	terrain.free()
+
+## An apply leaves the texture list of the last export alone, unless that export listed none because the assets had no
+## textures yet.
+static func _test_apply_fills_missing_textures(t) -> void:
+	var folder := WORK.path_join("missing_textures")
+	var terrain := await _world(t, "missing_textures")
+	t.check(TrenchDotTerrain3DCache.read_manifest(folder).get("textures", [-1]).is_empty(), "the world starts with no textures")
+	var names := func() -> Array: return TrenchDotTerrain3DCache.read_manifest(folder).get("textures", []).map(func(e: Dictionary) -> String: return e["name"])
+	terrain.set(&"assets", Export._folder_look(folder)[1])
+	_send(folder, Vector2i(3, -2), 5.0)
+	var result := TrenchDotTerrain3DCache.apply(terrain, folder)
+	t.check(Export._ints(result.accepted) == [[3, -2]] and names.call() == ["Cliff", "Grass"], "an apply lists the textures a manifest has none of, got %s from %s" % [names.call(), result])
+	var sand: Resource = ClassDB.instantiate(&"Terrain3DTextureAsset")
+	sand.set(&"name", "Sand")
+	terrain.get(&"assets").call(&"set_texture_asset", 0, sand)
+	_send(folder, Vector2i(0, -1), 2.0)
+	result = TrenchDotTerrain3DCache.apply(terrain, folder)
+	t.check(Export._ints(result.accepted) == [[0, -1]] and names.call() == ["Cliff", "Grass"], "an apply keeps a listed set until an export asks for textures, got %s from %s" % [names.call(), result])
 	terrain.free()
 
 ## Terrain3D flags a region unsaved only when a brush stroke first reaches it. A neighbour an apply drew into a held
