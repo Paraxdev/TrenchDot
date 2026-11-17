@@ -211,6 +211,8 @@ while the experimental preference is on or the map links a Terrain3D, and Trench
 
 Click the **Terrain3D** node in the Outliner, or click the ground, to open its Inspector.
 
+A selected Terrain3D node shows a light red wash and red boxes around its regions, so the ground looks pinkish while you work on it. That is the selection, not a warning. Press `Esc` to select nothing and see its real colors. Regions Godot has not received yet show in the Inspector.
+
 ![The Terrain3D Inspector with the data folder, the Godot status, the Regions block, the texture list and a conflict](../assets/terrain3d/inspector.png)
 
 | In the Inspector | What it does |

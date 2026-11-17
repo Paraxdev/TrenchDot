@@ -533,6 +533,11 @@ fn ground_albedo(world: vec3<f32>, n: vec3<f32>, ddx: vec2<f32>, ddy: vec2<f32>)
     return rgb / max(total, 1e-8) * tint;
 }
 
+// A selected node fills the whole view, so the red wash stays light and the region boxes carry the outline.
+fn selection_tint(base: vec3<f32>, selected: f32) -> vec3<f32> {
+    return mix(base, base * vec3<f32>(1.0, 0.62, 0.58), selected * 0.35);
+}
+
 @fragment
 fn fs_main(f: VOut) -> @location(0) vec4<f32> {
     let meters = f.world.xz / clip.world.y;
@@ -547,7 +552,7 @@ fn fs_main(f: VOut) -> @location(0) vec4<f32> {
     if (flat_mode < 0.5) {
         base = ground_albedo(f.world, n, ddx, ddy);
     }
-    base = mix(base, base * vec3<f32>(1.0, 0.62, 0.58), clip.look.y);
+    base = selection_tint(base, clip.look.y);
     var rgb: vec3<f32>;
     if (is_lit()) {
         rgb = tonemap(base * light_at(f.world, n));

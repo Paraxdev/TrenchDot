@@ -1040,6 +1040,36 @@ mod tests {
         assert!(octaves.len() >= 3 && octaves.contains(&2), "falls off to the fewest octaves: {octaves:?}");
     }
 
+    /// A selected clipmap keeps most of its colors, the node can fill the whole view.
+    #[test]
+    #[ignore = "needs a GPU"]
+    fn gpu_selection_tint_stays_light() {
+        let (device, queue) = device(false);
+        let layout = bind_group_layout(&device);
+        let desc = ClipmapDesc { region_size: 64, layers: 1, coarse_stride: 4, atlas: [[-3, 2], [-3, 2]] };
+        let mut clip = GpuClipmap::new(&device, &queue, &layout, &desc).unwrap();
+        let n = 64 * 64;
+        clip.write_fine(&queue, 0, [0, 0], [64, 64], &vec![0.0; n], &vec![0; n], &vec![[255; 4]; n]).unwrap();
+        clip.set_slots(&queue, &[([-3, 2], Slot::Fine(0))]).unwrap();
+        let eye = Vec3::new(-150.0 * 24.0, 2000.0, 140.0 * 24.0);
+        let view_proj = top_down(eye, [88.0 * 24.0, 44.0 * 24.0]);
+        let fragment =
+            "@fragment fn fs_test(f: VOut) -> @location(0) vec4<f32> { return vec4<f32>(selection_tint(vec3<f32>(0.8, 0.5, 0.25), clip.look.y), 1.0); }";
+        let mut tinted = |selected: bool| {
+            clip.set_params(&queue, &ClipmapParams { cell: 24.0, upm: 40.0, selected, heights: [-4000.0, 4000.0], ..Default::default() });
+            draw(&device, &queue, &layout, &clip, eye, view_proj, [128, 64], fragment)
+        };
+        let (plain, selected) = (tinted(false), tinted(true));
+        let drawn = plain.iter().zip(&selected).filter(|(p, _)| p[3] > 0.5).count();
+        assert!(drawn > 1000, "{drawn} pixels drawn");
+        for (p, s) in plain.iter().zip(&selected).filter(|(p, _)| p[3] > 0.5) {
+            assert!((p[0] - 0.8).abs() < 1e-4 && (p[1] - 0.5).abs() < 1e-4 && (p[2] - 0.25).abs() < 1e-4, "unselected is untouched: {p:?}");
+            assert!((s[0] - 0.8).abs() < 1e-4, "red stays: {s:?}");
+            assert!(s[1] < p[1] && s[1] > 0.85 * p[1], "green drops a little: {s:?}");
+            assert!(s[2] < p[2] && s[2] > 0.85 * p[2], "blue drops a little: {s:?}");
+        }
+    }
+
     #[test]
     fn texture_and_auto_settings_reach_the_uniform() {
         let mut u = ClipmapUniform::new(&DESC);
