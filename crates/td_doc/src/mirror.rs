@@ -3,10 +3,11 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use td_core::{Aabb, AxisPlane, DVec3, NodeId};
+use td_core::{Aabb, AxisPlane, DMat4, DVec3, NodeId};
+use td_geom::{Brush, csg};
 
 use crate::map::{Map, NodeKind};
-use crate::ops::{self, EditOptions};
+use crate::ops::{self, EditOptions, Replaced};
 use crate::selection::Selection;
 use crate::symmetry::{MIRROR_TOLERANCE, PlaneChoice};
 
@@ -174,15 +175,230 @@ pub fn selection_planes(map: &Map, sel: &Selection) -> Vec<MirrorPlane> {
     planes
 }
 
+/// What [`apply_mirror`] did.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Applied {
+    /// The group each set of meeting halves was gathered into.
+    pub groups: Vec<NodeId>,
+    /// Brushes that went into a convex union with their mirror images.
+    pub joined: usize,
+    /// Meshes joined with their mirror images and welded along the planes.
+    pub welded: usize,
+    pub replaced: Replaced,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ApplyError {
+    /// No selected group, or group around a selected node, has a mirror image in its link set.
+    NotMirrored,
+    /// Every mirror plane misses the halves, which then are copies placed apart rather than halves of one thing.
+    Apart,
+}
+
+/// Bakes the selected mirrored halves into plain geometry. Halves that meet at a plane within `dist` are gathered,
+/// transitively, into the lowest id one, which is unlinked and selected. Brushes at the same place in each half join
+/// where their union is convex, meshes are joined and welded along the planes, and the rest moves over as it is.
+pub fn apply_mirror(map: &mut Map, sel: &mut Selection, dist: f64) -> Result<Applied, ApplyError> {
+    let around = |id: NodeId| std::iter::once(id).chain(map.ancestors(id));
+    let linked: BTreeSet<NodeId> = sel.nodes.iter().flat_map(|id| around(*id)).filter(|g| link_of(map, *g).is_some()).collect();
+    let mirrored = linked.iter().any(|g| !partners(map, *g).is_empty());
+    let meets: BTreeSet<NodeId> = linked.into_iter().filter(|g| !meeting(map, *g, dist).is_empty()).collect();
+    // The innermost halves around each selected node, so windows mirrored inside a mirrored house apply on their own.
+    let seeds: BTreeSet<NodeId> = sel.nodes.iter().filter_map(|id| around(*id).find(|g| meets.contains(g))).collect();
+
+    let mut seen: BTreeSet<NodeId> = BTreeSet::new();
+    let mut found: Vec<(Vec<NodeId>, Vec<AxisPlane>)> = Vec::new();
+    for &seed in &seeds {
+        if !seen.insert(seed) {
+            continue;
+        }
+
+        let (mut members, mut planes) = (vec![seed], Vec::<AxisPlane>::new());
+        let mut next = 0;
+        while next < members.len() {
+            for other in follow(map, members[next], &mut planes, &seeds, &seen, dist) {
+                if seen.insert(other) {
+                    members.push(other);
+                }
+            }
+
+            next += 1;
+        }
+
+        // A half whose partners all went to other pairs stays linked rather than being unlinked alone.
+        if members.len() > 1 {
+            members.sort();
+            found.push((members, planes));
+        }
+    }
+
+    if found.is_empty() {
+        return Err(if mirrored { ApplyError::Apart } else { ApplyError::NotMirrored });
+    }
+
+    let inside = |a: &[NodeId], b: &[NodeId]| a.iter().any(|m| b.iter().any(|g| map.is_ancestor(*g, *m)));
+    let outer: Vec<usize> = (0..found.len()).filter(|i| !found.iter().any(|(b, _)| inside(&found[*i].0, b))).collect();
+    let mut applied = Applied::default();
+    for i in outer {
+        let (members, planes) = &found[i];
+        gather(map, members, planes, dist, &mut applied);
+    }
+
+    sel.clear();
+    sel.nodes.extend(&applied.groups);
+    Ok(applied)
+}
+
+/// The meeting partners of `group` to gather with it. Per axis the first plane is the one to the [`nearest`] partner no
+/// other pair took, and from then on only partners across that same plane follow, which gathers the XZ quarters of a
+/// pair but not the touching pairs of a tiled row, whose halves also mirror each other across the next plane over.
+fn follow(map: &Map, group: NodeId, planes: &mut Vec<AxisPlane>, seeds: &BTreeSet<NodeId>, seen: &BTreeSet<NodeId>, dist: f64) -> Vec<NodeId> {
+    let (found, bounds) = (meeting(map, group, dist), map.bounds(group));
+    let open: Vec<(NodeId, AxisPlane)> = found.iter().copied().filter(|(o, _)| !seen.contains(o)).collect();
+    let mut out = Vec::new();
+    for axis in 0..3 {
+        if let Some(used) = planes.iter().find(|p| p.axis == axis) {
+            out.extend(found.iter().filter(|(_, p)| p.axis == axis && (p.at - used.at).abs() < 1e-6).map(|(o, _)| *o));
+        } else if let Some((other, plane)) = nearest(&open, axis, &bounds, |o| seeds.contains(o), |g| meeting(map, g, dist)) {
+            planes.push(plane);
+            out.push(other);
+        }
+    }
+
+    out
+}
+
+/// Mirror partners of `group` whose plane touches both halves within `dist`.
+fn meeting(map: &Map, group: NodeId, dist: f64) -> Vec<(NodeId, AxisPlane)> {
+    touching(map, group, partners(map, group), dist)
+}
+
+/// Kind, depth and link of every descendant in depth-first order, which sync keeps equal across a link set.
+fn shape(map: &Map, id: NodeId, depth: usize, out: &mut Vec<(usize, &'static str, bool)>) {
+    for c in map.get(id).map(|n| n.children.as_slice()).unwrap_or_default() {
+        let Some(child) = map.get(*c) else { continue };
+        out.push((depth, child.kind.type_name(), link_of(map, *c).is_some()));
+        shape(map, *c, depth + 1, out);
+    }
+}
+
+/// Brushes and meshes reached through plain groups only. Nested linked groups keep their own sets in sync and brush
+/// entities their brushes, so those move over whole.
+fn mergeable(map: &Map, group: NodeId, out: &mut Vec<NodeId>) {
+    for c in map.get(group).map(|n| n.children.as_slice()).unwrap_or_default() {
+        match map.get(*c).map(|n| &n.kind) {
+            Some(NodeKind::Brush(_) | NodeKind::Mesh(_)) => out.push(*c),
+            Some(NodeKind::Group(g)) if g.link_id.is_none() => mergeable(map, *c, out),
+            _ => {}
+        }
+    }
+}
+
+/// Moves the contents of `members` into the first one and unlinks it. Halves an older release let drift apart in
+/// structure are only gathered, since their leaves no longer pair up by position.
+fn gather(map: &mut Map, members: &[NodeId], planes: &[AxisPlane], dist: f64, applied: &mut Applied) {
+    let keep = members[0];
+    let shapes: Vec<_> = members
+        .iter()
+        .map(|m| {
+            let mut out = Vec::new();
+            shape(map, *m, 0, &mut out);
+            out
+        })
+        .collect();
+    if shapes.iter().all(|s| *s == shapes[0]) {
+        let leaves: Vec<Vec<NodeId>> = members
+            .iter()
+            .map(|m| {
+                let mut out = Vec::new();
+                mergeable(map, *m, &mut out);
+                out
+            })
+            .collect();
+        for i in 0..leaves[0].len() {
+            let nodes: Vec<NodeId> = leaves.iter().map(|l| l[i]).collect();
+            merge_leaves(map, &nodes, planes, dist, applied);
+        }
+    }
+
+    for &other in &members[1..] {
+        for c in map.get(other).map(|n| n.children.clone()).unwrap_or_default() {
+            map.reparent(c, keep);
+        }
+
+        map.remove(other);
+        applied.replaced.insert(other, vec![keep]);
+    }
+
+    if let Some(NodeKind::Group(g)) = map.get_mut(keep).map(|n| &mut n.kind) {
+        g.link_id = None;
+        g.transform = DMat4::IDENTITY;
+    }
+
+    applied.groups.push(keep);
+}
+
+/// Joins the brushes or meshes at one place in each half. The first nodes take the result, the rest are removed along
+/// with the plain groups they leave empty.
+fn merge_leaves(map: &mut Map, nodes: &[NodeId], planes: &[AxisPlane], dist: f64, applied: &mut Applied) {
+    let kept = match map.get(nodes[0]).map(|n| &n.kind) {
+        Some(NodeKind::Brush(_)) => {
+            let pieces: Vec<Brush> = nodes.iter().filter_map(|n| map.brush(*n).cloned()).collect();
+            let joined = csg::join_convex(pieces);
+            let kept = joined.len();
+            for (n, brush) in nodes.iter().zip(joined) {
+                if let Some(slot) = map.brush_mut(*n) {
+                    *slot = brush;
+                }
+            }
+
+            applied.joined += nodes.len() - kept;
+            kept
+        }
+        Some(NodeKind::Mesh(first)) => {
+            let mut mesh = first.clone();
+            for n in &nodes[1..] {
+                if let Some(other) = map.mesh(*n) {
+                    mesh.join(other);
+                }
+            }
+
+            for plane in planes {
+                mesh.weld_seam(*plane, dist);
+            }
+
+            if let Some(slot) = map.mesh_mut(nodes[0]) {
+                *slot = mesh;
+            }
+
+            applied.welded += 1;
+            1
+        }
+        _ => return,
+    };
+
+    let survivors = nodes[..kept].to_vec();
+    for &n in &nodes[kept..] {
+        let mut up = map.get(n).and_then(|x| x.parent);
+        map.remove(n);
+        applied.replaced.insert(n, survivors.clone());
+        while let Some(p) = up.filter(|p| map.get(*p).is_some_and(|n| n.children.is_empty() && matches!(&n.kind, NodeKind::Group(g) if g.link_id.is_none()))) {
+            up = map.get(p).and_then(|x| x.parent);
+            map.remove(p);
+            applied.replaced.insert(p, Vec::new());
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use td_core::DMat4;
-    use td_geom::Brush;
+    use td_geom::{Brush, Mesh};
 
     use super::*;
-    use crate::Document;
     use crate::linked::tests::{assert_copy_maps, wedge};
-    use crate::symmetry::PlaneAt;
+    use crate::symmetry::{MIRROR_TOLERANCE, PlaneAt};
+    use crate::{Document, Entity};
 
     const WEDGE_MIN: DVec3 = DVec3::new(8.0, 2.0, 4.0);
     const WEDGE_MAX: DVec3 = DVec3::new(40.0, 34.0, 20.0);
@@ -453,5 +669,314 @@ mod tests {
         assert_eq!(whole(&doc), []);
         doc.edit("unlink", |m, s| ops::unlink_groups(m, s));
         assert_eq!(whole(&doc), []);
+    }
+
+    /// A closed block from x 8 to 24 whose top slopes down along x and up along z, so it touches the wedge's min side.
+    fn ramp() -> Mesh {
+        let points = [
+            DVec3::new(8.0, 40.0, 6.0),
+            DVec3::new(24.0, 40.0, 6.0),
+            DVec3::new(8.0, 40.0, 20.0),
+            DVec3::new(24.0, 40.0, 20.0),
+            DVec3::new(8.0, 56.0, 6.0),
+            DVec3::new(8.0, 59.5, 20.0),
+            DVec3::new(24.0, 48.0, 6.0),
+            DVec3::new(24.0, 51.5, 20.0),
+        ];
+        Mesh::from_brush(&Brush::from_points(&points, &[], "plaster").unwrap())
+    }
+
+    const LAMP: DVec3 = DVec3::new(20.0, 10.0, 12.0);
+
+    /// A group holding the wedge, the ramp and a light, in that order.
+    fn furnished(doc: &mut Document) -> NodeId {
+        let layer = doc.map.default_layer();
+        doc.edit("add", |m, s| {
+            s.clear();
+            let mut light = Entity::new("light");
+            light.origin = LAMP;
+            for kind in [NodeKind::Brush(wedge()), NodeKind::Mesh(ramp()), NodeKind::Entity(light)] {
+                s.select_node(m.insert(layer, kind));
+            }
+
+            ops::group_selection(m, s, "half", layer).unwrap()
+        })
+    }
+
+    fn children(map: &Map, id: NodeId) -> Vec<NodeId> {
+        map.get(id).unwrap().children.clone()
+    }
+
+    fn of_kind(map: &Map, group: NodeId, kind: &str) -> Vec<NodeId> {
+        children(map, group).into_iter().filter(|c| map.get(*c).unwrap().kind.type_name() == kind).collect()
+    }
+
+    fn apply(doc: &mut Document, ids: &[NodeId], dist: f64) -> Result<Applied, ApplyError> {
+        select(doc, ids);
+        doc.try_edit("Apply Mirror", |m, s| apply_mirror(m, s, dist))
+    }
+
+    fn assert_unlinked(map: &Map, group: NodeId, name: &str) {
+        let NodeKind::Group(g) = &map.get(group).unwrap().kind else { panic!("{group} is no group") };
+        assert_eq!((g.name.as_str(), g.link_id, g.transform), (name, None, DMat4::IDENTITY));
+    }
+
+    fn assert_points(found: &[DVec3], want: &[DVec3]) {
+        assert_eq!(found.len(), want.len(), "{found:?}");
+        for p in want {
+            assert!(found.iter().any(|q| q.abs_diff_eq(*p, 1e-6)), "{p} missing from {found:?}");
+        }
+    }
+
+    fn assert_bounds(found: Aabb, want: Aabb) {
+        assert!(found.min.abs_diff_eq(want.min, 1e-9) && found.max.abs_diff_eq(want.max, 1e-9), "{found:?}, wants {want:?}");
+    }
+
+    fn assert_no_face_on(mesh: &Mesh, plane: AxisPlane) {
+        let on = |f: &&td_geom::MeshFace| f.indices.iter().all(|v| plane.distance(mesh.vertices[*v as usize]).abs() < 1e-9);
+        assert_eq!(mesh.faces.iter().filter(on).count(), 0, "a cap is left on {plane:?}");
+    }
+
+    #[test]
+    fn applying_a_pair_joins_the_brush_welds_the_mesh_and_keeps_both_lights() {
+        let mut doc = Document::new();
+        let group = furnished(&mut doc);
+        let copy = mirror(&mut doc, &[group], 0, PlaneAt::Min).0[0];
+        let [brush, mesh, light]: [NodeId; 3] = children(&doc.map, group).try_into().unwrap();
+        let [copy_brush, copy_mesh, copy_light]: [NodeId; 3] = children(&doc.map, copy).try_into().unwrap();
+        let before = doc.map.nodes.clone();
+
+        let applied = apply(&mut doc, &[copy], MIRROR_TOLERANCE).unwrap();
+        let replaced = Replaced::from([(copy, vec![group]), (copy_brush, vec![brush]), (copy_mesh, vec![mesh])]);
+        assert_eq!(applied, Applied { groups: vec![group], joined: 1, welded: 1, replaced });
+        assert!(!doc.map.contains(copy));
+        assert_unlinked(&doc.map, group, "half");
+        assert_eq!(children(&doc.map, group), [brush, mesh, light, copy_light]);
+        assert_eq!(doc.selection.nodes.iter().copied().collect::<Vec<_>>(), [group]);
+
+        let joined = doc.map.brush(brush).unwrap();
+        joined.validate().unwrap();
+        assert_eq!(joined.faces.len(), 7);
+        assert!(joined.faces.iter().all(|f| f.data.material == "wall"));
+        let end = |x: f64| [DVec3::new(x, 2.0, 4.0), DVec3::new(x, 2.0, 20.0), DVec3::new(x, 14.0, 4.0), DVec3::new(x, 18.0, 20.0)];
+        let ridge = [DVec3::new(8.0, 30.0, 4.0), DVec3::new(8.0, 34.0, 20.0)];
+        assert_points(&joined.vertices, &[end(40.0).as_slice(), &end(-24.0), &ridge].concat());
+
+        let welded = doc.map.mesh(mesh).unwrap();
+        assert!(welded.is_closed());
+        assert_eq!((welded.vertices.len(), welded.faces.len()), (12, 10));
+        assert_bounds(welded.bounds(), Aabb::new(DVec3::new(-8.0, 40.0, 6.0), DVec3::new(24.0, 59.5, 20.0)));
+        assert_no_face_on(welded, plane(0, 8.0));
+
+        let origins = [light, copy_light].map(|l| doc.map.entity(l).unwrap().origin);
+        assert_eq!(origins, [LAMP, DVec3::new(-4.0, 10.0, 12.0)]);
+
+        assert_eq!(doc.undo().as_deref(), Some("Apply Mirror"));
+        assert!(doc.map.nodes == before, "one undo step brings the linked pair back");
+    }
+
+    #[test]
+    fn applying_one_pair_of_a_facade_leaves_the_other_pairs_linked() {
+        let mut doc = Document::new();
+        let [[a, b], [c, d], [e, f]] = facade(&mut doc);
+        let link = link_of(&doc.map, a);
+        let leaves = [c, d].map(|g| children(&doc.map, g)[0]);
+        let shapes = leaves.map(|id| doc.map.brush(id).unwrap().clone());
+
+        let applied = apply(&mut doc, &[d], MIRROR_TOLERANCE).unwrap();
+        assert_eq!(applied, Applied { groups: vec![c], replaced: Replaced::from([(d, vec![c])]), ..Applied::default() });
+        assert_eq!(children(&doc.map, c), leaves, "the halves meet in a valley, so their union is not convex");
+        assert_eq!(leaves.map(|id| doc.map.brush(id).unwrap().clone()), shapes);
+        assert_unlinked(&doc.map, c, "window");
+        assert!(!doc.map.contains(d));
+        assert_eq!([a, b, e, f].map(|g| link_of(&doc.map, g)), [link; 4]);
+        assert_eq!(partners(&doc.map, a), [(b, plane(0, 40.0)), (f, plane(0, 136.0))]);
+        assert_eq!(partners(&doc.map, e), [(b, plane(0, 136.0)), (f, plane(0, 232.0))]);
+    }
+
+    #[test]
+    fn applying_touching_pairs_gathers_each_half_with_its_own_pair() {
+        // Halves in the row, selected and pairs gathered into their first half, as indices into the row.
+        type Case = (usize, &'static [usize], &'static [[usize; 2]]);
+        let cases: [Case; 9] = [
+            (6, &[3], &[[2, 3]]),
+            (6, &[2], &[[2, 3]]),
+            (6, &[1], &[[0, 1]]),
+            (6, &[2, 3], &[[2, 3]]),
+            (6, &[4, 5], &[[4, 5]]),
+            (6, &[0, 1, 2, 3, 4, 5], &[[0, 1], [2, 3], [4, 5]]),
+            (6, &[1, 2], &[[1, 2]]),
+            (5, &[2], &[[1, 2]]),
+            (5, &[0, 1, 2, 3, 4], &[[0, 1], [2, 3]]),
+        ];
+        for (count, picked, pairs) in cases {
+            let mut doc = Document::new();
+            let row = touching_row(&mut doc, count);
+            let link = link_of(&doc.map, row[0]);
+            let before: Vec<_> = row.iter().map(|g| (children(&doc.map, *g), doc.map.bounds(*g))).collect();
+            let ids: Vec<NodeId> = picked.iter().map(|i| row[*i]).collect();
+
+            let applied = apply(&mut doc, &ids, MIRROR_TOLERANCE).unwrap();
+            let case = format!("{count} halves, {picked:?} selected");
+            assert_eq!(applied.groups, pairs.iter().map(|[k, _]| row[*k]).collect::<Vec<_>>(), "{case}");
+            for (i, half) in row.iter().enumerate() {
+                match pairs.iter().find(|p| p.contains(&i)) {
+                    Some([k, o]) if *k == i => {
+                        assert_unlinked(&doc.map, *half, "window");
+                        assert_bounds(doc.map.bounds(*half), before[*k].1.union(&before[*o].1));
+                    }
+                    Some(_) => assert!(!doc.map.contains(*half), "{case}: half {i} is left"),
+                    None => {
+                        let now = (link_of(&doc.map, *half), children(&doc.map, *half), doc.map.bounds(*half));
+                        assert_eq!(now, (link, before[i].0.clone(), before[i].1), "{case}: half {i} changed");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn halves_must_meet_within_the_distance() {
+        let mut doc = Document::new();
+        let group = group_of(&mut doc, wedge(), "half");
+        select(&mut doc, &[group]);
+        let gap = PlaneChoice { at: PlaneAt::Custom, custom: 40.5 };
+        let copy = doc.edit("Mirror Linked", |m, s| mirror_linked(m, s, 0, &gap)).unwrap().0[0];
+        let before = doc.map.nodes.clone();
+        assert_eq!(apply(&mut doc, &[group], 0.49), Err(ApplyError::Apart));
+        assert!(doc.map.nodes == before);
+        assert_eq!(doc.history.undo_labels().next(), Some("Mirror Linked"), "a refused apply records no step");
+
+        let brushes = [group, copy].map(|g| children(&doc.map, g)[0]);
+        let applied = apply(&mut doc, &[group], 0.5).unwrap();
+        assert_eq!(applied, Applied { groups: vec![group], replaced: Replaced::from([(copy, vec![group])]), ..Applied::default() });
+        assert_eq!(children(&doc.map, group), brushes, "a gap of one unit keeps the brushes apart");
+
+        let far = group_of(&mut doc, wedge(), "far");
+        mirror(&mut doc, &[far], 2, PlaneAt::Custom);
+        let before = doc.map.nodes.clone();
+        assert_eq!(apply(&mut doc, &[far], 16.0), Err(ApplyError::Apart), "the plane at z 100.25 misses both halves");
+        assert!(doc.map.nodes == before);
+    }
+
+    #[test]
+    fn apply_needs_a_mirrored_linked_group_around_the_selection() {
+        let mut doc = Document::new();
+        let layer = doc.map.default_layer();
+        let loose = doc.edit("add", |m, _| m.insert(layer, NodeKind::Brush(wedge())));
+        let solo = group_of(&mut doc, wedge(), "solo");
+        let slid = group_of(&mut doc, wedge(), "slid");
+        let next = shifted(&mut doc, &[slid], DVec3::new(32.0, 0.0, 0.0))[0];
+        let half = group_of(&mut doc, wedge(), "half");
+        let turned = mirror(&mut doc, &[half], 0, PlaneAt::Max).0[0];
+        let turn = ops::rotation_about(DVec3::new(40.0, 10.0, 12.0), DVec3::Y, 90.0);
+        doc.edit("turn", |m, s| ops::transform_selection(m, s, &turn, EditOptions::default()));
+        let before = doc.map.nodes.clone();
+        let inside = children(&doc.map, next)[0];
+        for ids in [&[][..], &[loose][..], &[solo][..], &[slid, inside][..], &[half, turned][..]] {
+            assert_eq!(apply(&mut doc, ids, MIRROR_TOLERANCE), Err(ApplyError::NotMirrored), "{ids:?}");
+            assert!(doc.map.nodes == before, "{ids:?}");
+        }
+    }
+
+    #[test]
+    fn halves_out_of_sync_are_gathered_without_merging() {
+        let mut doc = Document::new();
+        let group = group_of(&mut doc, wedge(), "half");
+        let copy = mirror(&mut doc, &[group], 0, PlaneAt::Min).0[0];
+        let mut map = doc.map.clone();
+        let post = Brush::from_aabb(&Aabb::new(DVec3::new(-20.0, 0.0, 30.0), DVec3::new(-12.0, 48.0, 38.0)), "trim").unwrap();
+        // An older release could leave a brush in one half only.
+        let extra = map.insert(copy, NodeKind::Brush(post.clone()));
+        let brushes = [group, copy].map(|g| children(&map, g)[0]);
+        let shapes = brushes.map(|id| map.brush(id).unwrap().clone());
+        let mut sel = Selection::default();
+        sel.select_node(group);
+
+        let applied = apply_mirror(&mut map, &mut sel, MIRROR_TOLERANCE).unwrap();
+        assert_eq!(applied, Applied { groups: vec![group], replaced: Replaced::from([(copy, vec![group])]), ..Applied::default() });
+        assert_eq!(children(&map, group), [brushes[0], brushes[1], extra]);
+        let [x, y] = shapes;
+        assert_eq!([brushes[0], brushes[1], extra].map(|id| map.brush(id).unwrap().clone()), [x, y, post], "the halves would have joined");
+        assert_unlinked(&map, group, "half");
+        assert!(!map.contains(copy));
+        assert_eq!(sel.nodes.iter().copied().collect::<Vec<_>>(), [group]);
+    }
+
+    #[test]
+    fn nested_linked_windows_move_over_unchanged_and_stay_one_set() {
+        let mut doc = Document::new();
+        let layer = doc.map.default_layer();
+        let frame = Brush::from_aabb(&Aabb::new(DVec3::new(14.0, 10.0, 20.0), DVec3::new(22.0, 18.0, 23.0)), "frame").unwrap();
+        let window = group_of(&mut doc, frame, "window");
+        let twin = shifted(&mut doc, &[window], DVec3::new(10.0, 0.0, -2.0))[0];
+        let half = doc.edit("house", |m, s| {
+            s.clear();
+            s.select_node(m.insert(layer, NodeKind::Brush(wedge())));
+            let wall = ops::group_selection(m, s, "wall", layer).unwrap();
+            s.clear();
+            s.nodes.extend([wall, window, twin]);
+            ops::group_selection(m, s, "half", layer).unwrap()
+        });
+        let copy = mirror(&mut doc, &[half], 0, PlaneAt::Min).0[0];
+        let windows = |map: &Map, g| children(map, g).into_iter().filter(|c| link_of(map, *c).is_some()).collect::<Vec<_>>();
+        let all = [windows(&doc.map, half), windows(&doc.map, copy)].concat();
+        let snapshot = |map: &Map| {
+            all.iter().flat_map(|w| [*w, children(map, *w)[0]]).map(|id| map.get(id).map(|n| (n.kind.clone(), n.children.clone())).unwrap()).collect::<Vec<_>>()
+        };
+        let placed = snapshot(&doc.map);
+        let plain = |map: &Map, g| children(map, g).into_iter().filter(|c| link_of(map, *c).is_none()).collect::<Vec<_>>();
+        let walls = [half, copy].map(|g| plain(&doc.map, g)[0]);
+        let bricks = walls.map(|w| children(&doc.map, w)[0]);
+
+        let applied = apply(&mut doc, &[half], MIRROR_TOLERANCE).unwrap();
+        let replaced = Replaced::from([(copy, vec![half]), (bricks[1], vec![bricks[0]]), (walls[1], Vec::new())]);
+        assert_eq!(applied, Applied { groups: vec![half], joined: 1, welded: 0, replaced });
+        assert_eq!(windows(&doc.map, half), all);
+        assert!(snapshot(&doc.map) == placed, "the windows keep their link, placement and panes");
+        assert_eq!(plain(&doc.map, half), [walls[0]], "the wall group the merge emptied is gone");
+        assert_eq!(children(&doc.map, walls[0]), [bricks[0]]);
+        assert_eq!(doc.map.brush(bricks[0]).unwrap().bounds(), Aabb::new(DVec3::new(-24.0, 2.0, 4.0), DVec3::new(40.0, 34.0, 20.0)));
+
+        let pane = children(&doc.map, window)[0];
+        doc.edit("paint", |m, _| m.brush_mut(pane).unwrap().faces.iter_mut().for_each(|f| f.data.material = "glass".into()));
+        for w in all {
+            let b = doc.map.brush(children(&doc.map, w)[0]).unwrap();
+            assert!(b.faces.iter().all(|f| f.data.material == "glass"), "{w} missed the edit");
+        }
+    }
+
+    #[test]
+    fn quarters_become_one_brush_and_one_closed_mesh() {
+        let mut doc = Document::new();
+        let a = furnished(&mut doc);
+        let b = mirror(&mut doc, &[a], 0, PlaneAt::Min).0[0];
+        let [c, d]: [NodeId; 2] = mirror(&mut doc, &[a, b], 2, PlaneAt::Max).0.try_into().unwrap();
+        let leaves: Vec<[NodeId; 3]> = [a, b, c, d].iter().map(|g| children(&doc.map, *g).try_into().unwrap()).collect();
+        let [brush, mesh, _] = leaves[0];
+
+        let applied = apply(&mut doc, &[leaves[3][1]], MIRROR_TOLERANCE).unwrap();
+        let mut replaced = Replaced::new();
+        for (g, [x, y, _]) in [b, c, d].into_iter().zip(&leaves[1..]) {
+            replaced.extend([(g, vec![a]), (*x, vec![brush]), (*y, vec![mesh])]);
+        }
+
+        assert_eq!(applied, Applied { groups: vec![a], joined: 3, welded: 1, replaced });
+        assert_unlinked(&doc.map, a, "half");
+        assert_eq!((of_kind(&doc.map, a, "brush"), of_kind(&doc.map, a, "mesh"), of_kind(&doc.map, a, "entity").len()), (vec![brush], vec![mesh], 4));
+
+        let joined = doc.map.brush(brush).unwrap();
+        joined.validate().unwrap();
+        assert_eq!(joined.faces.len(), 9);
+        let end = |x: f64| [DVec3::new(x, 2.0, 4.0), DVec3::new(x, 2.0, 36.0), DVec3::new(x, 14.0, 4.0), DVec3::new(x, 18.0, 20.0), DVec3::new(x, 14.0, 36.0)];
+        let ridge = [DVec3::new(8.0, 30.0, 4.0), DVec3::new(8.0, 34.0, 20.0), DVec3::new(8.0, 30.0, 36.0)];
+        assert_points(&joined.vertices, &[end(40.0).as_slice(), &end(-24.0), &ridge].concat());
+
+        let welded = doc.map.mesh(mesh).unwrap();
+        assert!(welded.is_closed());
+        assert_eq!((welded.vertices.len(), welded.faces.len()), (18, 16));
+        assert_bounds(welded.bounds(), Aabb::new(DVec3::new(-8.0, 40.0, 6.0), DVec3::new(24.0, 59.5, 34.0)));
+        assert_no_face_on(welded, plane(0, 8.0));
+        assert_no_face_on(welded, plane(2, 20.0));
     }
 }
