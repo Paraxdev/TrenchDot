@@ -192,6 +192,7 @@ fn clipmap_json(status: Option<&crate::terrain3d::gpu::Status>, triangles: usize
             "fine_used": s.fine_used,
             "coarse_regions": s.coarse_regions,
             "gpu_bytes": s.gpu_bytes,
+            "texture_loads": s.texture_loads,
             "uploads": { "whole": s.uploads.whole, "partial": s.uploads.partial, "partial_cells": s.uploads.partial_cells },
             "triangles": triangles,
         })

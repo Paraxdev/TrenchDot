@@ -2,7 +2,7 @@
 //! recently used first, and a coarse atlas block for every region, uploaded within a byte budget per frame.
 
 use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use td_core::NodeId;
@@ -11,6 +11,7 @@ use td_formats::terrain3d_cache::{LodLevel, Manifest, ManifestMaterial, Manifest
 use td_geom::terrain3d::{Control, Loc, Region3D};
 use td_render::clipmap::look::{Albedo, ClipmapTexture};
 use td_render::clipmap::noise::Noise;
+use td_render::clipmap::{AlbedoData, ClipmapAlbedo};
 use td_render::clipmap::{AutoShader, Background, ClipmapDesc, ClipmapParams, GpuClipmap, Slot, coarse_stride, fine_capacity, region_index};
 use td_render::{Renderer, Water};
 
@@ -310,6 +311,8 @@ pub struct Status {
     pub coarse_regions: usize,
     pub gpu_bytes: u64,
     pub uploads: Uploads,
+    /// Albedo arrays built for this node's cache folder since the editor started, not since its clipmap was made.
+    pub texture_loads: u64,
 }
 
 /// Fine layer uploads since the clipmap was made: whole regions, and patches with the cells they wrote.
@@ -325,6 +328,7 @@ pub struct NodeClipmap {
     clip: GpuClipmap,
     held: Held,
     textures: Option<Vec<ManifestTexture>>,
+    texture_loads: u64,
     /// The edited regions held data came from. Keeping them alive keeps their addresses, which key that data, from going
     /// to a later edit.
     pins: HashMap<usize, Arc<Region3D>>,
@@ -352,8 +356,16 @@ impl NodeClipmap {
             coarse_regions: self.held.coarse_count(),
             gpu_bytes: fine + 8 * u64::from(w) * u64::from(h),
             uploads: self.uploads,
+            texture_loads: self.texture_loads,
         }
     }
+}
+
+/// How a node's clipmap is outlined in the view.
+#[derive(Clone, Copy)]
+pub struct Outline {
+    pub selected: bool,
+    pub wire: [f32; 4],
 }
 
 /// Brings a node's clipmap up to what the store and the edits hold, uploading at most [`UPLOAD_BUDGET`] bytes, and drops
@@ -365,8 +377,8 @@ pub fn sync(
     state: &EditorState,
     id: NodeId,
     cache: &Path,
-    selected: bool,
-    wire: [f32; 4],
+    albedos: &mut HashMap<PathBuf, AlbedoCache>,
+    outline: Outline,
 ) -> Result<bool, String> {
     let regions = regions(state, id, cache);
     let (Some(link), Some(source), Some(manifest), false) =
@@ -377,20 +389,15 @@ pub fn sync(
     };
     let size = manifest.region_size;
     let stride = coarse_stride(size);
-    let lo = [0, 1].map(|i| regions.iter().map(|r| r.loc[i]).min().unwrap_or(0));
-    let hi = [0, 1].map(|i| regions.iter().map(|r| r.loc[i]).max().unwrap_or(0));
-    let desc = ClipmapDesc { region_size: size, layers: fine_capacity(size, regions.len()), coarse_stride: stride, atlas: [lo, hi] };
-    let fits = slot.as_ref().is_some_and(|n| {
-        let d = n.clip.desc();
-        d.region_size == size && d.coarse_stride == stride && d.layers >= desc.layers && d.in_atlas(lo) && d.in_atlas(hi)
-    });
-    if !fits {
+    let locs: Vec<Loc> = regions.iter().map(|r| r.loc).collect();
+    if let Some(desc) = clipmap_desc(size, &locs, slot.as_ref().map(|n| n.clip.desc())) {
         *slot = None;
         let clip = renderer.new_clipmap(&desc)?;
         *slot = Some(NodeClipmap {
             clip,
             held: Held::new(desc.layers),
             textures: None,
+            texture_loads: 0,
             pins: HashMap::new(),
             shown: Vec::new(),
             uploads: Uploads::default(),
@@ -400,7 +407,9 @@ pub fn sync(
 
     let Some(node) = slot.as_mut() else { return Ok(false) };
     if node.textures.as_ref() != Some(&manifest.textures) {
-        renderer.set_clipmap_textures(&mut node.clip, &textures(cache, &manifest.textures));
+        let built = albedo_cache(renderer, albedos, cache, &manifest.textures);
+        renderer.use_clipmap_albedo(&mut node.clip, &built.albedo);
+        node.texture_loads = built.loads;
         node.textures = Some(manifest.textures.clone());
     }
 
@@ -412,7 +421,7 @@ pub fn sync(
             _ => None,
         })
         .collect();
-    let params = params(state.terrain3d.upm, manifest, &regions, &ranges, selected, wire, &state.prefs);
+    let params = params(state.terrain3d.upm, manifest, &regions, &ranges, outline.selected, outline.wire, &state.prefs);
     if *node.clip.params() != params {
         node.clip.set_params(&renderer.queue, &params);
     }
@@ -512,15 +521,52 @@ fn colors(region: &Region3D, rect: Rect) -> Vec<[u8; 4]> {
     cut(region.color.as_chunks::<4>().0, region.size, rect)
 }
 
+/// What `sync` needs of a clipmap that fits `size` and the region `locs`, None when `old` already does. Layers double
+/// and the coarse atlas keeps a margin around the regions, so adding one region rarely makes a new clipmap, which
+/// would upload every layer again.
+fn clipmap_desc(size: u32, locs: &[Loc], old: Option<&ClipmapDesc>) -> Option<ClipmapDesc> {
+    let stride = coarse_stride(size);
+    let lo = [0, 1].map(|i| locs.iter().map(|l| l[i]).min().unwrap_or(0));
+    let hi = [0, 1].map(|i| locs.iter().map(|l| l[i]).max().unwrap_or(0));
+    let fits = old
+        .is_some_and(|d| d.region_size == size && d.coarse_stride == stride && d.layers >= fine_capacity(size, locs.len()) && d.in_atlas(lo) && d.in_atlas(hi));
+    if fits {
+        return None;
+    }
+
+    let margin = [0, 1].map(|i| ((hi[i] - lo[i] + 2) / 2).max(1));
+    let (first, last) = ([0, 1].map(|i| (lo[i] - margin[i]).max(-16)), [0, 1].map(|i| (hi[i] + margin[i]).min(15)));
+    Some(ClipmapDesc { region_size: size, layers: fine_capacity(size, locs.len().next_power_of_two()), coarse_stride: stride, atlas: [first, last] })
+}
+
+/// The albedo array of a cache folder's textures, kept after the node that asked for it is rebuilt or hidden.
+pub struct AlbedoCache {
+    textures: Vec<ManifestTexture>,
+    albedo: ClipmapAlbedo,
+    loads: u64,
+}
+
+/// The albedo array for `list`, built only when the folder has none for exactly these textures.
+fn albedo_cache<'a>(renderer: &Renderer, albedos: &'a mut HashMap<PathBuf, AlbedoCache>, cache: &Path, list: &[ManifestTexture]) -> &'a AlbedoCache {
+    let loads = albedos.get(cache).map_or(0, |c| c.loads);
+    let current = albedos.get(cache).is_some_and(|c| c.textures == list);
+    let entry = albedos.entry(cache.to_path_buf());
+    if !current {
+        let albedo = renderer.clipmap_albedo(&AlbedoData::new(&textures(cache, list)));
+        entry.insert_entry(AlbedoCache { textures: list.to_vec(), albedo, loads: loads + 1 });
+    }
+
+    &albedos[cache]
+}
+
 /// The manifest's textures as the clipmap draws them: the exported albedo, else the thumbnail, else the color alone.
 fn textures(cache: &Path, list: &[ManifestTexture]) -> Vec<ClipmapTexture> {
     let open = |file: &str| (!file.is_empty()).then(|| image::open(cache.join(file)).ok()).flatten().map(|i| i.to_rgba8());
     list.iter()
         .map(|t| {
-            let albedo = match (open(&t.albedo), open(&t.thumbnail)) {
-                (Some(full), _) => Albedo::Full(full),
-                (None, Some(small)) => Albedo::Thumbnail(small),
-                (None, None) => Albedo::None,
+            let albedo = match open(&t.albedo) {
+                Some(full) => Albedo::Full(full),
+                None => open(&t.thumbnail).map_or(Albedo::None, Albedo::Thumbnail),
             };
             let [r, g, b, _] = t.albedo_color;
             ClipmapTexture { id: t.id, albedo, color: [r, g, b], uv_scale: t.uv_scale, detiling: [t.detiling_rotation, t.detiling_shift] }
@@ -607,6 +653,62 @@ fn params(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Region by region along a 3 wide grid starting off the origin, with the clipmaps each step made.
+    fn grown(size: u32, cols: i32, count: i32, from: Loc) -> Vec<(usize, u32, [[i32; 2]; 2])> {
+        let mut made = Vec::new();
+        let mut old: Option<ClipmapDesc> = None;
+        let mut locs = Vec::new();
+        for n in 0..count {
+            locs.push([from[0] + n % cols, from[1] + n / cols]);
+            if let Some(desc) = clipmap_desc(size, &locs, old.as_ref()) {
+                made.push((locs.len(), desc.layers, desc.atlas));
+                old = Some(desc);
+            }
+        }
+
+        made
+    }
+
+    #[test]
+    fn adding_regions_one_at_a_time_makes_a_new_clipmap_only_when_the_layers_double_or_the_atlas_is_left() {
+        let made = grown(64, 3, 9, [-4, 2]);
+        assert_eq!(
+            made,
+            [(1, 1, [[-5, 1], [-3, 3]]), (2, 2, [[-5, 1], [-2, 3]]), (3, 4, [[-6, 1], [0, 3]]), (5, 8, [[-6, 1], [0, 4]]), (9, 16, [[-6, 0], [0, 6]]),]
+        );
+    }
+
+    #[test]
+    fn the_layers_stop_doubling_at_the_budget_and_the_atlas_stops_at_the_region_map() {
+        let size = 2048;
+        let cap = fine_capacity(size, 100);
+        let made = grown(size, 4, 20, [10, -16]);
+        let layers: Vec<(usize, u32)> = made.iter().map(|m| (m.0, m.1)).collect();
+        assert_eq!(layers[..4], [(1, 1), (2, 2), (3, 4), (5, cap)]);
+        assert!(layers.iter().all(|l| l.1 <= cap) && cap == 8, "{layers:?}");
+        for (_, _, atlas) in &made {
+            assert!(atlas[0].iter().chain(&atlas[1]).all(|v| (-16..=15).contains(v)), "{atlas:?}");
+            assert!(ClipmapDesc { region_size: size, layers: 1, coarse_stride: 16, atlas: *atlas }.check().is_ok());
+        }
+
+        assert_eq!(made[3].2, [[8, -16], [15, -14]]);
+    }
+
+    #[test]
+    fn a_clipmap_is_made_again_for_another_region_size_or_a_region_outside_its_atlas() {
+        let locs = [[3, -2], [4, -2]];
+        let desc = clipmap_desc(64, &locs, None).unwrap();
+        assert_eq!(clipmap_desc(64, &locs, Some(&desc)), None);
+        assert!(clipmap_desc(128, &locs, Some(&desc)).is_some(), "another region size");
+        let edge = [desc.atlas[1][0], desc.atlas[0][1]];
+        assert_eq!(clipmap_desc(64, &[locs[0], edge], Some(&desc)), None, "the last location of the atlas still fits");
+        let past = [desc.atlas[1][0] + 1, desc.atlas[0][1]];
+        assert!(clipmap_desc(64, &[locs[0], past], Some(&desc)).is_some(), "one location past the atlas");
+        assert_eq!(clipmap_desc(64, &[locs[0], [3, -1]], Some(&desc)), None, "another region inside the atlas and the layers");
+        let third = clipmap_desc(64, &[locs[0], locs[1], [3, -1]], Some(&desc)).unwrap();
+        assert_eq!((third.layers, third.atlas), (4, [[2, -3], [5, 0]]), "a third region inside the atlas needs more layers");
+    }
 
     fn region(loc: Loc, hash: u8) -> Region {
         Region { loc, source: Source::Cached([hash; 32]), whole: true, pyramid: true }

@@ -8805,6 +8805,31 @@ fn clipmap_settled(ed: &Editor, node: &Value, regions: u64) -> Value {
     }
 }
 
+/// Adding a region, making a bigger clipmap for it and hiding and showing the node bind the albedo array the folder
+/// already has, so no texture is decoded again.
+#[test]
+#[ignore]
+fn terrain3d_albedo_is_built_once_while_regions_come_and_the_node_is_shown_again() {
+    let (ed, node) = launch_world("terrain3d_albedo", None);
+    let t3d = |args: Value| ed.call("terrain3d", args);
+    let first = clipmap_settled(&ed, &node, 3);
+    assert_eq!((first["texture_loads"].clone(), first["fine_layers"].clone()), (json!(1), json!(4)), "{first}");
+
+    t3d(json!({ "op": "regions", "id": node, "add": [[1, 1]] }));
+    let inside = clipmap_settled(&ed, &node, 4);
+    assert_eq!((inside["texture_loads"].clone(), inside["fine_layers"].clone()), (json!(1), json!(4)), "{inside}");
+
+    t3d(json!({ "op": "regions", "id": node, "add": [[2, 1]] }));
+    let grown = clipmap_settled(&ed, &node, 5);
+    assert_eq!((grown["texture_loads"].clone(), grown["fine_layers"].clone()), (json!(1), json!(8)), "{grown}");
+
+    ed.call("hierarchy", json!({ "op": "set_flags", "ids": [node], "hidden": true }));
+    shot(&ed, json!({ "target": "3d" }), "hidden");
+    ed.call("hierarchy", json!({ "op": "set_flags", "ids": [node], "hidden": false }));
+    let shown = clipmap_settled(&ed, &node, 5);
+    assert_eq!(shown["texture_loads"], 1, "{shown}");
+}
+
 /// The clipmap draws the same triangles over a world of 12 regions as over 3 when the camera sees only ground both
 /// worlds share.
 #[test]
@@ -8812,8 +8837,8 @@ fn clipmap_settled(ed: &Editor, node: &Value, regions: u64) -> Value {
 fn terrain3d_triangles_stay_the_same_for_a_bigger_world() {
     let mut counts = Vec::new();
     let twelve: Vec<[i32; 2]> = (-1..=1).flat_map(|z| (-1..=2).map(move |x| [x, z])).collect();
-    // The coarse atlas spans the bounding rectangle of the regions, 2 by 2 and 4 by 3 blocks.
-    for (name, locs, blocks) in [("terrain3d_tris_3", vec![[0, 0], [1, 0], [0, 1]], 4), ("terrain3d_tris_12", twelve, 12)] {
+    // The coarse atlas spans the bounding rectangle of the regions with a margin, 4 by 4 and 8 by 7 blocks.
+    for (name, locs, blocks) in [("terrain3d_tris_3", vec![[0, 0], [1, 0], [0, 1]], 16), ("terrain3d_tris_12", twelve, 56)] {
         let (dir, map) = terrain3d_world_at(name, None, &locs);
         let ed = Editor::launch_with(name, &["--project", dir.to_str().unwrap()]);
         ed.call("map_file", json!({ "op": "open", "path": map }));
@@ -8821,8 +8846,9 @@ fn terrain3d_triangles_stay_the_same_for_a_bigger_world() {
         // Straight down over the middle of the three shared regions, low enough that every side of the view stays on them.
         ed.call("set_camera", json!({ "view": "3d", "position": [512.3, 110, 498.7], "look_at": [511.9, 0, 499.4] }));
         let clipmap = clipmap_settled(&ed, &node, locs.len() as u64);
-        assert_eq!(clipmap["fine_layers"], locs.len() as u64, "a 64 vertex region gets a fine layer each");
-        assert_eq!(clipmap["gpu_bytes"], 12 * 64 * 64 * locs.len() as u64 + 8 * 16 * 16 * blocks, "{clipmap}");
+        let layers = locs.len().next_power_of_two() as u64;
+        assert_eq!(clipmap["fine_layers"], layers, "a 64 vertex region gets a fine layer each, rounded up to a power of two");
+        assert_eq!(clipmap["gpu_bytes"], 12 * 64 * 64 * layers + 8 * 16 * 16 * blocks, "{clipmap}");
         counts.push(clipmap["triangles"].as_u64().unwrap());
     }
 

@@ -346,7 +346,7 @@ impl GpuClipmap {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let albedo = albedo_array(device, queue, &look::AlbedoLayers::new(&[]));
+        let albedo = ClipmapAlbedo::new(device, queue, &AlbedoData::new(&[])).texture;
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("clipmap albedo"),
             address_mode_u: wgpu::AddressMode::Repeat,
@@ -378,10 +378,14 @@ impl GpuClipmap {
 
     /// Replaces the textures the ground draws with.
     pub(crate) fn set_textures(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLayout, textures: &[look::ClipmapTexture]) {
-        let layers = look::AlbedoLayers::new(textures);
-        self.albedo = albedo_array(device, queue, &layers);
-        self.listed = !textures.is_empty();
-        self.uniform.textures = layers.entries;
+        self.use_albedo(device, queue, layout, &ClipmapAlbedo::new(device, queue, &AlbedoData::new(textures)));
+    }
+
+    /// Draws the ground with an albedo array that was built before, which only rebinds it.
+    pub(crate) fn use_albedo(&mut self, device: &wgpu::Device, queue: &wgpu::Queue, layout: &wgpu::BindGroupLayout, albedo: &ClipmapAlbedo) {
+        self.albedo = albedo.texture.clone();
+        self.listed = albedo.listed;
+        self.uniform.textures = albedo.entries;
         self.uniform.set_params(&self.params, self.listed);
         queue.write_buffer(&self.buffer, 0, bytemuck::bytes_of(&self.uniform));
         let data = [&self.fine_heights, &self.fine_control, &self.fine_color, &self.coarse_heights, &self.coarse_control, &self.albedo];
@@ -526,33 +530,60 @@ fn bind_group(
     device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("clipmap"), layout, entries: &entries })
 }
 
-/// The albedo array with its mips, a layer per texture id.
-fn albedo_array(device: &wgpu::Device, queue: &wgpu::Queue, layers: &look::AlbedoLayers) -> wgpu::Texture {
-    let side = layers.side;
-    let mips = side.ilog2() + 1;
-    let texture = device.create_texture(&wgpu::TextureDescriptor {
-        label: Some("clipmap albedo"),
-        size: wgpu::Extent3d { width: side, height: side, depth_or_array_layers: layers.layers.len() as u32 },
-        mip_level_count: mips,
-        sample_count: 1,
-        dimension: wgpu::TextureDimension::D2,
-        format: wgpu::TextureFormat::Rgba8UnormSrgb,
-        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-        view_formats: &[],
-    });
-    for (z, layer) in layers.layers.iter().enumerate() {
-        for (mip, level) in crate::mip_chain(layer, mips).iter().enumerate() {
-            let origin = wgpu::Origin3d { x: 0, y: 0, z: z as u32 };
-            queue.write_texture(
-                wgpu::TexelCopyTextureInfo { texture: &texture, mip_level: mip as u32, origin, aspect: wgpu::TextureAspect::All },
-                level.as_raw(),
-                wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(level.width() * 4), rows_per_image: Some(level.height()) },
-                wgpu::Extent3d { width: level.width(), height: level.height(), depth_or_array_layers: 1 },
-            );
-        }
-    }
+/// The CPU side of a clipmap's albedo array, every layer with its mips and the uniform entries. Building it decodes
+/// nothing but resizes, averages and filters every layer, so it is the part to run off the UI thread.
+pub struct AlbedoData {
+    side: u32,
+    mips: Vec<Vec<image::RgbaImage>>,
+    entries: [look::TextureUniform; look::MAX_TEXTURES],
+    listed: bool,
+}
 
-    texture
+impl AlbedoData {
+    pub fn new(textures: &[look::ClipmapTexture]) -> Self {
+        let layers = look::AlbedoLayers::new(textures);
+        let count = layers.side.ilog2() + 1;
+        let mips = layers.layers.iter().map(|layer| crate::mip_chain(layer, count)).collect();
+        Self { side: layers.side, mips, entries: layers.entries, listed: !textures.is_empty() }
+    }
+}
+
+/// An albedo array on the GPU with its uniform entries. Cloning shares the texture, so one array serves every clipmap
+/// made from the same textures.
+#[derive(Clone)]
+pub struct ClipmapAlbedo {
+    texture: wgpu::Texture,
+    entries: [look::TextureUniform; look::MAX_TEXTURES],
+    listed: bool,
+}
+
+impl ClipmapAlbedo {
+    pub(crate) fn new(device: &wgpu::Device, queue: &wgpu::Queue, data: &AlbedoData) -> Self {
+        let mips = data.side.ilog2() + 1;
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("clipmap albedo"),
+            size: wgpu::Extent3d { width: data.side, height: data.side, depth_or_array_layers: data.mips.len() as u32 },
+            mip_level_count: mips,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        for (z, chain) in data.mips.iter().enumerate() {
+            for (mip, level) in chain.iter().enumerate() {
+                let origin = wgpu::Origin3d { x: 0, y: 0, z: z as u32 };
+                queue.write_texture(
+                    wgpu::TexelCopyTextureInfo { texture: &texture, mip_level: mip as u32, origin, aspect: wgpu::TextureAspect::All },
+                    level.as_raw(),
+                    wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(level.width() * 4), rows_per_image: Some(level.height()) },
+                    wgpu::Extent3d { width: level.width(), height: level.height(), depth_or_array_layers: 1 },
+                );
+            }
+        }
+
+        Self { texture, entries: data.entries, listed: data.listed }
+    }
 }
 
 /// Every clipmap texture has 4 byte texels.
@@ -1061,6 +1092,27 @@ mod tests {
         assert_eq!((clip.albedo.size().depth_or_array_layers, clip.albedo.size().width, clip.albedo.mip_level_count()), (3, 1, 1));
         clip.set_textures(&device, &queue, &layout, &[]);
         assert_eq!((clip.uniform.look[2], clip.uniform.textures[2]), (0.0, look::TextureUniform::default()));
+    }
+
+    #[test]
+    fn an_albedo_array_built_once_serves_two_clipmaps_and_keeps_their_params() {
+        let (device, queue) = device(true);
+        let layout = bind_group_layout(&device);
+        let texture = |id, color: [f32; 3]| look::ClipmapTexture { id, albedo: look::Albedo::None, color, uv_scale: 0.5, detiling: [0.0; 2] };
+        let three = ClipmapAlbedo::new(&device, &queue, &AlbedoData::new(&[texture(2, [0.2, 0.4, 0.6])]));
+        let five = ClipmapAlbedo::new(&device, &queue, &AlbedoData::new(&[texture(4, [0.9, 0.8, 0.7])]));
+        let mut a = GpuClipmap::new(&device, &queue, &layout, &DESC).unwrap();
+        let mut b = GpuClipmap::new(&device, &queue, &layout, &DESC).unwrap();
+        let params = ClipmapParams { textures: false, ..Default::default() };
+        a.set_params(&queue, &params);
+        a.use_albedo(&device, &queue, &layout, &three);
+        b.use_albedo(&device, &queue, &layout, &three);
+        let layers = |c: &GpuClipmap| c.albedo.size().depth_or_array_layers;
+        assert_eq!((layers(&a), layers(&b), a.uniform.textures[2].color, b.uniform.textures[2].color), (3, 3, [0.2, 0.4, 0.6, 1.0], [0.2, 0.4, 0.6, 1.0]));
+        assert_eq!((a.uniform.look[2], b.uniform.look[2], *a.params()), (1.0, 2.0, params), "a clipmap keeps its params");
+        b.use_albedo(&device, &queue, &layout, &five);
+        assert_eq!((layers(&a), layers(&b), a.uniform.textures[2].color[0], b.uniform.textures[4].color[0]), (3, 5, 0.2, 0.9));
+        assert_eq!(b.uniform.textures[2], look::TextureUniform::default(), "the earlier textures are gone");
     }
 
     /// One fine region off the origin painted with two solid textures: plain base cells, a block blending in the

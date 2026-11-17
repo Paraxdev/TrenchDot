@@ -176,6 +176,8 @@ pub struct SceneCache {
     buckets: Vec<Bucket>,
     terrains: HashMap<NodeId, TerrainGpu>,
     terrain3d: HashMap<NodeId, crate::terrain3d::gpu::NodeClipmap>,
+    /// Albedo arrays by cache folder, which outlive a node's clipmap so a rebuilt or shown again one decodes nothing.
+    terrain3d_albedo: HashMap<std::path::PathBuf, crate::terrain3d::gpu::AlbedoCache>,
     /// One box per region of each selected Terrain3D node.
     terrain3d_boxes: Option<GpuLines>,
     /// Residency generation and the store generations the boxes were built for.
@@ -2360,16 +2362,26 @@ impl SceneCache {
     fn sync_terrain3d(&mut self, renderer: &Renderer, state: &mut EditorState, show_selection: bool) {
         let layouts = &state.terrain3d_residency.layouts;
         self.terrain3d.retain(|id, _| layouts.contains_key(id));
+        let links = state.terrain3d_links();
+        self.terrain3d_albedo.retain(|folder, _| links.iter().any(|(_, f)| f == folder));
         let map = &state.doc.map;
         let chosen = &state.doc.selection.nodes;
         let mut pending = false;
         let mut status = BTreeMap::new();
         let mut failed = None;
-        for (id, cache) in state.terrain3d_links().iter().filter(|(id, _)| layouts.contains_key(id)) {
+        for (id, cache) in links.iter().filter(|(id, _)| layouts.contains_key(id)) {
             let selected = show_selection && (chosen.contains(id) || map.ancestors(*id).iter().any(|a| chosen.contains(a)));
             let mut slot = self.terrain3d.remove(id);
             let color = if selected { SELECTED_COLOR } else { TERRAIN_EDGE };
-            match crate::terrain3d::gpu::sync(renderer, &mut slot, state, *id, cache, selected, color) {
+            match crate::terrain3d::gpu::sync(
+                renderer,
+                &mut slot,
+                state,
+                *id,
+                cache,
+                &mut self.terrain3d_albedo,
+                crate::terrain3d::gpu::Outline { selected, wire: color },
+            ) {
                 Ok(more) => pending |= more,
                 Err(problem) => failed = Some(problem),
             }

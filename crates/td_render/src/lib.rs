@@ -1711,6 +1711,16 @@ impl Renderer {
         clip.set_textures(&self.device, &self.queue, &self.clipmap_bgl, textures);
     }
 
+    /// Builds the albedo array of a texture list once, to give to any number of clipmaps with [`Self::use_clipmap_albedo`].
+    pub fn clipmap_albedo(&self, data: &clipmap::AlbedoData) -> clipmap::ClipmapAlbedo {
+        clipmap::ClipmapAlbedo::new(&self.device, &self.queue, data)
+    }
+
+    /// Draws a clipmap's ground with an albedo array from [`Self::clipmap_albedo`], without any CPU work on the pixels.
+    pub fn use_clipmap_albedo(&self, clip: &mut clipmap::GpuClipmap, albedo: &clipmap::ClipmapAlbedo) {
+        clip.use_albedo(&self.device, &self.queue, &self.clipmap_bgl, albedo);
+    }
+
     pub fn upload_instances(&self, instances: &[MeshInstance]) -> Option<GpuInstances> {
         if instances.is_empty() || self.lost().is_some() {
             return None;
