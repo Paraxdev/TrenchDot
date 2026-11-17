@@ -49,6 +49,8 @@ struct Folder {
     seen_seq: Option<u64>,
     applied: Vec<Applied>,
     refused: BTreeMap<Loc, String>,
+    /// The Godot editor that wrote the manifest is gone, so its list of unsaved regions and their hashes is dead.
+    editor_gone: bool,
 }
 
 enum Job {
@@ -243,6 +245,16 @@ impl Terrain3DStore {
     pub fn forget_unsaved_refusals(&mut self, cache: &Path) {
         if let Some(f) = self.folders.get_mut(cache) {
             f.refused.retain(|_, why| why != crate::terrain3d::bridge::DIRTY);
+        }
+    }
+
+    /// Notes whether the Godot editor of the folder is gone. The regions it listed unsaved stop counting as conflicts
+    /// meanwhile, the hash they have in the manifest never reached the disk.
+    pub fn set_editor_gone(&mut self, cache: &Path, gone: bool) {
+        if let Some(f) = self.folders.get_mut(cache)
+            && std::mem::replace(&mut f.editor_gone, gone) != gone
+        {
+            f.generation += 1;
         }
     }
 
@@ -596,6 +608,10 @@ impl RegionSource for FolderSource<'_> {
 
     fn hash(&self, loc: Loc) -> Option<td_doc::terrain3d::RegionHash> {
         Some(self.folder.manifest.as_ref()?.regions.iter().find(|r| r.loc == loc)?.hash.0)
+    }
+
+    fn unsure(&self, loc: Loc) -> bool {
+        self.folder.editor_gone && self.folder.manifest.as_ref().is_some_and(|m| m.dirty.contains(&loc))
     }
 
     fn region(&self, loc: Loc) -> Option<Arc<Region3D>> {

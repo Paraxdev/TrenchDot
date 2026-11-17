@@ -309,7 +309,11 @@ impl EditorState {
             self.terrain3d.recheck();
         }
 
-        if let Some((cache, _)) = self.terrain3d_bridge.poll_export() {
+        if let Some((cache, answer)) = self.terrain3d_bridge.poll_export() {
+            if answer.is_ok() {
+                self.terrain3d_dead.remove(&cache);
+            }
+
             self.terrain3d.recheck();
             self.terrain3d.refresh(&cache);
         }
@@ -321,6 +325,7 @@ impl EditorState {
         for (id, cache) in &links {
             self.terrain3d.refresh(cache);
             self.settle_terrain3d(*id, cache);
+            self.terrain3d.set_editor_gone(cache, !godot_open && self.terrain3d_dead.contains(cache));
             if !godot_open {
                 self.terrain3d.forget_unsaved_refusals(cache);
             }
@@ -972,7 +977,8 @@ exit 3
         assert_eq!((held.total, held.conflicts, held.unsaved), (1, vec![], vec![L]));
 
         quit_godot(&mut state);
-        assert_eq!(found(&state).conflicts, vec![L], "the manifest still has the hash of the stroke that died with its editor");
+        let waiting = found(&state);
+        assert_eq!((waiting.total, waiting.conflicts), (1, vec![]), "the dead hash of the stroke is not shown as a conflict");
         assert!(godot_calls(dir.path()).is_empty(), "Godot gets a moment to finish a save before the cache is read again");
 
         heal_now(&mut state);
@@ -980,6 +986,61 @@ exit 3
         assert_eq!((after.total, after.conflicts, after.unsaved), (1, vec![], vec![]));
         let calls = godot_calls(dir.path());
         assert!(calls.len() == 1 && calls[0].contains("export"), "{calls:?}");
+
+        stroke_in_godot(&cache, L, vec![L]);
+        state.terrain3d.recheck();
+        state.poll_terrain3d();
+        assert_eq!(found(&state).conflicts, vec![L], "once exported again the cache holds no dead hash, so a new unsaved stroke is a conflict");
+    }
+
+    #[test]
+    fn an_editor_live_link_never_saw_keeps_its_unsaved_regions_as_conflicts() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, cache) = linked_over(dir.path());
+        state.godot.exe = None;
+        state.link_state.connected = false;
+        state.poll_terrain3d();
+        dab(&mut state, id, L, 1000.0);
+        dab(&mut state, id, M, 1500.0);
+        stroke_in_godot(&cache, L, vec![L]);
+        state.terrain3d.recheck();
+        for _ in 0..3 {
+            state.poll_terrain3d();
+        }
+
+        let source = state.terrain3d.source(&cache).unwrap();
+        let found = inspector::changes(&state.doc.map.terrain3d(id).unwrap().changed_regions(&source), |l| inspector::unsaved_in_godot(&state, &cache, l));
+        assert_eq!((found.total, found.conflicts, found.unsaved), (2, vec![L], vec![]));
+    }
+
+    #[test]
+    fn only_a_region_the_dead_editor_listed_unsaved_hides_its_conflict() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, cache) = linked_over(dir.path());
+        state.godot.exe = None;
+        dab(&mut state, id, L, 1000.0);
+        dab(&mut state, id, M, 1500.0);
+        stroke_in_godot(&cache, L, vec![L]);
+        state.terrain3d.recheck();
+        state.poll_terrain3d();
+        quit_godot(&mut state);
+        let flags = |state: &EditorState| {
+            let source = state.terrain3d.source(&cache).unwrap();
+            let mut all: Vec<_> = state.doc.map.terrain3d(id).unwrap().changed_regions(&source).into_iter().map(|c| (c.loc, c.conflict)).collect();
+            all.sort();
+            all
+        };
+        assert_eq!(flags(&state), vec![(L, false), (M, false)]);
+
+        let mut stroked = terrain3d_cache::read_region(&cache, M, 64).unwrap();
+        stroked.hash = FileHash([5; 32]);
+        terrain3d_cache::write_region(&cache, &stroked).unwrap();
+        rewrite_manifest(&mut state, &cache, |m| m.regions.iter_mut().find(|r| r.loc == M).unwrap().hash = FileHash([5; 32]));
+        assert_eq!(flags(&state), vec![(L, false), (M, true)], "a change on disk that no editor held back is a conflict");
+
+        state.link_state.connected = true;
+        state.poll_terrain3d();
+        assert_eq!(flags(&state), vec![(L, true), (M, true)], "an editor open again vouches for its own hashes");
     }
 
     #[test]
@@ -1028,14 +1089,20 @@ exit 3
     #[test]
     fn a_failed_export_after_a_quit_is_tried_once_per_quit() {
         let dir = tempfile::tempdir().unwrap();
-        let (mut state, _, cache) = linked_over(dir.path());
+        let (mut state, id, cache) = linked_over(dir.path());
         state.godot.exe = Some(exporting_godot(dir.path(), &cache, false));
+        dab(&mut state, id, L, 1000.0);
         stroke_in_godot(&cache, L, vec![L]);
         state.terrain3d.recheck();
         state.poll_terrain3d();
         quit_godot(&mut state);
         heal_now(&mut state);
         assert_eq!(godot_calls(dir.path()).len(), 1);
+        let conflicts: Vec<_> = {
+            let source = state.terrain3d.source(&cache).unwrap();
+            state.doc.map.terrain3d(id).unwrap().changed_regions(&source).into_iter().map(|c| (c.loc, c.conflict)).collect()
+        };
+        assert_eq!(conflicts, vec![(L, false)], "the dead hash is still in the cache");
 
         state.link_state.connected = true;
         state.poll_terrain3d();

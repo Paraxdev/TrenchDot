@@ -723,7 +723,7 @@ pub struct EditorState {
     pub terrain3d_godot_seen: bool,
     /// When the caches a Godot editor left with unsaved changes get exported again.
     pub terrain3d_heal_due: Option<std::time::Instant>,
-    /// The caches whose manifest listed unsaved regions when the Godot editor quit.
+    /// The caches whose manifest listed unsaved regions when the Godot editor quit, until an export replaces them.
     pub terrain3d_dead: std::collections::HashSet<PathBuf>,
     /// The caches exported again since that quit, each gets one try.
     pub terrain3d_healed: std::collections::HashSet<PathBuf>,

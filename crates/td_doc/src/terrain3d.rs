@@ -22,6 +22,12 @@ pub trait RegionSource {
     fn edge_blend(&self) -> Option<EdgeBlend>;
     fn locs(&self) -> Vec<Loc>;
     fn hash(&self, loc: Loc) -> Option<RegionHash>;
+    /// Whether `hash` of this region is the one of an unsaved change in a Godot editor that is gone, so it says nothing
+    /// about the region on disk.
+    fn unsure(&self, _loc: Loc) -> bool {
+        false
+    }
+
     /// None for a region that does not exist or is not loaded at full resolution.
     fn region(&self, loc: Loc) -> Option<Arc<Region3D>>;
 }
@@ -401,7 +407,7 @@ impl Terrain3DLink {
                 kind: if edit.base_hash.is_some() { ChangeKind::Edit } else { ChangeKind::Add },
                 region: Some(edit.region.clone()),
                 base_hash: edit.base_hash,
-                conflict: source.hash(*loc) != edit.base_hash || edit.region.size != size,
+                conflict: (source.hash(*loc) != edit.base_hash && !source.unsure(*loc)) || edit.region.size != size,
                 resized: edit.region.size != size,
             });
         }
@@ -414,7 +420,7 @@ impl Terrain3DLink {
                 kind: ChangeKind::Remove,
                 region: None,
                 base_hash: Some(removal.hash),
-                conflict: now != removal.hash || resized,
+                conflict: (now != removal.hash && !source.unsure(*loc)) || resized,
                 resized,
             });
         }
@@ -862,11 +868,12 @@ mod edit_tests {
     struct Fake {
         grid: Grid,
         regions: HashMap<Loc, (Arc<Region3D>, RegionHash)>,
+        unsure: Vec<Loc>,
     }
 
     impl Fake {
         fn new(locs: &[Loc]) -> Self {
-            Self { grid: grid(), regions: locs.iter().map(|l| (*l, (Arc::new(slanted(*l)), hash(*l, 1)))).collect() }
+            Self { grid: grid(), regions: locs.iter().map(|l| (*l, (Arc::new(slanted(*l)), hash(*l, 1)))).collect(), unsure: Vec::new() }
         }
 
         /// What Godot exports after the region changed on its side.
@@ -890,6 +897,10 @@ mod edit_tests {
 
         fn hash(&self, loc: Loc) -> Option<RegionHash> {
             self.regions.get(&loc).map(|r| r.1)
+        }
+
+        fn unsure(&self, loc: Loc) -> bool {
+            self.unsure.contains(&loc)
         }
 
         fn region(&self, loc: Loc) -> Option<Arc<Region3D>> {
@@ -1482,6 +1493,27 @@ mod edit_tests {
         assert_eq!(changes(doc.map.terrain3d(id).unwrap(), &source), vec![([-4, 2], ChangeKind::Remove, Some(hash([-4, 2], 6)), false)]);
         doc.redo();
         assert!(changes(doc.map.terrain3d(id).unwrap(), &source).is_empty());
+    }
+
+    #[test]
+    fn a_hash_that_says_nothing_about_the_disk_is_no_conflict() {
+        let (a, b, c) = ([-3, 2], [4, -1], [5, 5]);
+        let mut source = Fake::new(&[a, b, c]);
+        let mut link = Terrain3DLink::new("res://t3d");
+        link.remove_regions(&source, &[c]);
+        for loc in [a, b] {
+            let mut raised = slanted(loc);
+            raised.heights[5] += 3.0;
+            link.edits.insert(loc, RegionEdit::new(Arc::new(raised), Some(hash(loc, 1))));
+        }
+
+        let flags = |link: &Terrain3DLink, source: &Fake| link.changed_regions(source).into_iter().map(|c| (c.loc, c.conflict)).collect::<Vec<_>>();
+        source.export(slanted(a), 7);
+        source.export(slanted(b), 7);
+        source.export(slanted(c), 7);
+        assert_eq!(flags(&link, &source), vec![(b, true), (a, true), (c, true)], "all three read as changed behind our back");
+        source.unsure = vec![a, c];
+        assert_eq!(flags(&link, &source), vec![(b, true), (a, false), (c, false)], "only the unsure hashes stop counting");
     }
 
     #[test]
