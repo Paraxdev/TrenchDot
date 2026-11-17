@@ -35,6 +35,7 @@ static func run(t) -> void:
 	_test_new_folder_settings(t)
 	await _test_lost_settings(t)
 	await _test_spacing_sources(t)
+	await _test_unsaved_settings(t)
 	await _test_settings_overflow(t)
 	_test_parse_region_file(t)
 	await _test_reload_in_game(t)
@@ -679,6 +680,7 @@ static func _follows_files(t, folder: String, label: String) -> void:
 			wrong.append([loc, file.get("size"), file.get("spacing")])
 	listed.sort()
 	t.check(listed == [[-1, 0], [0, -1], [3, -2]] and wrong.is_empty(), "%s: the cache files of the regions on disk agree with the manifest, got %s and %s" % [label, listed, wrong])
+	t.check(not manifest.has("unsaved_settings"), "%s: the manifest no longer names a settings change, got %s" % [label, manifest.get("unsaved_settings")])
 
 static func _test_lost_settings(t) -> void:
 	var west := Vector2i(-1, 0)
@@ -723,15 +725,18 @@ static func _test_lost_settings(t) -> void:
 		TrenchDotTerrain3D.export_outside_editor = false
 		slot.get_parent().free()
 
-static func _with_manifest(folder: String, spacing: float, dirty: Array) -> void:
+static func _with_manifest(folder: String, spacing: float, dirty: Array, unsaved: Variant) -> void:
 	var manifest := TrenchDotTerrain3DCache.read_manifest(folder)
 	manifest["vertex_spacing"] = spacing
 	manifest["dirty"] = dirty
+	manifest.erase("unsaved_settings")
+	if unsaved != null:
+		manifest["unsaved_settings"] = unsaved
 	FileAccess.open(TrenchDotTerrain3DCache.cache_dir(folder).path_join(TrenchDotTerrain3DCache.MANIFEST), FileAccess.WRITE).store_string(JSON.stringify(manifest))
 
 ## A Terrain3D draws with the spacing of its scene node, which a node made by hand on an old folder need not share with
-## the region files. The CLI keeps the manifest's spacing then, and turns to the region file saved last only when the
-## manifest lists unsaved regions.
+## the region files. The CLI keeps the manifest's spacing then, also over unsaved sculpting Godot lost, and turns to the
+## region file saved last only when the manifest holds a settings change Godot had not saved.
 static func _test_spacing_sources(t) -> void:
 	var folder := WORK.path_join("spacing_sources")
 	var terrain := await _world(t, "spacing_sources")
@@ -752,12 +757,39 @@ static func _test_spacing_sources(t) -> void:
 	var exported := Export._cli(["export", folder])
 	var manifest := TrenchDotTerrain3DCache.read_manifest(folder)
 	t.check(exported[0] == 0 and exported[1].get("written") == [] and is_equal_approx(float(manifest.get("vertex_spacing", 0.0)), 1.0), "the CLI keeps the spacing the editor exported and rewrites nothing, got %s and %s" % [exported, manifest.get("vertex_spacing")])
-	for config in [[[], 2.0], [[[3, -2]], 1.0], [[[3, -2], [-1, 0], [0, -1], [-2, 1]], 1.0]]:
-		_with_manifest(folder, 2.0, config[0])
+	var all := [[3, -2], [-1, 0], [0, -1], [-2, 1]]
+	var marker := { "region_size": SIZE * 2, "vertex_spacing": 2.0 }
+	for config in [[[], null, 2.0], [[[3, -2]], null, 2.0], [all, null, 2.0], [[[3, -2]], marker, 1.0], [all, marker, 1.0]]:
+		_with_manifest(folder, 2.0, config[0], config[1])
 		exported = Export._cli(["export", folder])
 		manifest = TrenchDotTerrain3DCache.read_manifest(folder)
 		var header := Export._decode(FileAccess.get_file_as_bytes(TrenchDotTerrain3DCache.region_path(folder, Vector2i(3, -2))))
-		t.check(exported[0] == 0 and is_equal_approx(float(manifest.get("vertex_spacing", 0.0)), config[1]) and is_equal_approx(header.get("spacing", 0.0), config[1]) and manifest.get("dirty") == [], "with %d unsaved regions the CLI exports at spacing %s, got %s and %s" % [config[0].size(), config[1], manifest.get("vertex_spacing"), header.get("spacing")])
+		t.check(exported[0] == 0 and is_equal_approx(float(manifest.get("vertex_spacing", 0.0)), config[2]) and is_equal_approx(header.get("spacing", 0.0), config[2]) and manifest.get("dirty") == [] and not manifest.has("unsaved_settings"), "with %d unsaved regions and %s settings change the CLI exports at spacing %s, got %s and %s" % [config[0].size(), "a" if config[1] else "no", config[2], manifest.get("vertex_spacing"), header.get("spacing")])
+
+## The manifest names the settings a live link change replaced, which the scene was saved with, until Godot saves the
+## regions again. A second change keeps the first ones.
+static func _test_unsaved_settings(t) -> void:
+	var folder := WORK.path_join("unsaved_settings")
+	var terrain := await _world(t, "unsaved_settings")
+	TrenchDotTerrain3D.export_outside_editor = true
+	var slot := await _slot(t, terrain)
+	var marker := func() -> Variant: return TrenchDotTerrain3DCache.read_manifest(folder).get("unsaved_settings")
+	slot.export_cache(null, false)
+	t.check(marker.call() == null, "a manifest without a settings change names none, got %s" % [marker.call()])
+	var saved := func(m: Variant) -> bool: return m is Dictionary and int(m.get("region_size", 0)) == SIZE and is_equal_approx(float(m.get("vertex_spacing", 0.0)), SPACING)
+	slot.change_settings(SIZE * 2, SPACING)
+	t.check(saved.call(marker.call()), "a region size change names the size and spacing it replaced, got %s" % [marker.call()])
+	slot.change_settings(SIZE * 2, SPACING * 3.0)
+	t.check(saved.call(marker.call()), "a second change keeps the settings the scene was saved with, got %s" % [marker.call()])
+	slot.export_cache([], false)
+	var manifest := TrenchDotTerrain3DCache.read_manifest(folder)
+	t.check(saved.call(manifest.get("unsaved_settings")) and not manifest["dirty"].is_empty(), "an export while regions are unsaved keeps it, got %s and %s" % [manifest.get("unsaved_settings"), manifest["dirty"]])
+	terrain.get(&"data").save_directory(folder)
+	slot.export_cache([], false)
+	manifest = TrenchDotTerrain3DCache.read_manifest(folder)
+	t.check(manifest.get("dirty") == [] and not manifest.has("unsaved_settings"), "the export after a save drops it, got %s and %s" % [manifest.get("dirty"), manifest.get("unsaved_settings")])
+	TrenchDotTerrain3D.export_outside_editor = false
+	slot.get_parent().free()
 
 ## A region size that would spread the regions past the locations Terrain3D keeps is refused and leaves the terrain as
 ## it was, one that keeps them inside is taken.
