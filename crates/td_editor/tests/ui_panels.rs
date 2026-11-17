@@ -2363,3 +2363,167 @@ fn a_locked_terrain_cannot_be_resized() {
     harness.run();
     assert!(!is_disabled(&harness, "Apply"));
 }
+
+fn symmetry_harness(f: Fixture) -> Harness<'static, Fixture> {
+    symmetry_bar(f, false)
+}
+
+fn symmetry_bar(f: Fixture, blend: bool) -> Harness<'static, Fixture> {
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(700.0, 120.0))
+        .build_ui_state(move |ui, f: &mut Fixture| drop(ui.horizontal(|ui| td_editor::symmetry::options(ui, &mut f.state, blend))), f);
+    harness.run();
+    harness
+}
+
+fn pick_menu(harness: &mut Harness<'_, Fixture>, menu: &str, item: &str) {
+    harness.get_by_value(menu).click();
+    harness.run();
+    harness.get_by_label(item).click();
+    harness.run();
+}
+
+fn number_fields(harness: &Harness<'_, Fixture>) -> usize {
+    harness.query_all_by_role(egui::accesskit::Role::SpinButton).count()
+}
+
+/// A terrain at the middle (175.5, 184.25) and a second one at (880.0, 590.0), the first selected.
+fn symmetry_fixture() -> (Fixture, td_core::NodeId, td_core::NodeId) {
+    let mut f = Fixture::new();
+    let layer = f.state.doc.map.default_layer();
+    let (a, b) = f.state.doc.edit("terrains", |m, s| {
+        let a = m.insert(layer, NodeKind::Terrain(td_geom::Terrain::new(DVec3::new(-96.5, 12.0, 40.25), [18, 10], 32.0, "dev/grey")));
+        let b = m.insert(layer, NodeKind::Terrain(td_geom::Terrain::new(DVec3::new(800.0, 0.0, 500.0), [6, 4], 32.0, "dev/grey")));
+        s.select_node(a);
+        (a, b)
+    });
+    (f, a, b)
+}
+
+#[test]
+fn the_symmetry_menus_show_only_what_the_setting_needs() {
+    use td_doc::symmetry::{Symmetry, SymmetryAxes, SymmetryCenter};
+    let (f, _, _) = symmetry_fixture();
+    let mut harness = symmetry_harness(f);
+    assert_eq!(harness.state().state.symmetry, Symmetry::OFF);
+    harness.get_by_value("symmetry off");
+    assert!(harness.query_by_value("terrain center").is_none(), "no center menu while symmetry is off");
+    assert_eq!(number_fields(&harness), 0);
+
+    pick_menu(&mut harness, "symmetry off", "X and Z");
+    assert_eq!(harness.state().state.symmetry.axes, SymmetryAxes::Xz);
+    harness.get_by_value("symmetry X and Z");
+    harness.get_by_value("terrain center");
+    assert_eq!(number_fields(&harness), 0, "no fields before a custom center");
+
+    pick_menu(&mut harness, "terrain center", "world origin");
+    assert_eq!(harness.state().state.symmetry.center, SymmetryCenter::World);
+    assert_eq!(number_fields(&harness), 0);
+
+    pick_menu(&mut harness, "symmetry X and Z", "X");
+    assert_eq!(harness.state().state.symmetry.axes, SymmetryAxes::X);
+    harness.get_by_value("symmetry X");
+
+    pick_menu(&mut harness, "symmetry X", "Z");
+    assert_eq!(harness.state().state.symmetry.axes, SymmetryAxes::Z);
+    harness.get_by_value("symmetry Z");
+
+    pick_menu(&mut harness, "symmetry Z", "off");
+    assert_eq!(harness.state().state.symmetry.axes, SymmetryAxes::Off);
+    harness.get_by_value("symmetry off");
+    assert!(harness.query_by_value("world origin").is_none(), "turning it off hides the center menu");
+}
+
+#[test]
+fn the_custom_center_starts_where_the_planes_were_and_takes_typed_positions() {
+    use td_doc::symmetry::SymmetryCenter;
+    let (f, _, _) = symmetry_fixture();
+    let mut harness = symmetry_harness(f);
+    pick_menu(&mut harness, "symmetry off", "X and Z");
+    pick_menu(&mut harness, "terrain center", "custom");
+    let s = harness.state().state.symmetry;
+    assert_eq!(s.center, SymmetryCenter::Custom);
+    assert_eq!((s.x, s.z), (175.5, 184.25), "the first terrain's middle, so the plane does not jump");
+    assert_eq!(number_fields(&harness), 2);
+
+    type_number(&mut harness, 1, "-96.5");
+    type_number(&mut harness, 0, "300");
+    let s = harness.state().state.symmetry;
+    assert_eq!((s.x, s.z), (300.0, -96.5));
+
+    pick_menu(&mut harness, "custom", "world origin");
+    assert_eq!(number_fields(&harness), 0);
+    pick_menu(&mut harness, "world origin", "custom");
+    let s = harness.state().state.symmetry;
+    assert_eq!((s.x, s.z), (0.0, 0.0), "from the world origin the planes were at zero");
+
+    pick_menu(&mut harness, "custom", "terrain center");
+    assert_eq!(harness.state().state.symmetry.center, SymmetryCenter::Terrain);
+    assert_eq!(number_fields(&harness), 0);
+}
+
+#[test]
+fn one_axis_shows_one_field_and_the_selection_picks_the_terrain() {
+    let (mut f, _, b) = symmetry_fixture();
+    f.state.doc.select(|_, s| {
+        s.clear();
+        s.select_node(b);
+    });
+    let mut harness = symmetry_harness(f);
+    pick_menu(&mut harness, "symmetry off", "X");
+    pick_menu(&mut harness, "terrain center", "custom");
+    assert_eq!(number_fields(&harness), 1, "X alone has an x field only");
+    assert_eq!(harness.state().state.symmetry.x, 880.0, "the selected terrain, not the first in the map");
+
+    pick_menu(&mut harness, "symmetry X", "Z");
+    assert_eq!(number_fields(&harness), 1, "Z alone has a z field only");
+    type_number(&mut harness, 0, "42.5");
+    assert_eq!(harness.state().state.symmetry.z, 42.5);
+    assert_eq!(harness.state().state.symmetry.x, 880.0, "the hidden x stays");
+}
+
+#[test]
+fn the_custom_center_without_a_terrain_starts_at_the_displacements_middle() {
+    let mut f = Fixture::new();
+    let layer = f.state.doc.map.default_layer();
+    let mut brush = Brush::from_aabb(&Aabb::new(DVec3::new(-90.5, 0.0, 25.25), DVec3::new(69.5, 16.0, 185.25)), "dev/grey").unwrap();
+    let top = brush.faces.iter().position(|face| face.plane.normal.y > 0.9).unwrap();
+    brush.faces[top].data.disp = Some(td_geom::displacement::Displacement::new(2));
+    f.state.doc.edit("brush", |m, _| m.insert(layer, NodeKind::Brush(brush)));
+    let mut harness = symmetry_harness(f);
+    pick_menu(&mut harness, "symmetry off", "Z");
+    pick_menu(&mut harness, "terrain center", "custom");
+    let s = harness.state().state.symmetry;
+    assert_eq!((s.x, s.z), (-10.5, 105.25), "the displacement's middle, both fields so a later axis change has a sensible value");
+
+    let mut empty = symmetry_harness(Fixture::new());
+    pick_menu(&mut empty, "symmetry off", "X and Z");
+    pick_menu(&mut empty, "terrain center", "custom");
+    let s = empty.state().state.symmetry;
+    assert_eq!((s.x, s.z), (0.0, 0.0), "nothing to mirror, nothing to prefill from");
+}
+
+#[test]
+fn the_custom_center_in_the_blend_bar_starts_at_the_blend_faces_middle() {
+    let fixture = || {
+        let mut f = Fixture::new();
+        let layer = f.state.doc.map.default_layer();
+        let mut floor = Brush::from_aabb(&Aabb::new(DVec3::new(-90.5, 0.0, 25.25), DVec3::new(69.5, 16.0, 185.25)), "dev/grey").unwrap();
+        let top = floor.faces.iter().position(|face| face.plane.normal.y > 0.9).unwrap();
+        floor.faces[top].data.props.insert(td_doc::blend::BLEND_MATERIAL.into(), "dev/red".into());
+        f.state.doc.edit("floor", |m, _| m.insert(layer, NodeKind::Brush(floor)));
+        f
+    };
+
+    let mut blend = symmetry_bar(fixture(), true);
+    pick_menu(&mut blend, "symmetry off", "X and Z");
+    pick_menu(&mut blend, "terrain center", "custom");
+    let s = blend.state().state.symmetry;
+    assert_eq!((s.x, s.z), (-10.5, 105.25), "the blend face's middle, where the Blend planes were drawn");
+
+    let mut sculpt = symmetry_bar(fixture(), false);
+    pick_menu(&mut sculpt, "symmetry off", "X and Z");
+    pick_menu(&mut sculpt, "terrain center", "custom");
+    let s = sculpt.state().state.symmetry;
+    assert_eq!((s.x, s.z), (0.0, 0.0), "Sculpt does not edit blend faces");
+}

@@ -2307,5 +2307,19 @@
   "Brush Faces": "笔刷的面",
   "Selects every face of the selected brushes and meshes instead of the objects": "选中笔刷和网格的每个面，取代选中对象",
   "Select a brush or mesh first": "请先选择笔刷或网格",
-  "Selected {n} face": { "other": "已选择 {n} 个面" }
+  "Selected {n} face": { "other": "已选择 {n} 个面" },
+  "off": "关",
+  "X": "X",
+  "Z": "Z",
+  "X and Z": "X 和 Z",
+  "symmetry off": "对称 关",
+  "symmetry X": "对称 X",
+  "symmetry Z": "对称 Z",
+  "symmetry X and Z": "对称 X 和 Z",
+  "terrain center": "地形中心",
+  "world origin": "世界原点",
+  "custom": "自定义",
+  "Mirrors every dab across the chosen planes, both sides change in one undo step": "按所选平面镜像每一笔，两侧在一个撤销步骤内一起改变",
+  "Where the mirror planes sit: each terrain's middle, the world origin or typed positions": "镜像平面的位置：每个地形的中心、世界原点或输入的位置",
+  "Where this mirror plane sits, in map units. It mirrors evenly on a line of vertices or halfway between two": "此镜像平面的位置，单位为地图单位。位于一排顶点上或两排正中间时镜像均匀"
 }

@@ -2307,5 +2307,19 @@
   "Brush Faces": "ブラシの面",
   "Selects every face of the selected brushes and meshes instead of the objects": "選択したブラシとメッシュの全ての面を選択します",
   "Select a brush or mesh first": "先にブラシかメッシュを選択してください",
-  "Selected {n} face": { "other": "{n} 個の面を選択しました" }
+  "Selected {n} face": { "other": "{n} 個の面を選択しました" },
+  "off": "オフ",
+  "X": "X",
+  "Z": "Z",
+  "X and Z": "X と Z",
+  "symmetry off": "対称 オフ",
+  "symmetry X": "対称 X",
+  "symmetry Z": "対称 Z",
+  "symmetry X and Z": "対称 X と Z",
+  "terrain center": "地形の中心",
+  "world origin": "ワールド原点",
+  "custom": "カスタム",
+  "Mirrors every dab across the chosen planes, both sides change in one undo step": "選んだ平面でブラシの操作ごとに反転します。両側の変更は取り消し1回で戻ります",
+  "Where the mirror planes sit: each terrain's middle, the world origin or typed positions": "鏡面の位置。各地形の中央、ワールド原点、入力した位置から選びます",
+  "Where this mirror plane sits, in map units. It mirrors evenly on a line of vertices or halfway between two": "この鏡面の位置 (マップ単位)。頂点の列の上か、2つの列のちょうど中間にあると均等に反転します"
 }

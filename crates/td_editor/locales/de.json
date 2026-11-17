@@ -2307,5 +2307,19 @@
   "Brush Faces": "Brush-Flächen",
   "Selects every face of the selected brushes and meshes instead of the objects": "Wählt statt der Objekte jede Fläche der ausgewählten Brushes und Meshes aus",
   "Select a brush or mesh first": "Zuerst einen Brush oder ein Mesh auswählen",
-  "Selected {n} face": { "one": "{n} Fläche ausgewählt", "other": "{n} Flächen ausgewählt" }
+  "Selected {n} face": { "one": "{n} Fläche ausgewählt", "other": "{n} Flächen ausgewählt" },
+  "off": "aus",
+  "X": "X",
+  "Z": "Z",
+  "X and Z": "X und Z",
+  "symmetry off": "Symmetrie aus",
+  "symmetry X": "Symmetrie X",
+  "symmetry Z": "Symmetrie Z",
+  "symmetry X and Z": "Symmetrie X und Z",
+  "terrain center": "Terrainmitte",
+  "world origin": "Weltursprung",
+  "custom": "eigene",
+  "Mirrors every dab across the chosen planes, both sides change in one undo step": "Spiegelt jeden Pinselstrich an den gewählten Ebenen, beide Seiten ändern sich in einem Rückgängig-Schritt",
+  "Where the mirror planes sit: each terrain's middle, the world origin or typed positions": "Wo die Spiegelebenen liegen: in der Mitte jedes Terrains, am Weltursprung oder an eingegebenen Positionen",
+  "Where this mirror plane sits, in map units. It mirrors evenly on a line of vertices or halfway between two": "Wo diese Spiegelebene liegt, in Karteneinheiten. Auf einer Vertexreihe oder genau zwischen zwei Reihen spiegelt sie gleichmäßig"
 }

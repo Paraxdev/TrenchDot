@@ -2307,5 +2307,19 @@
   "Brush Faces": "Faces do brush",
   "Selects every face of the selected brushes and meshes instead of the objects": "Seleciona cada face dos brushes e malhas selecionados no lugar dos objetos",
   "Select a brush or mesh first": "Selecione primeiro um brush ou uma malha",
-  "Selected {n} face": { "one": "{n} face selecionada", "other": "{n} faces selecionadas" }
+  "Selected {n} face": { "one": "{n} face selecionada", "other": "{n} faces selecionadas" },
+  "off": "desativada",
+  "X": "X",
+  "Z": "Z",
+  "X and Z": "X e Z",
+  "symmetry off": "simetria desativada",
+  "symmetry X": "simetria X",
+  "symmetry Z": "simetria Z",
+  "symmetry X and Z": "simetria X e Z",
+  "terrain center": "centro do terreno",
+  "world origin": "origem do mundo",
+  "custom": "personalizado",
+  "Mirrors every dab across the chosen planes, both sides change in one undo step": "Espelha cada pincelada nos planos escolhidos, os dois lados mudam em um só passo de desfazer",
+  "Where the mirror planes sit: each terrain's middle, the world origin or typed positions": "Onde ficam os planos de espelho: o meio de cada terreno, a origem do mundo ou posições digitadas",
+  "Where this mirror plane sits, in map units. It mirrors evenly on a line of vertices or halfway between two": "Onde fica este plano de espelho, em unidades de mapa. Ele espelha por igual sobre uma fileira de vértices ou no meio entre duas"
 }

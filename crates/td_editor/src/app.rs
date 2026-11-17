@@ -2089,6 +2089,9 @@ impl App {
                     ui.add(egui::DragValue::new(&mut self.state.sculpt.radius).range(1.0..=8192.0).prefix(prefix(en!("radius"))).suffix(" u"));
                     ui.add(egui::DragValue::new(&mut self.state.sculpt.strength).range(0.01..=256.0).speed(0.1).prefix(prefix(en!("strength"))))
                         .on_hover_text(tr("How fast the brush works. Raise and Lower move 8 units a second per point"));
+                    if tool == ToolKind::Sculpt {
+                        crate::symmetry::options(ui, &mut self.state, false);
+                    }
                 }
                 ToolKind::Texture => {
                     ui.label(tr("Justify"));
@@ -2202,6 +2205,7 @@ impl App {
                         _ => {}
                     }
 
+                    crate::symmetry::options(ui, &mut self.state, true);
                     ui.separator();
                     if ui
                         .small_button(tr("Set Blend Material"))
