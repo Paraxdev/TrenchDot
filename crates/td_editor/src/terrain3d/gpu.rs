@@ -169,6 +169,13 @@ impl Held {
 
                 self.coarse.insert(r.loc, r.source);
                 out.push(Upload::Coarse(r.loc));
+                // The block is current now, so an old cached layer would show older ground than it. An edited
+                // layer stays, it shows the same ground the cache will hold once the applied edit is read back.
+                for layer in &mut self.layers {
+                    if layer.is_some_and(|l| l.loc == r.loc && matches!(l.source, Source::Cached(_)) && l.source != r.source) {
+                        *layer = None;
+                    }
+                }
             }
         }
 
@@ -858,12 +865,28 @@ mod tests {
         regions[1].source = Source::Cached([9; 32]);
         let (ups, _) = held.plan(&regions, &[[5, -4], [-6, 7]], [10, 100], usize::MAX);
         assert_eq!(ups, vec![Upload::Fine([5, -4], 0), Upload::Coarse([5, -4]), Upload::Coarse([-6, 7])]);
-        assert_eq!(held.slots(&regions)[1], ([-6, 7], Slot::Fine(1)), "a stale layer still shows until the region loads whole");
+        assert_eq!(held.slots(&regions)[1], ([-6, 7], Slot::Coarse), "the current block shows rather than a layer of an older source");
+        assert_eq!((held.fine_layer([5, -4]), held.fine_layer([-6, 7])), (Some(0), None));
 
         let gone = [regions[1]];
         assert_eq!(held.plan(&gone, &[[5, -4], [-6, 7]], [10, 100], usize::MAX).0, vec![]);
-        assert_eq!((held.fine_layer([5, -4]), held.fine_used(), held.coarse_count()), (None, 1, 1));
+        assert_eq!((held.fine_layer([5, -4]), held.fine_used(), held.coarse_count()), (None, 0, 1));
         assert_eq!(held.slots(&[]), vec![]);
+    }
+
+    #[test]
+    fn an_edited_layer_stays_and_so_does_one_whose_block_could_not_be_refreshed() {
+        let mut regions = vec![Region { source: Source::Edited(0x70), ..region([-8, 3], 1) }, region([2, -9], 2), region([6, 5], 3)];
+        let mut held = Held::new(3);
+        held.plan(&regions, &[[-8, 3], [2, -9], [6, 5]], [10, 100], usize::MAX);
+        regions[0].source = Source::Cached([0x71; 32]);
+        regions[0].whole = false;
+        regions[1].source = Source::Cached([0x72; 32]);
+        regions[1].whole = false;
+        regions[1].pyramid = false;
+        let (ups, _) = held.plan(&regions, &[[-8, 3], [2, -9], [6, 5]], [10, 100], usize::MAX);
+        assert_eq!(ups, vec![Upload::Coarse([-8, 3])]);
+        assert_eq!(held.slots(&regions), vec![([-8, 3], Slot::Fine(0)), ([2, -9], Slot::Fine(1)), ([6, 5], Slot::Fine(2))]);
     }
 
     #[test]
