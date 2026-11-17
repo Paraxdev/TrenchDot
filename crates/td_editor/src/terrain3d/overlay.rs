@@ -4,7 +4,7 @@
 use std::collections::BTreeSet;
 
 use egui::{Pos2, Rect, Vec2};
-use td_core::DVec3;
+use td_core::{DVec2, DVec3};
 use td_geom::terrain3d::{Grid, Loc};
 
 use super::residency::region_rect;
@@ -19,10 +19,22 @@ pub enum Mark {
     Region { rect: Rect, conflict: bool, label: Option<(Pos2, String)> },
     /// A region border seen from the side, running the height of the view.
     Border { x: f32, conflict: bool },
-    /// The footprint the Inspector's Regions draft would leave, seen from above.
-    Plan { rect: Rect },
-    /// An outer border of that footprint seen from the side.
+    /// A region the Inspector's Regions draft would add, seen from above.
+    Added { rect: Rect },
+    /// A region the draft would remove, seen from above.
+    Removed { rect: Rect },
+    /// A border the draft would add or remove, seen from the side.
     PlanBorder { x: f32 },
+    /// The draft changes something outside the view on this side of it.
+    OffView { edge: Edge },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum Edge {
+    Left,
+    Right,
+    Top,
+    Bottom,
 }
 
 /// The marks of `locs` and of the conflicting regions in `conflicts` in a view whose screen area is `view`. Top views get
@@ -70,19 +82,76 @@ pub fn marks(camera: &Camera, view: Rect, grid: &Grid, locs: &[Loc], conflicts: 
     out
 }
 
-/// The footprint of the regions `min` to `max` (inclusive) a draft would leave, one box from above and its two outer
-/// borders from the side.
-pub fn outline(camera: &Camera, view: Rect, grid: &Grid, min: Loc, max: Loc) -> Vec<Mark> {
-    let (lo, hi) = (region_rect(grid, min).0, region_rect(grid, max).1);
-    let (Some(a), Some(b)) = (camera.project(view, DVec3::new(lo.x, 0.0, lo.y)), camera.project(view, DVec3::new(hi.x, 0.0, hi.y))) else {
-        return Vec::new();
+/// The regions a Regions draft would change: those it adds and removes, and the ones that stay.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Draft {
+    pub add: Vec<Loc>,
+    pub remove: Vec<Loc>,
+    pub keep: Vec<Loc>,
+}
+
+/// What a Regions draft changes in a view: from above a box for each added and removed region, from the side the
+/// borders that appear or go away. Borders shared with a region that stays are left alone. Each side of the view with
+/// changes beyond it gets one mark.
+pub fn outline(camera: &Camera, view: Rect, grid: &Grid, draft: &Draft) -> Vec<Mark> {
+    let (right, up, _) = camera.kind.axes();
+    let mut out = Vec::new();
+    let mut away = Vec::new();
+    let project = |loc: Loc| {
+        let (min, max) = region_rect(grid, loc);
+        Some((camera.project(view, DVec3::new(min.x, 0.0, min.y))?, camera.project(view, DVec3::new(max.x, 0.0, max.y))?, min, max))
     };
-    let (_, up, _) = camera.kind.axes();
     if up.x != 0.0 || up.z != 0.0 {
-        return vec![Mark::Plan { rect: Rect::from_two_pos(a, b) }];
+        for (locs, added) in [(&draft.add, true), (&draft.remove, false)] {
+            for (a, b, ..) in locs.iter().filter_map(|l| project(*l)) {
+                let rect = Rect::from_two_pos(a, b);
+                match (rect.intersects(view), added) {
+                    (true, true) => out.push(Mark::Added { rect }),
+                    (true, false) => out.push(Mark::Removed { rect }),
+                    (false, _) => away.push(rect.center()),
+                }
+            }
+        }
+    } else {
+        let along_x = right.x != 0.0;
+        let edges = |min: DVec2, max: DVec2, a: Pos2, b: Pos2| if along_x { [(min.x, a.x), (max.x, b.x)] } else { [(min.y, a.x), (max.y, b.x)] };
+        let key = |world: f64| (world / grid.cell()).round() as i64;
+        let kept: BTreeSet<i64> = draft.keep.iter().flat_map(|l| edges_of(grid, *l, along_x)).collect();
+        let mut seen = BTreeSet::new();
+        for (a, b, min, max) in draft.add.iter().chain(&draft.remove).filter_map(|l| project(*l)) {
+            for (world, x) in edges(min, max, a, b) {
+                if kept.contains(&key(world)) || !seen.insert(key(world)) {
+                    continue;
+                }
+
+                if (view.min.x..=view.max.x).contains(&x) {
+                    out.push(Mark::PlanBorder { x });
+                } else {
+                    away.push(Pos2::new(x, view.center().y));
+                }
+            }
+        }
     }
 
-    [a.x, b.x].into_iter().filter(|x| (view.min.x..=view.max.x).contains(x)).map(|x| Mark::PlanBorder { x }).collect()
+    let edges: BTreeSet<Edge> = away.iter().map(|p| edge_toward(view, *p)).collect();
+    out.extend(edges.into_iter().map(|edge| Mark::OffView { edge }));
+    out
+}
+
+fn edges_of(grid: &Grid, loc: Loc, along_x: bool) -> [i64; 2] {
+    let (min, max) = region_rect(grid, loc);
+    let key = |world: f64| (world / grid.cell()).round() as i64;
+    if along_x { [key(min.x), key(max.x)] } else { [key(min.y), key(max.y)] }
+}
+
+fn edge_toward(view: Rect, at: Pos2) -> Edge {
+    let d = at - view.center();
+    match (d.x.abs() / view.width() >= d.y.abs() / view.height(), d.x >= 0.0, d.y >= 0.0) {
+        (true, true, _) => Edge::Right,
+        (true, false, _) => Edge::Left,
+        (false, _, true) => Edge::Bottom,
+        (false, _, false) => Edge::Top,
+    }
 }
 
 #[cfg(test)]
@@ -108,8 +177,11 @@ mod tests {
                     }
             }
             (Mark::Border { x, conflict: c }, Mark::Border { x: y, conflict: d }) => close(*x, *y) && c == d,
-            (Mark::Plan { rect: r }, Mark::Plan { rect: s }) => pos(r.min, s.min) && pos(r.max, s.max),
+            (Mark::Added { rect: r }, Mark::Added { rect: s }) | (Mark::Removed { rect: r }, Mark::Removed { rect: s }) => {
+                pos(r.min, s.min) && pos(r.max, s.max)
+            }
             (Mark::PlanBorder { x }, Mark::PlanBorder { x: y }) => close(*x, *y),
+            (Mark::OffView { edge: e }, Mark::OffView { edge: f }) => e == f,
             _ => false,
         }
     }
@@ -213,33 +285,95 @@ mod tests {
         assert_marks(&got, &want);
     }
 
-    #[test]
-    fn the_outline_boxes_the_footprint_from_above_and_borders_it_from_the_side() {
-        // Regions are 512 units wide, so [-1, 0] to [1, 2] spans x -512 to 1024 and z 0 to 1536.
-        let top = camera(ViewKind::Top, DVec3::new(300.0, 0.0, 500.0), 0.25);
-        let at = |x: f32, z: f32| Pos2::new(500.0 + (x - 300.0) * 0.25, 350.0 + (z - 500.0) * 0.25);
-        let got = outline(&top, view(), &grid(), [-1, 0], [1, 2]);
-        assert_marks(&got, &[Mark::Plan { rect: Rect::from_two_pos(at(-512.0, 0.0), at(1024.0, 1536.0)) }]);
-
-        let front = camera(ViewKind::Front, DVec3::new(300.0, 0.0, 0.0), 0.25);
-        let got = outline(&front, view(), &grid(), [-1, 0], [1, 2]);
-        let x = |world: f32| 500.0 + (world - 300.0) * 0.25;
-        assert_marks(&got, &[Mark::PlanBorder { x: x(-512.0) }, Mark::PlanBorder { x: x(1024.0) }]);
-
-        let side = camera(ViewKind::Side, DVec3::new(0.0, 0.0, 500.0), 0.25);
-        let got = outline(&side, view(), &grid(), [-1, 0], [1, 2]);
-        let z = |world: f32| 500.0 - (world - 500.0) * 0.25;
-        assert_marks(&got, &[Mark::PlanBorder { x: z(0.0) }, Mark::PlanBorder { x: z(1536.0) }]);
+    fn draft(add: &[Loc], remove: &[Loc], keep: &[Loc]) -> Draft {
+        Draft { add: add.to_vec(), remove: remove.to_vec(), keep: keep.to_vec() }
     }
 
     #[test]
-    fn the_outline_leaves_out_a_side_border_off_screen_and_covers_one_region() {
+    fn a_draft_boxes_the_regions_it_adds_and_removes_from_above() {
+        // Regions are 512 units wide, the view's middle is x 700, z 300 at 0.25 pixels per unit.
+        let top = camera(ViewKind::Top, DVec3::new(700.0, 0.0, 300.0), 0.25);
+        let at = |x: f32, z: f32| Pos2::new(500.0 + (x - 700.0) * 0.25, 350.0 + (z - 300.0) * 0.25);
+        let got = outline(&top, view(), &grid(), &draft(&[[2, 0], [2, 1]], &[[0, 0]], &[[1, 0]]));
+        let want = [
+            Mark::Added { rect: Rect::from_two_pos(at(1024.0, 0.0), at(1536.0, 512.0)) },
+            Mark::Added { rect: Rect::from_two_pos(at(1024.0, 512.0), at(1536.0, 1024.0)) },
+            Mark::Removed { rect: Rect::from_two_pos(at(0.0, 0.0), at(512.0, 512.0)) },
+        ];
+        assert_marks(&got, &want);
+        assert!(outline(&top, view(), &grid(), &Draft::default()).is_empty());
+    }
+
+    #[test]
+    fn a_draft_growing_out_of_view_says_which_side() {
+        // The view is focused on region [0, 0] like Focus Selection does, then the draft adds [1, 0] to its east.
+        let mut focused = Camera::new(ViewKind::Top);
+        focused.focus(&td_core::Aabb::new(DVec3::ZERO, DVec3::new(512.0, 1.0, 512.0)), view());
+        let beyond = |at: Loc| outline(&focused, view(), &grid(), &draft(&[at], &[], &[[0, 0]]));
+        assert_marks(&beyond([2, 0]), &[Mark::OffView { edge: Edge::Right }]);
+        assert_marks(&beyond([-2, 0]), &[Mark::OffView { edge: Edge::Left }]);
+        assert_marks(&beyond([0, -3]), &[Mark::OffView { edge: Edge::Top }]);
+        assert_marks(&outline(&focused, view(), &grid(), &draft(&[], &[[0, 3]], &[[0, 0]])), &[Mark::OffView { edge: Edge::Bottom }]);
+        // The region next door reaches into the view, so it is boxed from its near edge and no hint shows.
+        assert!(matches!(beyond([1, 0])[..], [Mark::Added { .. }]));
+
+        let mut wide = focused.clone();
+        wide.zoom = 0.25;
+        let got = outline(&wide, view(), &grid(), &draft(&[[1, 0]], &[], &[[0, 0]]));
+        let at = |x: f32, z: f32| Pos2::new(500.0 + (x - 256.0) * 0.25, 350.0 + (z - 256.0) * 0.25);
+        assert_marks(&got, &[Mark::Added { rect: Rect::from_two_pos(at(512.0, 0.0), at(1024.0, 512.0)) }]);
+    }
+
+    #[test]
+    fn a_region_counts_as_in_view_up_to_its_exact_edge() {
+        // Region [1, 0] starts at x 512, which is 900 pixels with the view centered on x -1088, the view's right edge.
+        let touching = outline(&camera(ViewKind::Top, DVec3::new(-1088.0, 0.0, 256.0), 0.25), view(), &grid(), &draft(&[[1, 0]], &[], &[]));
+        assert!(matches!(touching[..], [Mark::Added { .. }]), "{touching:?}");
+        let past = outline(&camera(ViewKind::Top, DVec3::new(-1092.0, 0.0, 256.0), 0.25), view(), &grid(), &draft(&[[1, 0]], &[], &[]));
+        assert_marks(&past, &[Mark::OffView { edge: Edge::Right }]);
+    }
+
+    #[test]
+    fn a_region_in_view_still_points_to_the_rest() {
+        let top = camera(ViewKind::Top, DVec3::new(256.0, 0.0, 256.0), 0.25);
+        let got = outline(&top, view(), &grid(), &draft(&[[40, 0]], &[[0, 0]], &[[1, 0]]));
+        assert!(matches!(got[..], [Mark::Removed { .. }, Mark::OffView { edge: Edge::Right }]), "{got:?}");
+    }
+
+    #[test]
+    fn changes_out_of_view_on_several_sides_get_one_hint_each() {
+        // The view shows x 300..1100 and z 0..600, the draft grows two regions east, one south and drops one west.
+        let top = camera(ViewKind::Top, DVec3::new(700.0, 0.0, 300.0), 1.0);
+        let got = outline(&top, view(), &grid(), &draft(&[[3, 0], [4, 1], [1, 5]], &[[-1, 0]], &[[0, 0], [1, 0], [2, 0]]));
+        let want = [Mark::OffView { edge: Edge::Left }, Mark::OffView { edge: Edge::Right }, Mark::OffView { edge: Edge::Bottom }];
+        assert_marks(&got, &want);
+
+        let front = camera(ViewKind::Front, DVec3::new(700.0, 0.0, 0.0), 1.0);
+        let got = outline(&front, view(), &grid(), &draft(&[[3, 0]], &[[-1, 0]], &[[0, 0], [1, 0], [2, 0]]));
+        assert_marks(&got, &[Mark::OffView { edge: Edge::Left }, Mark::OffView { edge: Edge::Right }]);
+    }
+
+    #[test]
+    fn a_side_view_borders_only_the_sides_that_move() {
+        // [1, 0] joins [0, 0], so the border at x 512 stays and only the one at 1024 appears.
         let front = camera(ViewKind::Front, DVec3::new(300.0, 0.0, 0.0), 0.25);
-        let got = outline(&front, view(), &grid(), [0, 0], [40, 0]);
-        assert_marks(&got, &[Mark::PlanBorder { x: 500.0 + (0.0 - 300.0) * 0.25 }]);
-        let top = camera(ViewKind::Top, DVec3::new(300.0, 0.0, 500.0), 0.25);
-        let one = outline(&top, view(), &grid(), [1, 1], [1, 1]);
-        let Mark::Plan { rect } = &one[0] else { panic!("{one:?}") };
-        assert!(close(rect.width(), 128.0) && close(rect.height(), 128.0), "{rect:?}");
+        let x = |world: f32| 500.0 + (world - 300.0) * 0.25;
+        assert_marks(&outline(&front, view(), &grid(), &draft(&[[1, 0]], &[], &[[0, 0]])), &[Mark::PlanBorder { x: x(1024.0) }]);
+        assert_marks(&outline(&front, view(), &grid(), &draft(&[], &[[1, 0]], &[[0, 0]])), &[Mark::PlanBorder { x: x(1024.0) }]);
+        let both = outline(&front, view(), &grid(), &draft(&[[-1, 2]], &[[1, 0]], &[[0, 0]]));
+        assert_marks(&both, &[Mark::PlanBorder { x: x(-512.0) }, Mark::PlanBorder { x: x(1024.0) }]);
+
+        let side = camera(ViewKind::Side, DVec3::new(0.0, 0.0, 500.0), 0.25);
+        let z = |world: f32| 500.0 - (world - 500.0) * 0.25;
+        assert_marks(&outline(&side, view(), &grid(), &draft(&[[3, 1]], &[], &[[0, 0]])), &[Mark::PlanBorder { x: z(1024.0) }]);
+    }
+
+    #[test]
+    fn a_side_view_says_which_side_the_moving_border_is_on() {
+        let front = camera(ViewKind::Front, DVec3::new(300.0, 0.0, 0.0), 1.0);
+        assert_marks(&outline(&front, view(), &grid(), &draft(&[[1, 0]], &[], &[[0, 0]])), &[Mark::OffView { edge: Edge::Right }]);
+        // The side view looks along x with z pointing left.
+        let side = camera(ViewKind::Side, DVec3::new(0.0, 0.0, 300.0), 1.0);
+        assert_marks(&outline(&side, view(), &grid(), &draft(&[[0, 1]], &[], &[[0, 0]])), &[Mark::OffView { edge: Edge::Left }]);
     }
 }

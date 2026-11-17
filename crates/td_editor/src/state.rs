@@ -741,8 +741,8 @@ pub struct EditorState {
     pub terrain3d_look_shown: Option<crate::terrain3d::look::Shown>,
     /// Where the Look block of the Terrain3D Inspector drew its controls in the last frame.
     pub terrain3d_look_ui: Option<crate::terrain3d::look::LookUi>,
-    /// The region bounds the draft would leave, drawn in the 2D views.
-    pub terrain3d_outline: Option<(NodeId, td_geom::terrain3d::Loc, td_geom::terrain3d::Loc)>,
+    /// The regions the Regions draft would add and remove, drawn in the 2D views.
+    pub terrain3d_outline: Option<(NodeId, crate::terrain3d::overlay::Draft)>,
     /// Brushes the open Sweep Faces dialog would create, drawn as lines.
     pub sweep_preview: Vec<td_geom::Brush>,
     /// Edges of what the open Shape Generator would create, drawn as lines.

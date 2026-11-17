@@ -3777,7 +3777,10 @@ fn the_terrain3d_regions_draft_plans_outlines_and_applies_in_one_undo_step() {
         .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
     harness.run();
     harness.get_by_label("3 x 2 regions, 48 x 32 meters");
-    assert_eq!(harness.state().state.terrain3d_outline, Some((id, [0, -1], [2, 0])));
+    let (node, draft) = harness.state().state.terrain3d_outline.clone().unwrap();
+    let mut add = draft.add.clone();
+    add.sort();
+    assert_eq!((node, add, draft.remove, draft.keep), (id, vec![[0, -1], [1, -1], [1, 0], [2, -1], [2, 0]], vec![], vec![[0, 0]]));
     assert_eq!(harness.state().state.doc.history.undo_labels().count(), steps, "a draft changes nothing yet");
 
     harness.get_by_label("Apply").click();
@@ -3809,7 +3812,9 @@ fn the_terrain3d_regions_draft_refuses_at_the_boundary_and_resets() {
     assert!(none.query_by_label("Apply").is_some_and(|b| b.accesskit_node().is_disabled()));
 
     let last = run(Grow { east: 15, ..Default::default() }, make("grow_last"));
-    assert_eq!(last.state().state.terrain3d_outline, Some((id, [0, 0], [15, 0])), "region 15 is the last Terrain3D takes");
+    let (_, draft) = last.state().state.terrain3d_outline.clone().unwrap();
+    assert_eq!(draft.add.len(), 15, "region 15 is the last Terrain3D takes");
+    assert!(draft.add.iter().all(|l| l[1] == 0 && (1..=15).contains(&l[0])) && draft.keep == [[0, 0]], "{draft:?}");
     last.get_by_label("16 x 1 regions, 256 x 16 meters");
 
     let past = run(Grow { east: 16, ..Default::default() }, make("grow_past"));
@@ -3830,7 +3835,7 @@ fn the_terrain3d_regions_draft_refuses_at_the_boundary_and_resets() {
 #[test]
 fn the_terrain3d_outline_goes_when_something_else_is_selected() {
     let (mut f, id) = terrain3d_fixture("outline_gone");
-    f.state.terrain3d_outline = Some((id, [0, 0], [1, 1]));
+    f.state.terrain3d_outline = Some((id, Default::default()));
     f.state.doc.selection.clear();
     let mut harness = Harness::builder()
         .with_size(egui::vec2(420.0, 400.0))

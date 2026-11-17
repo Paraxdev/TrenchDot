@@ -2896,5 +2896,6 @@
   "Region {x}, {y} was made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "Регион {x}, {y} создан с другим размером региона, чем у террейна в Godot, использовать версию Godot или вернуть размер в Godot",
   "Some regions were made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "Некоторые регионы созданы с другим размером региона, чем у террейна в Godot, использовать версию Godot или вернуть размер в Godot",
   "File dialogs are off with --offscreen, use the map_file tool": "С --offscreen файловые диалоги отключены, используйте инструмент map_file",
-  "Deleted {count} objects with {n} unsent Terrain3D region edit, undo brings it back": { "one": "Удалено объектов: {count}, с ними {n} неотправленное изменение региона Terrain3D, отмена вернёт его", "few": "Удалено объектов: {count}, с ними {n} неотправленных изменения региона Terrain3D, отмена вернёт их", "many": "Удалено объектов: {count}, с ними {n} неотправленных изменений региона Terrain3D, отмена вернёт их" }
+  "Deleted {count} objects with {n} unsent Terrain3D region edit, undo brings it back": { "one": "Удалено объектов: {count}, с ними {n} неотправленное изменение региона Terrain3D, отмена вернёт его", "few": "Удалено объектов: {count}, с ними {n} неотправленных изменения региона Terrain3D, отмена вернёт их", "many": "Удалено объектов: {count}, с ними {n} неотправленных изменений региона Terrain3D, отмена вернёт их" },
+  "Regions change out of view": "Регионы меняются за пределами вида"
 }

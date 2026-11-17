@@ -16,6 +16,7 @@ use crate::picking::{self, Hit};
 use crate::scene::{SceneCache, v3};
 use crate::selection_box::SelectionBox;
 use crate::state::{EditorState, SelectMode};
+use crate::terrain3d::overlay::Edge;
 use crate::tools::{Drag, ToolKind, line_ray_param};
 use crate::toolset::ToolSet;
 
@@ -1659,25 +1660,54 @@ fn paint_terrain3d_marks(painter: &egui::Painter, camera: &Camera, rect: Rect, s
                     let (color, width) = if conflict { (warning, 2.0) } else { (border, 1.0) };
                     painter.line_segment([Pos2::new(x, rect.min.y), Pos2::new(x, rect.max.y)], egui::Stroke::new(width, color));
                 }
-                Mark::Plan { .. } | Mark::PlanBorder { .. } => {}
+                Mark::Added { .. } | Mark::Removed { .. } | Mark::PlanBorder { .. } | Mark::OffView { .. } => {}
             }
         }
     }
 
-    let Some((id, min, max)) = state.terrain3d_outline else { return };
-    let Some(layout) = state.terrain3d_residency.layouts.get(&id) else { return };
-    let stroke = egui::Stroke::new(2.0, crate::theme::colors().info());
-    for mark in outline(camera, rect, &layout.grid, min, max) {
+    let Some((id, draft)) = &state.terrain3d_outline else { return };
+    let Some(layout) = state.terrain3d_residency.layouts.get(id) else { return };
+    let colors = crate::theme::colors();
+    let (info, warning) = (colors.info(), colors.warning());
+    for mark in outline(camera, rect, &layout.grid, draft) {
         match mark {
-            Mark::Plan { rect: area } => {
-                painter.rect_stroke(area, 0.0, stroke, egui::StrokeKind::Inside);
+            Mark::Added { rect: area } => {
+                painter.rect_filled(area, 0.0, info.gamma_multiply(0.18));
+                painter.rect_stroke(area, 0.0, egui::Stroke::new(2.0, info), egui::StrokeKind::Inside);
+            }
+            Mark::Removed { rect: area } => {
+                painter.rect_filled(area, 0.0, warning.gamma_multiply(0.18));
+                painter.rect_stroke(area, 0.0, egui::Stroke::new(2.0, warning), egui::StrokeKind::Inside);
             }
             Mark::PlanBorder { x } => {
-                painter.line_segment([Pos2::new(x, rect.min.y), Pos2::new(x, rect.max.y)], stroke);
+                painter.line_segment([Pos2::new(x, rect.min.y), Pos2::new(x, rect.max.y)], egui::Stroke::new(2.0, info));
             }
+            Mark::OffView { edge } => off_view_hint(painter, rect, edge, info),
             _ => {}
         }
     }
+}
+
+/// A small arrow and a line of text on the `edge` of the view, for a draft that changes regions beyond it.
+fn off_view_hint(painter: &egui::Painter, rect: Rect, edge: Edge, color: Color32) {
+    let galley = painter.layout_no_wrap(tr("Regions change out of view").to_owned(), FontId::proportional(12.0), color);
+    let (size, gap) = (8.0, 6.0);
+    let mid = rect.center();
+    let (tip, along, inward) = match edge {
+        Edge::Left => (Pos2::new(rect.min.x + gap, mid.y), Vec2::Y, Vec2::X),
+        Edge::Right => (Pos2::new(rect.max.x - gap, mid.y), Vec2::Y, -Vec2::X),
+        Edge::Top => (Pos2::new(mid.x, rect.min.y + gap), Vec2::X, Vec2::Y),
+        Edge::Bottom => (Pos2::new(mid.x, rect.max.y - gap), Vec2::X, -Vec2::Y),
+    };
+    let base = tip + inward * size;
+    painter.add(egui::Shape::convex_polygon(vec![tip, base + along * size * 0.6, base - along * size * 0.6], color, egui::Stroke::NONE));
+    let pos = match edge {
+        Edge::Left => Pos2::new(base.x + gap, mid.y - galley.size().y * 0.5),
+        Edge::Right => Pos2::new(base.x - gap - galley.size().x, mid.y - galley.size().y * 0.5),
+        Edge::Top => Pos2::new(mid.x - galley.size().x * 0.5, base.y + gap),
+        Edge::Bottom => Pos2::new(mid.x - galley.size().x * 0.5, base.y - gap - galley.size().y),
+    };
+    painter.galley(pos, galley, color);
 }
 
 /// Width and height of `b` beside it in a 2D view, above and to the right, or below and to the left when `opposite`.

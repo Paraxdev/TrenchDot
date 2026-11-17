@@ -220,7 +220,7 @@ A selected Terrain3D node shows a light red wash and red boxes around its region
 | **Data Folder** and the line under it | The linked folder, and whether Godot is connected, not running, not found, or Terrain3D is not installed |
 | **Region Size** and **Vertex Spacing** | Rewrite every region file. They are greyed out unless the Godot editor is open with this scene, since Terrain3D rewrites the files and the scene |
 | **Look** | The material, assets and ocean of the node, see [The Look block](#the-look-block) |
-| **North (-Z)**, **South (+Z)**, **West (-X)**, **East (+X)** | How many regions to add (positive) or remove (negative) on each side. The new outline shows in every view, **Apply** makes it one undo step and **Reset** clears the draft |
+| **North (-Z)**, **South (+Z)**, **West (-X)**, **East (+X)** | How many regions to add (positive) or remove (negative) on each side. The regions the draft adds are boxed in blue and the ones it removes in the warning color, and a note on the edge of the view says when they lie off screen. **Apply** makes it one undo step and **Reset** clears the draft |
 | **Edit Regions** | Click squares of the Top view instead: an empty square adds a region, a filled one removes it |
 | **Textures** | The texture assets of Terrain3D with their ids, the ids you paint with |
 

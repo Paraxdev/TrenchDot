@@ -9,6 +9,7 @@ use td_formats::terrain3d_cache::ManifestTexture;
 use td_geom::terrain3d::{Grid, Loc, MAX_VERTEX_SPACING, MIN_VERTEX_SPACING, REGION_SIZES};
 
 use super::bridge;
+use super::overlay::Draft;
 use crate::commands::Action;
 use crate::i18n::{en, tr, tr_n, trf};
 use crate::state::EditorState;
@@ -246,9 +247,9 @@ fn regions(ui: &mut Ui, state: &mut EditorState, id: NodeId, cache: &std::path::
         }
     });
 
-    let plan = match (state.doc.map.terrain3d(id), state.terrain3d.source(cache)) {
-        (Some(link), Some(source)) if draft != Grow::default() => Some(link.plan_grow(&source, draft)),
-        _ => None,
+    let (plan, current) = match (state.doc.map.terrain3d(id), state.terrain3d.source(cache)) {
+        (Some(link), Some(source)) if draft != Grow::default() => (Some(link.plan_grow(&source, draft)), link.locs(&source)),
+        _ => (None, Vec::new()),
     };
     state.terrain3d_outline = None;
     let mut apply = false;
@@ -258,7 +259,8 @@ fn regions(ui: &mut Ui, state: &mut EditorState, id: NodeId, cache: &std::path::
                 let size = footprint(plan, &grid);
                 let (w, d) = (format!("{:.0}", size.width), format!("{:.0}", size.depth));
                 ui.label(trf!("{c} x {r} regions, {w} x {d} meters", c = size.columns, r = size.rows, w, d));
-                state.terrain3d_outline = Some((id, plan.min, plan.max));
+                let keep = current.into_iter().filter(|l| !plan.remove.contains(l)).collect();
+                state.terrain3d_outline = Some((id, Draft { add: plan.add.clone(), remove: plan.remove.clone(), keep }));
             }
             (Err(error), _) => {
                 ui.colored_label(theme::colors().warning(), problem(error));

@@ -2896,5 +2896,6 @@
   "Region {x}, {y} was made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "リージョン {x}, {y} はGodotの地形と異なるリージョンサイズで作られています。Godot側を使うか、Godotでサイズを元に戻してください",
   "Some regions were made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "一部のリージョンはGodotの地形と異なるリージョンサイズで作られています。Godot側を使うか、Godotでサイズを元に戻してください",
   "File dialogs are off with --offscreen, use the map_file tool": "--offscreen ではファイルダイアログを開けません。map_file ツールを使ってください",
-  "Deleted {count} objects with {n} unsent Terrain3D region edit, undo brings it back": { "other": "{count}個のオブジェクトを削除しました。未送信のTerrain3Dリージョン編集{n}件も消えましたが、元に戻すで復元できます" }
+  "Deleted {count} objects with {n} unsent Terrain3D region edit, undo brings it back": { "other": "{count}個のオブジェクトを削除しました。未送信のTerrain3Dリージョン編集{n}件も消えましたが、元に戻すで復元できます" },
+  "Regions change out of view": "ビューの外で領域が変わります"
 }
