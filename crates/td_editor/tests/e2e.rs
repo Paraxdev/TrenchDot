@@ -5723,3 +5723,49 @@ fn mesh_edit_translate_follows_the_symmetry_when_asked() {
     assert_eq!(whole["mirrored"], 0, "a selected counterpart moves plainly {whole}");
     vertex_near(&mesh_vertices(&ed, id), [13.0, 42.0, 29.0]);
 }
+
+// Where the axis menu sits in the Vertex tool's bar, from its left edge, and where its rows lie below the bar's middle.
+const AXIS_MENU_X: f64 = 150.0;
+const PLANE_MENU_X: f64 = 380.0;
+const MENU_FIRST_ROW: f64 = 31.0;
+const MENU_ROW: f64 = 29.0;
+
+#[test]
+#[ignore]
+fn the_vertex_bar_picks_the_symmetry_axis_and_plane() {
+    let ed = Editor::launch("vertex_symmetry_bar");
+    let a = ed.box_brush([10.0, 5.0, -30.0], [90.0, 45.0, 20.0]);
+    ed.call("select", json!({ "ids": [a] }));
+    ed.call("run_action", json!({ "action": "set_tool", "args": { "tool": "vertex" } }));
+    ed.input("window", json!([{ "type": "move", "x": 10, "y": 10 }]));
+    let bar: Vec<f64> = ed.state()["ui"]["tool_options"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let y = (bar[1] + bar[3]) / 2.0;
+    let x = bar[0] + AXIS_MENU_X;
+    let axis = |ed: &Editor| ed.state()["editor"]["edit_symmetry"].clone();
+    assert_eq!(axis(&ed)["axis"], Value::Null);
+
+    ed.input("window", json!([{ "type": "click", "x": x, "y": y }]));
+    ed.input("window", json!([{ "type": "move", "x": x, "y": y + 2.0 }]));
+    ed.input("window", json!([{ "type": "move", "x": x, "y": y + 3.0 }]));
+    ed.screenshot("window", "menu_open");
+    ed.input("window", json!([{ "type": "click", "x": x, "y": y + MENU_FIRST_ROW + MENU_ROW * 2.0 }]));
+    assert_eq!(axis(&ed)["axis"], "y", "the second row of the axis menu after off and X is Y: {}", axis(&ed));
+    ed.screenshot("window", "plane_label");
+
+    let pick = |x: f64, row: f64| {
+        ed.input("window", json!([{ "type": "click", "x": x, "y": y }]));
+        ed.input("window", json!([{ "type": "move", "x": x, "y": y + 2.0 }]));
+        ed.input("window", json!([{ "type": "move", "x": x, "y": y + 3.0 }]));
+        ed.input("window", json!([{ "type": "click", "x": x, "y": y + MENU_FIRST_ROW + MENU_ROW * row }]));
+    };
+    pick(bar[0] + PLANE_MENU_X, 2.0);
+    let custom = axis(&ed);
+    assert_eq!(
+        (&custom["axis"], &custom["plane"], &custom["at"]),
+        (&json!("y"), &json!("custom"), &json!(25.0)),
+        "custom starts at the middle of the brush: {custom}"
+    );
+    pick(bar[0] + PLANE_MENU_X, 1.0);
+    assert_eq!(axis(&ed)["plane"], "world");
+    ed.screenshot("window", "plane_world");
+}

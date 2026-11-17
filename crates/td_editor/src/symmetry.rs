@@ -2,7 +2,7 @@
 
 use egui::Ui;
 use td_core::{Aabb, DVec3, Mirror, NodeId, Plane};
-use td_doc::symmetry::{PlaneAt, PlaneChoice, Symmetry, SymmetryAxes, SymmetryCenter, faces_bounds};
+use td_doc::symmetry::{EditSymmetry, PlaneAt, PlaneChoice, Symmetry, SymmetryAxes, SymmetryCenter, faces_bounds};
 use td_geom::Terrain;
 use td_render::LineVertex;
 
@@ -10,7 +10,8 @@ use crate::blend_tool::{self, StrokeScope};
 use crate::i18n::{en, tr};
 use crate::scene::v3;
 use crate::state::EditorState;
-use crate::{theme, toolset};
+use crate::tools::ToolKind;
+use crate::{mesh_tool, theme, toolset};
 
 /// How far a plane rectangle reaches above and below what it mirrors, one meter.
 const PLANE_MARGIN: f64 = 32.0;
@@ -156,6 +157,73 @@ pub fn plane_combo(ui: &mut Ui, choice: &mut PlaneChoice) {
     custom_plane(ui, choice);
 }
 
+fn edit_axis_name(axis: Option<usize>) -> &'static str {
+    match axis {
+        Some(0) => en!("X"),
+        Some(1) => en!("Y"),
+        Some(2) => en!("Z"),
+        _ => en!("off"),
+    }
+}
+
+fn edit_axis_summary(axis: Option<usize>) -> &'static str {
+    match axis {
+        Some(0) => en!("symmetry X"),
+        Some(1) => en!("symmetry Y"),
+        Some(2) => en!("symmetry Z"),
+        _ => en!("symmetry off"),
+    }
+}
+
+/// The box around what the Vertex tool (selected brushes) or the Mesh tool (meshes in edit) works on.
+fn edit_bounds(state: &EditorState) -> Aabb {
+    let map = &state.doc.map;
+    if state.tool == ToolKind::Mesh {
+        mesh_tool::edit_bounds(state)
+    } else {
+        state.doc.selection.brushes(map).into_iter().filter_map(|id| map.brush(id)).fold(Aabb::EMPTY, |acc, b| acc.union(&b.bounds()))
+    }
+}
+
+/// The symmetry menus of the Vertex and Mesh tools: which axis moves follow across, where the plane sits and its
+/// position when typed. The plane choices leave out the bounds sides, an object lies wholly on one side of its own.
+pub fn edit_options(ui: &mut Ui, state: &mut EditorState) {
+    let mut s = state.edit_symmetry;
+    egui::ComboBox::from_id_salt("edit_symmetry_axis")
+        .selected_text(tr(edit_axis_summary(s.axis)))
+        .show_ui(ui, |ui| {
+            for axis in [None, Some(0), Some(1), Some(2)] {
+                ui.selectable_value(&mut s.axis, axis, tr(edit_axis_name(axis)));
+            }
+        })
+        .response
+        .on_hover_text(tr("Moving a vertex also moves its counterpart across the plane, both sides change in one undo step"));
+
+    if s.axis.is_some() {
+        let before = s.plane.at;
+        ui.label(tr("Symmetry Plane"));
+        egui::ComboBox::from_id_salt("edit_symmetry_plane")
+            .selected_text(tr(plane_name(s.plane.at)))
+            .show_ui(ui, |ui| {
+                for at in [PlaneAt::Center, PlaneAt::World, PlaneAt::Custom] {
+                    ui.selectable_value(&mut s.plane.at, at, tr(plane_name(at)));
+                }
+            })
+            .response
+            .on_hover_text(tr("Where the symmetry plane sits: the middle of what you edit, the world origin or a typed position"));
+        if before != PlaneAt::Custom && s.plane.at == PlaneAt::Custom {
+            let here = EditSymmetry { plane: PlaneChoice { at: before, ..s.plane }, ..s };
+            if let Some(plane) = here.plane(&edit_bounds(state)) {
+                s.plane.custom = plane.at;
+            }
+        }
+
+        custom_plane(ui, &mut s.plane);
+    }
+
+    state.edit_symmetry = s;
+}
+
 /// What one dab edits: the mirror its planes resolve to and the footprint it covers.
 struct Target<'a> {
     mirror: Mirror,
@@ -241,6 +309,18 @@ pub fn plane_rect(axis: usize, at: f64, span: &Aabb, out: &mut Vec<LineVertex>) 
     let corners = [point(u0, v0), point(u1, v0), point(u1, v1), point(u0, v1)];
     for i in 0..4 {
         segment(out, corners[i], corners[(i + 1) % 4], color);
+    }
+}
+
+/// The Vertex and Mesh tools' symmetry plane over what they edit, nothing while it is off or in another tool.
+pub fn edit_lines(state: &EditorState, out: &mut Vec<LineVertex>) {
+    if !matches!(state.tool, ToolKind::Vertex | ToolKind::Mesh) {
+        return;
+    }
+
+    let bounds = edit_bounds(state);
+    if let Some(plane) = state.edit_symmetry.plane(&bounds).filter(|_| !bounds.is_empty()) {
+        plane_rect(plane.axis, plane.at, &bounds, out);
     }
 }
 

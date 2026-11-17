@@ -2324,6 +2324,7 @@
   "Where this mirror plane sits, in map units. It mirrors evenly on a line of vertices or halfway between two": "Où se trouve ce plan de miroir, en unités de carte. Il reflète de façon régulière sur une rangée de sommets ou à mi-chemin entre deux",
   "Mirror Linked {axis}": "Miroir en lien {axis}",
   "Mirror Plane": "Plan de miroir",
+  "Symmetry Plane": "Plan de symétrie",
   "selection center": "centre de la sélection",
   "max side": "côté max",
   "min side": "côté min",
@@ -2340,5 +2341,9 @@
   "Applied the mirror: {brushes} brush(es) joined, {meshes} mesh(es) welded": "Miroir appliqué : {brushes} brush(es) joint(s), {meshes} maillage(s) soudé(s)",
   "Applied the mirror. The halves do not form one convex brush, so they stay separate brushes": "Miroir appliqué. Les moitiés ne forment pas un brush convexe, elles restent donc des brushes séparés",
   "Select one half of a mirrored pair to apply the mirror": "Sélectionnez une moitié d'une paire reflétée pour appliquer le miroir",
-  "The mirrored halves do not meet. Unlink Groups keeps them as plain copies": "Les moitiés reflétées ne se touchent pas. Délier les groupes les garde comme copies ordinaires"
+  "The mirrored halves do not meet. Unlink Groups keeps them as plain copies": "Les moitiés reflétées ne se touchent pas. Délier les groupes les garde comme copies ordinaires",
+  "Y": "Y",
+  "symmetry Y": "symétrie Y",
+  "Moving a vertex also moves its counterpart across the plane, both sides change in one undo step": "Déplacer un sommet déplace aussi son pendant de l'autre côté du plan, les deux côtés changent en une seule annulation",
+  "Where the symmetry plane sits: the middle of what you edit, the world origin or a typed position": "Où se trouve le plan de symétrie : le milieu de ce que vous modifiez, l'origine du monde ou une position saisie"
 }

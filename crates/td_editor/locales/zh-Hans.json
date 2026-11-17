@@ -2324,6 +2324,7 @@
   "Where this mirror plane sits, in map units. It mirrors evenly on a line of vertices or halfway between two": "此镜像平面的位置，单位为地图单位。位于一排顶点上或两排正中间时镜像均匀",
   "Mirror Linked {axis}": "链接镜像 {axis}",
   "Mirror Plane": "镜像平面",
+  "Symmetry Plane": "对称平面",
   "selection center": "选择的中心",
   "max side": "较大一侧",
   "min side": "较小一侧",
@@ -2340,5 +2341,9 @@
   "Applied the mirror: {brushes} brush(es) joined, {meshes} mesh(es) welded": "已应用镜像：连接 {brushes} 个笔刷，焊接 {meshes} 个网格",
   "Applied the mirror. The halves do not form one convex brush, so they stay separate brushes": "已应用镜像。两半无法组成一个凸笔刷，因此保持为独立笔刷",
   "Select one half of a mirrored pair to apply the mirror": "请选择镜像对的其中一半以应用镜像",
-  "The mirrored halves do not meet. Unlink Groups keeps them as plain copies": "镜像的两半没有相接。解除组链接可将它们保留为普通副本"
+  "The mirrored halves do not meet. Unlink Groups keeps them as plain copies": "镜像的两半没有相接。解除组链接可将它们保留为普通副本",
+  "Y": "Y",
+  "symmetry Y": "对称 Y",
+  "Moving a vertex also moves its counterpart across the plane, both sides change in one undo step": "移动顶点时，平面另一侧与之对应的顶点也会一起移动，两侧在一个撤销步骤内一起改变",
+  "Where the symmetry plane sits: the middle of what you edit, the world origin or a typed position": "对称平面的位置：所编辑对象的中心、世界原点或输入的位置"
 }

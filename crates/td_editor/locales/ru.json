@@ -2324,6 +2324,7 @@
   "Where this mirror plane sits, in map units. It mirrors evenly on a line of vertices or halfway between two": "Где лежит эта плоскость зеркала, в единицах карты. Ровно отражает на ряду вершин или точно посередине между двумя рядами",
   "Mirror Linked {axis}": "Зеркало со связью {axis}",
   "Mirror Plane": "Плоскость зеркала",
+  "Symmetry Plane": "Плоскость симметрии",
   "selection center": "центр выделения",
   "max side": "большая сторона",
   "min side": "меньшая сторона",
@@ -2340,5 +2341,9 @@
   "Applied the mirror: {brushes} brush(es) joined, {meshes} mesh(es) welded": "Отражение применено: соединено кистей {brushes}, сварено мешей {meshes}",
   "Applied the mirror. The halves do not form one convex brush, so they stay separate brushes": "Отражение применено. Половины не образуют одну выпуклую кисть, поэтому остаются отдельными кистями",
   "Select one half of a mirrored pair to apply the mirror": "Выберите одну половину отражённой пары, чтобы применить отражение",
-  "The mirrored halves do not meet. Unlink Groups keeps them as plain copies": "Отражённые половины не соприкасаются. Разрыв связи групп оставит их обычными копиями"
+  "The mirrored halves do not meet. Unlink Groups keeps them as plain copies": "Отражённые половины не соприкасаются. Разрыв связи групп оставит их обычными копиями",
+  "Y": "Y",
+  "symmetry Y": "симметрия Y",
+  "Moving a vertex also moves its counterpart across the plane, both sides change in one undo step": "При перемещении вершины её пара по другую сторону плоскости тоже сдвигается, обе стороны меняются за один шаг отмены",
+  "Where the symmetry plane sits: the middle of what you edit, the world origin or a typed position": "Где лежит плоскость симметрии: середина редактируемого, начало координат мира или введённая позиция"
 }

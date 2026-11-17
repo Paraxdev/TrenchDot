@@ -7,6 +7,7 @@ use td_doc::{NodeKind, ops};
 use td_editor::commands::Action;
 use td_editor::panels::{self, PanelState};
 use td_editor::state::{EditorState, Prefs};
+use td_editor::tools::ToolKind;
 use td_geom::Brush;
 
 struct Fixture {
@@ -2630,4 +2631,77 @@ fn the_custom_center_in_the_blend_bar_starts_at_the_blend_faces_middle() {
     pick_menu(&mut sculpt, "terrain center", "custom");
     let s = sculpt.state().state.symmetry;
     assert_eq!((s.x, s.z), (0.0, 0.0), "Sculpt does not edit blend faces");
+}
+
+fn edit_symmetry_bar(tool: ToolKind) -> Harness<'static, Fixture> {
+    let mut f = Fixture::new();
+    let layer = f.state.doc.map.default_layer();
+    let brush = Brush::from_aabb(&Aabb::new(DVec3::new(40.25, -8.0, 12.5), DVec3::new(104.25, 24.0, 76.5)), "dev/grey").unwrap();
+    let mesh = td_geom::mesh_shapes::cuboid(&Aabb::new(DVec3::new(-300.5, 4.0, 90.0), DVec3::new(-220.5, 36.0, 118.0)), "dev/grey");
+    f.state.doc.edit("add", |m, s| {
+        let b = m.insert(layer, NodeKind::Brush(brush));
+        let id = m.insert(layer, NodeKind::Mesh(mesh));
+        s.select_node(if tool == ToolKind::Mesh { id } else { b });
+    });
+    f.state.tool = tool;
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(700.0, 120.0))
+        .build_ui_state(|ui, f: &mut Fixture| drop(ui.horizontal(|ui| td_editor::symmetry::edit_options(ui, &mut f.state))), f);
+    harness.run();
+    harness
+}
+
+#[test]
+fn the_vertex_and_mesh_bars_show_only_what_the_edit_symmetry_needs() {
+    use td_doc::symmetry::{EditSymmetry, PlaneAt};
+    for tool in [ToolKind::Vertex, ToolKind::Mesh] {
+        let mut harness = edit_symmetry_bar(tool);
+        assert_eq!(harness.state().state.edit_symmetry, EditSymmetry::OFF);
+        harness.get_by_value("symmetry off");
+        assert!(harness.query_by_value("selection center").is_none(), "no plane menu while symmetry is off");
+        assert!(harness.query_by_label("Symmetry Plane").is_none());
+        assert_eq!(number_fields(&harness), 0);
+
+        for (item, axis) in [("X", 0), ("Y", 1), ("Z", 2)] {
+            let shown = harness.state().state.edit_symmetry.axis.map_or("symmetry off".to_string(), |a| format!("symmetry {}", ["X", "Y", "Z"][a]));
+            pick_menu(&mut harness, &shown, item);
+            assert_eq!(harness.state().state.edit_symmetry.axis, Some(axis));
+            harness.get_by_value(&format!("symmetry {item}"));
+            harness.get_by_value("selection center");
+            harness.get_by_label("Symmetry Plane");
+            assert_eq!(number_fields(&harness), 0, "the field is only for custom");
+        }
+
+        pick_menu(&mut harness, "selection center", "world origin");
+        assert_eq!(harness.state().state.edit_symmetry.plane.at, PlaneAt::World);
+        assert_eq!(number_fields(&harness), 0);
+        pick_menu(&mut harness, "world origin", "custom");
+        assert_eq!(harness.state().state.edit_symmetry.plane.at, PlaneAt::Custom);
+        assert_eq!(number_fields(&harness), 1);
+        assert_eq!(harness.state().state.edit_symmetry.plane.custom, 0.0, "from the world origin the plane was at zero");
+
+        type_number(&mut harness, 0, "-37.5");
+        assert_eq!(harness.state().state.edit_symmetry.plane.custom, -37.5);
+        assert_eq!(harness.state().state.edit_symmetry.axis, Some(2), "typing keeps the axis");
+
+        pick_menu(&mut harness, "symmetry Z", "off");
+        assert_eq!(harness.state().state.edit_symmetry.axis, None);
+        assert!(harness.query_by_value("custom").is_none(), "the plane menu hides again");
+        assert!(harness.query_by_label("Symmetry Plane").is_none(), "and its label");
+        assert_eq!(number_fields(&harness), 0);
+        assert_eq!(harness.state().state.edit_symmetry.plane.custom, -37.5, "the typed spot is kept for next time");
+    }
+}
+
+#[test]
+fn the_custom_edit_plane_starts_where_the_middle_plane_was() {
+    let cases = [(ToolKind::Vertex, 72.25, 8.0, 44.5), (ToolKind::Mesh, -260.5, 20.0, 104.0)];
+    for (tool, x, y, z) in cases {
+        for (item, want) in [("X", x), ("Y", y), ("Z", z)] {
+            let mut harness = edit_symmetry_bar(tool);
+            pick_menu(&mut harness, "symmetry off", item);
+            pick_menu(&mut harness, "selection center", "custom");
+            assert_eq!(harness.state().state.edit_symmetry.plane.custom, want, "{tool:?} {item}: the middle of what is edited, so the plane does not jump");
+        }
+    }
 }

@@ -2274,6 +2274,17 @@ impl App {
                             self.actions.push(Action::MeshOp(op));
                         }
                     }
+
+                    ui.separator();
+                    crate::symmetry::edit_options(ui, &mut self.state);
+                }
+                ToolKind::Vertex => {
+                    crate::symmetry::edit_options(ui, &mut self.state);
+                    if self.state.prefs.help_text {
+                        let line = ui.label(RichText::new(tr(help::tool_line(tool))).weak());
+                        help::register(&line, Topic::Tool(tool));
+                        line.on_hover_ui(details);
+                    }
                 }
                 _ => {
                     if self.state.prefs.help_text {

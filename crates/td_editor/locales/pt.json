@@ -2324,6 +2324,7 @@
   "Where this mirror plane sits, in map units. It mirrors evenly on a line of vertices or halfway between two": "Onde fica este plano de espelho, em unidades de mapa. Ele espelha por igual sobre uma fileira de vértices ou no meio entre duas",
   "Mirror Linked {axis}": "Espelhar vinculado {axis}",
   "Mirror Plane": "Plano de espelho",
+  "Symmetry Plane": "Plano de simetria",
   "selection center": "centro da seleção",
   "max side": "lado máximo",
   "min side": "lado mínimo",
@@ -2340,5 +2341,9 @@
   "Applied the mirror: {brushes} brush(es) joined, {meshes} mesh(es) welded": "Espelho aplicado: {brushes} brush(es) unido(s), {meshes} malha(s) soldada(s)",
   "Applied the mirror. The halves do not form one convex brush, so they stay separate brushes": "Espelho aplicado. As metades não formam um brush convexo, então continuam brushes separados",
   "Select one half of a mirrored pair to apply the mirror": "Selecione uma metade de um par espelhado para aplicar o espelho",
-  "The mirrored halves do not meet. Unlink Groups keeps them as plain copies": "As metades espelhadas não se tocam. Desvincular grupos as mantém como cópias normais"
+  "The mirrored halves do not meet. Unlink Groups keeps them as plain copies": "As metades espelhadas não se tocam. Desvincular grupos as mantém como cópias normais",
+  "Y": "Y",
+  "symmetry Y": "simetria Y",
+  "Moving a vertex also moves its counterpart across the plane, both sides change in one undo step": "Mover um vértice também move o seu par do outro lado do plano, os dois lados mudam em um só passo de desfazer",
+  "Where the symmetry plane sits: the middle of what you edit, the world origin or a typed position": "Onde fica o plano de simetria: o meio do que você edita, a origem do mundo ou uma posição digitada"
 }

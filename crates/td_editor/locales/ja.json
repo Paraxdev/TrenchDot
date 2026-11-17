@@ -2324,6 +2324,7 @@
   "Where this mirror plane sits, in map units. It mirrors evenly on a line of vertices or halfway between two": "この鏡面の位置 (マップ単位)。頂点の列の上か、2つの列のちょうど中間にあると均等に反転します",
   "Mirror Linked {axis}": "リンクしてミラー {axis}",
   "Mirror Plane": "ミラー平面",
+  "Symmetry Plane": "対称平面",
   "selection center": "選択の中心",
   "max side": "大きい側",
   "min side": "小さい側",
@@ -2340,5 +2341,9 @@
   "Applied the mirror: {brushes} brush(es) joined, {meshes} mesh(es) welded": "ミラーを適用しました。ブラシ{brushes}個を結合、メッシュ{meshes}個を溶接",
   "Applied the mirror. The halves do not form one convex brush, so they stay separate brushes": "ミラーを適用しました。半分同士が1つの凸ブラシにならないため、別々のブラシのままです",
   "Select one half of a mirrored pair to apply the mirror": "ミラーを適用するには、ミラーされたペアの片方を選択してください",
-  "The mirrored halves do not meet. Unlink Groups keeps them as plain copies": "ミラーされた半分が接していません。グループのリンク解除なら通常のコピーとして残せます"
+  "The mirrored halves do not meet. Unlink Groups keeps them as plain copies": "ミラーされた半分が接していません。グループのリンク解除なら通常のコピーとして残せます",
+  "Y": "Y",
+  "symmetry Y": "対称 Y",
+  "Moving a vertex also moves its counterpart across the plane, both sides change in one undo step": "頂点を動かすと、平面の反対側にある対応する頂点も一緒に動きます。両側の変更は取り消し1回で戻せます",
+  "Where the symmetry plane sits: the middle of what you edit, the world origin or a typed position": "対称平面の位置です。編集中のものの中心、ワールド原点、または入力した位置を選べます"
 }

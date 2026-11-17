@@ -1267,7 +1267,11 @@ impl ToolSet {
                     }
                 }
             }
-            ToolKind::Mesh => out.extend(self.mesh.lines(cam, rect, state)),
+            ToolKind::Vertex => crate::symmetry::edit_lines(state, &mut out),
+            ToolKind::Mesh => {
+                out.extend(self.mesh.lines(cam, rect, state));
+                crate::symmetry::edit_lines(state, &mut out);
+            }
             ToolKind::Scatter => self.scatter.lines(state, &mut out),
             ToolKind::Blend => {
                 self.blend.lines(state, &mut out);
@@ -3476,6 +3480,68 @@ mod tests {
             select_only(&mut state, &[leaf]);
             assert_eq!(plane_segments(&tools, &state, &perspective()), expected, "axis {axis}: a brush inside a half shows it too");
         }
+    }
+
+    fn edit_plane_segments(tools: &ToolSet, state: &EditorState, axis: usize) -> Vec<Segment> {
+        segments_of(&tools.lines(&perspective(), view_rect(), state), axis_color(axis))
+    }
+
+    #[test]
+    fn the_vertex_tool_draws_its_symmetry_plane_over_the_selected_brushes() {
+        use td_doc::symmetry::{EditSymmetry, PlaneAt, PlaneChoice};
+        let tools = ToolSet::default();
+        let mut state = EditorState::new(Default::default());
+        insert_brushes(&mut state, vec![trapezoid()]);
+        state.tool = ToolKind::Vertex;
+        let (lo, hi) = ([-20.0, 0.0, 10.0], [95.0, 40.0, 60.0]);
+        assert!(edit_plane_segments(&tools, &state, 0).is_empty(), "off draws nothing");
+
+        let cases = [
+            (0, PlaneAt::Center, 0.0, 37.5),
+            (0, PlaneAt::World, 55.0, 0.0),
+            (0, PlaneAt::Custom, 140.25, 140.25),
+            (1, PlaneAt::Center, 0.0, 20.0),
+            (2, PlaneAt::Custom, -12.5, -12.5),
+        ];
+        for (axis, at, custom, plane_at) in cases {
+            state.edit_symmetry = EditSymmetry { axis: Some(axis), plane: PlaneChoice { at, custom } };
+            assert_eq!(edit_plane_segments(&tools, &state, axis), rect_outline(axis, plane_at, lo, hi), "axis {axis} {at:?}");
+        }
+
+        state.tool = ToolKind::Select;
+        assert!(edit_plane_segments(&tools, &state, 2).is_empty(), "only the Vertex and Mesh tools draw it");
+        state.tool = ToolKind::Vertex;
+        select_only(&mut state, &[]);
+        assert!(edit_plane_segments(&tools, &state, 2).is_empty(), "nothing selected, nothing to draw over");
+    }
+
+    #[test]
+    fn the_vertex_plane_spans_every_selected_brush_and_the_mesh_plane_the_meshes_in_edit() {
+        use td_doc::symmetry::{EditSymmetry, PlaneAt, PlaneChoice};
+        let tools = ToolSet::default();
+        let mut state = EditorState::new(Default::default());
+        let layer = state.doc.map.default_layer();
+        let far = hull(&[DVec3::new(200.0, 10.0, -50.0), DVec3::new(260.0, 10.0, -50.0), DVec3::new(230.0, 70.0, -20.0), DVec3::new(230.0, 10.0, -20.0)]);
+        let mesh = td_geom::mesh_shapes::cuboid(&Aabb::new(DVec3::new(-300.5, 4.0, 90.0), DVec3::new(-220.5, 36.0, 118.0)), "dev/grey");
+        let (brushes, mesh_id) = state.doc.edit("add", |m, s| {
+            s.clear();
+            let a = m.insert(layer, td_doc::NodeKind::Brush(trapezoid()));
+            let b = m.insert(layer, td_doc::NodeKind::Brush(far));
+            let c = m.insert(layer, td_doc::NodeKind::Mesh(mesh));
+            (vec![a, b], c)
+        });
+        state.edit_symmetry = EditSymmetry { axis: Some(0), plane: PlaneChoice { at: PlaneAt::Center, custom: 0.0 } };
+
+        select_only(&mut state, &brushes);
+        state.tool = ToolKind::Vertex;
+        assert_eq!(edit_plane_segments(&tools, &state, 0), rect_outline(0, 120.0, [-20.0, 0.0, -50.0], [260.0, 70.0, 60.0]));
+        state.tool = ToolKind::Mesh;
+        assert!(edit_plane_segments(&tools, &state, 0).is_empty(), "no mesh in edit, brushes do not count");
+
+        select_only(&mut state, &[mesh_id]);
+        assert_eq!(edit_plane_segments(&tools, &state, 0), rect_outline(0, -260.5, [-300.5, 4.0, 90.0], [-220.5, 36.0, 118.0]));
+        state.tool = ToolKind::Vertex;
+        assert!(edit_plane_segments(&tools, &state, 0).is_empty(), "no brush selected, meshes do not count");
     }
 
     #[test]
