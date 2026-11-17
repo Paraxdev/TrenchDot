@@ -169,8 +169,20 @@ pub struct ClipmapParams {
     pub auto_shader: Option<AutoShader>,
     /// Terrain3D's `blend_sharpness`, 0 to 1: how sharply the taller of two textures shows through where they meet.
     pub blend_sharpness: f32,
+    /// Terrain3D's dual scaling, None when the material has it off.
+    pub dual_scale: Option<DualScale>,
     /// The water drawn over the ground, which hides the ground below it more the deeper it lies.
     pub water: Option<crate::Water>,
+}
+
+/// Terrain3D's dual scaling: farther from the camera than `near` meters one texture fades to a sample at its uv scale
+/// times `reduction`, which it shows alone past `far`, so its tiling does not repeat across distant ground.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DualScale {
+    pub texture: u32,
+    pub reduction: f32,
+    pub near: f32,
+    pub far: f32,
 }
 
 /// Terrain3D's auto shader: two textures mixed by slope and height wherever the control map asks for it or no region
@@ -198,6 +210,7 @@ impl Default for ClipmapParams {
             textures: true,
             auto_shader: None,
             blend_sharpness: 0.5,
+            dual_scale: None,
             water: None,
         }
     }
@@ -217,6 +230,7 @@ pub(crate) struct ClipmapUniform {
     toggles: [f32; 4],
     water: [f32; 4],
     material: [f32; 4],
+    dual_scale: [f32; 4],
     regions: [[i32; 4]; 256],
     textures: [look::TextureUniform; look::MAX_TEXTURES],
 }
@@ -260,6 +274,10 @@ impl ClipmapUniform {
         self.toggles = [flag(p.background_shown), flag(p.water.is_some()), water.color[3], 0.0];
         self.water = [water.color[0], water.color[1], water.color[2], water.level];
         self.material = [p.blend_sharpness.clamp(0.0, 1.0), 0.0, 0.0, 0.0];
+        self.dual_scale = match p.dual_scale {
+            Some(d) => [d.texture.min(31) as f32, d.reduction, d.near, d.far],
+            None => [-1.0, 1.0, 0.0, 0.0],
+        };
     }
 
     fn slot(&self, i: usize) -> Slot {
@@ -1084,6 +1102,19 @@ mod tests {
     }
 
     #[test]
+    fn dual_scale_reaches_the_uniform_only_while_on() {
+        let mut u = ClipmapUniform::new(&DESC);
+        assert_eq!(u.dual_scale, [-1.0, 1.0, 0.0, 0.0], "off matches no texture");
+        let got = [(3, 0.25, 100.0, 170.0), (31, 0.5, 40.5, 40.5), (40, 0.75, 170.0, 100.0)].map(|(texture, reduction, near, far)| {
+            u.set_params(&ClipmapParams { dual_scale: Some(DualScale { texture, reduction, near, far }), ..Default::default() }, true);
+            u.dual_scale
+        });
+        assert_eq!(got, [[3.0, 0.25, 100.0, 170.0], [31.0, 0.5, 40.5, 40.5], [31.0, 0.75, 170.0, 100.0]], "ids past Terrain3D's 31 clamp to it");
+        u.set_params(&ClipmapParams::default(), true);
+        assert_eq!(u.dual_scale, [-1.0, 1.0, 0.0, 0.0]);
+    }
+
+    #[test]
     fn water_reaches_the_uniform_only_while_there_is_water() {
         let mut u = ClipmapUniform::new(&DESC);
         assert_eq!((u.toggles, u.water), ([1.0, 0.0, 0.0, 0.0], [0.0; 4]), "no water by default");
@@ -1341,5 +1372,78 @@ mod tests {
         }
 
         assert!(tall_share[0] > 0.99 && (0.9..0.98).contains(&tall_share[1]), "at an even blend the tall texture covers {tall_share:?}");
+    }
+
+    /// One texture whose halves differ, at a uv scale where the near sample stays in the left half and the dual scale
+    /// sample in the right one, seen from above so the distance to the eye grows from the middle to the corners.
+    #[test]
+    #[ignore = "needs a GPU"]
+    fn gpu_dual_scale_fades_to_the_far_sample_by_distance() {
+        let (device, queue) = device(false);
+        let layout = bind_group_layout(&device);
+        let desc = ClipmapDesc { region_size: 64, layers: 1, coarse_stride: 4, atlas: [[2, -3], [2, -3]] };
+        let mut clip = GpuClipmap::new(&device, &queue, &layout, &desc).unwrap();
+        let local = |k: usize| [(k % 64) as f64, (k / 64) as f64];
+        let heights: Vec<f32> = (0..64 * 64).map(|k| (2.0 + 0.03 * local(k)[0] - 0.02 * local(k)[1]) as f32).collect();
+        clip.write_fine(&queue, 0, [0, 0], [64, 64], &heights, &vec![0; 64 * 64], &vec![[255u8; 4]; 64 * 64]).unwrap();
+        clip.set_slots(&queue, &[([2, -3], Slot::Fine(0))]).unwrap();
+        let (near_rgb, far_rgb) = ([200u8, 40, 40], [30u8, 60, 220]);
+        let halves = image::RgbaImage::from_fn(64, 64, |x, _| {
+            let c = if x < 32 { near_rgb } else { far_rgb };
+            image::Rgba([c[0], c[1], c[2], 255])
+        });
+        // Note: control 0 halves the uv scale, so at x 240 m the near u is 0.25 and moves 0.0031 a meter, the far one
+        // is 0.725 and moves 0.3 times that.
+        let textures = [look::ClipmapTexture { id: 0, albedo: look::Albedo::Thumbnail(halves), color: [1.0; 3], uv_scale: 0.75 / 120.0, detiling: [0.0; 2] }];
+        clip.set_textures(&device, &queue, &layout, &textures);
+        let linear = |rgb: [u8; 3]| rgb.map(|v| crate::srgb_to_linear(v as f32 / 255.0));
+        let (near, far) = (linear(near_rgb), linear(far_rgb));
+
+        let (cell, upm) = (48.0f32, 32.0f32);
+        let [w, h] = [144u32, 144];
+        let eye = Vec3::new(160.1 * cell, 2000.0, -160.2 * cell);
+        let view_proj = top_down(eye, [20.0 * cell, 20.0 * cell]);
+        let fragment = "@fragment fn fs_test(f: VOut) -> @location(0) vec4<f32> { let m = f.world.xz / clip.world.y; let ddx = dpdx(m); let ddy = dpdy(m); if (dropped(f.world)) { discard; } return vec4<f32>(ground_albedo(f.world, normalize(f.normal), ddx, ddy), distance(f.world, cam.eye.xyz) / clip.world.y); }";
+        let dual = |texture, near, far| Some(DualScale { texture, reduction: 0.3, near, far });
+        let cases = [("fading", dual(0, 64.0, 70.0)), ("off", None), ("on another texture", dual(1, 64.0, 70.0)), ("at one distance", dual(0, 66.0, 66.0))];
+        for (case, dual_scale) in cases {
+            clip.set_params(&queue, &ClipmapParams { cell, upm, heights: [0.0, 300.0], dual_scale, ..Default::default() });
+            let pixels = draw(&device, &queue, &layout, &clip, eye, view_proj, [w, h], fragment);
+            let mut seen = [0; 3];
+            for (i, p) in pixels.iter().enumerate() {
+                let d = p[3];
+                assert!((58.0..75.0).contains(&d), "{case}: pixel {i} is drawn from the eye's height, got {p:?}");
+                let share = match dual_scale {
+                    Some(s) if s.texture == 0 && s.far > s.near => {
+                        let t = ((d - s.near) / (s.far - s.near)).clamp(0.0, 1.0);
+                        t * t * (3.0 - 2.0 * t)
+                    }
+                    Some(s) if s.texture == 0 => {
+                        if (d - s.near).abs() < 0.001 {
+                            continue;
+                        }
+
+                        if d > s.near { 1.0 } else { 0.0 }
+                    }
+                    _ => 0.0,
+                };
+                let want: [f32; 3] = std::array::from_fn(|k| near[k] + (far[k] - near[k]) * share);
+                assert!((0..3).all(|k| (p[k] - want[k]).abs() < 0.01), "{case}: pixel {i} {d} m from the eye: {p:?}, want {want:?}");
+                seen[if share == 0.0 {
+                    0
+                } else if share == 1.0 {
+                    2
+                } else {
+                    1
+                }] += 1;
+            }
+
+            let total = (w * h) as usize;
+            match case {
+                "fading" => assert!(seen[0] > 1000 && seen[1] > 1000 && seen[2] > 100, "{case}: {seen:?}"),
+                "at one distance" => assert!(seen[0] > 1000 && seen[1] == 0 && seen[2] > 1000, "{case}: {seen:?}"),
+                _ => assert_eq!(seen, [total, 0, 0], "{case}"),
+            }
+        }
     }
 }

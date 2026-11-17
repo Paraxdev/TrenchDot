@@ -119,6 +119,7 @@ const LOOK: &str = r#"{
     "auto": { "slope": 2.5, "height_reduction": 0.375, "base_texture": 3, "overlay_texture": 7 },
     "blend_sharpness": 0.875,
     "dual_scaling": true,
+    "dual_scale": { "texture": 4, "reduction": 0.125, "near": 40.5, "far": 250 },
     "macro_variation": true,
     "projection": true
   },
@@ -156,6 +157,7 @@ fn look() -> Manifest {
             auto: Some(AutoShader { slope: 2.5, height_reduction: 0.375, base_texture: 3, overlay_texture: 7 }),
             blend_sharpness: 0.875,
             dual_scaling: true,
+            dual_scale: Some(DualScale { texture: 4, reduction: 0.125, near: 40.5, far: 250.0 }),
             macro_variation: true,
             projection: true,
         },
@@ -200,6 +202,7 @@ fn manifest_carries_the_terrain3d_look_off_every_default() {
     off_default(&m.material);
     off_default(m.material.world_noise.as_ref().unwrap());
     off_default(m.material.auto.as_ref().unwrap());
+    off_default(m.material.dual_scale.as_ref().unwrap());
     off_default(&m.textures[0]);
     off_default(m.ocean.as_ref().unwrap());
     off_default(m.resources.as_ref().unwrap());
@@ -218,16 +221,20 @@ fn an_old_manifest_reads_with_the_new_defaults() {
     let old = read_manifest(&fixture()).unwrap();
     assert_eq!((&old.material.world_noise, &old.material.auto, old.material.blend_sharpness), (&None, &None, 0.5));
     assert!(!old.material.dual_scaling && !old.material.macro_variation && !old.material.projection);
+    assert_eq!(old.material.dual_scale, None);
     assert_eq!((&old.ocean, &old.resources), (&None, &None), "no ocean means no water");
     let uv: Vec<_> = old.textures.iter().map(|t| (t.uv_scale, t.detiling_rotation, t.detiling_shift, t.albedo.as_str(), t.hash.as_str())).collect();
     assert_eq!(uv, [(0.1, 0.0, 0.0, "", ""); 2]);
 
     let head = r#""format":"trenchdot-terrain3d","version":1,"region_size":256,"vertex_spacing":0.25"#;
-    let empty =
-        parse_manifest(&format!(r#"{{{head},"material":{{"world_noise":{{}},"auto":{{}}}},"textures":[{{"id":4}}],"ocean":{{}},"resources":{{}}}}"#)).unwrap();
+    let empty = parse_manifest(&format!(
+        r#"{{{head},"material":{{"world_noise":{{}},"auto":{{}},"dual_scale":{{}}}},"textures":[{{"id":4}}],"ocean":{{}},"resources":{{}}}}"#
+    ))
+    .unwrap();
     let noise = WorldNoise { scale: 5.0, height: 32.0, offset: [0.0; 3], lod_distance: 7500.0, max_octaves: 4, min_octaves: 2, fragment_normals: false };
     assert_eq!(empty.material.world_noise, Some(noise.clone()), "the Terrain3D shader defaults");
     assert_eq!(empty.material.auto, Some(AutoShader { slope: 1.0, height_reduction: 0.1, base_texture: 0, overlay_texture: 1 }));
+    assert_eq!(empty.material.dual_scale, Some(DualScale { texture: 0, reduction: 0.3, near: 100.0, far: 170.0 }));
     let texture = ManifestTexture {
         id: 4,
         name: String::new(),

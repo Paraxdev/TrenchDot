@@ -12,7 +12,7 @@ use td_geom::terrain3d::{Control, Loc, Region3D};
 use td_render::clipmap::look::{Albedo, ClipmapTexture};
 use td_render::clipmap::noise::Noise;
 use td_render::clipmap::{AlbedoData, ClipmapAlbedo};
-use td_render::clipmap::{AutoShader, Background, ClipmapDesc, ClipmapParams, GpuClipmap, Slot, coarse_stride, fine_capacity, region_index};
+use td_render::clipmap::{AutoShader, Background, ClipmapDesc, ClipmapParams, DualScale, GpuClipmap, Slot, coarse_stride, fine_capacity, region_index};
 use td_render::{Renderer, Water};
 
 use super::residency::{self, Source};
@@ -647,6 +647,10 @@ fn params(
         textures: prefs.terrain3d_textures,
         auto_shader,
         blend_sharpness: m.blend_sharpness as f32,
+        dual_scale: m.dual_scaling.then(|| {
+            let d = m.dual_scale.clone().unwrap_or_default();
+            DualScale { texture: d.texture, reduction: d.reduction as f32, near: d.near as f32, far: d.far as f32 }
+        }),
         water: water(f64::from(upm), manifest.ocean.as_ref()).filter(|_| prefs.terrain3d_water),
     }
 }
@@ -748,6 +752,14 @@ mod tests {
         assert_eq!(drawn(&manifest), (Background::Flat, [-6.0 * 32.0, 30.0 * 32.0]));
         manifest.material.world_background = 2;
         assert_eq!(drawn(&manifest), (Background::Flat, [-6.0 * 32.0, 30.0 * 32.0]), "an old cache without noise values draws flat");
+
+        let dual = |manifest: &Manifest| params(32.0, manifest, &regions, &HashMap::new(), false, [1.0; 4], &Prefs::default()).dual_scale;
+        manifest.material.dual_scale = Some(td_formats::terrain3d_cache::DualScale { texture: 6, reduction: 0.125, near: 40.5, far: 250.0 });
+        assert_eq!(dual(&manifest), None, "off in the material");
+        manifest.material.dual_scaling = true;
+        assert_eq!(dual(&manifest), Some(DualScale { texture: 6, reduction: 0.125, near: 40.5, far: 250.0 }));
+        manifest.material.dual_scale = None;
+        assert_eq!(dual(&manifest), Some(DualScale { texture: 0, reduction: 0.3, near: 100.0, far: 170.0 }), "an old cache draws Terrain3D's defaults");
 
         let offset = [0.25, 0.5, -1.0];
         manifest.material.world_noise =

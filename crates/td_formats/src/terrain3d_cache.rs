@@ -157,6 +157,9 @@ pub struct ManifestMaterial {
     pub auto: Option<AutoShader>,
     pub blend_sharpness: f64,
     pub dual_scaling: bool,
+    /// Absent from caches written before the key, dual scaling then draws with the shader's defaults.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dual_scale: Option<DualScale>,
     pub macro_variation: bool,
     pub projection: bool,
 }
@@ -172,9 +175,27 @@ impl Default for ManifestMaterial {
             auto: None,
             blend_sharpness: 0.5,
             dual_scaling: false,
+            dual_scale: None,
             macro_variation: false,
             projection: false,
         }
+    }
+}
+
+/// The `dual_scale_*` parameters of the Terrain3D material, defaults are its shader's.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DualScale {
+    pub texture: u32,
+    pub reduction: f64,
+    /// Meters from the camera.
+    pub near: f64,
+    pub far: f64,
+}
+
+impl Default for DualScale {
+    fn default() -> Self {
+        Self { texture: 0, reduction: 0.3, near: 100.0, far: 170.0 }
     }
 }
 

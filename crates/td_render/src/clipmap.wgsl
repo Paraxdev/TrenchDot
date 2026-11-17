@@ -32,6 +32,9 @@ struct Clipmap {
     water: vec4<f32>,
     // x: Terrain3D's blend sharpness
     material: vec4<f32>,
+    // Terrain3D's dual scaling. x: the texture, -1 when off, y: far uv scale over the near one, z and w: meters from
+    // the eye where the far scale fades in and where it shows alone
+    dual_scale: vec4<f32>,
     // Fine layer per region map location, COARSE_ONLY or NO_REGION, four to an element.
     regions: array<vec4<i32>, 256>,
     textures: array<Texture, 32>,
@@ -390,30 +393,53 @@ fn control_scale(control: u32) -> f32 {
     return 0.9 - f32(((((control >> SCALE_SHIFT) & 7u) + 3u) % 8u) + 1u) * 0.1;
 }
 
-// Where Terrain3D samples texture `id` at `world` meters, in a cell whose corner vertex at `corner` meters holds
-// `control`. The twin of look::texture_uv.
-fn texture_uv(id: u32, world: vec2<f32>, corner: vec2<f32>, control: u32) -> vec2<f32> {
+// Where Terrain3D samples texture `id` at `world` meters and uv scale `s`, in a cell whose corner vertex at `corner`
+// meters holds `control`. The twin of look::texture_uv.
+fn texture_uv(id: u32, world: vec2<f32>, corner: vec2<f32>, control: u32, s: f32) -> vec2<f32> {
     let scale = control_scale(control);
     let angle = f32((control >> ANGLE_SHIFT) & 15u) * (-TAU / 16.0);
     let turn = vec2<f32>(cos(angle), sin(angle));
     let uv = rotate(world * scale, turn);
     let pos = rotate(corner * scale, turn);
     let t = clip.textures[id].uv;
-    let center = floor(pos * t.x + 0.5);
+    let center = floor(pos * s + 0.5);
     let tile = (random(center) * 2.0 - 1.0) * TAU;
     let spin = tile * t.y;
-    return rotate(uv * t.x - center, vec2<f32>(cos(spin), sin(spin))) + center + tile * t.z - 0.5;
+    return rotate(uv * s - center, vec2<f32>(cos(spin), sin(spin))) + center + tile * t.z - 0.5;
 }
 
-// Texture `id` at a pixel with its height in alpha, `ddx` and `ddy` the pixel's footprint in meters.
-fn layer_color(id: u32, control: u32, world: vec2<f32>, corner: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> vec4<f32> {
+fn sample_layer(id: u32, control: u32, world: vec2<f32>, corner: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>, s: f32) -> vec4<f32> {
+    let k = control_scale(control) * s;
+    return textureSampleGrad(albedo, albedo_sampler, texture_uv(id, world, corner, control, s), id, ddx * k, ddy * k);
+}
+
+// How far texture `id` has faded to its dual scale sample `dist` meters from the eye, 0 for any other texture or with
+// dual scaling off. Terrain3D's smoothstep, made a step where the two distances meet.
+fn far_share(id: u32, dist: f32) -> f32 {
+    let d = clip.dual_scale;
+    if (f32(id) != d.x) {
+        return 0.0;
+    }
+    if (d.w <= d.z) {
+        return step(d.z, dist);
+    }
+    return smoothstep(d.z, d.w, dist);
+}
+
+// Texture `id` at a pixel with its height in alpha, `ddx` and `ddy` the pixel's footprint in meters, `far` its share
+// of the dual scale sample.
+fn layer_color(id: u32, control: u32, world: vec2<f32>, corner: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>, far: f32) -> vec4<f32> {
     let t = clip.textures[id];
     if (clip.look.z < 1.5 || id >= textureNumLayers(albedo)) {
         return vec4<f32>(t.mean.rgb * t.color.rgb, t.mean.a);
     }
-    let k = control_scale(control) * t.uv.x;
-    let uv = texture_uv(id, world, corner, control);
-    let s = textureSampleGrad(albedo, albedo_sampler, uv, id, ddx * k, ddy * k);
+    var s = vec4<f32>(0.0);
+    if (far < 1.0) {
+        s = sample_layer(id, control, world, corner, ddx, ddy, t.uv.x);
+    }
+    if (far > 0.0) {
+        s = mix(s, sample_layer(id, control, world, corner, ddx, ddy, t.uv.x * clip.dual_scale.y), far);
+    }
     return vec4<f32>(s.rgb * t.color.rgb, s.a);
 }
 
@@ -462,6 +488,7 @@ fn ground_albedo(world: vec3<f32>, n: vec3<f32>, ddx: vec2<f32>, ddy: vec2<f32>)
     let f = q - floor(q);
     let meters = world.xz / clip.world.y;
     let cell_meters = clip.world.x / clip.world.y;
+    let dist = distance(world, cam.eye.xyz) / clip.world.y;
     var controls: array<u32, 4>;
     var weights: array<f32, 4>;
     var tint = vec3<f32>(0.0);
@@ -488,15 +515,17 @@ fn ground_albedo(world: vec3<f32>, n: vec3<f32>, ddx: vec2<f32>, ddy: vec2<f32>)
         let blend = control_blend(control);
         var up = 1.0;
         if (blend < 1.0) {
-            let a = layer_color(base, control, meters, corner, ddx, ddy);
+            let far = far_share(base, dist);
+            let a = layer_color(base, control, meters, corner, ddx, ddy, far);
             let k = height_weight(w, texture_share(base, controls, weights), a.a);
             rgb += k * a.rgb;
             total += k;
             up = n.y;
         }
         if (blend > 0.0 && over != base) {
-            let b = layer_color(over, control, meters, corner, ddx, ddy);
-            let k = height_weight(w, texture_share(over, controls, weights), b.a * clamp(up, 0.0, 1.0));
+            let far = far_share(over, dist);
+            let b = layer_color(over, control, meters, corner, ddx, ddy, far);
+            let k = height_weight(w, texture_share(over, controls, weights), b.a * mix(clamp(up, 0.0, 1.0), 1.0, far));
             rgb += k * b.rgb;
             total += k;
         }
