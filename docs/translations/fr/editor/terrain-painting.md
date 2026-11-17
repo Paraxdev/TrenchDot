@@ -1,5 +1,5 @@
 ---
-source: 7757565706801cf3511cdef72eaa79c5eb0dc3d0
+source: 33a13c750bf063a6a063dbb590ff8baa4df796cd
 ---
 
 # Peinture de terrain { #terrain-painting }
@@ -54,8 +54,13 @@ Le second menu de la barre est l'atténuation, la façon dont la force s'estompe
 
 Shift transforme peindre, bruit, pente et hauteur en effacer, et Ctrl lisse. Ctrl+molette redimensionne le brush.
 
-(Remarque : **Définir le matériau de mélange**, **répétition**, **détuilage**, **netteté** et **Appliquer le carrelage**, plus à
-droite dans la barre, servent à mélanger des faces de brush, un terrain prend ces réglages de ses calques.)
+Pour peindre les deux côtés d'un terrain de la même façon en un seul trait, activez le menu de symétrie juste après
+**force** et les champs du mode, voir [Symétrie](terrain.md#symmetry).
+
+Le même outil peint un second matériau sur des faces de brush, de mesh et de displacement, voir
+[Mélanger un second matériau](texturing.md#blending-a-second-material). **Définir le matériau de mélange**,
+**répétition**, **détuilage**, **netteté** et **Appliquer le carrelage**, plus à droite dans la barre, servent à ces
+faces, un terrain prend les mêmes réglages de ses calques.
 
 ## Peinture auto { #auto-paint }
 
