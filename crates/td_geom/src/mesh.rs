@@ -7,6 +7,7 @@ use td_core::{Aabb, AxisPlane, DMat4, DVec2, DVec3, Plane, Ray};
 
 use crate::brush::{Brush, BrushError, FaceData};
 use crate::polygon;
+use crate::symmetry::{Buckets, SAME};
 use crate::uv::FaceUv;
 
 const WELD: f64 = 1e-4;
@@ -620,6 +621,18 @@ impl Mesh {
         if !gone.is_empty() {
             self.delete_faces(&gone.into_iter().collect::<Vec<_>>());
         }
+    }
+
+    /// The vertices outside `verts` that mirror them across `plane`, sorted: for each one the vertex nearest its
+    /// mirror image within `tol`. A vertex that is its own nearest counterpart, as on the plane, adds nothing, and
+    /// neither does one lying on a vertex of `verts`, like the base of a fresh extrude or duplicate.
+    pub fn mirror_counterparts(&self, verts: &BTreeSet<u32>, plane: AxisPlane, tol: f64) -> Vec<u32> {
+        let grid = Buckets::new(&self.vertices, tol);
+        let points: Vec<DVec3> = verts.iter().filter_map(|v| self.vertices.get(*v as usize).copied()).collect();
+        let moved = Buckets::new(&points, SAME);
+        let found: BTreeSet<u32> =
+            points.iter().filter_map(|p| grid.nearest(plane.reflect(*p))).filter(|c| moved.nearest(self.vertices[*c]).is_none()).map(|c| c as u32).collect();
+        found.into_iter().collect()
     }
 
     /// Closed and every vertex behind every face plane.
@@ -2014,5 +2027,142 @@ mod tests {
         assert_eq!((faces_on(&whole, SEAM), faces_on(&whole, along_z)), (0, 0));
         assert_eq!(sorted(whole.vertices.clone()), hut_corners(&[40.0, 96.0, 152.0], &[-24.0, 8.0, 40.0]));
         assert!((whole.volume() - HUT_VOLUME).abs() < 1e-6, "{}", whole.volume());
+    }
+
+    /// Off `SEAM`, so the hut half and its mirror stay 8 u apart.
+    const APART: AxisPlane = AxisPlane { axis: 0, at: 100.0 };
+    const RIDGE: DVec3 = DVec3::new(96.0, 100.0, 40.0);
+
+    fn index_at(m: &Mesh, p: DVec3) -> u32 {
+        m.vertices.iter().position(|v| v.distance(p) < 1e-9).unwrap_or_else(|| panic!("no vertex at {p}")) as u32
+    }
+
+    fn set(verts: &[u32]) -> BTreeSet<u32> {
+        verts.iter().copied().collect()
+    }
+
+    #[test]
+    fn mirror_counterparts_skip_selected_missing_and_stale_vertices() {
+        let half = half_hut(0.0);
+        let pair = with_mirror(&half, APART);
+        let (ridge, image) = (index_at(&pair, RIDGE), index_at(&pair, DVec3::new(104.0, 100.0, 40.0)));
+        assert_eq!(pair.mirror_counterparts(&set(&[ridge]), APART, 0.5), [image]);
+        assert_eq!(pair.mirror_counterparts(&set(&[image]), APART, 0.5), [ridge]);
+        assert_eq!(pair.mirror_counterparts(&set(&[ridge, 9999]), APART, 0.5), [image]);
+        assert!(pair.mirror_counterparts(&set(&[ridge, image]), APART, 0.5).is_empty());
+        assert!(pair.mirror_counterparts(&set(&[]), APART, 0.5).is_empty());
+        assert!(half.mirror_counterparts(&set(&[index_at(&half, RIDGE)]), APART, 0.5).is_empty());
+        let all: BTreeSet<u32> = (0..pair.vertices.len() as u32).collect();
+        assert!(pair.mirror_counterparts(&all, APART, 0.5).is_empty());
+    }
+
+    #[test]
+    fn mirror_counterparts_leave_vertices_on_or_near_the_plane_alone() {
+        let mut hut = with_mirror(&half_hut(0.0), SEAM);
+        hut.weld_seam(SEAM, 0.5);
+        let near = index_at(&hut, DVec3::new(96.0, 16.0, 40.0));
+        hut.vertices[near as usize].x = 96.2;
+        let (ridge, corner) = (index_at(&hut, RIDGE), index_at(&hut, DVec3::new(40.0, 16.0, -24.0)));
+        let image = index_at(&hut, DVec3::new(152.0, 16.0, -24.0));
+        assert_eq!(hut.mirror_counterparts(&set(&[ridge, near, corner]), SEAM, 0.5), [image]);
+    }
+
+    #[test]
+    fn mirror_counterparts_count_up_to_the_tolerance() {
+        let half = half_hut(0.0);
+        for (lift, found) in [(0.49, true), (0.5, true), (0.51, false)] {
+            let mut pair = half.clone();
+            pair.join(&half.transformed(&(DMat4::from_translation(DVec3::new(0.0, lift, 0.0)) * APART.matrix()), true));
+            let want = if found { vec![index_at(&pair, DVec3::new(104.0, 100.0 + lift, 40.0))] } else { Vec::new() };
+            assert_eq!(pair.mirror_counterparts(&set(&[index_at(&pair, RIDGE)]), APART, 0.5), want, "lift {lift}");
+        }
+    }
+
+    #[test]
+    fn mirror_counterparts_of_a_whole_half_are_the_other_half() {
+        let half = half_hut(0.0);
+        let pair = with_mirror(&half, APART);
+        let n = half.vertices.len() as u32;
+        assert_eq!(pair.mirror_counterparts(&(0..n).collect(), APART, 0.5), (n..2 * n).collect::<Vec<u32>>());
+    }
+
+    #[test]
+    fn mirror_counterparts_follow_y_and_z_planes() {
+        let half = half_hut(0.0);
+        for (plane, image) in
+            [(AxisPlane { axis: 1, at: 120.0 }, DVec3::new(96.0, 140.0, 40.0)), (AxisPlane { axis: 2, at: 52.0 }, DVec3::new(96.0, 100.0, 64.0))]
+        {
+            let pair = with_mirror(&half, plane);
+            assert_eq!(pair.mirror_counterparts(&set(&[index_at(&pair, RIDGE)]), plane, 0.5), [index_at(&pair, image)]);
+        }
+    }
+
+    #[test]
+    fn mirror_counterparts_pick_the_nearest_vertex_of_a_dense_grid() {
+        // Vertices 0.25 apart put several within 0.5 of each image.
+        let grid = crate::mesh_shapes::grid(&Aabb::new(DVec3::new(36.0, 16.0, -24.0), DVec3::new(40.0, 16.0, -20.0)), 16, 16, "m");
+        let plane = AxisPlane { axis: 0, at: 37.95 };
+        let at = |x: f64| index_at(&grid, DVec3::new(x, 16.0, -23.0));
+        assert_eq!(grid.mirror_counterparts(&set(&[at(39.0)]), plane, 0.5), [at(37.0)]);
+        let mut want = vec![at(36.75), at(37.0)];
+        want.sort_unstable();
+        assert_eq!(grid.mirror_counterparts(&set(&[at(39.0), at(39.25)]), plane, 0.5), want);
+    }
+
+    const ACROSS: AxisPlane = AxisPlane { axis: 0, at: 37.5 };
+
+    fn block() -> Mesh {
+        crate::mesh_shapes::cuboid(&Aabb::new(DVec3::new(10.0, 5.0, -20.0), DVec3::new(65.0, 40.0, 30.0)), "m")
+    }
+
+    fn face_toward(m: &Mesh, dir: DVec3) -> usize {
+        (0..m.faces.len()).max_by(|a, b| m.face_normal(*a).dot(dir).total_cmp(&m.face_normal(*b).dot(dir))).unwrap()
+    }
+
+    fn at_x(m: &Mesh, x: f64) -> Vec<u32> {
+        (0..m.vertices.len() as u32).filter(|v| m.vertices[*v as usize].x == x).collect()
+    }
+
+    #[test]
+    fn mirror_counterparts_leave_the_base_of_an_extrude_or_duplicate_across_the_plane() {
+        let mut extruded = block();
+        let fresh = extruded.extrude_faces(&[top_face(&extruded)]);
+        assert_eq!(fresh.len(), 4);
+        assert!(extruded.mirror_counterparts(&fresh.into_iter().collect(), ACROSS, 0.5).is_empty());
+
+        let mut copied = block();
+        let faces = copied.duplicate_faces(&[top_face(&copied)]);
+        let fresh = copied.face_vertices(&faces);
+        assert_eq!(fresh.len(), 4);
+        assert!(copied.mirror_counterparts(&fresh.into_iter().collect(), ACROSS, 0.5).is_empty());
+    }
+
+    #[test]
+    fn mirror_counterparts_of_an_extrude_or_duplicate_off_the_plane_are_the_mirrored_face() {
+        let mut extruded = block();
+        let fresh = extruded.extrude_faces(&[face_toward(&extruded, DVec3::NEG_X)]);
+        assert_eq!(extruded.mirror_counterparts(&fresh.into_iter().collect(), ACROSS, 0.5), at_x(&extruded, 65.0));
+
+        let mut copied = block();
+        let faces = copied.duplicate_faces(&[face_toward(&copied, DVec3::NEG_X)]);
+        let fresh = copied.face_vertices(&faces);
+        assert_eq!(copied.mirror_counterparts(&fresh.into_iter().collect(), ACROSS, 0.5), at_x(&copied, 65.0));
+    }
+
+    #[test]
+    fn mirror_counterparts_skip_a_vertex_only_within_a_millionth_of_a_moved_one() {
+        // Off the middle, so each image lands 0.1 u past the far corners and the old corner is nearer than the slid one.
+        let plane = AxisPlane { axis: 0, at: 37.55 };
+        for (slide, follows) in [(0.0, false), (0.9e-6, false), (1.1e-6, true)] {
+            let mut m = block();
+            let old: Vec<u32> = (0..m.vertices.len() as u32).filter(|v| m.vertices[*v as usize].y == 40.0).collect();
+            let fresh = m.extrude_faces(&[top_face(&m)]);
+            for v in &fresh {
+                m.vertices[*v as usize].x -= slide;
+            }
+
+            let want = if follows { old } else { Vec::new() };
+            assert_eq!(m.mirror_counterparts(&fresh.into_iter().collect(), plane, 0.5), want, "slide {slide}");
+        }
     }
 }
