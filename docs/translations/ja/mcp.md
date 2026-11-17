@@ -1,5 +1,5 @@
 ---
-source: d5a662c31724dba93b77bd318ab3a570c43e95b6
+source: 880449c5803160fffd9bbfaca60bea2c7c1cd435
 ---
 
 # MCPサーバー { #mcp-server }
@@ -112,7 +112,7 @@ python tools/mcp_client.py call screenshot '{"source":"godot","position":[0,256,
 | ファイルダイアログ | ダイアログを開くアクションは拒否されます。パスを付けた`map_file`を使ってください。`run_action save`は、すでにファイルがあるマップが必要です |
 | 未保存のタブ | `run_action close_tab`は、`args.discard`がtrueでない限り、未保存の変更があると拒否します。`args.close_others`にすると、代わりにアクティブなタブ以外をすべて閉じます |
 | ファイルパス | `map_file`、`run_script`、`import_model`、`changes_since`、`validate_map`の`res://`と相対パスは、開いているプロジェクトから始まり、プロジェクトがなければエディターの作業ディレクトリから始まります。`map_file open`と`open_tab`は、開く前にパスを絶対パスにするので、あとの`save`が別の場所に落ちることはありません |
-| エディター設定 | `transform`と`run_action rotate`、`flip`は、選択範囲の中心を軸にします。グリッドにスナップするのは、スナップがオンのときだけです。UVロックがオンの間は、テクスチャを固定したままにします。`transform`は`snap`と`uv_lock`でその1回だけ上書きでき、`duplicate`は`uv_lock`を取ります。`run_action sculpt`と`blend`は、人が変えられるツール設定を使い、`terrain_edit`は固定の既定値を使います |
+| エディター設定 | `transform`と`run_action rotate`、`flip`は、選択範囲の中心を軸にします。グリッドにスナップするのは、スナップがオンのときだけです。UVロックがオンの間は、テクスチャを固定したままにします。`transform`は`snap`と`uv_lock`でその1回だけ上書きでき、`duplicate`は`uv_lock`を取ります。`run_action sculpt`と`blend`は、人が変えられるツール設定を、対称も含めて使い、`terrain_edit`は固定の既定値を使います |
 | 選択 | `select`は、未知のIDを拒否し、非表示やロックされたノードを飛ばして、`skipped`に一覧にします |
 | CSG | `csg_subtract`、`csg_merge`、`csg_intersect`、`csg_hollow`、`clip_apply`は`replaced`を返します。古いIDを新しいIDに対応づけたものです |
 | タイムアウト | 呼び出しは120秒でタイムアウトします。`run_script`、`project_content`、`bake_lighting`は除きます |
@@ -124,15 +124,17 @@ python tools/mcp_client.py call screenshot '{"source":"godot","position":[0,256,
 | ツール | メモ |
 | --- | --- |
 | `run_action` `copy`、`cut`、`paste` | コピーとカットはクリップボードのテキストを返します。ペーストはそれを`args.text`で受け取り、`offset`か`origin`も付けられます |
+| `run_action` `align`、`distribute` | `align`は`args.axis`と`args.to`（`min`、`center`、`max`）を取り、`distribute`は`args.axis`を取ります。どちらも選択した各グループ、ブラシエンティティ、オブジェクトを1つの単位として扱い、グリッドにスナップしません |
 | `run_action` `clip_apply` | 平面(`point`と`normal`、または3つの`points`)と`keep`を取ります。`keep`は`front`、`back`、`both`です |
 | `run_action` `create_decal` | [デカール](editor/decals.md)を置きます。薄いブラシの代わりにこれを使ってください |
 | `create_brush` | `openings`でドアや窓をくり抜きます。`{min, max, count, step, rows, row_step}`で1つを格子状に繰り返します |
 | `create_mesh` `rotate` | `[x, y, z]`の度数で、GodotのYXZ順です。`[0, 0, 90]`だと円柱がX方向に寝ます |
-| `transform` | translate、rotate、flip、scale_toをこの順に適用し、1つの元に戻すステップにします。`rotate`は、指定しない限りY軸まわりに90度回します |
+| `transform` | translate、rotate、flip、scale_to、shearをこの順に適用し、1つの元に戻すステップにします。`rotate`は、指定しない限りY軸まわりに90度回します。`shear`は選択範囲の境界の一辺をずらします。たとえば`{"side": "+y", "along": "x", "amount": 32}`です |
 | `create_terrain` | 他のツールと違い、`origin`は地形の最小の角です。`center`なら、代わりにある点のまわりに置きます |
 | `create_brush`、`create_mesh` | 切妻の棟は、ブラシではZ方向、メッシュではX方向に走ります。どちらのツールも`ridge_x`と`ridge_z`を取ります |
 | `map_file`のエクスポート | `path`は書き出したファイルで、古い呼び出し元のために残してあります。`exported`も同じものを指し、`map_path`は開いているマップです |
-| `terrain_edit` | `op`なしの`probe [x, z]`は、高さを読むだけです。`clear_layer`には`layer`が必要です |
+| `terrain_edit` | `op`なしの`probe [x, z]`は、高さを読むだけです。`clear_layer`には`layer`が必要です。`op: "resize"`は、辺ごとに整数セル単位で地形を広げたり切り詰めたりします。`north`、`south`、`west`、`east`（正で追加、負で削除）か、中心を軸にした`cells: [x, z]`で指定し、余る1セルは東か南に入ります。`cell_size`は同じ範囲でリサンプルします。辺が先に、セルサイズがそのあとに適用され、`cells`と`cell_size`は同時に指定できません。`fill`は`edge`（既定、新しい地面は端を繰り返す）か`zero`で、`scatter`は`drop`（既定、削除された地面の上の地形の散布を取り除く）か`keep`です。`dry_run: true`は何も変えずに計画を返し、何も変わらないリサイズは`changed: false`を返して元に戻すステップを記録しません。地形は各軸に沿って1から2048セル、セルサイズは0.001から100000で、範囲外はまるごと拒否されます |
+| `symmetry` | `run_action`の`sculpt`、`blend`と`terrain_edit`が取り、`set_editor`でスカルプトとブレンドのツールバーが使う設定を指定します。`get_state`は`editor.symmetry`として報告します。値は`off`、`x`、`z`、`xz`（各地形の中心を通る平面）か、オブジェクト`{axes, center, x, z}`で、`center`は`terrain`、`world`、`custom`、`x`と`z`はカスタム中心のときの平面のワールド位置です。値を渡すと設定全体が置き換わります。`sculpt`と`blend`は省略するとバーに従い、`terrain_edit`はオフなので、スクリプトは同じように再生されます。`terrain_edit`は`sculpt`、`sculpt_path`、`paint_path`と、`center`を使う`holes`で受け付け、ほかの操作では拒否します |
 | `validate_map` | ターゲットのGodotクラスやスクリプトの任意のメソッドやプロパティを、入力として受け付けます。`coplanar_faces`は、ちらつく面を指摘します。どの問題にも`bounds`があります。`path`は、保存済みのマップを開かずに検査し、`project: true`はプロジェクト内のすべてのマップを検査します |
 | `run_action` `place_entities` | `args.classnames`を取り、`at`と`normal`で、エンティティタブからのドラッグと同じように、面の上に載せます。クラス名なしはエラーです |
 | `simulate_input`のドラッグ | `"release": false`のドラッグは、呼び出しが戻ったあともボタンと修飾キーを押したままにします。そのため、スクリーンショットにドラッグ中の様子、たとえばカーソルの横のカードが写ります。あとの呼び出しの`release`イベントが、ポインターのある場所、または`x`と`y`、または`world`でドロップします。`x`と`y`の片方だけの`release`はエラーです。ドラッグと修飾キーは、実際のキーボードでも、そのreleaseか、`new_map`か`close_tab`アクションの成功か、MCPがオフになるまで押されたままです。releaseを忘れないでください。それまでは、クリックとドラッグは拒否されます |
