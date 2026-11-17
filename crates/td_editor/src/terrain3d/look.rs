@@ -2,6 +2,7 @@
 
 use std::io::Read;
 use std::path::Path;
+use std::time::{Duration, Instant};
 
 use egui::{Rect, RichText, Ui};
 use td_core::NodeId;
@@ -27,19 +28,25 @@ pub struct LookUi {
     pub rects: Vec<(String, Rect)>,
 }
 
+/// How long after Godot said ok to a change its export is waited for. A texture export can take seconds, and one that
+/// never lands (the node left the tree) is not reported back.
+const EXPORT_WAIT: Duration = Duration::from_secs(20);
+
 /// A look the Inspector shows for a node ahead of the cache, and the look the cache had when it was asked for.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Shown {
     pub node: NodeId,
     pub look: Look,
     pub was: Look,
+    /// When Godot answered ok, None while the request is still out.
+    pub answered: Option<Instant>,
 }
 
 impl Shown {
     /// Whether the cache still lags behind. Any export with another look than before is Godot's word, also when the look
     /// was changed in Godot before this change arrived.
-    pub fn pending(&self, now: &Look) -> bool {
-        *now == self.was && *now != self.look
+    pub fn pending(&self, now: &Look, at: Instant) -> bool {
+        *now == self.was && *now != self.look && self.answered.is_none_or(|t| at.saturating_duration_since(t) < EXPORT_WAIT)
     }
 }
 
@@ -145,7 +152,7 @@ pub fn block(ui: &mut Ui, state: &mut EditorState, id: NodeId, cache: &Path) {
     if let Some(ahead) = &state.terrain3d_look_shown
         && ahead.node == id
     {
-        if ahead.pending(&shown) {
+        if ahead.pending(&shown, Instant::now()) {
             shown = ahead.look.clone();
         } else {
             state.terrain3d_look_shown = None;
@@ -213,11 +220,18 @@ mod tests {
     fn a_shown_look_waits_until_the_cache_has_another_look_than_when_it_was_asked() {
         let look = |m: &str, ocean_enabled: bool| Look { material: format!("res://t/{m}.tres"), assets: "res://t/a.tres".into(), ocean_enabled };
         let (was, asked, other) = (look("rock", false), look("sand", true), look("snow", false));
-        let ahead = Shown { node: NodeId(7), look: asked.clone(), was: was.clone() };
-        assert!(ahead.pending(&was), "the cache has not caught up yet");
-        assert!(!ahead.pending(&asked), "the export of this change");
-        assert!(!ahead.pending(&other), "Godot changed the look before this change arrived");
-        assert!(!Shown { look: was.clone(), ..ahead }.pending(&was), "a change to what the cache already has");
+        let ahead = Shown { node: NodeId(7), look: asked.clone(), was: was.clone(), answered: None };
+        let at = Instant::now();
+        assert!(ahead.pending(&was, at), "the cache has not caught up yet");
+        assert!(!ahead.pending(&asked, at), "the export of this change");
+        assert!(!ahead.pending(&other, at), "Godot changed the look before this change arrived");
+        assert!(!Shown { look: was.clone(), ..ahead.clone() }.pending(&was, at), "a change to what the cache already has");
+
+        let answered = Shown { answered: Some(at), ..ahead };
+        assert!(answered.pending(&was, at + EXPORT_WAIT - Duration::from_millis(1)), "an export that may still land");
+        assert!(!answered.pending(&was, at + EXPORT_WAIT), "an export that never landed gives the cache's look back");
+        assert!(!answered.pending(&was, at + 3 * EXPORT_WAIT));
+        assert!(!answered.pending(&asked, at), "the export landed in time");
     }
 
     fn header(class: &str) -> String {

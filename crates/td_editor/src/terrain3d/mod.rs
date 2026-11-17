@@ -64,6 +64,12 @@ impl EditorState {
         links_in(&self.doc.map, root)
     }
 
+    /// Whether every Terrain3D cache that is read has no textures, so the Textures switch changes nothing.
+    pub fn terrain3d_without_textures(&self) -> bool {
+        let manifests: Vec<_> = self.terrain3d_links().iter().filter_map(|(_, cache)| self.terrain3d.manifest(cache)).collect();
+        !manifests.is_empty() && manifests.iter().all(|m| m.textures.is_empty())
+    }
+
     /// Keeps every open map that sent to the data folder of an apply Godot never answered unsaved, its edits may only
     /// live in the document now.
     pub(crate) fn keep_unanswered_terrain3d(&mut self, folder: &Path) {
@@ -197,7 +203,7 @@ impl EditorState {
         look.assets = change.assets.clone().unwrap_or(look.assets);
         look.ocean_enabled = change.ocean_enabled.unwrap_or(look.ocean_enabled);
         if self.send_terrain3d_settings(id, grid.region_size, grid.spacing, change) {
-            self.terrain3d_look_shown = Some(look::Shown { node: id, look, was });
+            self.terrain3d_look_shown = Some(look::Shown { node: id, look, was, answered: None });
         }
     }
 
@@ -272,8 +278,9 @@ impl EditorState {
         if let Some(answer) = self.terrain3d_bridge.poll_settings() {
             match answer {
                 Ok(settings) => {
-                    if let (Some(look), Some(ahead)) = (settings.look, &mut self.terrain3d_look_shown) {
-                        ahead.look = look;
+                    if let Some(ahead) = &mut self.terrain3d_look_shown {
+                        ahead.look = settings.look.unwrap_or_else(|| ahead.look.clone());
+                        ahead.answered = Some(Instant::now());
                     }
 
                     self.set_status(msg!("Godot changed the Terrain3D settings, save the scene in Godot to keep them"));
@@ -957,6 +964,27 @@ exit 3
         state.doc.undo();
         state.doc.undo();
         assert_eq!(changes(&state, id, &cache), vec![(L, ChangeKind::Edit, Some([4; 32]), false)], "undo past the removal sends the region back");
+    }
+
+    #[test]
+    fn a_cache_without_textures_is_told_apart_from_one_that_is_not_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, _, cache) = state_over(dir.path(), &[L, M]);
+        assert_eq!(terrain3d_cache::read_manifest(&cache).unwrap().textures.len(), 0, "the fixture has none");
+        assert!(state.terrain3d_without_textures());
+
+        let texture = |id| terrain3d_cache::ManifestTexture { id, ..Default::default() };
+        rewrite_manifest(&mut state, &cache, |m| m.textures = vec![texture(2), texture(5)]);
+        assert!(!state.terrain3d_without_textures(), "a cache with some");
+        rewrite_manifest(&mut state, &cache, |m| m.textures = vec![texture(0)]);
+        assert!(!state.terrain3d_without_textures(), "a cache with exactly one");
+
+        rewrite_manifest(&mut state, &cache, |m| m.textures.clear());
+        assert!(state.terrain3d_without_textures());
+        state.terrain3d.forget(&cache);
+        assert!(!state.terrain3d_without_textures(), "a cache that is not read says nothing");
+
+        assert!(!EditorState::new(Default::default()).terrain3d_without_textures(), "no link at all");
     }
 
     #[test]
