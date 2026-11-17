@@ -1,5 +1,5 @@
 ---
-source: 7757565706801cf3511cdef72eaa79c5eb0dc3d0
+source: 33a13c750bf063a6a063dbb590ff8baa4df796cd
 ---
 
 # Pintura de terreno { #terrain-painting }
@@ -49,7 +49,9 @@ O segundo menu da barra é a atenuação, como a força se esvai do centro do br
 
 Shift transforma pintar, ruído, inclinação e altura em apagar, e Ctrl suaviza. Ctrl+roda redimensiona o brush.
 
-(Nota: **Definir material de mistura**, **repetição**, **desladrilhar**, **nitidez** e **Aplicar ladrilhamento**, mais à direita na barra, servem para misturar faces de brush, um terreno pega essas configurações das camadas dele.)
+Para pintar os dois lados de um terreno igual em um só traço, ligue o menu de simetria logo depois de **força** e dos campos do modo, veja [Simetria](terrain.md#symmetry).
+
+A mesma ferramenta pinta um segundo material sobre faces de brush, de malha e de displacement, veja [Misturar um segundo material](texturing.md#blending-a-second-material). **Definir material de mistura**, **repetição**, **desladrilhar**, **nitidez** e **Aplicar ladrilhamento**, mais à direita na barra, servem para essas faces, um terreno pega as mesmas configurações das camadas dele.
 
 ## Pintar auto { #auto-paint }
 
