@@ -3,7 +3,7 @@
 
 use std::path::PathBuf;
 
-use td_core::{Aabb, DVec3};
+use td_core::{Aabb, DVec3, Mirror};
 use td_doc::map::{Group, Instance};
 use td_doc::{Entity, IoConnection, Map, NodeKind, format, ops};
 use td_geom::{Brush, csg};
@@ -162,7 +162,7 @@ fn geometry() -> Map {
     // Known height at the center vertex for the test.
     let center = terrain.index(8, 8);
     terrain.heights[center] = 160.0;
-    terrain.paint_layer(DVec3::new(0.0, 0.0, 0.0), 60.0, 1, 1.0);
+    terrain.paint_layer(DVec3::new(0.0, 0.0, 0.0), 60.0, 1, 1.0, &Mirror::NONE);
     m.insert(layer, NodeKind::Terrain(terrain));
 
     let mut prop = Entity::new("prop_model");

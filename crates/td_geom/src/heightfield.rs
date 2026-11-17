@@ -1,7 +1,7 @@
 //! Heightmap terrain for large outdoor areas. Heights live on a regular grid, split into chunks for rendering and collision.
 
 use serde::{Deserialize, Serialize};
-use td_core::{Aabb, DVec2, DVec3, Ray};
+use td_core::{Aabb, DVec2, DVec3, Mirror, Ray};
 
 pub const MAX_LAYERS: usize = 4;
 /// Map units between vertices. Far outside this range the grid shrinks to a point or its size overflows.
@@ -108,6 +108,10 @@ pub fn falloff(distance: f64, radius: f64) -> f64 {
 
     let t = distance / radius;
     (1.0 - t * t).powi(2)
+}
+
+fn dab_weight(at: DVec3, center: DVec3, radius: f64) -> f64 {
+    falloff(DVec2::new(at.x - center.x, at.z - center.z).length(), radius)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -424,55 +428,27 @@ impl Terrain {
         Some((lo_x as u32, (hi_x as u32).min(w - 1), lo_z as u32, (hi_z as u32).min(d - 1)))
     }
 
-    fn weight_at(&self, i: u32, j: u32, center: DVec3, radius: f64) -> f64 {
-        let p = self.origin + DVec3::new(i as f64 * self.cell_size, 0.0, j as f64 * self.cell_size);
-        falloff(DVec2::new(p.x - center.x, p.z - center.z).length(), radius)
+    /// The vertices a dab and its mirror images reach, each with its position folded onto the dab's side. A vertex in
+    /// reach of several images comes once, so a dab on a plane changes the ground as much as a single dab.
+    fn dab_vertices(&self, center: DVec3, radius: f64, mirror: &Mirror) -> impl Iterator<Item = (u32, u32, DVec3)> + use<> {
+        let (origin, cell, mirror) = (self.origin, self.cell_size, *mirror);
+        let windows: Vec<_> = mirror.folds().filter_map(|f| Some((f, self.affected(f.point(center), radius)?))).collect();
+        windows.into_iter().flat_map(move |(f, (x0, x1, z0, z1))| {
+            (z0..=z1).flat_map(move |j| (x0..=x1).map(move |i| (i, j))).filter_map(move |(i, j)| {
+                let p = origin + DVec3::new(i as f64 * cell, 0.0, j as f64 * cell);
+                (mirror.fold(p, center) == f).then(|| (i, j, f.point(p)))
+            })
+        })
     }
 
     /// Adds `amount * falloff` to the heights. Returns true if anything changed.
-    pub fn raise(&mut self, center: DVec3, radius: f64, amount: f64) -> bool {
-        let Some((x0, x1, z0, z1)) = self.affected(center, radius) else { return false };
+    pub fn raise(&mut self, center: DVec3, radius: f64, amount: f64, mirror: &Mirror) -> bool {
         let mut changed = false;
-        for j in z0..=z1 {
-            for i in x0..=x1 {
-                let w = self.weight_at(i, j, center, radius);
-                if w > 0.0 {
-                    let k = self.index(i, j);
-                    self.heights[k] += (amount * w) as f32;
-                    changed = true;
-                }
-            }
-        }
-
-        changed
-    }
-
-    /// Relaxes heights towards their neighbour average by `t` (0..1).
-    pub fn smooth(&mut self, center: DVec3, radius: f64, t: f64) -> bool {
-        let Some((x0, x1, z0, z1)) = self.affected(center, radius) else { return false };
-        let old = self.heights.clone();
-        let [w, d] = self.resolution;
-        let mut changed = false;
-        for j in z0..=z1 {
-            for i in x0..=x1 {
-                let wgt = self.weight_at(i, j, center, radius) * t.clamp(0.0, 1.0);
-                if wgt <= 0.0 {
-                    continue;
-                }
-
-                let mut sum = 0.0;
-                let mut n = 0.0;
-                for (dx, dz) in [(-1i64, 0i64), (1, 0), (0, -1), (0, 1), (-1, -1), (1, 1), (-1, 1), (1, -1)] {
-                    let (x, z) = (i as i64 + dx, j as i64 + dz);
-                    if x >= 0 && z >= 0 && x < w as i64 && z < d as i64 {
-                        sum += old[(z as u32 * w + x as u32) as usize] as f64;
-                        n += 1.0;
-                    }
-                }
-
+        for (i, j, at) in self.dab_vertices(center, radius, mirror) {
+            let w = dab_weight(at, center, radius);
+            if w > 0.0 {
                 let k = self.index(i, j);
-                let avg = sum / n;
-                self.heights[k] = (old[k] as f64 * (1.0 - wgt) + avg * wgt) as f32;
+                self.heights[k] += (amount * w) as f32;
                 changed = true;
             }
         }
@@ -480,20 +456,52 @@ impl Terrain {
         changed
     }
 
+    /// Relaxes heights towards their neighbour average by `t` (0..1).
+    pub fn smooth(&mut self, center: DVec3, radius: f64, t: f64, mirror: &Mirror) -> bool {
+        let mut vertices = self.dab_vertices(center, radius, mirror).peekable();
+        if vertices.peek().is_none() {
+            return false;
+        }
+
+        let old = self.heights.clone();
+        let [w, d] = self.resolution;
+        let mut changed = false;
+        for (i, j, at) in vertices {
+            let wgt = dab_weight(at, center, radius) * t.clamp(0.0, 1.0);
+            if wgt <= 0.0 {
+                continue;
+            }
+
+            let mut sum = 0.0;
+            let mut n = 0.0;
+            for (dx, dz) in [(-1i64, 0i64), (1, 0), (0, -1), (0, 1), (-1, -1), (1, 1), (-1, 1), (1, -1)] {
+                let (x, z) = (i as i64 + dx, j as i64 + dz);
+                if x >= 0 && z >= 0 && x < w as i64 && z < d as i64 {
+                    sum += old[(z as u32 * w + x as u32) as usize] as f64;
+                    n += 1.0;
+                }
+            }
+
+            let k = self.index(i, j);
+            let avg = sum / n;
+            self.heights[k] = (old[k] as f64 * (1.0 - wgt) + avg * wgt) as f32;
+            changed = true;
+        }
+
+        changed
+    }
+
     /// Pulls heights towards `target` (world y) by `t` (0..1).
-    pub fn flatten(&mut self, center: DVec3, radius: f64, target: f64, t: f64) -> bool {
-        let Some((x0, x1, z0, z1)) = self.affected(center, radius) else { return false };
+    pub fn flatten(&mut self, center: DVec3, radius: f64, target: f64, t: f64, mirror: &Mirror) -> bool {
         let local_target = (target - self.origin.y) as f32;
         let mut changed = false;
-        for j in z0..=z1 {
-            for i in x0..=x1 {
-                let w = (self.weight_at(i, j, center, radius) * t.clamp(0.0, 1.0)) as f32;
-                let k = self.index(i, j);
-                // The target comes from a picked point, ground already at its height is left exactly as it was.
-                if w > 0.0 && (local_target - self.heights[k]).abs() > 1e-3 {
-                    self.heights[k] += (local_target - self.heights[k]) * w;
-                    changed = true;
-                }
+        for (i, j, at) in self.dab_vertices(center, radius, mirror) {
+            let w = (dab_weight(at, center, radius) * t.clamp(0.0, 1.0)) as f32;
+            let k = self.index(i, j);
+            // The target comes from a picked point, ground already at its height is left exactly as it was.
+            if w > 0.0 && (local_target - self.heights[k]).abs() > 1e-3 {
+                self.heights[k] += (local_target - self.heights[k]) * w;
+                changed = true;
             }
         }
 
@@ -502,18 +510,17 @@ impl Terrain {
 
     /// Bumps from a noise field picked by `seed`. Callers vary the seed per dab, the same seed on every dab would grow
     /// the same bumps into spikes.
-    pub fn add_noise(&mut self, center: DVec3, radius: f64, amount: f64, seed: u32) -> bool {
-        let Some((x0, x1, z0, z1)) = self.affected(center, radius) else { return false };
+    pub fn add_noise(&mut self, center: DVec3, radius: f64, amount: f64, seed: u32, mirror: &Mirror) -> bool {
         let mut changed = false;
-        for j in z0..=z1 {
-            for i in x0..=x1 {
-                let w = self.weight_at(i, j, center, radius);
-                if w > 0.0 {
-                    let p = DVec2::new(i as f64, j as f64) * 0.37;
-                    let k = self.index(i, j);
-                    self.heights[k] += (noise2(p, seed) * amount * w) as f32;
-                    changed = true;
-                }
+        for (i, j, at) in self.dab_vertices(center, radius, mirror) {
+            let w = dab_weight(at, center, radius);
+            if w > 0.0 {
+                // A mirrored vertex samples the noise at its image, so the bumps come out as a mirror image.
+                let p = self.origin + DVec3::new(i as f64 * self.cell_size, 0.0, j as f64 * self.cell_size);
+                let index = if at == p { DVec2::new(i as f64, j as f64) } else { DVec2::new(at.x - self.origin.x, at.z - self.origin.z) / self.cell_size };
+                let k = self.index(i, j);
+                self.heights[k] += (noise2(index * 0.37, seed) * amount * w) as f32;
+                changed = true;
             }
         }
 
@@ -523,33 +530,35 @@ impl Terrain {
     /// Quantizes heights into steps of `step` units, blended by `t`. The step a vertex snaps to is chosen from the
     /// average of its neighbourhood, so a vertex sitting near a step edge follows its neighbours instead of flipping
     /// on its own into a one cell spike.
-    pub fn terrace(&mut self, center: DVec3, radius: f64, step: f64, t: f64) -> bool {
-        let Some((x0, x1, z0, z1)) = self.affected(center, radius) else { return false };
+    pub fn terrace(&mut self, center: DVec3, radius: f64, step: f64, t: f64, mirror: &Mirror) -> bool {
+        let mut vertices = self.dab_vertices(center, radius, mirror).peekable();
+        if vertices.peek().is_none() {
+            return false;
+        }
+
         let step = step.max(1e-3);
         let old = self.heights.clone();
         let [w_res, d_res] = self.resolution;
         let mut changed = false;
-        for j in z0..=z1 {
-            for i in x0..=x1 {
-                let w = self.weight_at(i, j, center, radius) * t.clamp(0.0, 1.0);
-                if w > 0.0 {
-                    let k = self.index(i, j);
-                    let h = old[k] as f64;
-                    let (mut sum, mut n) = (0.0, 0.0);
-                    for dz in -1i64..=1 {
-                        for dx in -1i64..=1 {
-                            let (x, z) = (i as i64 + dx, j as i64 + dz);
-                            if x >= 0 && z >= 0 && x < w_res as i64 && z < d_res as i64 {
-                                sum += old[(z as u32 * w_res + x as u32) as usize] as f64;
-                                n += 1.0;
-                            }
+        for (i, j, at) in vertices {
+            let w = dab_weight(at, center, radius) * t.clamp(0.0, 1.0);
+            if w > 0.0 {
+                let k = self.index(i, j);
+                let h = old[k] as f64;
+                let (mut sum, mut n) = (0.0, 0.0);
+                for dz in -1i64..=1 {
+                    for dx in -1i64..=1 {
+                        let (x, z) = (i as i64 + dx, j as i64 + dz);
+                        if x >= 0 && z >= 0 && x < w_res as i64 && z < d_res as i64 {
+                            sum += old[(z as u32 * w_res + x as u32) as usize] as f64;
+                            n += 1.0;
                         }
                     }
-
-                    let q = (sum / n / step).round() * step;
-                    self.heights[k] = (h + (q - h) * w) as f32;
-                    changed = true;
                 }
+
+                let q = (sum / n / step).round() * step;
+                self.heights[k] = (h + (q - h) * w) as f32;
+                changed = true;
             }
         }
 
@@ -626,42 +635,44 @@ impl Terrain {
     }
 
     /// Adds weight to a blend layer by `amount` (0..1 per application). See `layer_slot` for a layer the terrain lacks.
-    pub fn paint_layer(&mut self, center: DVec3, radius: f64, layer: usize, amount: f64) -> bool {
+    pub fn paint_layer(&mut self, center: DVec3, radius: f64, layer: usize, amount: f64, mirror: &Mirror) -> bool {
         let layer = self.layer_slot(layer);
         let slots = self.layers.len().clamp(1, MAX_LAYERS);
-        let Some((x0, x1, z0, z1)) = self.affected(center, radius) else { return false };
+        let mut vertices = self.dab_vertices(center, radius, mirror).peekable();
+        if vertices.peek().is_none() {
+            return false;
+        }
+
         let n = self.heights.len();
         if self.splat.len() != n * 4 {
             self.splat = (0..n).flat_map(|_| [255u8, 0, 0, 0]).collect();
         }
 
         let mut changed = false;
-        for j in z0..=z1 {
-            for i in x0..=x1 {
-                let w = self.weight_at(i, j, center, radius) * amount.clamp(0.0, 1.0);
-                if w <= 0.0 {
-                    continue;
-                }
-
-                let k = self.index(i, j) * 4;
-                let mut weights = self.weights(i, j);
-                weights.iter_mut().skip(slots).for_each(|wl| *wl = 0.0);
-                for (l, wl) in weights.iter_mut().enumerate() {
-                    let target = if l == layer { 1.0 } else { 0.0 };
-                    *wl += (target - *wl) * w as f32;
-                }
-
-                let sum: f32 = weights.iter().sum();
-                if sum > 0.0 {
-                    weights.iter_mut().for_each(|wl| *wl /= sum);
-                }
-
-                for (dst, wl) in self.splat[k..k + 4].iter_mut().zip(weights) {
-                    *dst = (wl * 255.0).round().clamp(0.0, 255.0) as u8;
-                }
-
-                changed = true;
+        for (i, j, at) in vertices {
+            let w = dab_weight(at, center, radius) * amount.clamp(0.0, 1.0);
+            if w <= 0.0 {
+                continue;
             }
+
+            let k = self.index(i, j) * 4;
+            let mut weights = self.weights(i, j);
+            weights.iter_mut().skip(slots).for_each(|wl| *wl = 0.0);
+            for (l, wl) in weights.iter_mut().enumerate() {
+                let target = if l == layer { 1.0 } else { 0.0 };
+                *wl += (target - *wl) * w as f32;
+            }
+
+            let sum: f32 = weights.iter().sum();
+            if sum > 0.0 {
+                weights.iter_mut().for_each(|wl| *wl /= sum);
+            }
+
+            for (dst, wl) in self.splat[k..k + 4].iter_mut().zip(weights) {
+                *dst = (wl * 255.0).round().clamp(0.0, 255.0) as u8;
+            }
+
+            changed = true;
         }
 
         changed
@@ -695,9 +706,12 @@ impl Terrain {
         changed
     }
 
-    /// Cuts or restores holes in the cells whose center lies within `radius`.
-    pub fn set_holes(&mut self, center: DVec3, radius: f64, hole: bool) -> bool {
-        self.set_holes_where(hole, |c| DVec2::new(c.x - center.x, c.z - center.z).length() <= radius)
+    /// Cuts or restores holes in the cells whose center lies within `radius` of the dab or one of its mirror images.
+    pub fn set_holes(&mut self, center: DVec3, radius: f64, hole: bool, mirror: &Mirror) -> bool {
+        self.set_holes_where(hole, |c| {
+            let at = mirror.fold(c, center).point(c);
+            DVec2::new(at.x - center.x, at.z - center.z).length() <= radius
+        })
     }
 
     /// Cuts or restores holes in the cells whose center lies inside the rectangle `min`..`max` (world x, z).
@@ -959,7 +973,7 @@ mod tests {
     #[test]
     fn flatten_rect_and_ramp() {
         let mut t = flat();
-        t.raise(DVec3::ZERO, 400.0, 100.0);
+        t.raise(DVec3::ZERO, 400.0, 100.0, &Mirror::NONE);
         assert!(t.flatten_rect(DVec2::new(-60.0, -60.0), DVec2::new(60.0, 60.0), 40.0, 80.0));
         assert!((t.height_at(0.0, 0.0).unwrap() - 40.0).abs() < 1e-3);
         assert!((t.height_at(59.0, -59.0).unwrap() - 40.0).abs() < 1e-3, "pad corner is flat");
@@ -976,7 +990,7 @@ mod tests {
     #[test]
     fn raise_and_ray_cast() {
         let mut t = flat();
-        assert!(t.raise(DVec3::ZERO, 100.0, 64.0));
+        assert!(t.raise(DVec3::ZERO, 100.0, 64.0, &Mirror::NONE));
         let hit = t.ray_cast(&Ray::new(DVec3::new(0.0, 500.0, 0.0), DVec3::NEG_Y)).unwrap();
         assert!((hit.1.y - 64.0).abs() < 1e-3, "{:?}", hit);
         let slanted = t.ray_cast(&Ray::new(DVec3::new(-300.0, 300.0, -300.0), DVec3::new(1.0, -1.0, 1.0))).unwrap();
@@ -987,28 +1001,28 @@ mod tests {
     #[test]
     fn smooth_flatten_terrace() {
         let mut t = flat();
-        t.raise(DVec3::ZERO, 60.0, 50.0);
+        t.raise(DVec3::ZERO, 60.0, 50.0, &Mirror::NONE);
         let peak = |t: &Terrain| t.heights.iter().cloned().fold(0.0f32, f32::max);
         let before = peak(&t);
-        t.smooth(DVec3::ZERO, 100.0, 1.0);
+        t.smooth(DVec3::ZERO, 100.0, 1.0, &Mirror::NONE);
         assert!(peak(&t) < before);
-        t.flatten(DVec3::ZERO, 400.0, 10.0, 1.0);
+        t.flatten(DVec3::ZERO, 400.0, 10.0, 1.0, &Mirror::NONE);
         let center = t.height(16, 16);
         assert!((center - 10.0).abs() < 1e-3, "center {center}");
-        t.terrace(DVec3::ZERO, 1000.0, 16.0, 1.0);
+        t.terrace(DVec3::ZERO, 1000.0, 16.0, 1.0, &Mirror::NONE);
     }
 
     #[test]
     fn paint_layers_and_holes() {
         let mut t = flat();
         t.layers.push(TerrainLayer::new("rock", 128.0));
-        assert!(t.paint_layer(DVec3::ZERO, 50.0, 1, 1.0));
+        assert!(t.paint_layer(DVec3::ZERO, 50.0, 1, 1.0, &Mirror::NONE));
         let w = t.weights(16, 16);
         assert!(w[1] > 0.99, "{w:?}");
         assert_eq!(t.weights(0, 0), [1.0, 0.0, 0.0, 0.0]);
-        assert!(t.set_holes(DVec3::ZERO, 15.0, true));
+        assert!(t.set_holes(DVec3::ZERO, 15.0, true, &Mirror::NONE));
         assert!(t.ray_cast(&Ray::new(DVec3::new(5.0, 100.0, 5.0), DVec3::NEG_Y)).is_none());
-        t.set_holes(DVec3::ZERO, 15.0, false);
+        t.set_holes(DVec3::ZERO, 15.0, false, &Mirror::NONE);
         assert!(t.holes.is_empty());
     }
 
@@ -1016,9 +1030,9 @@ mod tests {
     fn negative_scale_mirrors_heights_paint_and_holes() {
         let mut t = flat();
         t.layers.push(TerrainLayer::new("rock", 128.0));
-        t.raise(DVec3::new(-200.0, 0.0, -100.0), 80.0, 50.0);
-        t.paint_layer(DVec3::new(-200.0, 0.0, -100.0), 80.0, 1, 1.0);
-        t.set_holes(DVec3::new(-260.0, 0.0, 200.0), 30.0, true);
+        t.raise(DVec3::new(-200.0, 0.0, -100.0), 80.0, 50.0, &Mirror::NONE);
+        t.paint_layer(DVec3::new(-200.0, 0.0, -100.0), 80.0, 1, 1.0, &Mirror::NONE);
+        t.set_holes(DVec3::new(-260.0, 0.0, 200.0), 30.0, true, &Mirror::NONE);
         let shifted = td_core::DMat4::from_translation(DVec3::new(64.0, 0.0, 0.0));
         let flip_x = shifted * td_core::DMat4::from_scale(DVec3::new(-1.0, 1.0, 1.0));
         let m = t.transformed(&flip_x);
@@ -1053,7 +1067,7 @@ mod tests {
     fn clear_layer_resets_the_whole_terrain_so_repainting_is_idempotent() {
         let mut t = flat();
         t.layers.push(TerrainLayer::new("rock", 128.0));
-        t.paint_layer(DVec3::ZERO, 400.0, 1, 1.0);
+        t.paint_layer(DVec3::ZERO, 400.0, 1, 1.0, &Mirror::NONE);
         assert!(t.weights(16, 16)[1] > 0.99);
         assert!(t.clear_layer(1));
         for j in 0..t.resolution[1] {
@@ -1064,11 +1078,11 @@ mod tests {
 
         assert!(!t.clear_layer(1), "already clear, nothing changed");
         // Painting the same area twice after a clear gives the same result as painting it once.
-        t.paint_layer(DVec3::ZERO, 400.0, 1, 1.0);
+        t.paint_layer(DVec3::ZERO, 400.0, 1, 1.0, &Mirror::NONE);
         let once = t.weights(16, 16);
         t.clear_layer(1);
-        t.paint_layer(DVec3::ZERO, 400.0, 1, 1.0);
-        t.paint_layer(DVec3::ZERO, 400.0, 1, 1.0);
+        t.paint_layer(DVec3::ZERO, 400.0, 1, 1.0, &Mirror::NONE);
+        t.paint_layer(DVec3::ZERO, 400.0, 1, 1.0, &Mirror::NONE);
         assert_eq!(t.weights(16, 16), once);
     }
 
@@ -1086,11 +1100,11 @@ mod tests {
     fn paint_never_fills_a_slot_past_the_last_layer() {
         let mut t = flat();
         t.layers.push(TerrainLayer::new("rock", 128.0));
-        assert!(t.paint_layer(DVec3::ZERO, 50.0, 3, 1.0));
+        assert!(t.paint_layer(DVec3::ZERO, 50.0, 3, 1.0, &Mirror::NONE));
         let w = t.weights(16, 16);
         assert!(w[1] > 0.99 && w[2] == 0.0 && w[3] == 0.0, "layer 3 goes to the last layer, 1: {w:?}");
 
-        t.raise(DVec3::new(200.0, 0.0, 0.0), 120.0, 400.0);
+        t.raise(DVec3::new(200.0, 0.0, 0.0), 120.0, 400.0, &Mirror::NONE);
         t.auto_paint(0.35, 150.0, -50.0);
         for j in 0..t.resolution[1] {
             for i in 0..t.resolution[0] {
@@ -1127,8 +1141,8 @@ mod tests {
     fn noise_seeds_differ_and_terrace_leaves_no_single_cell_spikes() {
         let mut a = flat();
         let mut b = flat();
-        a.add_noise(DVec3::ZERO, 300.0, 10.0, 1);
-        b.add_noise(DVec3::ZERO, 300.0, 10.0, 2);
+        a.add_noise(DVec3::ZERO, 300.0, 10.0, 1, &Mirror::NONE);
+        b.add_noise(DVec3::ZERO, 300.0, 10.0, 2, &Mirror::NONE);
         assert_ne!(a.heights, b.heights);
 
         let mut t = flat();
@@ -1139,7 +1153,7 @@ mod tests {
             }
         }
 
-        t.terrace(DVec3::ZERO, 1.0e6, 64.0, 1.0);
+        t.terrace(DVec3::ZERO, 1.0e6, 64.0, 1.0, &Mirror::NONE);
         let mut spikes = 0;
         for j in 1..32 {
             for i in 1..32 {
@@ -1192,5 +1206,252 @@ mod tests {
         let scaled = t.transformed(&td_core::DMat4::from_scale(DVec3::new(1e10, 1.0, 1e10)));
         assert_eq!(scaled.cell_size, MAX_CELL_SIZE);
         assert!(scaled.check_data().is_ok());
+    }
+
+    /// An 18 by 10 vertex terrain off the origin, sloped and rippled differently along x and z, with uneven paint and
+    /// two holes, so no mirror image of it matches the original.
+    fn slanted() -> Terrain {
+        let mut t = Terrain::new(DVec3::new(-96.5, 12.0, 40.25), [18, 10], 32.0, "grass");
+        t.layers.push(TerrainLayer::new("rock", 128.0));
+        t.layers.push(TerrainLayer::new("sand", 128.0));
+        t.splat = vec![0; 18 * 10 * 4];
+        for j in 0..10 {
+            for i in 0..18 {
+                let k = t.index(i, j);
+                t.heights[k] = 3.5 * i as f32 - 2.25 * j as f32 + 0.4 * (i * j) as f32 + ((i * 7 + j * 3) % 5) as f32 * 1.5;
+                let rock = ((i * 13 + j * 29) % 120) as u8;
+                let sand = ((i * 5 + j * 11) % 60) as u8;
+                t.splat[k * 4..k * 4 + 4].copy_from_slice(&[255 - rock - sand, rock, sand, 0]);
+            }
+        }
+
+        t.holes = vec![0; 17 * 9];
+        t.holes[19] = 1;
+        t.holes[6 * 17 + 13] = 1;
+        t
+    }
+
+    type Fingerprint = (usize, f64, f64, u64, u64);
+
+    /// Heights that changed, the heights' sum and index weighted sum, and index weighted sums of the paint and holes.
+    fn fingerprint(t: &Terrain, start: &Terrain) -> Fingerprint {
+        let changed = t.heights.iter().zip(&start.heights).filter(|(a, b)| a.to_bits() != b.to_bits()).count();
+        let sum = t.heights.iter().map(|h| *h as f64).sum();
+        let weighted = t.heights.iter().enumerate().map(|(k, h)| *h as f64 * (k + 1) as f64).sum();
+        let bytes = |v: &[u8]| v.iter().enumerate().map(|(k, b)| *b as u64 * (k as u64 + 1)).sum();
+        (changed, sum, weighted, bytes(&t.splat), bytes(&t.holes))
+    }
+
+    const DAB: DVec3 = DVec3::new(60.3, 0.0, 120.7);
+    /// West of the terrain, so its window is cut off at the first column.
+    const EDGE: DVec3 = DVec3::new(-120.0, 0.0, 300.0);
+
+    #[test]
+    fn brush_ops_keep_their_results_without_a_mirror() {
+        type Op = fn(&mut Terrain) -> bool;
+        let cases: [(&str, Op, bool, Fingerprint); 11] = [
+            ("raise", |t| t.raise(DAB, 150.0, 40.0, &Mirror::NONE), true, (62, 7721.087132930756, 721867.5121896267, 16499400, 136)),
+            ("lower at the edge", |t| t.raise(EDGE, 100.0, -25.0, &Mirror::NONE), true, (11, 6730.118967294693, 660669.7599796057, 16499400, 136)),
+            (
+                "raise off the terrain",
+                |t| t.raise(DVec3::new(2000.0, 0.0, 2000.0), 150.0, 40.0, &Mirror::NONE),
+                false,
+                (0, 6826.50007379055, 674486.2596194744, 16499400, 136),
+            ),
+            ("smooth", |t| t.smooth(DAB, 150.0, 0.8, &Mirror::NONE), true, (51, 6826.704471647739, 674520.0215973854, 16499400, 136)),
+            ("flatten", |t| t.flatten(DAB, 150.0, 30.0, 0.7, &Mirror::NONE), true, (62, 6805.313695311546, 673372.7014884949, 16499400, 136)),
+            ("add_noise", |t| t.add_noise(DAB, 150.0, 20.0, 7, &Mirror::NONE), true, (62, 6844.16417080164, 674169.15728724, 16499400, 136)),
+            ("terrace", |t| t.terrace(DAB, 150.0, 16.0, 0.9, &Mirror::NONE), true, (62, 6841.326105415821, 675885.1978851557, 16499400, 136)),
+            ("paint_layer", |t| t.paint_layer(DAB, 150.0, 1, 0.6, &Mirror::NONE), true, (0, 6826.50007379055, 674486.2596194744, 16499896, 136)),
+            ("paint_layer at the edge", |t| t.paint_layer(EDGE, 100.0, 2, 1.0, &Mirror::NONE), true, (0, 6826.50007379055, 674486.2596194744, 16501564, 136)),
+            ("set_holes", |t| t.set_holes(DAB, 70.0, true, &Mirror::NONE), true, (0, 6826.50007379055, 674486.2596194744, 16499400, 768)),
+            (
+                "unset a hole",
+                |t| t.set_holes(DVec3::new(-16.5, 0.0, 88.25), 20.0, false, &Mirror::NONE),
+                true,
+                (0, 6826.50007379055, 674486.2596194744, 16499400, 116),
+            ),
+        ];
+        let start = slanted();
+        let results: Vec<_> = cases
+            .iter()
+            .map(|(_, op, _, _)| {
+                let mut t = start.clone();
+                let changed = op(&mut t);
+                (changed, fingerprint(&t, &start))
+            })
+            .collect();
+        for ((name, _, changes, golden), (changed, got)) in cases.into_iter().zip(results) {
+            assert_eq!(changed, changes, "{name}");
+            if name == "add_noise" {
+                // Noise goes through sin and cos, whose last bit differs between platform math libraries.
+                assert_eq!((got.0, got.3, got.4), (golden.0, golden.3, golden.4), "{name}");
+                assert!((got.1 - golden.1).abs() < 1e-3 && (got.2 - golden.2).abs() < 1e-1, "{name}: {got:?}");
+            } else {
+                assert_eq!(got, golden, "{name}");
+            }
+        }
+    }
+
+    /// Planes through the middle of `slanted`, at x = 175.5 and z = 184.25, where its grid is symmetric.
+    fn mirror_at_middle(x: bool, z: bool) -> Mirror {
+        let t = slanted();
+        let middle = t.origin + DVec3::new(t.size().x * 0.5, 0.0, t.size().y * 0.5);
+        Mirror { x: x.then_some(middle.x), z: z.then_some(middle.z) }
+    }
+
+    const AXES: [(bool, bool); 3] = [(true, false), (false, true), (true, true)];
+
+    type MirroredOp = fn(&mut Terrain, &Mirror) -> bool;
+
+    fn flipped(t: &Terrain, x: bool, z: bool) -> Terrain {
+        let mut t = t.clone();
+        t.mirror(x, z);
+        t
+    }
+
+    fn change(after: &Terrain, before: &Terrain) -> Vec<f32> {
+        after.heights.iter().zip(&before.heights).map(|(a, b)| a - b).collect()
+    }
+
+    fn assert_heights(got: &[f32], want: &[f32], tolerance: f32, what: &str) {
+        assert_eq!(got.len(), want.len(), "{what}");
+        for (k, (g, w)) in got.iter().zip(want).enumerate() {
+            assert!((g - w).abs() <= tolerance, "{what}: vertex {k} is {g}, want {w}");
+        }
+    }
+
+    #[test]
+    fn mirrored_dabs_give_the_mirror_image_on_a_mirrored_terrain() {
+        let ops: [(&str, MirroredOp); 8] = [
+            ("raise", |t, m| t.raise(DAB, 150.0, 40.0, m)),
+            ("smooth", |t, m| t.smooth(DAB, 150.0, 0.8, m)),
+            ("flatten", |t, m| t.flatten(DAB, 150.0, 30.0, 0.7, m)),
+            ("add_noise", |t, m| t.add_noise(DAB, 150.0, 20.0, 7, m)),
+            ("terrace", |t, m| t.terrace(DAB, 150.0, 16.0, 0.9, m)),
+            ("paint_layer", |t, m| t.paint_layer(DAB, 150.0, 1, 0.6, m)),
+            ("set_holes", |t, m| t.set_holes(DAB, 70.0, true, m)),
+            ("unset holes", |t, m| t.set_holes(DAB, 90.0, false, m)),
+        ];
+        let start = slanted();
+        for (x, z) in AXES {
+            let m = mirror_at_middle(x, z);
+            for (name, op) in ops {
+                let what = format!("{name} x {x} z {z}");
+                let mut direct = start.clone();
+                assert!(op(&mut direct, &m), "{what}");
+                let mut image = flipped(&start, x, z);
+                assert!(op(&mut image, &m), "{what}");
+                let image = flipped(&image, x, z);
+                assert_heights(&image.heights, &direct.heights, 1e-3, &what);
+                assert_eq!(image.splat.len(), direct.splat.len(), "{what}");
+                for (k, (a, b)) in image.splat.iter().zip(&direct.splat).enumerate() {
+                    assert!(a.abs_diff(*b) <= 1, "{what}: splat byte {k} is {a}, want {b}");
+                }
+
+                assert_eq!(image.holes, direct.holes, "{what}");
+                assert_ne!(direct, start, "{what}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_dab_clear_of_the_planes_repeats_its_flipped_change_on_the_far_sides() {
+        const NEAR: DVec3 = DVec3::new(40.0, 0.0, 90.0);
+        let mut bare = slanted();
+        bare.splat.clear();
+        bare.holes.clear();
+        for (x, z) in AXES {
+            let m = mirror_at_middle(x, z);
+            let flips: Vec<_> = [(false, false), (true, false), (false, true), (true, true)].into_iter().filter(|(fx, fz)| (x || !fx) && (z || !fz)).collect();
+            let height_ops: [(&str, MirroredOp); 2] =
+                [("raise", |t, m| t.raise(NEAR, 90.0, 40.0, m)), ("add_noise", |t, m| t.add_noise(NEAR, 90.0, 20.0, 3, m))];
+            for (name, op) in height_ops {
+                let mut once = bare.clone();
+                assert!(op(&mut once, &Mirror::NONE));
+                let near_change = Terrain { heights: change(&once, &bare), ..bare.clone() };
+                let mut want = vec![0.0f32; bare.heights.len()];
+                for &(fx, fz) in &flips {
+                    want.iter_mut().zip(&flipped(&near_change, fx, fz).heights).for_each(|(w, d)| *w += d);
+                }
+
+                let mut mirrored = bare.clone();
+                assert!(op(&mut mirrored, &m));
+                assert_heights(&change(&mirrored, &bare), &want, 1e-4, &format!("{name} x {x} z {z}"));
+            }
+
+            let mut once = bare.clone();
+            assert!(once.paint_layer(NEAR, 90.0, 2, 0.8, &Mirror::NONE));
+            assert!(once.set_holes(NEAR, 70.0, true, &Mirror::NONE));
+            let mut want = bare.clone();
+            want.splat = [255, 0, 0, 0].repeat(bare.heights.len());
+            want.holes = vec![0; once.holes.len()];
+            for &(fx, fz) in &flips {
+                let image = flipped(&once, fx, fz);
+                for k in 0..bare.heights.len() {
+                    if image.splat[k * 4..k * 4 + 4] != [255, 0, 0, 0] {
+                        want.splat[k * 4..k * 4 + 4].copy_from_slice(&image.splat[k * 4..k * 4 + 4]);
+                    }
+                }
+
+                want.holes.iter_mut().zip(&image.holes).for_each(|(w, h)| *w |= h);
+            }
+
+            let mut mirrored = bare.clone();
+            assert!(mirrored.paint_layer(NEAR, 90.0, 2, 0.8, &m));
+            assert!(mirrored.set_holes(NEAR, 70.0, true, &m));
+            assert_eq!(mirrored, want, "x {x} z {z}");
+            assert_eq!(want.holes.iter().filter(|h| **h != 0).count(), once.holes.iter().filter(|h| **h != 0).count() * flips.len());
+        }
+    }
+
+    #[test]
+    fn a_dab_on_the_planes_counts_once() {
+        let start = slanted();
+        let cases = [(mirror_at_middle(true, false), DVec3::new(175.5, 0.0, 150.0)), (mirror_at_middle(true, true), DVec3::new(175.5, 0.0, 184.25))];
+        for (m, on) in cases {
+            let mut single = start.clone();
+            assert!(single.raise(on, 120.0, 30.0, &Mirror::NONE));
+            let mut mirrored = start.clone();
+            assert!(mirrored.raise(on, 120.0, 30.0, &m));
+            assert_eq!(mirrored.heights, single.heights, "{m:?}");
+
+            // Just off the plane the dab and its image overlap almost entirely, and still add up to one dab.
+            let mut beside = start.clone();
+            assert!(beside.raise(on - DVec3::new(1e-9, 0.0, 1e-9), 120.0, 30.0, &m));
+            assert_heights(&beside.heights, &single.heights, 1e-4, &format!("beside {m:?}"));
+        }
+    }
+
+    #[test]
+    fn a_dab_straddling_the_plane_peaks_no_higher_than_one_dab() {
+        let start = slanted();
+        let mut t = start.clone();
+        assert!(t.raise(DVec3::new(160.0, 0.0, 120.7), 100.0, 40.0, &mirror_at_middle(true, false)));
+        let rise = change(&t, &start);
+        let peak = rise.iter().cloned().fold(0.0f32, f32::max);
+        assert!(peak > 35.0 && peak <= 40.0 + 1e-4, "{peak}");
+        let mirror_rise = flipped(&Terrain { heights: rise.clone(), ..start.clone() }, true, false).heights;
+        assert_heights(&mirror_rise, &rise, 1e-4, "straddling");
+    }
+
+    #[test]
+    fn a_dab_reaches_the_terrain_through_whichever_side_lies_on_it() {
+        let start = slanted();
+        let west = Mirror { x: Some(-150.0), z: None };
+        let on = DVec3::new(-40.0, 0.0, 150.0);
+        let off = DVec3::new(-260.0, 0.0, 150.0);
+        let mut single = start.clone();
+        assert!(single.raise(on, 70.0, 30.0, &Mirror::NONE));
+
+        let mut t = start.clone();
+        assert!(t.raise(on, 70.0, 30.0, &west), "image falls off the terrain");
+        assert_eq!(t.heights, single.heights);
+
+        let mut t = start.clone();
+        assert!(!t.raise(off, 70.0, 30.0, &Mirror::NONE));
+        assert!(t.raise(off, 70.0, 30.0, &west), "dab off the terrain, image on it");
+        assert_eq!(t.heights, single.heights);
+        assert!(!t.raise(DVec3::new(-900.0, 0.0, 150.0), 70.0, 30.0, &west), "dab and image both off the terrain");
     }
 }

@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use serde_json::{Value, json};
-use td_core::{Aabb, DVec2, DVec3, NodeId};
+use td_core::{Aabb, DVec2, DVec3, Mirror, NodeId};
 use td_doc::scatter::Rng;
 use td_doc::{IoConnection, NodeKind, ScatterItem, ops};
 
@@ -1689,7 +1689,7 @@ impl App {
 
                     let mut any = false;
                     for p in resample(&points, radius * 0.4) {
-                        any |= t.paint_layer(p, radius, layer, amount);
+                        any |= t.paint_layer(p, radius, layer, amount, &Mirror::NONE);
                     }
 
                     any
@@ -1750,7 +1750,7 @@ impl App {
                         (Some(min), Some(max)) => t.set_holes_rect(DVec2::new(min.x, min.z), DVec2::new(max.x, max.z), hole),
                         _ => {
                             let Some(c) = point(&a["center"]) else { return Err("center [x, z], or min and max [x, z], required".to_string()) };
-                            t.set_holes(c, radius, hole)
+                            t.set_holes(c, radius, hole, &Mirror::NONE)
                         }
                     }
                 }

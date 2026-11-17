@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use td_core::{DVec3, NodeId, Ray};
+use td_core::{DVec3, Mirror, NodeId, Ray};
 use td_geom::displacement::{self, Displacement};
 
 use crate::map::Map;
@@ -266,16 +266,16 @@ pub fn sculpt_terrains_single(t: &mut td_geom::Terrain, center: DVec3, brush: &S
     let r = brush.radius;
     let soft = (brush.strength.clamp(0.0, 16.0) / 16.0).clamp(0.0, 1.0);
     match brush.mode {
-        SculptMode::Raise => t.raise(center, r, brush.strength),
-        SculptMode::Lower => t.raise(center, r, -brush.strength),
-        SculptMode::Smooth => t.smooth(center, r, soft),
-        SculptMode::Flatten => t.flatten(center, r, brush.flatten_height, soft),
-        SculptMode::Noise => t.add_noise(center, r, brush.strength, brush.seed),
-        SculptMode::Terrace => t.terrace(center, r, brush.terrace_step, soft),
-        SculptMode::PaintLayer | SculptMode::PaintAlpha => t.paint_layer(center, r, brush.layer as usize, brush.strength.min(1.0)),
-        SculptMode::EraseAlpha => t.paint_layer(center, r, 0, brush.strength.min(1.0)),
-        SculptMode::Hole => t.set_holes(center, r, true),
-        SculptMode::Unhole => t.set_holes(center, r, false),
+        SculptMode::Raise => t.raise(center, r, brush.strength, &Mirror::NONE),
+        SculptMode::Lower => t.raise(center, r, -brush.strength, &Mirror::NONE),
+        SculptMode::Smooth => t.smooth(center, r, soft, &Mirror::NONE),
+        SculptMode::Flatten => t.flatten(center, r, brush.flatten_height, soft, &Mirror::NONE),
+        SculptMode::Noise => t.add_noise(center, r, brush.strength, brush.seed, &Mirror::NONE),
+        SculptMode::Terrace => t.terrace(center, r, brush.terrace_step, soft, &Mirror::NONE),
+        SculptMode::PaintLayer | SculptMode::PaintAlpha => t.paint_layer(center, r, brush.layer as usize, brush.strength.min(1.0), &Mirror::NONE),
+        SculptMode::EraseAlpha => t.paint_layer(center, r, 0, brush.strength.min(1.0), &Mirror::NONE),
+        SculptMode::Hole => t.set_holes(center, r, true, &Mirror::NONE),
+        SculptMode::Unhole => t.set_holes(center, r, false, &Mirror::NONE),
     }
 }
 
