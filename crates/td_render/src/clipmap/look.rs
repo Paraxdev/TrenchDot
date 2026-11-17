@@ -151,35 +151,32 @@ impl AlbedoLayers {
         let mut layers = vec![white; count];
         let mut entries = [TextureUniform::default(); MAX_TEXTURES];
         for t in textures {
-            let mut mean = [1.0; 3];
+            let mut mean = [1.0; 4];
             if let Albedo::Full(img) | Albedo::Thumbnail(img) = &t.albedo {
-                let mut layer = if img.dimensions() == (side, side) {
+                let layer = if img.dimensions() == (side, side) {
                     img.clone()
                 } else {
                     image::imageops::resize(img, side, side, image::imageops::FilterType::Triangle)
                 };
-                // Terrain3D keeps the height in the alpha channel.
-                layer.pixels_mut().for_each(|p| p.0[3] = 255);
                 mean = linear_mean(&layer);
                 layers[t.id as usize] = layer;
             }
 
-            entries[t.id as usize] = TextureUniform {
-                uv: [t.uv_scale, t.detiling[0], t.detiling[1], 0.0],
-                color: [t.color[0], t.color[1], t.color[2], 1.0],
-                mean: [mean[0], mean[1], mean[2], 1.0],
-            };
+            entries[t.id as usize] =
+                TextureUniform { uv: [t.uv_scale, t.detiling[0], t.detiling[1], 0.0], color: [t.color[0], t.color[1], t.color[2], 1.0], mean };
         }
 
         Self { side, layers, entries }
     }
 }
 
-fn linear_mean(img: &image::RgbaImage) -> [f32; 3] {
-    let mut sum = [0.0f64; 3];
+/// The mean linear color, and the mean of the alpha that holds Terrain3D's height.
+fn linear_mean(img: &image::RgbaImage) -> [f32; 4] {
+    let mut sum = [0.0f64; 4];
     for p in img.pixels() {
-        for (s, v) in sum.iter_mut().zip(p.0) {
-            *s += crate::srgb_to_linear(v as f32 / 255.0) as f64;
+        for (i, (s, v)) in sum.iter_mut().zip(p.0).enumerate() {
+            let v = v as f32 / 255.0;
+            *s += if i < 3 { crate::srgb_to_linear(v) } else { v } as f64;
         }
     }
 
@@ -221,7 +218,7 @@ mod tests {
     }
 
     #[test]
-    fn layers_sit_at_their_id_with_alpha_dropped() {
+    fn layers_sit_at_their_id_with_their_height_in_alpha() {
         let red = solid(512, [255, 0, 0, 40]);
         let mut half = image::RgbaImage::from_pixel(64, 64, image::Rgba([0, 0, 0, 0]));
         (0..32).for_each(|x| (0..64).for_each(|z| half.put_pixel(x, z, image::Rgba([255, 255, 255, 3]))));
@@ -234,22 +231,18 @@ mod tests {
         ];
         let got = AlbedoLayers::new(&textures);
         assert_eq!((got.side, got.layers.len()), (64, 6), "thumbnails set the side, the last id the count");
-        assert!(got.layers.iter().all(|l| l.dimensions() == (64, 64) && l.pixels().all(|p| p.0[3] == 255)));
-        assert_eq!(got.layers[3].get_pixel(17, 40).0, [255, 0, 0, 255], "the full albedo is resized to the side");
-        assert_eq!([got.layers[1].get_pixel(0, 9).0, got.layers[1].get_pixel(63, 9).0], [[255; 4], [0, 0, 0, 255]]);
+        assert!(got.layers.iter().all(|l| l.dimensions() == (64, 64)));
+        assert_eq!(got.layers[3].get_pixel(17, 40).0, [255, 0, 0, 40], "the full albedo is resized to the side");
+        assert_eq!([got.layers[1].get_pixel(0, 9).0, got.layers[1].get_pixel(63, 9).0], [[255, 255, 255, 3], [0; 4]]);
         for id in [0, 2, 4, 5] {
             assert!(got.layers[id].pixels().all(|p| p.0 == [255; 4]), "layer {id} without an image is white");
         }
 
-        let entry = |uv: [f32; 4], color: [f32; 3], mean: [f32; 3]| TextureUniform {
-            uv,
-            color: [color[0], color[1], color[2], 1.0],
-            mean: [mean[0], mean[1], mean[2], 1.0],
-        };
+        let entry = |uv: [f32; 4], color: [f32; 3], mean: [f32; 4]| TextureUniform { uv, color: [color[0], color[1], color[2], 1.0], mean };
         let mut want = [TextureUniform::default(); MAX_TEXTURES];
-        want[3] = entry([0.25, 0.5, 0.125, 0.0], [0.9, 0.8, 0.7], [1.0, 0.0, 0.0]);
-        want[1] = entry([0.25, 0.5, 0.125, 0.0], [0.9, 0.8, 0.7], [0.5, 0.5, 0.5]);
-        want[5] = entry([0.25, 0.5, 0.125, 0.0], [0.1, 0.2, 0.3], [1.0; 3]);
+        want[3] = entry([0.25, 0.5, 0.125, 0.0], [0.9, 0.8, 0.7], [1.0, 0.0, 0.0, 40.0 / 255.0]);
+        want[1] = entry([0.25, 0.5, 0.125, 0.0], [0.9, 0.8, 0.7], [0.5, 0.5, 0.5, 3.0 / 255.0 / 2.0]);
+        want[5] = entry([0.25, 0.5, 0.125, 0.0], [0.1, 0.2, 0.3], [1.0; 4]);
         assert_eq!(got.entries, want, "the first of two textures with an id counts, ids past 31 are dropped");
         assert_eq!(TextureUniform::default().color, [0.5, 0.5, 0.5, 1.0]);
 

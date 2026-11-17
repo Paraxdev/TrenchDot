@@ -30,6 +30,8 @@ struct Clipmap {
     toggles: vec4<f32>,
     // rgb: linear water color, w: map unit height of the water surface
     water: vec4<f32>,
+    // x: Terrain3D's blend sharpness
+    material: vec4<f32>,
     // Fine layer per region map location, COARSE_ONLY or NO_REGION, four to an element.
     regions: array<vec4<i32>, 256>,
     textures: array<Texture, 32>,
@@ -403,15 +405,16 @@ fn texture_uv(id: u32, world: vec2<f32>, corner: vec2<f32>, control: u32) -> vec
     return rotate(uv * t.x - center, vec2<f32>(cos(spin), sin(spin))) + center + tile * t.z - 0.5;
 }
 
-// Texture `id` at a pixel, `ddx` and `ddy` the pixel's footprint in meters.
-fn layer_color(id: u32, control: u32, world: vec2<f32>, corner: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> vec3<f32> {
+// Texture `id` at a pixel with its height in alpha, `ddx` and `ddy` the pixel's footprint in meters.
+fn layer_color(id: u32, control: u32, world: vec2<f32>, corner: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> vec4<f32> {
     let t = clip.textures[id];
     if (clip.look.z < 1.5 || id >= textureNumLayers(albedo)) {
-        return t.mean.rgb * t.color.rgb;
+        return vec4<f32>(t.mean.rgb * t.color.rgb, t.mean.a);
     }
     let k = control_scale(control) * t.uv.x;
     let uv = texture_uv(id, world, corner, control);
-    return textureSampleGrad(albedo, albedo_sampler, uv, id, ddx * k, ddy * k).rgb * t.color.rgb;
+    let s = textureSampleGrad(albedo, albedo_sampler, uv, id, ddx * k, ddy * k);
+    return vec4<f32>(s.rgb * t.color.rgb, s.a);
 }
 
 // Terrain3D's auto shader: where a vertex asks for it, or no region holds it, the slope and height of the ground mix
@@ -426,22 +429,29 @@ fn painted_control(cell: vec2<i32>, n: vec3<f32>, y: f32) -> u32 {
     return ((u32(a.z) & 31u) << BASE_SHIFT) | ((u32(a.w) & 31u) << OVERLAY_SHIFT) | ((u32(blend * 255.0 + 0.5) & 255u) << BLEND_SHIFT);
 }
 
-fn corner_color(control: u32, world: vec2<f32>, corner: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> vec3<f32> {
-    let base = (control >> BASE_SHIFT) & 31u;
-    let over = (control >> OVERLAY_SHIFT) & 31u;
-    let blend = select(f32((control >> BLEND_SHIFT) & 255u) / 255.0, 0.0, over == base);
-    var rgb = vec3<f32>(0.0);
-    if (blend < 1.0) {
-        rgb += (1.0 - blend) * layer_color(base, control, world, corner, ddx, ddy);
-    }
-    if (blend > 0.0) {
-        rgb += blend * layer_color(over, control, world, corner, ddx, ddy);
-    }
-    return rgb;
+fn control_blend(control: u32) -> f32 {
+    return f32((control >> BLEND_SHIFT) & 255u) / 255.0;
 }
 
-// The ground's color before light: the corners of the pixel's cell each mix their two textures, the four are blended
-// bilinearly and tinted by the color map.
+// How much of the pixel's cell asks for texture `id`, its corners weighed bilinearly.
+fn texture_share(id: u32, controls: array<u32, 4>, weights: array<f32, 4>) -> f32 {
+    var share = 0.0;
+    for (var i = 0u; i < 4u; i++) {
+        let blend = control_blend(controls[i]);
+        share += weights[i] * (select(0.0, 1.0 - blend, ((controls[i] >> BASE_SHIFT) & 31u) == id) + select(0.0, blend, ((controls[i] >> OVERLAY_SHIFT) & 31u) == id));
+    }
+    return share;
+}
+
+// Terrain3D's accumulate_material: a texture at a corner of bilinear weight w weighs (w + share + height)^sharpness * w,
+// so where textures meet the taller one shows through. The overlay's height is scaled by the ground's slope, which
+// Terrain3D takes from the base texture's normal map.
+fn height_weight(w: f32, share: f32, height: f32) -> f32 {
+    return exp2((60.0 * clip.material.x + 4.0) * log2(w + share + height)) * w;
+}
+
+// The ground's color before light: the textures at the corners of the pixel's cell, height blended and tinted by the
+// bilinearly blended color map.
 fn ground_albedo(world: vec3<f32>, n: vec3<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> vec3<f32> {
     if (clip.look.z < 0.5) {
         return PLAIN_GROUND;
@@ -452,19 +462,46 @@ fn ground_albedo(world: vec3<f32>, n: vec3<f32>, ddx: vec2<f32>, ddy: vec2<f32>)
     let f = q - floor(q);
     let meters = world.xz / clip.world.y;
     let cell_meters = clip.world.x / clip.world.y;
-    var rgb = vec3<f32>(0.0);
+    var controls: array<u32, 4>;
+    var weights: array<f32, 4>;
     var tint = vec3<f32>(0.0);
     for (var i = 0u; i < 4u; i++) {
         let o = vec2<i32>(i32(i & 1u), i32(i >> 1u));
-        let w = mix(1.0 - f.x, f.x, f32(o.x)) * mix(1.0 - f.y, f.y, f32(o.y));
+        weights[i] = mix(1.0 - f.x, f.x, f32(o.x)) * mix(1.0 - f.y, f.y, f32(o.y));
         let corner = c + o * stride;
-        if (w > 0.0) {
-            let control = painted_control(corner, n, world.y / clip.world.y);
-            rgb += w * corner_color(control, meters, vec2<f32>(corner) * cell_meters, ddx, ddy);
-            tint += w * color_at(corner);
+        controls[i] = painted_control(corner, n, world.y / clip.world.y);
+        if (weights[i] > 0.0) {
+            tint += weights[i] * color_at(corner);
         }
     }
-    return rgb * tint;
+    var rgb = vec3<f32>(0.0);
+    var total = 0.0;
+    for (var i = 0u; i < 4u; i++) {
+        let w = weights[i];
+        if (w <= 0.0) {
+            continue;
+        }
+        let control = controls[i];
+        let corner = vec2<f32>(c + vec2<i32>(i32(i & 1u), i32(i >> 1u)) * stride) * cell_meters;
+        let base = (control >> BASE_SHIFT) & 31u;
+        let over = (control >> OVERLAY_SHIFT) & 31u;
+        let blend = control_blend(control);
+        var up = 1.0;
+        if (blend < 1.0) {
+            let a = layer_color(base, control, meters, corner, ddx, ddy);
+            let k = height_weight(w, texture_share(base, controls, weights), a.a);
+            rgb += k * a.rgb;
+            total += k;
+            up = n.y;
+        }
+        if (blend > 0.0 && over != base) {
+            let b = layer_color(over, control, meters, corner, ddx, ddy);
+            let k = height_weight(w, texture_share(over, controls, weights), b.a * clamp(up, 0.0, 1.0));
+            rgb += k * b.rgb;
+            total += k;
+        }
+    }
+    return rgb / max(total, 1e-8) * tint;
 }
 
 @fragment

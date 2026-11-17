@@ -2371,7 +2371,7 @@ mod tests {
         assert_eq!(std::mem::size_of::<super::CameraUniform>(), 176);
         assert_eq!(std::mem::size_of::<super::MaterialUniform>(), 80);
         assert_eq!(std::mem::size_of::<super::TerrainUniform>(), 176);
-        assert_eq!(std::mem::size_of::<super::clipmap::ClipmapUniform>(), 9 * 16 + 256 * 16 + 32 * 48);
+        assert_eq!(std::mem::size_of::<super::clipmap::ClipmapUniform>(), 10 * 16 + 256 * 16 + 32 * 48);
         assert_eq!(std::mem::size_of::<super::LightsUniform>(), 28 * 4 + 64 + super::MAX_LIGHTS * 48);
         assert_eq!(std::mem::size_of::<super::WaterUniform>(), 32);
     }

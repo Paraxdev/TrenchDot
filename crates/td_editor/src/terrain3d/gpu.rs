@@ -646,6 +646,7 @@ fn params(
         wire,
         textures: prefs.terrain3d_textures,
         auto_shader,
+        blend_sharpness: m.blend_sharpness as f32,
         water: water(f64::from(upm), manifest.ocean.as_ref()).filter(|_| prefs.terrain3d_water),
     }
 }

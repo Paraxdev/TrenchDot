@@ -167,6 +167,8 @@ pub struct ClipmapParams {
     pub textures: bool,
     /// Terrain3D's auto shader, None when the material has it off.
     pub auto_shader: Option<AutoShader>,
+    /// Terrain3D's `blend_sharpness`, 0 to 1: how sharply the taller of two textures shows through where they meet.
+    pub blend_sharpness: f32,
     /// The water drawn over the ground, which hides the ground below it more the deeper it lies.
     pub water: Option<crate::Water>,
 }
@@ -195,6 +197,7 @@ impl Default for ClipmapParams {
             wire: [1.0; 4],
             textures: true,
             auto_shader: None,
+            blend_sharpness: 0.5,
             water: None,
         }
     }
@@ -213,6 +216,7 @@ pub(crate) struct ClipmapUniform {
     noise_offset: [f32; 4],
     toggles: [f32; 4],
     water: [f32; 4],
+    material: [f32; 4],
     regions: [[i32; 4]; 256],
     textures: [look::TextureUniform; look::MAX_TEXTURES],
 }
@@ -255,6 +259,7 @@ impl ClipmapUniform {
         let water = p.water.unwrap_or(crate::Water { level: 0.0, color: [0.0; 4] });
         self.toggles = [flag(p.background_shown), flag(p.water.is_some()), water.color[3], 0.0];
         self.water = [water.color[0], water.color[1], water.color[2], water.level];
+        self.material = [p.blend_sharpness.clamp(0.0, 1.0), 0.0, 0.0, 0.0];
     }
 
     fn slot(&self, i: usize) -> Slot {
@@ -1068,6 +1073,17 @@ mod tests {
     }
 
     #[test]
+    fn blend_sharpness_reaches_the_uniform_clamped() {
+        let mut u = ClipmapUniform::new(&DESC);
+        assert_eq!(u.material, [0.5, 0.0, 0.0, 0.0], "Terrain3D's default");
+        let got = [-0.25, 0.0, 0.375, 1.0, 1.5].map(|blend_sharpness| {
+            u.set_params(&ClipmapParams { blend_sharpness, ..Default::default() }, true);
+            u.material[0]
+        });
+        assert_eq!(got, [0.0, 0.0, 0.375, 1.0, 1.0]);
+    }
+
+    #[test]
     fn water_reaches_the_uniform_only_while_there_is_water() {
         let mut u = ClipmapUniform::new(&DESC);
         assert_eq!((u.toggles, u.water), ([1.0, 0.0, 0.0, 0.0], [0.0; 4]), "no water by default");
@@ -1179,15 +1195,15 @@ mod tests {
                 continue;
             }
 
-            let mut want = [0.0f32; 3];
-            for (o, weight) in [([0, 0], (1.0 - f[0]) * (1.0 - f[1])), ([1, 0], f[0] * (1.0 - f[1])), ([0, 1], (1.0 - f[0]) * f[1]), ([1, 1], f[0] * f[1])] {
-                let l = [c[0] + o[0], c[1] + o[1]];
-                let blend = if blended(l) { 128.0 / 255.0 } else { 0.0 };
-                let tint = if tinted(l) { [1.0, crate::srgb_to_linear(128.0 / 255.0), 1.0] } else { [1.0; 3] };
-                for k in 0..3 {
-                    want[k] += weight as f32 * (red[k] + (blue[k] - red[k]) * blend) * tint[k];
-                }
+            let corners = bilinear(f).map(|(o, w)| (w, control([c[0] + o[0], c[1] + o[1]])));
+            let mixed = terrain3d_mix(&corners, &[(red, 90.0 / 255.0), (blue, 90.0 / 255.0)], 0.5, SLANT_NORMAL_Y);
+            let mut tint = [0.0f32; 3];
+            for (o, weight) in bilinear(f) {
+                let t = if tinted([c[0] + o[0], c[1] + o[1]]) { [1.0, crate::srgb_to_linear(128.0 / 255.0), 1.0] } else { [1.0; 3] };
+                (0..3).for_each(|k| tint[k] += weight * t[k]);
             }
+
+            let want = [0, 1, 2].map(|k| mixed[k] * tint[k]);
 
             let off = (0..3).map(|k| (p[k] - want[k]).abs()).fold(0.0, f32::max);
             assert!(p[3] == 1.0 && off < 0.004, "pixel {i} at cell {x} {z}: {p:?}, want {want:?}");
@@ -1198,5 +1214,132 @@ mod tests {
         }
 
         assert!(base_seen > 2000 && blend_seen > 500 && tint_seen > 200 && hole_seen == 16, "{base_seen} {blend_seen} {tint_seen} {hole_seen}");
+    }
+
+    /// The up component of the normal of the slant the GPU tests give their ground, 0.03 meters per cell along x and
+    /// -0.02 along z at 1.5 meter cells.
+    const SLANT_NORMAL_Y: f32 = 0.999_711;
+
+    /// The pixel's four corner offsets with their bilinear weights, `f` its place within the cell.
+    fn bilinear(f: [f64; 2]) -> [([i64; 2], f32); 4] {
+        [([0, 0], (1.0 - f[0]) * (1.0 - f[1])), ([1, 0], f[0] * (1.0 - f[1])), ([0, 1], (1.0 - f[0]) * f[1]), ([1, 1], f[0] * f[1])].map(|(o, w)| (o, w as f32))
+    }
+
+    /// Terrain3D's accumulate_material for the albedo alone: `corners` the bilinear weight and control word of each
+    /// corner, `layers` the linear color and height of each texture id.
+    fn terrain3d_mix(corners: &[(f32, u32); 4], layers: &[([f32; 3], f32)], blend_sharpness: f32, normal_y: f32) -> [f32; 3] {
+        let decode = |c: u32| ((c >> 27) & 31, (c >> 22) & 31, ((c >> 14) & 255) as f32 / 255.0);
+        let share = |id: u32| -> f32 {
+            corners
+                .iter()
+                .map(|&(w, c)| {
+                    let (base, over, t) = decode(c);
+                    w * ((1.0 - t) * f32::from(base == id) + t * f32::from(over == id))
+                })
+                .sum()
+        };
+        let sharpness = 60.0 * blend_sharpness + 4.0;
+        let (mut rgb, mut total) = ([0.0f32; 3], 0.0f32);
+        let mut add = |id: u32, w: f32, height: f32| {
+            let k = (w + share(id) + height).powf(sharpness) * w;
+            (0..3).for_each(|i| rgb[i] += k * layers[id as usize].0[i]);
+            total += k;
+        };
+        for &(w, c) in corners.iter().filter(|(w, _)| *w > 0.0) {
+            let (base, over, t) = decode(c);
+            let mut up = 1.0f32;
+            if t < 1.0 {
+                add(base, w, layers[base as usize].1);
+                up = normal_y;
+            }
+
+            if t > 0.0 && over != base {
+                add(over, w, layers[over as usize].1 * up.clamp(0.0, 1.0));
+            }
+        }
+
+        rgb.map(|v| v / total.max(1e-8))
+    }
+
+    /// A short and a tall texture mixed at varying blends off the origin: where they meet the tall one shows through
+    /// the way Terrain3D's height blend draws it, the more so the sharper the blend.
+    #[test]
+    #[ignore = "needs a GPU"]
+    fn gpu_height_blends_toward_the_taller_texture() {
+        let (device, queue) = device(false);
+        let layout = bind_group_layout(&device);
+        let desc = ClipmapDesc { region_size: 64, layers: 1, coarse_stride: 4, atlas: [[2, -3], [2, -3]] };
+        let mut clip = GpuClipmap::new(&device, &queue, &layout, &desc).unwrap();
+        let origin = [128i64, -192];
+        let even = |l: [i64; 2]| (20..30).contains(&l[0]) && (20..30).contains(&l[1]);
+        let control = |l: [i64; 2]| -> u32 {
+            if (50..60).contains(&l[0]) {
+                return 0;
+            }
+
+            let blend = if even(l) { 128 } else { (40 + 3 * l[0] + l[1]).rem_euclid(216) + 20 };
+            (1 << 22) | ((blend as u32) << 14)
+        };
+        let local = |k: usize| [(k % 64) as i64, (k / 64) as i64];
+        let heights: Vec<f32> = (0..64 * 64).map(|k| (2.0 + 0.03 * local(k)[0] as f64 - 0.02 * local(k)[1] as f64) as f32).collect();
+        let controls: Vec<u32> = (0..64 * 64).map(|k| control(local(k))).collect();
+        clip.write_fine(&queue, 0, [0, 0], [64, 64], &heights, &controls, &vec![[255u8; 4]; 64 * 64]).unwrap();
+        clip.set_slots(&queue, &[([2, -3], Slot::Fine(0))]).unwrap();
+        let solid = |rgba: [u8; 4]| look::Albedo::Thumbnail(image::RgbaImage::from_pixel(64, 64, image::Rgba(rgba)));
+        let textures = [
+            look::ClipmapTexture { id: 0, albedo: solid([200, 40, 40, 0]), color: [1.0; 3], uv_scale: 0.1, detiling: [0.0; 2] },
+            look::ClipmapTexture { id: 1, albedo: solid([30, 60, 220, 255]), color: [1.0; 3], uv_scale: 0.3, detiling: [0.0; 2] },
+        ];
+        clip.set_textures(&device, &queue, &layout, &textures);
+        let linear = |rgb: [u8; 3]| rgb.map(|v| crate::srgb_to_linear(v as f32 / 255.0));
+        let (short, tall) = ((linear([200, 40, 40]), 0.0), (linear([30, 60, 220]), 1.0));
+
+        let (cell, upm) = (48.0f32, 32.0f32);
+        let [w, h] = [144u32, 144];
+        let eye = Vec3::new(160.1 * cell, 2000.0, -160.2 * cell);
+        let view_proj = top_down(eye, [36.0 * cell, 36.0 * cell]);
+        let fragment = "@fragment fn fs_test(f: VOut) -> @location(0) vec4<f32> { let m = f.world.xz / clip.world.y; let ddx = dpdx(m); let ddy = dpdy(m); if (dropped(f.world)) { discard; } return vec4<f32>(ground_albedo(f.world, normalize(f.normal), ddx, ddy), 1.0); }";
+        let mut tall_share = Vec::new();
+        for blend_sharpness in [0.5, 0.0] {
+            clip.set_params(&queue, &ClipmapParams { cell, upm, heights: [0.0, 300.0], blend_sharpness, ..Default::default() });
+            let pixels = draw(&device, &queue, &layout, &clip, eye, view_proj, [w, h], fragment);
+            let [mut even_share, mut even_seen, mut short_seen] = [0.0f32; 3];
+            for (i, (p, [x, z])) in pixels.iter().zip(pixel_cells(view_proj, [w, h], cell)).enumerate() {
+                let c = [x.floor() as i64 - origin[0], z.floor() as i64 - origin[1]];
+                let f = [x - x.floor(), z - z.floor()];
+                if !(1..63).contains(&c[0]) || !(1..63).contains(&c[1]) {
+                    continue;
+                }
+
+                // Note: the rasterizer snaps vertices to a subpixel grid, which moves a pixel within its cell by up to
+                // about a thousandth of a cell, and where two textures meet at sharpness 34 that shifts the color by
+                // a few hundredths. The pixel has to fall between the colors a little around it.
+                let near = [[-1.0, -1.0], [-1.0, 1.0], [1.0, -1.0], [1.0, 1.0], [0.0, 0.0]].map(|d: [f64; 2]| {
+                    let f = [0, 1].map(|k| (f[k] + 0.002 * d[k]).clamp(0.0, 1.0));
+                    terrain3d_mix(&bilinear(f).map(|(o, w)| (w, control([c[0] + o[0], c[1] + o[1]]))), &[short, tall], blend_sharpness, SLANT_NORMAL_Y)
+                });
+                let fits = (0..3).all(|k| {
+                    let lo = near.iter().map(|n| n[k]).fold(f32::INFINITY, f32::min);
+                    let hi = near.iter().map(|n| n[k]).fold(f32::NEG_INFINITY, f32::max);
+                    (lo - 0.004..=hi + 0.004).contains(&p[k])
+                });
+                assert!(p[3] == 1.0 && fits, "sharpness {blend_sharpness} pixel {i} at cell {x} {z}: {p:?}, want about {:?}", near[4]);
+                let share = (p[2] - short.0[2]) / (tall.0[2] - short.0[2]);
+                if [[0, 0], [1, 1]].iter().all(|o| even([c[0] + o[0], c[1] + o[1]])) {
+                    even_share += share;
+                    even_seen += 1.0;
+                }
+
+                if [[0, 0], [1, 1]].iter().all(|o| (50..60).contains(&(c[0] + o[0]))) {
+                    assert!(share.abs() < 0.004, "where no corner blends the short texture shows alone: {p:?}");
+                    short_seen += 1.0;
+                }
+            }
+
+            assert!(even_seen > 100.0 && short_seen > 100.0, "{even_seen} {short_seen}");
+            tall_share.push(even_share / even_seen);
+        }
+
+        assert!(tall_share[0] > 0.99 && (0.9..0.98).contains(&tall_share[1]), "at an even blend the tall texture covers {tall_share:?}");
     }
 }
