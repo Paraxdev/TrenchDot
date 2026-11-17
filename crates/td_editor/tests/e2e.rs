@@ -9867,6 +9867,18 @@ fn terrain3d_tool_reports_sends_resolves_and_probes() {
 
     assert!(fails(json!({ "op": "resolve", "id": node, "region": [0, 0], "take": "godot" })).contains("no edit of yours"));
     assert!(fails(json!({ "op": "resolve", "id": node, "region": [1, 0], "take": "both" })).contains("take"));
+    t3d(json!({ "op": "regions", "id": node, "add": [[-2, 1]] }));
+    let unsent = fails(json!({ "op": "resolve", "id": node, "region": [-2, 1], "take": "godot" }));
+    for fact in ["[-2, 1]", "unsent add", "not a conflict", "discard: true"] {
+        assert!(unsent.contains(fact), "{fact} missing from {unsent}");
+    }
+
+    let changed = t3d(json!({ "op": "info", "id": node }))["changed"].clone();
+    assert_eq!(changed, json!([{ "loc": [1, 0], "kind": "edit", "conflict": true }, { "loc": [-2, 1], "kind": "add", "conflict": false }]));
+    assert!(fails(json!({ "op": "resolve", "id": node, "region": [-2, 1], "take": "mine", "discard": true })).contains("discard"));
+    let dropped = t3d(json!({ "op": "resolve", "id": node, "region": [-2, 1], "take": "godot", "discard": true }));
+    assert_eq!((dropped["take"].clone(), dropped["was_conflict"].clone(), dropped["kind"].clone()), (json!("godot"), json!(false), json!("add")));
+    assert_eq!(t3d(json!({ "op": "info", "id": node }))["changed"], json!([{ "loc": [1, 0], "kind": "edit", "conflict": true }]));
     let godots = t3d(json!({ "op": "resolve", "id": node, "region": [1, 0], "take": "godot" }));
     assert_eq!((godots["was_conflict"].clone(), godots["kind"].clone()), (json!(true), json!("edit")));
     assert_eq!(t3d(json!({ "op": "info", "id": node }))["changed"], json!([]));

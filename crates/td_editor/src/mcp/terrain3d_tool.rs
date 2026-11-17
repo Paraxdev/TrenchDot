@@ -103,6 +103,7 @@ fn parse_grow(a: &Value) -> Result<(Grow, bool), String> {
 enum Take {
     Godot,
     Mine,
+    Discard,
 }
 
 fn parse_resolve(a: &Value) -> Result<(Loc, Take), String> {
@@ -110,8 +111,14 @@ fn parse_resolve(a: &Value) -> Result<(Loc, Take), String> {
         Value::Null => return Err("region [x, y] required".into()),
         v => loc_of(v)?,
     };
+    let discard = match &a["discard"] {
+        Value::Null => false,
+        v => v.as_bool().ok_or_else(|| format!("discard must be true or false, got {v}"))?,
+    };
     match a["take"].as_str() {
+        Some("godot") if discard => Ok((loc, Take::Discard)),
         Some("godot") => Ok((loc, Take::Godot)),
+        Some("mine") if discard => Err("discard goes with take godot, take mine sends the edit".into()),
         Some("mine") => Ok((loc, Take::Mine)),
         _ => Err("take must be godot (drop my edit) or mine (send it over Godot's)".into()),
     }
@@ -120,6 +127,14 @@ fn parse_resolve(a: &Value) -> Result<(Loc, Take), String> {
 /// Why `take` cannot settle `change` on a terrain of `region_size`. Godot refuses an edit made at another region size
 /// whatever it is sent over, so only dropping it settles the region.
 fn resolve_refusal(change: &RegionChange, take: &Take, region_size: u32) -> Option<String> {
+    if matches!(take, Take::Godot) && !change.conflict {
+        return Some(format!(
+            "region {:?} has your unsent {}, which is not a conflict. Send it or take mine to give it to Godot, undo it, or pass discard: true to drop it",
+            change.loc,
+            kind_name(change.kind)
+        ));
+    }
+
     let edit = change.region.as_ref().filter(|_| change.resized && matches!(take, Take::Mine))?;
     Some(format!(
         "region {:?} was made at region size {}, Godot's terrain uses {region_size}. Take godot to drop the edit, or set region_size back to {} with the settings op",
@@ -534,7 +549,7 @@ impl App {
         }
 
         match take {
-            Take::Godot => {
+            Take::Godot | Take::Discard => {
                 self.state.terrain3d_editable(id)?;
                 self.state.use_godots_terrain3d(id, loc);
             }
@@ -542,7 +557,7 @@ impl App {
         }
 
         let taken = match take {
-            Take::Godot => "godot",
+            Take::Godot | Take::Discard => "godot",
             Take::Mine => "mine",
         };
         Ok(json!({ "id": id.0, "region": loc, "take": taken, "was_conflict": change.conflict, "kind": kind_name(change.kind) }))
@@ -645,6 +660,12 @@ mod tests {
         assert!(parse_resolve(&json!({ "region": [0, 1] })).unwrap_err().contains("take"));
         assert!(parse_resolve(&json!({ "region": [0, 1], "take": "both" })).is_err());
         assert!(parse_resolve(&json!({ "region": [16, 1], "take": "mine" })).is_err());
+        let discard = |take: &str, discard: Value| parse_resolve(&json!({ "region": [3, -7], "take": take, "discard": discard }));
+        assert!(matches!(discard("godot", json!(true)), Ok(([3, -7], Take::Discard))));
+        assert!(matches!(discard("godot", json!(false)), Ok(([3, -7], Take::Godot))));
+        assert!(matches!(discard("mine", json!(false)), Ok(([3, -7], Take::Mine))));
+        assert!(discard("mine", json!(true)).unwrap_err().contains("discard goes with take godot"));
+        assert!(discard("godot", json!("yes")).unwrap_err().contains("discard must be true or false, got \"yes\""));
     }
 
     #[test]
@@ -666,6 +687,28 @@ mod tests {
         assert_eq!(resolve_refusal(&edit([5, -2], 128, false), &Take::Mine, 128), None);
         let removal = RegionChange { region: None, kind: ChangeKind::Remove, ..edit([0, 0], 64, false) };
         assert_eq!(resolve_refusal(&removal, &Take::Mine, 128), None);
+    }
+
+    #[test]
+    fn take_godot_settles_only_a_conflict() {
+        let change = |kind: ChangeKind, conflict: bool| RegionChange {
+            loc: [-4, 9],
+            kind,
+            region: (kind != ChangeKind::Remove).then(|| std::sync::Arc::new(td_geom::terrain3d::Region3D::blank([-4, 9], 64))),
+            base_hash: None,
+            conflict,
+            resized: false,
+        };
+        for kind in [ChangeKind::Add, ChangeKind::Edit, ChangeKind::Remove] {
+            let refusal = resolve_refusal(&change(kind, false), &Take::Godot, 64).unwrap_or_default();
+            for fact in ["[-4, 9]".to_string(), format!("unsent {}", kind_name(kind)), "not a conflict".into(), "discard: true".into()] {
+                assert!(refusal.contains(&fact), "{fact} missing from {refusal:?}");
+            }
+
+            assert_eq!(resolve_refusal(&change(kind, true), &Take::Godot, 64), None, "{kind:?} conflict");
+            assert_eq!(resolve_refusal(&change(kind, false), &Take::Mine, 64), None, "{kind:?} sent as mine");
+            assert_eq!(resolve_refusal(&change(kind, false), &Take::Discard, 64), None, "{kind:?} discarded");
+        }
     }
 
     #[test]
