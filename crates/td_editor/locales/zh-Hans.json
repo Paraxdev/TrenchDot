@@ -2333,6 +2333,7 @@
   "Made {n} mirrored copy across {axis} at {at} u. Edits in either half show in both": { "other": "已沿 {axis} 在 {at} u 创建 {n} 个镜像副本，编辑任一半都会同步" },
   "Select objects or groups to mirror linked": "请选择要关联镜像的对象或组",
   "Mirror plane {axis} at {at} u": "镜像平面 {axis}，位于 {at} u",
+  "Moved {n} mirrored vertex too": { "other": "同时移动了 {n} 个镜像顶点" },
   "Apply Mirror": "应用镜像",
   "Merges the selected mirrored halves into plain geometry, joined where they meet": "把选中的镜像两半合并为普通几何体，相接处连在一起",
   "Select one half of a mirrored pair": "请选择镜像对的其中一半",

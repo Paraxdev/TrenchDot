@@ -5566,3 +5566,69 @@ fn apply_mirror_joins_brushes_and_welds_meshes() {
     assert!(ed.state()["mirror_planes"].as_array().unwrap().is_empty());
     assert_eq!(ed.call("validate_map", json!({}))["count"], 0);
 }
+
+#[test]
+#[ignore]
+fn vertex_symmetry_moves_the_mirrored_corner() {
+    let ed = Editor::launch("vertex_symmetry");
+    let a = ed.box_brush([10.0, 5.0, -30.0], [90.0, 45.0, 20.0]);
+    ed.call("select", json!({ "ids": [a] }));
+    let before = vertices_of(&ed, a);
+    assert_eq!(ed.state()["editor"]["edit_symmetry"]["axis"], Value::Null, "off to start with");
+
+    ed.call("set_editor", json!({ "edit_symmetry": "x" }));
+    let set = ed.state()["editor"]["edit_symmetry"].clone();
+    assert_eq!(set, json!({ "axis": "x", "plane": "center", "at": 0.0 }), "{set}");
+
+    let undo_before = ed.state()["undo"].as_array().unwrap().len();
+    let reply = ed.call("run_action", json!({ "action": "move_vertices", "args": { "vertices": [[10, 45, 20]], "offset": [3, -6, 2] } }));
+    assert_eq!(reply["mirrored"], 1, "{reply}");
+    let moved = vertices_of(&ed, a);
+    for want in [[13000, 39000, 22000], [87000, 39000, 22000]] {
+        assert!(moved.contains(&want), "no corner at {want:?} in {moved:?}");
+    }
+
+    assert!(!moved.contains(&[10000, 45000, 20000]) && !moved.contains(&[90000, 45000, 20000]), "both old corners are gone {moved:?}");
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), undo_before + 1, "the pair is one undo step");
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(vertices_of(&ed, a), before);
+
+    // Front and back corners overlap in the front view, and either one has a counterpart across x 50.
+    ed.call("run_action", json!({ "action": "set_tool", "args": { "tool": "vertex" } }));
+    ed.call("set_camera", json!({ "view": "front", "center": [50, 25, 0], "zoom": 2.0 }));
+    ed.input("front", json!([{ "type": "drag", "world": [90, 45, 20], "to_world": [122, 45, 20] }]));
+    let status = ed.state()["status"].as_str().unwrap().to_string();
+    assert!(status.contains("Moved 1 mirrored vertex too"), "a drag says its counterpart moved: {status}");
+    let dragged = vertices_of(&ed, a);
+    let at = |x: i64| [20000, -30000].iter().any(|z| dragged.contains(&[x, 45000, *z]));
+    assert!(at(122000) && at(-22000), "the corner and its counterpart moved apart {dragged:?}");
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(vertices_of(&ed, a), before);
+    ed.call("set_editor", json!({ "tool": "select" }));
+
+    ed.call("set_editor", json!({ "edit_symmetry": "off" }));
+    let alone = ed.call("run_action", json!({ "action": "move_vertices", "args": { "vertices": [[10, 45, 20]], "offset": [3, -6, 2] } }));
+    assert_eq!(alone["mirrored"], 0, "{alone}");
+    let one = vertices_of(&ed, a);
+    assert!(one.contains(&[13000, 39000, 22000]) && one.contains(&[90000, 45000, 20000]), "only the picked corner moved {one:?}");
+    ed.call("run_action", json!({ "action": "undo" }));
+
+    let refused = ed.call_err("set_editor", json!({ "edit_symmetry": { "axis": "x", "plane": "max" } }));
+    assert!(refused.contains("edit_symmetry plane must be center, world or custom"), "{refused}");
+    assert_eq!(ed.state()["editor"]["edit_symmetry"]["axis"], Value::Null, "a refused value changes nothing");
+
+    // The second box is thin in z, so the mirrored pull dents it and the first box must stay put as well.
+    let c = ed.box_brush([0.0, 0.0, 0.0], [64.0, 64.0, 64.0]);
+    let b = ed.box_brush([80.0, 0.0, 0.0], [144.0, 64.0, 16.0]);
+    ed.call("select", json!({ "ids": [c, b] }));
+    let (c_before, b_before) = (vertices_of(&ed, c), vertices_of(&ed, b));
+    let pull = json!({ "action": "move_vertices", "args": { "vertices": [[64, 64, 0]], "offset": [-24, -24, 10] } });
+    ed.call("set_editor", json!({ "edit_symmetry": "off" }));
+    assert_eq!(ed.call("run_action", pull.clone())["mirrored"], 0, "alone the first box takes the pull");
+    ed.call("run_action", json!({ "action": "undo" }));
+
+    ed.call("set_editor", json!({ "edit_symmetry": "x" }));
+    let why = ed.call_err("run_action", pull);
+    assert!(why.contains("concave"), "{why}");
+    assert_eq!((vertices_of(&ed, c), vertices_of(&ed, b)), (c_before, b_before), "a refused symmetric move changes no brush");
+}

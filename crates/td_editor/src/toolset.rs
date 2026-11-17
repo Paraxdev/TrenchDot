@@ -5,7 +5,7 @@ use td_geom::Brush;
 use td_render::LineVertex;
 
 use crate::camera::{Camera, ViewKind};
-use crate::i18n::{Msg, en, msg, tr, trf};
+use crate::i18n::{Msg, en, msg, msg_n, tr, trf};
 use crate::picking;
 use crate::scene::v3;
 use crate::state::EditorState;
@@ -763,11 +763,15 @@ impl ToolSet {
             {
                 state.doc.reset_transaction();
                 let base = drag.base.clone();
-                if move_vertices(state, &base, delta) {
-                    self.vertex.selected = base.iter().map(|b| *b + delta).collect();
-                    self.clear_refusal(state);
-                } else {
-                    self.refuse(state, &base, drag.start, delta);
+                match try_move_vertices(state, &base, delta) {
+                    Some(mirrored) => {
+                        self.vertex.selected = base.iter().map(|b| *b + delta).collect();
+                        self.clear_refusal(state);
+                        if mirrored > 0 {
+                            state.set_status(moved_mirrored(mirrored));
+                        }
+                    }
+                    None => self.refuse(state, &base, drag.start, delta),
                 }
             }
 
@@ -788,12 +792,17 @@ impl ToolSet {
                     let offset = ray.at(t) - start;
                     let delta = unit_axis(axis) * state.snap_scalar(offset[axis]);
                     state.doc.reset_transaction();
-                    if move_vertices(state, &[base], delta) {
+                    if let Some(mirrored) = try_move_vertices(state, &[base], delta) {
                         self.vertex.selected = vec![base + delta];
                         self.vertex.gizmo = Some(base + delta);
                         self.vertex.refused = None;
                         let at = base + delta;
-                        state.set_status(msg!("Vertex {x} {y} {z}", x = format!("{:.3}", at.x), y = format!("{:.3}", at.y), z = format!("{:.3}", at.z)));
+                        let mut status = msg!("Vertex {x} {y} {z}", x = format!("{:.3}", at.x), y = format!("{:.3}", at.y), z = format!("{:.3}", at.z));
+                        if mirrored > 0 {
+                            status = status.then(". ", moved_mirrored(mirrored));
+                        }
+
+                        state.set_status(status);
                     } else {
                         self.refuse(state, &[base], base, delta);
                     }
@@ -1618,58 +1627,106 @@ fn vertex_drag_delta(state: &EditorState, cam: &Camera, rect: Rect, drag: &Verte
 
 /// Why `move_vertices` refuses: a target inside or flat on a brush it moves is a dent, and brushes are convex.
 fn refusal_reason(state: &EditorState, base: &[DVec3], delta: DVec3) -> &'static str {
+    let moves = vertex_moves(state, base, delta);
     let brushes = state.doc.selection.brushes(&state.doc.map);
     let dent =
-        brushes.into_iter().filter_map(|id| state.doc.map.brush(id)).any(|b| base.iter().any(|bp| b.contains_point(*bp) && b.contains_point(*bp + delta)));
+        brushes.into_iter().filter_map(|id| state.doc.map.brush(id)).any(|b| moves.iter().any(|(p, d)| b.contains_point(*p) && b.contains_point(*p + *d)));
     if dent { DENT_REASON } else { REFUSED_REASON }
+}
+
+/// The `(position, delta)` moves of one vertex edit: `base` by `delta`, plus the mirrored counterparts while the edit
+/// symmetry is on. Counterparts come from the selected brushes as they are now, so a drag looks them up on the map it
+/// started from.
+fn vertex_moves(state: &EditorState, base: &[DVec3], delta: DVec3) -> Vec<(DVec3, DVec3)> {
+    let map = &state.doc.map;
+    let brushes: Vec<&Brush> = state.doc.selection.brushes(map).into_iter().filter_map(|id| map.brush(id)).collect();
+    let bounds = brushes.iter().fold(Aabb::EMPTY, |acc, b| acc.union(&b.bounds()));
+    match state.edit_symmetry.plane(&bounds) {
+        Some(plane) => td_geom::symmetry::symmetric_moves(&brushes, base, delta, plane, td_doc::symmetry::MIRROR_TOLERANCE),
+        None => base.iter().map(|p| (*p, delta)).collect(),
+    }
+}
+
+/// What `moves` do to one brush.
+enum Moved {
+    Untouched,
+    Refused,
+    To(Brush),
+}
+
+fn move_brush(b: &Brush, moves: &[(DVec3, DVec3)]) -> Moved {
+    let mut pts = b.vertices.clone();
+    let mut touched = false;
+    for (bp, delta) in moves {
+        match pts.iter().position(|v| (*v - *bp).length() < 1e-6) {
+            Some(i) => {
+                pts[i] += *delta;
+                touched = true;
+            }
+            None => {
+                // Edge midpoint or face center: only valid if it lies on this brush's surface.
+                if b.faces.iter().any(|f| f.plane.distance(*bp).abs() < 1e-4) && b.contains_point(*bp) && !b.vertices.iter().any(|v| (*v - *bp).length() < 1e-6)
+                {
+                    pts.push(*bp + *delta);
+                    touched = true;
+                }
+            }
+        }
+    }
+
+    if !touched {
+        return Moved::Untouched;
+    }
+
+    let Ok(nb) = Brush::from_points(&pts, &b.planes(), "") else { return Moved::Refused };
+    let kept = moves.iter().all(|(bp, delta)| {
+        let target = *bp + *delta;
+        !b.contains_point(*bp) || nb.vertices.iter().any(|v| (*v - target).length() < 1e-3)
+    });
+    if kept { Moved::To(nb) } else { Moved::Refused }
 }
 
 /// Moves the selected brushes' vertices at `base` (or new ones on an edge or face) by `delta`, like the vertex tool.
 /// Brushes that would turn concave or lose a moved vertex are left alone.
-pub(crate) fn move_vertices(state: &mut EditorState, base: &[DVec3], delta: DVec3) -> bool {
+#[cfg(test)]
+fn move_vertices(state: &mut EditorState, base: &[DVec3], delta: DVec3) -> bool {
+    try_move_vertices(state, base, delta).is_some()
+}
+
+/// `move_vertices` that says how many counterparts moved with the edit. While the edit symmetry is on the move is all
+/// or nothing, so a mirrored half never drifts from its counterpart, and the map is left as it was when it refuses.
+pub(crate) fn try_move_vertices(state: &mut EditorState, base: &[DVec3], delta: DVec3) -> Option<usize> {
+    let moves = vertex_moves(state, base, delta);
+    let mirrored = moves.len() - base.len();
+    let atomic = state.edit_symmetry.axis.is_some();
     let brushes: Vec<NodeId> = state.doc.selection.brushes(&state.doc.map);
-    let mut any = false;
+    let mut moved: Vec<(NodeId, Brush)> = Vec::new();
+    for id in brushes {
+        let Some(b) = state.doc.map.brush(id) else { continue };
+        match move_brush(b, &moves) {
+            Moved::To(nb) => moved.push((id, nb)),
+            Moved::Refused if atomic => return None,
+            Moved::Refused | Moved::Untouched => {}
+        }
+    }
+
+    if moved.is_empty() {
+        return None;
+    }
+
     state.doc.edit("Move Vertices", |m, _| {
-        for id in brushes {
-            let Some(b) = m.brush(id).cloned() else { continue };
-            let mut pts = b.vertices.clone();
-            let mut touched = false;
-            for bp in base {
-                match pts.iter().position(|v| (*v - *bp).length() < 1e-6) {
-                    Some(i) => {
-                        pts[i] += delta;
-                        touched = true;
-                    }
-                    None => {
-                        // Edge midpoint or face center: only valid if it lies on this brush's surface.
-                        if b.faces.iter().any(|f| f.plane.distance(*bp).abs() < 1e-4)
-                            && b.contains_point(*bp)
-                            && !b.vertices.iter().any(|v| (*v - *bp).length() < 1e-6)
-                        {
-                            pts.push(*bp + delta);
-                            touched = true;
-                        }
-                    }
-                }
-            }
-
-            if !touched {
-                continue;
-            }
-
-            if let Ok(nb) = Brush::from_points(&pts, &b.planes(), "") {
-                let kept = base.iter().all(|bp| {
-                    let target = *bp + delta;
-                    !b.contains_point(*bp) || nb.vertices.iter().any(|v| (*v - target).length() < 1e-3)
-                });
-                if kept && let Some(slot) = m.brush_mut(id) {
-                    *slot = nb;
-                    any = true;
-                }
+        for (id, nb) in moved {
+            if let Some(slot) = m.brush_mut(id) {
+                *slot = nb;
             }
         }
     });
-    any
+    Some(mirrored)
+}
+
+/// The status after a move that took `n` counterparts across the edit symmetry plane along.
+pub(crate) fn moved_mirrored(n: usize) -> Msg {
+    msg_n!(n, "Moved {n} mirrored vertex too", "Moved {n} mirrored vertices too")
 }
 
 fn seg_screen_dist(cam: &Camera, rect: Rect, a: DVec3, b: DVec3, pos: Pos2) -> f32 {
@@ -2376,6 +2433,207 @@ mod tests {
         let b = state.doc.map.brush(id).unwrap();
         assert!(b.vertices.iter().any(|v| (*v - DVec3::new(64.0, 40.0, 64.0)).length() < 1e-6));
         assert!(!move_vertices(&mut state, &[DVec3::new(1.0, 2.0, 3.0)], DVec3::X), "a point off the brush moves nothing");
+    }
+
+    fn hull(points: &[DVec3]) -> Brush {
+        Brush::from_points(points, &[], "dev/grey").unwrap()
+    }
+
+    fn insert_brushes(state: &mut EditorState, brushes: Vec<Brush>) -> Vec<NodeId> {
+        let layer = state.doc.map.default_layer();
+        state.doc.edit("brushes", |m, s| {
+            brushes
+                .into_iter()
+                .map(|b| {
+                    let id = m.insert(layer, td_doc::NodeKind::Brush(b));
+                    s.select_node(id);
+                    id
+                })
+                .collect()
+        })
+    }
+
+    fn corners(state: &EditorState, id: NodeId) -> Vec<DVec3> {
+        let mut v = state.doc.map.brush(id).unwrap().vertices.clone();
+        v.sort_by(|a, b| a.to_array().partial_cmp(&b.to_array()).unwrap());
+        v
+    }
+
+    fn with_corners(mut v: Vec<DVec3>, edits: &[(DVec3, DVec3)]) -> Vec<DVec3> {
+        for (from, to) in edits {
+            let i = v.iter().position(|p| p.distance(*from) < 1e-6).unwrap_or_else(|| panic!("no corner at {from:?}"));
+            v[i] = *to;
+        }
+
+        v.sort_by(|a, b| a.to_array().partial_cmp(&b.to_array()).unwrap());
+        v
+    }
+
+    fn assert_corners(got: &[DVec3], want: &[DVec3]) {
+        assert_eq!(got.len(), want.len(), "{got:?} against {want:?}");
+        for (g, w) in got.iter().zip(want) {
+            assert!(g.distance(*w) < 1e-6, "{got:?} against {want:?}");
+        }
+    }
+
+    fn symmetry_x(at: td_doc::symmetry::PlaneAt, custom: f64) -> td_doc::symmetry::EditSymmetry {
+        td_doc::symmetry::EditSymmetry { axis: Some(0), plane: td_doc::symmetry::PlaneChoice { at, custom } }
+    }
+
+    /// A trapezoid prism off the origin, mirror symmetric across x 37.5 and slanted in z at the top.
+    fn trapezoid() -> Brush {
+        hull(&[
+            DVec3::new(-20.0, 0.0, 10.0),
+            DVec3::new(95.0, 0.0, 10.0),
+            DVec3::new(95.0, 0.0, 60.0),
+            DVec3::new(-20.0, 0.0, 60.0),
+            DVec3::new(10.0, 40.0, 25.0),
+            DVec3::new(65.0, 40.0, 25.0),
+            DVec3::new(65.0, 40.0, 50.0),
+            DVec3::new(10.0, 40.0, 50.0),
+        ])
+    }
+
+    #[test]
+    fn a_symmetric_corner_move_takes_its_mirror_along_in_one_undo_step() {
+        use td_doc::symmetry::PlaneAt;
+        let mut state = EditorState::new(Default::default());
+        let id = insert_brushes(&mut state, vec![trapezoid()])[0];
+        let before = corners(&state, id);
+        let steps = state.doc.history.undo_labels().count();
+        state.edit_symmetry = symmetry_x(PlaneAt::Center, 0.0);
+
+        let (left, right) = (DVec3::new(10.0, 40.0, 25.0), DVec3::new(65.0, 40.0, 25.0));
+        assert_eq!(try_move_vertices(&mut state, &[left], DVec3::new(3.0, 2.0, -1.0)), Some(1));
+        assert_corners(&corners(&state, id), &with_corners(before.clone(), &[(left, DVec3::new(13.0, 42.0, 24.0)), (right, DVec3::new(62.0, 42.0, 24.0))]));
+        assert_eq!(state.doc.history.undo_labels().count(), steps + 1);
+        assert_eq!(state.doc.history.undo_labels().next(), Some("Move Vertices"));
+
+        state.doc.undo();
+        assert_corners(&corners(&state, id), &before);
+    }
+
+    #[test]
+    fn symmetry_off_and_a_missing_counterpart_move_the_corner_alone() {
+        use td_doc::symmetry::PlaneAt;
+        let mut state = EditorState::new(Default::default());
+        let id = insert_brushes(&mut state, vec![trapezoid()])[0];
+        let before = corners(&state, id);
+        let (left, right) = (DVec3::new(10.0, 40.0, 25.0), DVec3::new(65.0, 40.0, 25.0));
+        let delta = DVec3::new(3.0, 2.0, -1.0);
+
+        assert_eq!(try_move_vertices(&mut state, &[left], delta), Some(0), "off moves one corner");
+        assert_corners(&corners(&state, id), &with_corners(before.clone(), &[(left, left + delta)]));
+
+        state.doc.undo();
+        state.edit_symmetry = symmetry_x(PlaneAt::World, 0.0);
+        assert_eq!(try_move_vertices(&mut state, &[right], delta), Some(0), "no counterpart across x 0, so it moves alone");
+        assert_corners(&corners(&state, id), &with_corners(before.clone(), &[(right, right + delta)]));
+
+        state.doc.undo();
+        state.edit_symmetry = symmetry_x(PlaneAt::Custom, 37.5);
+        assert_eq!(try_move_vertices(&mut state, &[right], delta), Some(1), "a typed plane finds it");
+        state.doc.undo();
+        state.edit_symmetry = symmetry_x(PlaneAt::Custom, 38.5);
+        assert_eq!(try_move_vertices(&mut state, &[right], delta), Some(0), "a plane a unit off is out of reach");
+    }
+
+    #[test]
+    fn a_selected_counterpart_moves_as_selected() {
+        use td_doc::symmetry::PlaneAt;
+        let mut state = EditorState::new(Default::default());
+        let id = insert_brushes(&mut state, vec![trapezoid()])[0];
+        let before = corners(&state, id);
+        state.edit_symmetry = symmetry_x(PlaneAt::Center, 0.0);
+
+        let (left, right) = (DVec3::new(10.0, 40.0, 25.0), DVec3::new(65.0, 40.0, 25.0));
+        let delta = DVec3::new(3.0, 2.0, -1.0);
+        assert_eq!(try_move_vertices(&mut state, &[left, right], delta), Some(0), "both selected, nothing follows twice");
+        assert_corners(&corners(&state, id), &with_corners(before, &[(left, left + delta), (right, right + delta)]));
+    }
+
+    #[test]
+    fn mirrored_pillars_follow_across_brushes_only_when_both_are_selected() {
+        use td_doc::symmetry::PlaneAt;
+        let pillar = [
+            DVec3::new(0.0, 0.0, 0.0),
+            DVec3::new(32.0, 0.0, 0.0),
+            DVec3::new(32.0, 0.0, 48.0),
+            DVec3::new(0.0, 0.0, 48.0),
+            DVec3::new(4.0, 64.0, 6.0),
+            DVec3::new(30.0, 64.0, 2.0),
+            DVec3::new(28.0, 64.0, 44.0),
+            DVec3::new(2.0, 64.0, 50.0),
+        ];
+        let image: Vec<DVec3> = pillar.iter().map(|p| DVec3::new(200.0 - p.x, p.y, p.z)).collect();
+        let mut state = EditorState::new(Default::default());
+        let ids = insert_brushes(&mut state, vec![hull(&pillar), hull(&image)]);
+        let (a, b) = (corners(&state, ids[0]), corners(&state, ids[1]));
+        state.edit_symmetry = symmetry_x(PlaneAt::Custom, 100.0);
+
+        let (top, top_image) = (DVec3::new(4.0, 64.0, 6.0), DVec3::new(196.0, 64.0, 6.0));
+        assert_eq!(try_move_vertices(&mut state, &[top], DVec3::new(3.0, 5.0, -2.0)), Some(1));
+        assert_corners(&corners(&state, ids[0]), &with_corners(a.clone(), &[(top, DVec3::new(7.0, 69.0, 4.0))]));
+        assert_corners(&corners(&state, ids[1]), &with_corners(b.clone(), &[(top_image, DVec3::new(193.0, 69.0, 4.0))]));
+
+        state.doc.undo();
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_node(ids[0]);
+        });
+        assert_eq!(try_move_vertices(&mut state, &[top], DVec3::new(3.0, 5.0, -2.0)), Some(0), "an unselected brush has nothing to mirror");
+        assert_corners(&corners(&state, ids[1]), &b);
+    }
+
+    /// Two boxes mirrored across x 72, the second one thin in z, so a pull that sticks out of the first lands inside
+    /// the second.
+    fn lopsided_pair(state: &mut EditorState) -> (NodeId, NodeId) {
+        let boxes = [
+            Brush::from_aabb(&Aabb::new(DVec3::ZERO, DVec3::splat(64.0)), "dev/grey").unwrap(),
+            Brush::from_aabb(&Aabb::new(DVec3::new(80.0, 0.0, 0.0), DVec3::new(144.0, 64.0, 16.0)), "dev/grey").unwrap(),
+        ];
+        let ids = insert_brushes(state, boxes.to_vec());
+        (ids[0], ids[1])
+    }
+
+    #[test]
+    fn a_move_that_dents_the_mirrored_brush_is_refused_for_both() {
+        use td_doc::symmetry::PlaneAt;
+        let mut state = EditorState::new(Default::default());
+        let (a, b) = lopsided_pair(&mut state);
+        let (a_before, b_before) = (corners(&state, a), corners(&state, b));
+        let (corner, delta) = (DVec3::new(64.0, 64.0, 0.0), DVec3::new(-24.0, -24.0, 10.0));
+
+        assert_eq!(try_move_vertices(&mut state, &[corner], delta), Some(0), "alone the first box takes it");
+        assert!(corners(&state, a) != a_before);
+        assert_corners(&corners(&state, b), &b_before);
+        state.doc.undo();
+
+        state.edit_symmetry = symmetry_x(PlaneAt::Center, 0.0);
+        let steps = state.doc.history.undo_labels().count();
+        assert_eq!(try_move_vertices(&mut state, &[corner], delta), None, "the thin box would dent, so neither moves");
+        assert_corners(&corners(&state, a), &a_before);
+        assert_corners(&corners(&state, b), &b_before);
+        assert_eq!(state.doc.history.undo_labels().count(), steps, "a refusal adds no undo step");
+        assert_eq!(refusal_reason(&state, &[corner], delta), DENT_REASON, "the reason names the mirrored dent");
+
+        assert!(!move_vertices(&mut state, &[DVec3::new(1.0, 2.0, 3.0)], DVec3::X), "a point off every brush still moves nothing");
+    }
+
+    #[test]
+    fn pulling_a_dot_adds_the_mirrored_vertex_too() {
+        use td_doc::symmetry::PlaneAt;
+        let mut state = EditorState::new(Default::default());
+        let id =
+            insert_brushes(&mut state, vec![Brush::from_aabb(&Aabb::new(DVec3::new(10.0, 5.0, -30.0), DVec3::new(90.0, 45.0, 20.0)), "dev/grey").unwrap()])[0];
+        state.edit_symmetry = symmetry_x(PlaneAt::Center, 0.0);
+
+        assert_eq!(try_move_vertices(&mut state, &[DVec3::new(10.0, 45.0, -5.0)], DVec3::new(-6.0, 8.0, 0.0)), Some(1));
+        let got = corners(&state, id);
+        assert_eq!(got.len(), 10);
+        for want in [DVec3::new(4.0, 53.0, -5.0), DVec3::new(96.0, 53.0, -5.0)] {
+            assert!(got.iter().any(|v| v.distance(want) < 1e-6), "no corner at {want:?} in {got:?}");
+        }
     }
 
     #[test]

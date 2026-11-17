@@ -2333,6 +2333,7 @@
   "Made {n} mirrored copy across {axis} at {at} u. Edits in either half show in both": { "other": "{axis}の{at} uに{n}個のミラーコピーを作成しました。どちらの半分を編集しても両方に反映されます" },
   "Select objects or groups to mirror linked": "リンクミラーするオブジェクトかグループを選択してください",
   "Mirror plane {axis} at {at} u": "ミラー平面 {axis}、{at} u",
+  "Moved {n} mirrored vertex too": { "other": "ミラー側の頂点も{n}個移動しました" },
   "Apply Mirror": "ミラーを適用",
   "Merges the selected mirrored halves into plain geometry, joined where they meet": "選択した反転ずみの半分を、接する部分で結合して通常のジオメトリにします",
   "Select one half of a mirrored pair": "ミラーされたペアの片方を選択してください",

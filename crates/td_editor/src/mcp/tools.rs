@@ -10,7 +10,7 @@ use std::time::Instant;
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Vec2};
 use serde_json::{Value, json};
 use td_core::{Aabb, DVec2, DVec3, NodeId};
-use td_doc::symmetry::PlaneAt;
+use td_doc::symmetry::{EditSymmetry, PlaneAt, PlaneChoice};
 use td_doc::{IoConnection, NodeKind, format, issues, ops};
 use td_geom::{Brush, shapes};
 
@@ -89,6 +89,52 @@ fn arr(v: DVec3) -> Value {
 
 fn bounds_json(b: &Aabb) -> Value {
     if b.is_empty() { Value::Null } else { json!({ "min": arr(b.min), "max": arr(b.max) }) }
+}
+
+/// The `edit_symmetry` setting of set_editor: "off", "x", "y" or "z" (the plane through the middle of what is edited),
+/// or {axis, plane: center|world|custom, at}. A value replaces the whole setting, and `at` alone means a custom plane.
+fn edit_symmetry_arg(v: &Value, missing: EditSymmetry) -> Result<EditSymmetry, String> {
+    const HELP: &str = "edit_symmetry must be off, x, y or z, or an object with axis (off, x, y or z), plane (center, world or custom) and at";
+    let axis = |v: &Value| match v.as_str() {
+        Some("off") => Some(None),
+        Some("x") => Some(Some(0)),
+        Some("y") => Some(Some(1)),
+        Some("z") => Some(Some(2)),
+        _ if v.is_null() => Some(None),
+        _ => None,
+    };
+    match v {
+        Value::Null => Ok(missing),
+        Value::String(_) => Ok(EditSymmetry { axis: axis(v).ok_or(HELP)?, ..EditSymmetry::OFF }),
+        Value::Object(o) => {
+            if let Some(k) = o.keys().find(|k| !["axis", "plane", "at"].contains(&k.as_str())) {
+                return Err(format!("{HELP}, not {k}"));
+            }
+
+            let axis = o.get("axis").and_then(axis).ok_or(HELP)?;
+            let mut plane = PlaneChoice { at: if o.contains_key("at") { PlaneAt::Custom } else { PlaneAt::Center }, custom: 0.0 };
+            if let Some(p) = o.get("plane") {
+                plane.at = match p.as_str() {
+                    Some("center") => PlaneAt::Center,
+                    Some("world") => PlaneAt::World,
+                    Some("custom") => PlaneAt::Custom,
+                    _ => return Err("edit_symmetry plane must be center, world or custom".into()),
+                };
+            }
+
+            if let Some(at) = o.get("at") {
+                plane.custom = at.as_f64().filter(|n| n.is_finite()).ok_or_else(|| format!("edit_symmetry at must be a number, got {at}"))?;
+            }
+
+            Ok(EditSymmetry { axis, plane })
+        }
+        _ => Err(HELP.into()),
+    }
+}
+
+/// `edit_symmetry` the way set_editor takes it, for get_state.
+fn edit_symmetry_json(e: &EditSymmetry) -> Value {
+    json!({ "axis": e.axis.map(axis_letter), "plane": e.plane.at, "at": e.plane.custom })
 }
 
 fn axis_letter(axis: usize) -> &'static str {
@@ -1137,6 +1183,7 @@ impl App {
                 "sculpt": { "radius": s.sculpt.radius, "strength": s.sculpt.strength },
                 "symmetry": s.symmetry,
                 "mirror_plane": s.mirror_plane,
+                "edit_symmetry": edit_symmetry_json(&s.edit_symmetry),
             },
             "mirror_planes": td_doc::mirror::selection_planes(map, sel)
                 .iter()
@@ -1627,11 +1674,11 @@ impl App {
                     return err("select the brushes whose vertices to move first");
                 }
 
-                if !crate::toolset::move_vertices(&mut self.state, &verts, offset) {
+                let Some(mirrored) = crate::toolset::try_move_vertices(&mut self.state, &verts, offset) else {
                     return err("no selected brush has those vertices, or moving them would make it concave");
-                }
+                };
 
-                return ok(json!({ "ok": true, "selection": self.state.doc.selection.nodes.iter().map(|i| i.0).collect::<Vec<_>>() }));
+                return ok(json!({ "ok": true, "mirrored": mirrored, "selection": self.state.doc.selection.nodes.iter().map(|i| i.0).collect::<Vec<_>>() }));
             }
             "clip_apply" => {
                 let before = self.state.doc.map.brush_count();
@@ -2062,6 +2109,10 @@ impl App {
             Ok(s) => s,
             Err(e) => return err(e),
         };
+        let edit_symmetry = match edit_symmetry_arg(&args["edit_symmetry"], self.state.edit_symmetry) {
+            Ok(e) => e,
+            Err(e) => return err(e),
+        };
         if args["live_mode"].as_bool() == Some(true) && self.state.restricted() {
             return err(crate::trust::BLOCKED);
         }
@@ -2075,6 +2126,7 @@ impl App {
         }
 
         self.state.symmetry = symmetry;
+        self.state.edit_symmetry = edit_symmetry;
 
         if let Some(b) = args["uv_lock"].as_bool() {
             self.state.uv_lock = b;
@@ -2711,6 +2763,65 @@ mod tests {
 
     fn state() -> EditorState {
         EditorState::new(Default::default())
+    }
+
+    #[test]
+    fn edit_symmetry_reads_a_word_or_an_object() {
+        let on_z = EditSymmetry { axis: Some(2), plane: PlaneChoice { at: PlaneAt::Custom, custom: -37.5 } };
+        assert_eq!(edit_symmetry_arg(&Value::Null, on_z), Ok(on_z), "missing keeps the setting");
+        for (word, axis) in [("off", None), ("x", Some(0)), ("y", Some(1)), ("z", Some(2))] {
+            assert_eq!(edit_symmetry_arg(&json!(word), on_z), Ok(EditSymmetry { axis, ..EditSymmetry::OFF }), "{word} replaces the whole setting");
+        }
+
+        let at = |axis, at, custom| Ok(EditSymmetry { axis, plane: PlaneChoice { at, custom } });
+        assert_eq!(edit_symmetry_arg(&json!({ "axis": "y" }), on_z), at(Some(1), PlaneAt::Center, 0.0));
+        assert_eq!(edit_symmetry_arg(&json!({ "axis": "x", "plane": "world" }), on_z), at(Some(0), PlaneAt::World, 0.0));
+        assert_eq!(edit_symmetry_arg(&json!({ "axis": "z", "plane": "custom", "at": 12.25 }), EditSymmetry::OFF), at(Some(2), PlaneAt::Custom, 12.25));
+        assert_eq!(edit_symmetry_arg(&json!({ "axis": "x", "at": -90.5 }), EditSymmetry::OFF), at(Some(0), PlaneAt::Custom, -90.5), "at alone means custom");
+        assert_eq!(edit_symmetry_arg(&json!({ "axis": "off" }), on_z), at(None, PlaneAt::Center, 0.0));
+        assert_eq!(edit_symmetry_arg(&json!({ "axis": null }), on_z), at(None, PlaneAt::Center, 0.0));
+        assert_eq!(
+            edit_symmetry_arg(&json!({ "axis": "x", "plane": "center", "at": 4 }), on_z),
+            at(Some(0), PlaneAt::Center, 4.0),
+            "a named plane wins over at"
+        );
+
+        for plane in ["max", "min", "middle", ""] {
+            let e = edit_symmetry_arg(&json!({ "axis": "x", "plane": plane }), on_z).unwrap_err();
+            assert_eq!(e, "edit_symmetry plane must be center, world or custom", "{plane}");
+        }
+
+        assert_eq!(edit_symmetry_arg(&json!({ "axis": "x", "plane": 1 }), on_z).unwrap_err(), "edit_symmetry plane must be center, world or custom");
+        for at in [json!("far"), json!(null), json!(true)] {
+            let e = edit_symmetry_arg(&json!({ "axis": "x", "at": at }), on_z).unwrap_err();
+            assert!(e.starts_with("edit_symmetry at must be a number"), "{at}: {e}");
+        }
+
+        for bad in [
+            json!("X"),
+            json!("w"),
+            json!(""),
+            json!(1),
+            json!(true),
+            json!([0]),
+            json!({}),
+            json!({ "axis": "w" }),
+            json!({ "axis": 0 }),
+            json!({ "plane": "world" }),
+            json!({ "axis": "x", "center": "world" }),
+        ] {
+            let e = edit_symmetry_arg(&bad, on_z).unwrap_err();
+            assert!(e.starts_with("edit_symmetry must be off, x, y or z"), "{bad}: {e}");
+        }
+    }
+
+    #[test]
+    fn edit_symmetry_reports_what_it_accepts() {
+        let on = EditSymmetry { axis: Some(1), plane: PlaneChoice { at: PlaneAt::Custom, custom: 7.5 } };
+        assert_eq!(edit_symmetry_json(&on), json!({ "axis": "y", "plane": "custom", "at": 7.5 }));
+        assert_eq!(edit_symmetry_json(&EditSymmetry::OFF), json!({ "axis": null, "plane": "center", "at": 0.0 }));
+        assert_eq!(edit_symmetry_arg(&edit_symmetry_json(&on), EditSymmetry::OFF), Ok(on), "get_state output goes back into set_editor");
+        assert_eq!(edit_symmetry_arg(&edit_symmetry_json(&EditSymmetry::OFF), on), Ok(EditSymmetry::OFF), "so does off");
     }
 
     #[test]

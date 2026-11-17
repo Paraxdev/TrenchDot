@@ -2333,6 +2333,7 @@
   "Made {n} mirrored copy across {axis} at {at} u. Edits in either half show in both": { "one": "{n} copie reflétée sur {axis} à {at} u. Modifier une moitié met à jour l'autre", "other": "{n} copies reflétées sur {axis} à {at} u. Modifier une moitié met à jour l'autre" },
   "Select objects or groups to mirror linked": "Sélectionnez des objets ou groupes à refléter en lien",
   "Mirror plane {axis} at {at} u": "Plan de miroir {axis} à {at} u",
+  "Moved {n} mirrored vertex too": { "one": "{n} sommet reflété déplacé aussi", "other": "{n} sommets reflétés déplacés aussi" },
   "Apply Mirror": "Appliquer le miroir",
   "Merges the selected mirrored halves into plain geometry, joined where they meet": "Fusionne les moitiés reflétées sélectionnées en géométrie ordinaire, jointes là où elles se touchent",
   "Select one half of a mirrored pair": "Sélectionnez une moitié d'une paire reflétée",
