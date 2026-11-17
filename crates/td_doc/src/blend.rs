@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
-use td_core::{DVec2, DVec3, NodeId};
+use td_core::{DVec2, DVec3, Fold, Mirror, NodeId};
 use td_geom::displacement;
 use td_geom::heightfield::{MAX_LAYERS, noise2};
 
@@ -218,19 +218,24 @@ fn apply(brush: &BlendBrush, influence: f64, p: DVec3, normal: DVec3, current: &
     w
 }
 
-/// Applies one dab to terrain layer weights. Returns true if anything changed.
-pub fn blend_terrain(t: &mut td_geom::Terrain, center: DVec3, brush: &BlendBrush) -> bool {
+/// Applies one dab to terrain layer weights, and its mirror images across `mirror`. Returns true if anything changed.
+pub fn blend_terrain(t: &mut td_geom::Terrain, center: DVec3, brush: &BlendBrush, mirror: &Mirror) -> bool {
     let [w, d] = t.resolution;
     let n = t.heights.len();
     if !t.is_valid() {
         return false;
     }
 
-    let local = center - t.origin;
-    let r = brush.radius / t.cell_size;
-    let (x0, x1) = (((local.x / t.cell_size) - r).floor().max(0.0) as u32, (((local.x / t.cell_size) + r).ceil().max(0.0) as u32).min(w - 1));
-    let (z0, z1) = (((local.z / t.cell_size) - r).floor().max(0.0) as u32, (((local.z / t.cell_size) + r).ceil().max(0.0) as u32).min(d - 1));
-    if x0 > x1 || z0 > z1 || local.x + brush.radius < 0.0 || local.z + brush.radius < 0.0 {
+    let window = |c: DVec3| {
+        let local = c - t.origin;
+        let r = brush.radius / t.cell_size;
+        let (x0, x1) = (((local.x / t.cell_size) - r).floor().max(0.0) as u32, (((local.x / t.cell_size) + r).ceil().max(0.0) as u32).min(w - 1));
+        let (z0, z1) = (((local.z / t.cell_size) - r).floor().max(0.0) as u32, (((local.z / t.cell_size) + r).ceil().max(0.0) as u32).min(d - 1));
+        let off = x0 > x1 || z0 > z1 || local.x + brush.radius < 0.0 || local.z + brush.radius < 0.0;
+        (!off).then_some((x0, x1, z0, z1))
+    };
+    let windows: Vec<(Fold, (u32, u32, u32, u32))> = mirror.folds().filter_map(|f| Some((f, window(f.point(center))?))).collect();
+    if windows.is_empty() {
         return false;
     }
 
@@ -239,43 +244,55 @@ pub fn blend_terrain(t: &mut td_geom::Terrain, center: DVec3, brush: &BlendBrush
         t.splat = (0..n).flat_map(|_| [255u8, 0, 0, 0]).collect();
     }
 
-    let old: Vec<[f32; 4]> = (z0..=z1).flat_map(|j| (x0..=x1).map(move |i| (i, j))).map(|(i, j)| t.weights(i, j)).collect();
-    let row = (x1 - x0 + 1) as usize;
-    let get = |i: u32, j: u32| old[(j - z0) as usize * row + (i - x0) as usize];
+    // Every window is read before any is written, so Smooth sees the same weights on both sides of a plane.
+    let snapshots: Vec<Vec<[f32; 4]>> = windows
+        .iter()
+        .map(|(_, (x0, x1, z0, z1))| (*z0..=*z1).flat_map(|j| (*x0..=*x1).map(move |i| (i, j))).map(|(i, j)| t.weights(i, j)).collect())
+        .collect();
     let mut changed = false;
-    for j in z0..=z1 {
-        for i in x0..=x1 {
-            let p = t.vertex(i, j);
-            let influence = brush.influence(p, center, true);
-            if influence <= 0.0 {
-                continue;
-            }
-
-            let current: Vec<f64> = get(i, j).iter().take(layers).map(|v| *v as f64).collect();
-            let neighbours = (brush.mode == BlendMode::Smooth).then(|| {
-                let mut sum = vec![0.0; layers];
-                let mut count = 0.0;
-                for (di, dj) in [(-1i64, 0i64), (1, 0), (0, -1), (0, 1)] {
-                    let (ni, nj) = (i as i64 + di, j as i64 + dj);
-                    if ni >= x0 as i64 && nj >= z0 as i64 && ni <= x1 as i64 && nj <= z1 as i64 {
-                        let nw = get(ni as u32, nj as u32);
-                        for (s, v) in sum.iter_mut().zip(nw) {
-                            *s += v as f64;
-                        }
-
-                        count += 1.0;
-                    }
+    for ((fold, (x0, x1, z0, z1)), old) in windows.iter().zip(&snapshots) {
+        let (x0, x1, z0, z1) = (*x0, *x1, *z0, *z1);
+        let row = (x1 - x0 + 1) as usize;
+        let get = |i: u32, j: u32| old[(j - z0) as usize * row + (i - x0) as usize];
+        for j in z0..=z1 {
+            for i in x0..=x1 {
+                let p = t.vertex(i, j);
+                if mirror.fold(p, center) != *fold {
+                    continue;
                 }
 
-                sum.iter().map(|s| s / f64::max(count, 1.0)).collect::<Vec<_>>()
-            });
-            let new = apply(brush, influence, p, t.normal(i, j), &current, neighbours.as_deref());
-            let k = t.index(i, j) * 4;
-            for l in 0..4 {
-                let v = (new.get(l).copied().unwrap_or(0.0) * 255.0).round().clamp(0.0, 255.0) as u8;
-                if t.splat[k + l] != v {
-                    t.splat[k + l] = v;
-                    changed = true;
+                let at = fold.point(p);
+                let influence = brush.influence(at, center, true);
+                if influence <= 0.0 {
+                    continue;
+                }
+
+                let current: Vec<f64> = get(i, j).iter().take(layers).map(|v| *v as f64).collect();
+                let neighbours = (brush.mode == BlendMode::Smooth).then(|| {
+                    let mut sum = vec![0.0; layers];
+                    let mut count = 0.0;
+                    for (di, dj) in [(-1i64, 0i64), (1, 0), (0, -1), (0, 1)] {
+                        let (ni, nj) = (i as i64 + di, j as i64 + dj);
+                        if ni >= x0 as i64 && nj >= z0 as i64 && ni <= x1 as i64 && nj <= z1 as i64 {
+                            let nw = get(ni as u32, nj as u32);
+                            for (s, v) in sum.iter_mut().zip(nw) {
+                                *s += v as f64;
+                            }
+
+                            count += 1.0;
+                        }
+                    }
+
+                    sum.iter().map(|s| s / f64::max(count, 1.0)).collect::<Vec<_>>()
+                });
+                let new = apply(brush, influence, at, fold.vector(t.normal(i, j)), &current, neighbours.as_deref());
+                let k = t.index(i, j) * 4;
+                for l in 0..4 {
+                    let v = (new.get(l).copied().unwrap_or(0.0) * 255.0).round().clamp(0.0, 255.0) as u8;
+                    if t.splat[k + l] != v {
+                        t.splat[k + l] = v;
+                        changed = true;
+                    }
                 }
             }
         }
@@ -284,14 +301,15 @@ pub fn blend_terrain(t: &mut td_geom::Terrain, center: DVec3, brush: &BlendBrush
     changed
 }
 
-/// Applies one dab to displacement alphas (0 base, 1 blend texture).
-pub fn blend_displacements(map: &mut Map, faces: &[(NodeId, usize)], center: DVec3, brush: &BlendBrush) -> bool {
+/// Applies one dab and its mirror images across `mirror` to displacement alphas (0 base, 1 blend texture).
+pub fn blend_displacements(map: &mut Map, faces: &[(NodeId, usize)], center: DVec3, brush: &BlendBrush, mirror: &Mirror) -> bool {
     let mut changed = false;
     for (id, face) in faces {
         let Some(b) = map.brush(*id) else { continue };
         let Some(grid) = displacement::grid(b, *face) else { continue };
         let n = grid.size;
-        let influences: Vec<f64> = grid.positions.iter().map(|p| brush.influence(*p, center, false)).collect();
+        let folds: Vec<Fold> = grid.positions.iter().map(|p| mirror.fold(*p, center)).collect();
+        let influences: Vec<f64> = grid.positions.iter().zip(&folds).map(|(p, f)| brush.influence(f.point(*p), center, false)).collect();
         if influences.iter().all(|w| *w <= 0.0) {
             continue;
         }
@@ -324,7 +342,8 @@ pub fn blend_displacements(map: &mut Map, faces: &[(NodeId, usize)], center: DVe
                 let avg = sum / f64::max(count, 1.0);
                 vec![1.0 - avg, avg]
             });
-            let new = apply(brush, influences[k], grid.positions[k], grid.normals.get(k).copied().unwrap_or(normal), &[1.0 - a, a], neighbours.as_deref());
+            let (at, normal) = (folds[k].point(grid.positions[k]), folds[k].vector(grid.normals.get(k).copied().unwrap_or(normal)));
+            let new = apply(brush, influences[k], at, normal, &[1.0 - a, a], neighbours.as_deref());
             disp.alphas[k] = new[1] as f32;
             changed |= (new[1] - a).abs() > 1e-6;
         }
@@ -348,8 +367,9 @@ pub fn blend_faces(map: &Map, nodes: &[NodeId]) -> Vec<(NodeId, usize)> {
     out
 }
 
-/// Per corner blend weights of brush and mesh faces. Smoothing averages corners that meet at the same position.
-pub fn blend_face_corners(map: &mut Map, faces: &[(NodeId, usize)], center: DVec3, brush: &BlendBrush) -> bool {
+/// Per corner blend weights of brush and mesh faces, under a dab and its mirror images across `mirror`. Smoothing averages
+/// corners that meet at the same position.
+pub fn blend_face_corners(map: &mut Map, faces: &[(NodeId, usize)], center: DVec3, brush: &BlendBrush, mirror: &Mirror) -> bool {
     struct Corner {
         id: NodeId,
         face: usize,
@@ -386,7 +406,9 @@ pub fn blend_face_corners(map: &mut Map, faces: &[(NodeId, usize)], center: DVec
 
     let mut writes = Vec::new();
     for c in &corners {
-        let influence = brush.influence(c.pos, center, false);
+        let fold = mirror.fold(c.pos, center);
+        let at = fold.point(c.pos);
+        let influence = brush.influence(at, center, false);
         if influence <= 0.0 {
             continue;
         }
@@ -404,7 +426,7 @@ pub fn blend_face_corners(map: &mut Map, faces: &[(NodeId, usize)], center: DVec
             let avg = sum / count.max(1.0);
             vec![1.0 - avg, avg]
         });
-        let new = apply(brush, influence, c.pos, c.normal, &[1.0 - c.alpha, c.alpha], neighbours.as_deref());
+        let new = apply(brush, influence, at, fold.vector(c.normal), &[1.0 - c.alpha, c.alpha], neighbours.as_deref());
         if (new[1] - c.alpha).abs() > 1e-6 {
             writes.push((c.id, c.face, c.corner, new[1] as f32));
         }
@@ -485,6 +507,7 @@ pub fn set_blend_options(map: &mut Map, faces: &[(NodeId, usize)], detile: f64, 
 mod tests {
     use super::*;
     use crate::NodeKind;
+    use crate::terrain::tests::{P, X, assert_mirrored, mirror_x, mirrored_pair, surface};
     use td_core::Aabb;
     use td_geom::{Brush, Terrain, TerrainLayer};
 
@@ -499,24 +522,24 @@ mod tests {
     fn paint_erase_smooth_and_sharpen_on_terrain() {
         let mut t = terrain();
         let brush = BlendBrush { layer: 2, strength: 1.0, radius: 64.0, falloff: Falloff::Constant, ..Default::default() };
-        assert!(blend_terrain(&mut t, DVec3::new(256.0, 0.0, 256.0), &brush));
+        assert!(blend_terrain(&mut t, DVec3::new(256.0, 0.0, 256.0), &brush, &Mirror::NONE));
         assert!(t.weights(16, 16)[2] > 0.99);
         assert!(t.weights(0, 0)[0] > 0.99, "outside the brush stays base");
 
         let smooth = BlendBrush { mode: BlendMode::Smooth, radius: 200.0, strength: 1.0, ..brush };
-        blend_terrain(&mut t, DVec3::new(256.0, 0.0, 256.0), &smooth);
+        blend_terrain(&mut t, DVec3::new(256.0, 0.0, 256.0), &smooth, &Mirror::NONE);
         let edge = t.weights(20, 16)[2];
         assert!(edge > 0.05 && edge < 0.95, "smoothing spreads the edge, got {edge}");
 
         let sharpen = BlendBrush { mode: BlendMode::Sharpen, ..smooth };
         let before = t.weights(20, 16);
-        blend_terrain(&mut t, DVec3::new(256.0, 0.0, 256.0), &sharpen);
+        blend_terrain(&mut t, DVec3::new(256.0, 0.0, 256.0), &sharpen, &Mirror::NONE);
         let after = t.weights(20, 16);
         let dominant = if before[0] > before[2] { 0 } else { 2 };
         assert!(after[dominant] >= before[dominant]);
 
         let erase = BlendBrush { mode: BlendMode::Erase, radius: 400.0, ..brush };
-        blend_terrain(&mut t, DVec3::new(256.0, 0.0, 256.0), &erase);
+        blend_terrain(&mut t, DVec3::new(256.0, 0.0, 256.0), &erase, &Mirror::NONE);
         assert!(t.weights(16, 16)[0] > 0.99);
     }
 
@@ -539,7 +562,7 @@ mod tests {
             slope: [35.0, 90.0],
             ..Default::default()
         };
-        blend_terrain(&mut t, DVec3::new(256.0, 0.0, 256.0), &brush);
+        blend_terrain(&mut t, DVec3::new(256.0, 0.0, 256.0), &brush, &Mirror::NONE);
         assert!(t.weights(4, 10)[1] < 0.01, "flat ground untouched");
         assert!(t.weights(25, 10)[1] > 0.9, "steep ramp painted");
     }
@@ -554,7 +577,7 @@ mod tests {
         let faces = blend_faces(&m, &[]);
         assert_eq!(faces, vec![(id, top)]);
         let brush = BlendBrush { strength: 1.0, radius: 20.0, falloff: Falloff::Constant, ..Default::default() };
-        assert!(blend_face_corners(&mut m, &faces, DVec3::new(0.0, 64.0, 0.0), &brush));
+        assert!(blend_face_corners(&mut m, &faces, DVec3::new(0.0, 64.0, 0.0), &brush, &Mirror::NONE));
         let colors = &m.brush(id).unwrap().faces[top].data.colors;
         assert_eq!(colors.iter().filter(|c| c[3] > 0.99).count(), 1, "only the corner under the brush");
         assert!(colors.iter().all(|c| c[0] == 1.0), "tint stays white");
@@ -576,5 +599,224 @@ mod tests {
         set_blend_options(&mut m, &[(id, top)], 0.0, 1.0, 0.5);
         assert!(!props(&m).contains_key(BLEND_DETILE) && !props(&m).contains_key(BLEND_UV_SCALE));
         assert!(!props(&m).contains_key(BLEND_DETILE_SHARPEN), "the default crispness is not written either");
+    }
+
+    const MX: f64 = 191.5;
+    const MZ: f64 = 184.25;
+    const CLEAR: DVec3 = DVec3::new(60.25, 0.0, 80.5);
+    const STRADDLING: DVec3 = DVec3::new(170.0, 0.0, 160.3);
+    const ON_PLANES: DVec3 = DVec3::new(MX, 0.0, MZ);
+
+    /// Off origin, 19 by 10 vertices with a column on its x middle (MX) and no row on its z middle (MZ). Heights and
+    /// four layer weights slant within each quarter and mirror across both middles.
+    fn symmetric_terrain() -> Terrain {
+        let mut t = Terrain::new(DVec3::new(-96.5, 12.0, 40.25), [19, 10], 32.0, "grass");
+        for name in ["rock", "dirt", "sand"] {
+            t.layers.push(TerrainLayer::new(name, 128.0));
+        }
+
+        let [w, d] = t.resolution;
+        t.splat = vec![0; (w * d * 4) as usize];
+        for j in 0..d {
+            for i in 0..w {
+                let (a, b) = (i.min(w - 1 - i) as f32, j.min(d - 1 - j) as f32);
+                let k = t.index(i, j);
+                t.heights[k] = 9.0 * a + 21.0 * b + 1.5 * a * b;
+                let raw = [40.0 + 9.0 * a, 30.0 + 13.0 * b, 20.0 + 2.0 * a * b, 5.0 + (11.0 * (a + b)) % 37.0];
+                let sum: f32 = raw.iter().sum();
+                for (l, r) in raw.iter().enumerate() {
+                    t.splat[k * 4 + l] = (r / sum * 255.0).round() as u8;
+                }
+            }
+        }
+
+        t
+    }
+
+    fn mode_brush(mode: BlendMode, falloff: Falloff) -> BlendBrush {
+        BlendBrush { mode, falloff, layer: 2, radius: 90.0, strength: 0.7, slope: [20.0, 40.0], height: [80.0, 160.0], noise_scale: 70.0, seed: 11 }
+    }
+
+    /// The splat of `alone` with every vertex across a mirrored middle taken from its image on the dab's side, which is
+    /// what a mirrored dab leaves on a symmetric start.
+    fn folded(alone: &Terrain, x: bool, z: bool, center: DVec3) -> Vec<u8> {
+        let [w, d] = alone.resolution;
+        let side = |v: f64, n: u32| v >= (n - 1) as f64 / 2.0;
+        let (ci, cj) = ((center.x - alone.origin.x) / alone.cell_size, (center.z - alone.origin.z) / alone.cell_size);
+        let mut out = alone.splat.clone();
+        for j in 0..d {
+            for i in 0..w {
+                let fi = if x && side(i as f64, w) != side(ci, w) { w - 1 - i } else { i };
+                let fj = if z && side(j as f64, d) != side(cj, d) { d - 1 - j } else { j };
+                let (to, from) = (alone.index(i, j) * 4, alone.index(fi, fj) * 4);
+                out[to..to + 4].copy_from_slice(&alone.splat[from..from + 4]);
+            }
+        }
+
+        out
+    }
+
+    #[test]
+    fn mirrored_terrain_dabs_repeat_the_dab_side_on_every_side() {
+        let start = symmetric_terrain();
+        for (x, z) in [(true, false), (false, true), (true, true)] {
+            let mirror = Mirror { x: x.then_some(MX), z: z.then_some(MZ) };
+            for (place, center) in [("clear", CLEAR), ("straddling", STRADDLING), ("on the planes", ON_PLANES)] {
+                for mode in BlendMode::ALL {
+                    for falloff in [Falloff::Smooth, Falloff::Spray] {
+                        let what = format!("{mode:?} {falloff:?} {place} x {x} z {z}");
+                        let brush = mode_brush(mode, falloff);
+                        let pattern = mode == BlendMode::Noise || falloff == Falloff::Spray;
+                        let mut alone = start.clone();
+                        let changed = blend_terrain(&mut alone, center, &brush, &Mirror::NONE);
+                        assert!(changed || pattern, "{what}");
+                        let mut t = start.clone();
+                        assert_eq!(blend_terrain(&mut t, center, &brush, &mirror), t.splat != start.splat, "{what}");
+                        assert_eq!(t.splat, folded(&alone, x, z, center), "{what}");
+                        if center == ON_PLANES && !pattern {
+                            assert_eq!(t.splat, alone.splat, "{what}: a dab on the planes counts once");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_terrain_dab_or_its_image_off_the_terrain_paints_only_what_lands() {
+        let start = symmetric_terrain();
+        let paint = BlendBrush { radius: 60.0, ..mode_brush(BlendMode::Paint, Falloff::Smooth) };
+        let dab = |center: DVec3, mirror: Mirror| {
+            let mut t = start.clone();
+            let changed = blend_terrain(&mut t, center, &paint, &mirror);
+            assert_eq!(changed, t.splat != start.splat, "{center} {mirror:?}");
+            t.splat
+        };
+
+        let beyond = Mirror { x: Some(600.0), z: None };
+        assert_eq!(dab(CLEAR, beyond), dab(CLEAR, Mirror::NONE), "the image falls past the far edge");
+
+        let before = Mirror { x: Some(-120.0), z: None };
+        let (off, image) = (DVec3::new(-180.5, 0.0, 150.0), DVec3::new(-59.5, 0.0, 150.0));
+        assert_eq!(dab(off, Mirror::NONE), start.splat, "the dab itself misses");
+        assert_ne!(dab(off, before), start.splat);
+        assert_eq!(dab(off, before), dab(image, Mirror::NONE), "only the image paints");
+
+        // The image's rim ends exactly on a vertex at the edge, then just past it.
+        let edge = Mirror { x: Some(-200.0), z: None };
+        let constant = BlendBrush { falloff: Falloff::Constant, ..paint };
+        let rim = |x: f64| {
+            let mut t = start.clone();
+            let changed = blend_terrain(&mut t, DVec3::new(x, 0.0, 136.25), &constant, &edge);
+            assert_eq!(changed, t.splat != start.splat, "{x}");
+            changed
+        };
+        assert!(!rim(-243.5));
+        assert!(rim(-244.0));
+
+        let bare = Terrain::new(start.origin, start.resolution, start.cell_size, "grass");
+        let mut t = bare.clone();
+        assert!(!blend_terrain(&mut t, off, &paint, &edge));
+        assert_eq!(t, bare, "neither the dab nor its image lands, so the splat is not even created");
+    }
+
+    /// Alphas that slant across the first face and mirror onto the second.
+    fn mirrored_alphas(m: &mut Map, faces: [(NodeId, usize); 2]) {
+        for (k, (id, face)) in faces.into_iter().enumerate() {
+            let base = displacement::grid(m.brush(id).unwrap(), face).unwrap().base;
+            let disp = m.brush_mut(id).unwrap().faces[face].data.disp.as_mut().unwrap();
+            disp.alphas = base
+                .iter()
+                .map(|p| if k == 0 { *p } else { mirror_x(*p) })
+                .map(|p| (0.1 + 0.005 * (p.x + 50.0) + 0.003 * (p.z - 40.0) + 0.0001 * (p.z - 60.0).powi(2)) as f32)
+                .collect();
+        }
+    }
+
+    #[test]
+    fn mirrored_displacement_dabs_blend_the_mirrored_brush() {
+        let floor = Aabb::new(DVec3::new(P - 64.0, -4.0, 40.0), DVec3::new(P, 12.0, 104.0));
+        let centers =
+            [("clear", DVec3::new(P - 37.0, 12.0, 61.0)), ("straddling", DVec3::new(P - 10.0, 12.0, 61.0)), ("on the plane", DVec3::new(P, 12.0, 61.0))];
+        for (place, center) in centers {
+            for mode in BlendMode::ALL {
+                for falloff in [Falloff::Smooth, Falloff::Spray] {
+                    let what = format!("{mode:?} {falloff:?} {place}");
+                    let brush = BlendBrush { radius: 30.0, slope: [0.0, 40.0], height: [10.0, 30.0], noise_scale: 12.0, ..mode_brush(mode, falloff) };
+                    let (mut alone, faces) = mirrored_pair(floor, DVec3::Y);
+                    mirrored_alphas(&mut alone, faces);
+                    let start = alone.clone();
+                    blend_displacements(&mut alone, &faces, center, &brush, &Mirror::NONE);
+                    let mut m = start.clone();
+                    blend_displacements(&mut m, &faces, center, &brush, &X);
+                    assert_mirrored(&m, faces[0], faces[1], &what);
+                    let near = faces[(center.x >= P) as usize];
+                    assert_eq!(surface(&m, near), surface(&alone, near), "{what}: the dab's own side is one plain dab");
+                    if place == "clear" {
+                        assert_eq!(surface(&alone, faces[1]), surface(&start, faces[1]), "{what}: without a mirror");
+                        assert_ne!(surface(&m, faces[1]), surface(&start, faces[1]), "{what}");
+                    }
+
+                    if place == "on the plane" && mode != BlendMode::Noise && falloff != Falloff::Spray {
+                        assert_eq!(surface(&m, faces[0]), surface(&alone, faces[0]), "{what}: counts once");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn mirrored_face_dabs_blend_the_mirrored_corners() {
+        let mut start = Map::new();
+        let l = start.default_layer();
+        let a = Aabb::new(DVec3::new(P - 40.0, -4.0, 40.0), DVec3::new(P - 8.0, 12.0, 72.0));
+        let mut faces = Vec::new();
+        for bounds in [a, Aabb::new(mirror_x(a.min), mirror_x(a.max))] {
+            let id = start.insert(l, NodeKind::Brush(Brush::from_aabb(&bounds, "bricks").unwrap()));
+            faces.push((id, start.brush(id).unwrap().faces.iter().position(|f| f.plane.normal.y > 0.5).unwrap()));
+        }
+
+        assert_eq!(set_blend_material(&mut start, &faces, Some("moss")), 2);
+        let alpha = |p: DVec3| (0.2 + 0.006 * (p.x + 50.0) + 0.004 * (p.z - 30.0)) as f32;
+        for (k, (id, face)) in faces.iter().enumerate() {
+            let b = start.brush_mut(*id).unwrap();
+            let corners: Vec<DVec3> = b.faces[*face].indices.iter().map(|i| b.vertices[*i as usize]).collect();
+            b.faces[*face].data.colors = corners.iter().map(|p| [1.0, 1.0, 1.0, alpha(if k == 0 { *p } else { mirror_x(*p) })]).collect();
+        }
+
+        let corners = |m: &Map, (id, face): (NodeId, usize)| {
+            let b = m.brush(id).unwrap();
+            b.faces[face].indices.iter().zip(&b.faces[face].data.colors).map(|(i, c)| (b.vertices[*i as usize], c[3])).collect::<Vec<_>>()
+        };
+        let centers =
+            [("clear", DVec3::new(P - 40.0, 12.0, 40.0)), ("straddling", DVec3::new(P - 6.0, 12.0, 50.0)), ("on the plane", DVec3::new(P, 12.0, 56.0))];
+        for (place, center) in centers {
+            for mode in BlendMode::ALL {
+                for falloff in [Falloff::Smooth, Falloff::Spray] {
+                    let what = format!("{mode:?} {falloff:?} {place}");
+                    let brush = BlendBrush { radius: 45.0, slope: [0.0, 40.0], height: [0.0, 30.0], noise_scale: 12.0, ..mode_brush(mode, falloff) };
+                    let mut alone = start.clone();
+                    blend_face_corners(&mut alone, &faces, center, &brush, &Mirror::NONE);
+                    let mut m = start.clone();
+                    blend_face_corners(&mut m, &faces, center, &brush, &X);
+                    let (ca, cb) = (corners(&m, faces[0]), corners(&m, faces[1]));
+                    assert_eq!(ca.len(), 4, "{what}");
+                    for (p, alpha) in &ca {
+                        let (_, mirrored) = cb.iter().find(|(q, _)| (*q - mirror_x(*p)).length() < 1e-9).unwrap_or_else(|| panic!("{what}: no mirror of {p}"));
+                        assert!((alpha - mirrored).abs() < 1e-6, "{what} at {p}: {alpha}, mirrored {mirrored}");
+                    }
+
+                    let near = faces[(center.x >= P) as usize];
+                    assert_eq!(corners(&m, near), corners(&alone, near), "{what}: the dab's own side is one plain dab");
+                    if place == "clear" {
+                        assert_eq!(corners(&alone, faces[1]), corners(&start, faces[1]), "{what}: without a mirror");
+                    }
+
+                    if place == "on the plane" && mode != BlendMode::Noise && falloff != Falloff::Spray {
+                        assert_eq!(corners(&m, faces[0]), corners(&alone, faces[0]), "{what}: counts once");
+                    }
+                }
+            }
+        }
     }
 }

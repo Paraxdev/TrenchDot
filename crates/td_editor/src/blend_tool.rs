@@ -1,7 +1,7 @@
 //! Blend tool: paints material blends on terrain layers, displacement alpha and faces that have a blend material.
 
 use egui::{Color32, PointerButton, Pos2, Rect, Response, Ui};
-use td_core::{DVec3, NodeId, Plane};
+use td_core::{DVec3, Mirror, NodeId, Plane};
 use td_doc::blend::{self, BlendMode};
 use td_render::LineVertex;
 
@@ -83,12 +83,12 @@ pub fn dab(state: &mut EditorState, center: DVec3, brush: &blend::BlendBrush) ->
         let mut changed = false;
         for id in &t.terrains {
             if let Some(terrain) = m.terrain_mut(*id) {
-                changed |= blend::blend_terrain(terrain, center, brush);
+                changed |= blend::blend_terrain(terrain, center, brush, &Mirror::NONE);
             }
         }
 
-        changed |= blend::blend_displacements(m, &t.displacements, center, brush);
-        changed |= blend::blend_face_corners(m, &t.faces, center, brush);
+        changed |= blend::blend_displacements(m, &t.displacements, center, brush, &Mirror::NONE);
+        changed |= blend::blend_face_corners(m, &t.faces, center, brush, &Mirror::NONE);
         changed
     })
 }

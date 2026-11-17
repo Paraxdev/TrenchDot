@@ -357,7 +357,7 @@ pub fn paint_vertices(map: &mut Map, brushes: &[NodeId], center: DVec3, radius: 
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::NodeKind;
     use crate::symmetry::{SymmetryAxes, SymmetryCenter};
@@ -446,22 +446,22 @@ mod tests {
         assert!(d.alphas.iter().any(|v| *v > 0.4));
     }
 
-    const P: f64 = 21.5;
-    const X: Mirror = Mirror { x: Some(P), z: None };
+    pub(crate) const P: f64 = 21.5;
+    pub(crate) const X: Mirror = Mirror { x: Some(P), z: None };
 
-    fn mirror_x(p: DVec3) -> DVec3 {
+    pub(crate) fn mirror_x(p: DVec3) -> DVec3 {
         DVec3::new(2.0 * P - p.x, p.y, p.z)
     }
 
     /// Base position, height and alpha of every vertex of a displacement.
-    fn surface(m: &Map, (id, face): (NodeId, usize)) -> Vec<(DVec3, f32, f32)> {
+    pub(crate) fn surface(m: &Map, (id, face): (NodeId, usize)) -> Vec<(DVec3, f32, f32)> {
         let b = m.brush(id).unwrap();
         let d = b.faces[face].data.disp.as_ref().unwrap();
         let base = displacement::grid(b, face).unwrap().base;
         base.iter().enumerate().map(|(k, p)| (*p, d.heights[k], d.alphas.get(k).copied().unwrap_or(0.0))).collect()
     }
 
-    fn assert_mirrored(m: &Map, a: (NodeId, usize), b: (NodeId, usize), what: &str) {
+    pub(crate) fn assert_mirrored(m: &Map, a: (NodeId, usize), b: (NodeId, usize), what: &str) {
         let (sa, sb) = (surface(m, a), surface(m, b));
         assert_eq!(sa.len(), sb.len(), "{what}");
         for (p, h, alpha) in &sa {
@@ -472,7 +472,7 @@ mod tests {
 
     /// A displaced face of the brush `a` facing along `normal`, and its mirror image across x = P, with mirrored slanted
     /// start heights.
-    fn mirrored_pair(a: Aabb, normal: DVec3) -> (Map, [(NodeId, usize); 2]) {
+    pub(crate) fn mirrored_pair(a: Aabb, normal: DVec3) -> (Map, [(NodeId, usize); 2]) {
         let mut m = Map::new();
         let l = m.default_layer();
         let mut place = |bounds: Aabb, normal: DVec3| {
