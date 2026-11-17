@@ -5392,3 +5392,99 @@ fn align_and_distribute_over_mcp() {
     ed.call("run_action", json!({ "action": "undo" }));
     assert_eq!(bounds_of(b).0[0], 100.0, "one undo step brings the distribute back");
 }
+
+fn vertices_of(ed: &Editor, id: u64) -> Vec<[i64; 3]> {
+    let node = ed.call("get_node", json!({ "id": id }));
+    let mut out: Vec<[i64; 3]> =
+        node["vertices"].as_array().unwrap().iter().map(|v| [0, 1, 2].map(|i| (v[i].as_f64().unwrap() * 1000.0).round() as i64)).collect();
+    out.sort();
+    out
+}
+
+fn mirrored_x(vertices: &[[i64; 3]], plane: f64) -> Vec<[i64; 3]> {
+    let mut out: Vec<[i64; 3]> = vertices.iter().map(|v| [(2.0 * plane * 1000.0) as i64 - v[0], v[1], v[2]]).collect();
+    out.sort();
+    out
+}
+
+#[test]
+#[ignore]
+fn mirror_linked_copies_follow_edits_mirrored() {
+    let ed = Editor::launch("mirror_linked");
+    let source = ed.box_brush([8.0, 2.0, -4.0], [40.0, 34.0, 20.0]);
+    ed.call("select", json!({ "ids": [source] }));
+    let slant = |vertices: Value, offset: Value| {
+        ed.call("run_action", json!({ "action": "move_vertices", "args": { "vertices": vertices, "offset": offset } }));
+    };
+    slant(json!([[40, 34, -4], [40, 34, 20]]), json!([0, -16, 0]));
+    slant(json!([[8, 34, 20], [40, 18, 20]]), json!([0, 4, 0]));
+    let flat = vertices_of(&ed, source);
+    assert!(flat.contains(&[8000, 38000, 20000]) && flat.contains(&[40000, 22000, 20000]), "the top is slanted both ways {flat:?}");
+
+    assert!(ed.state()["mirror_planes"].as_array().unwrap().is_empty(), "nothing is mirrored yet");
+    let undo_before = ed.state()["undo"].as_array().unwrap().len();
+    let reply = ed.call("run_action", json!({ "action": "mirror_linked", "args": { "axis": "x", "plane": "max" } }));
+    assert_eq!(reply["plane"], json!({ "axis": "x", "at": 40.0 }), "{reply}");
+    let copies = reply["copies"].as_array().unwrap().clone();
+    assert_eq!(copies.len(), 1, "{reply}");
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), undo_before + 1, "wrapping and mirroring are one undo step");
+    assert_eq!(ed.state()["undo"][0], "MCP: Mirror Linked");
+
+    let (min, max) = ed.selection_bounds();
+    assert!(approx(&[min[0], max[0], min[1], max[1], min[2], max[2]], &[40.0, 72.0, 2.0, 38.0, -4.0, 20.0]), "the copy sits across the plane {min:?} {max:?}");
+    let planes = ed.state()["mirror_planes"].clone();
+    assert_eq!(planes.as_array().unwrap().len(), 1, "{planes}");
+    assert_eq!((planes[0]["axis"].as_str(), planes[0]["at"].as_f64()), (Some("x"), Some(40.0)), "{planes}");
+    assert_eq!(planes[0]["group"], copies[0], "{planes}");
+
+    let other_brush = |ed: &Editor| {
+        let brushes = ed.call("list_nodes", json!({ "type": "brush" }));
+        let ids: Vec<u64> = brushes["nodes"].as_array().unwrap().iter().map(|n| n["id"].as_u64().unwrap()).collect();
+        assert_eq!(ids.len(), 2, "{brushes}");
+        *ids.iter().find(|i| **i != source).unwrap()
+    };
+    let copy = other_brush(&ed);
+    assert_eq!(vertices_of(&ed, copy), mirrored_x(&flat, 40.0), "the copy is the reflection of the slanted source");
+
+    ed.call("select", json!({ "ids": [source] }));
+    slant(json!([[8, 34, -4], [8, 38, 20]]), json!([0, -6, 0]));
+    let edited = vertices_of(&ed, source);
+    assert_ne!(edited, flat);
+    let copy = other_brush(&ed);
+    assert_eq!(vertices_of(&ed, copy), mirrored_x(&edited, 40.0), "a vertex edit in one half shows mirrored in the other");
+    assert_eq!(ed.call("validate_map", json!({}))["count"], 0, "the mirrored half has outward faces");
+
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(vertices_of(&ed, source), flat);
+    let copy = other_brush(&ed);
+    assert_eq!(vertices_of(&ed, copy), mirrored_x(&flat, 40.0), "one undo step takes both halves back");
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(ed.brushes(), 1, "the next undo removes the mirror");
+
+    ed.call("select", json!({ "ids": [source] }));
+    let typed = ed.call("run_action", json!({ "action": "mirror_linked", "args": { "axis": "z", "at": 100.5 } }));
+    assert_eq!(typed["plane"], json!({ "axis": "z", "at": 100.5 }), "at alone means a custom plane {typed}");
+    let (min, max) = ed.selection_bounds();
+    assert!(approx(&[min[2], max[2]], &[181.0, 205.0]), "{min:?} {max:?}");
+    assert_eq!(ed.state()["editor"]["mirror_plane"], json!({ "at": "max", "custom": 0.0 }), "a call leaves the Inspector choice alone");
+    ed.call("run_action", json!({ "action": "undo" }));
+
+    ed.call("select", json!({ "ids": [source] }));
+    let world = ed.call("run_action", json!({ "action": "mirror_linked", "args": { "axis": "y", "plane": "world" } }));
+    assert_eq!(world["plane"], json!({ "axis": "y", "at": 0.0 }), "{world}");
+    ed.call("run_action", json!({ "action": "undo" }));
+
+    let before = ed.state()["undo"].as_array().unwrap().len();
+    let refuse = |args: Value, words: &str| {
+        let text = ed.call_err("run_action", json!({ "action": "mirror_linked", "args": args }));
+        assert!(text.contains(words), "{args}: {text}");
+    };
+    refuse(json!({ "axis": "w" }), "mirror_linked axis must be x, y or z");
+    refuse(json!({ "axis": 1 }), "mirror_linked axis must be x, y or z");
+    refuse(json!({ "plane": "left" }), "mirror_linked plane must be center, max, min, world or custom");
+    refuse(json!({ "plane": 3 }), "mirror_linked plane must be center, max, min, world or custom");
+    refuse(json!({ "at": "far" }), "mirror_linked at must be a number");
+    ed.call("run_action", json!({ "action": "select_none" }));
+    refuse(json!({}), "select objects or groups to mirror first");
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), before, "a refused call leaves no undo step");
+}

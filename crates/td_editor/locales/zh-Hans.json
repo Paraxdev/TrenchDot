@@ -2331,5 +2331,6 @@
   "Where the plane sits: selection middle, larger or smaller side, world origin or a typed position": "平面位置：选择的中间、较大或较小一侧、世界原点或输入的位置",
   "Copies the selection as a linked group mirrored across a plane, edits in either half show in both": "把选择复制为沿平面镜像的链接组，编辑任一半都会同步",
   "Made {n} mirrored copy across {axis} at {at} u. Edits in either half show in both": { "other": "已沿 {axis} 在 {at} u 创建 {n} 个镜像副本，编辑任一半都会同步" },
-  "Select objects or groups to mirror linked": "请选择要关联镜像的对象或组"
+  "Select objects or groups to mirror linked": "请选择要关联镜像的对象或组",
+  "Mirror plane {axis} at {at} u": "镜像平面 {axis}，位于 {at} u"
 }

@@ -2331,5 +2331,6 @@
   "Where the plane sits: selection middle, larger or smaller side, world origin or a typed position": "平面の位置：選択の中央、大きい側か小さい側、ワールド原点、入力した位置",
   "Copies the selection as a linked group mirrored across a plane, edits in either half show in both": "選択を平面で反転したリンクグループとしてコピーします。どちらの半分を編集しても両方に反映されます",
   "Made {n} mirrored copy across {axis} at {at} u. Edits in either half show in both": { "other": "{axis}の{at} uに{n}個のミラーコピーを作成しました。どちらの半分を編集しても両方に反映されます" },
-  "Select objects or groups to mirror linked": "リンクミラーするオブジェクトかグループを選択してください"
+  "Select objects or groups to mirror linked": "リンクミラーするオブジェクトかグループを選択してください",
+  "Mirror plane {axis} at {at} u": "ミラー平面 {axis}、{at} u"
 }

@@ -2331,5 +2331,6 @@
   "Where the plane sits: selection middle, larger or smaller side, world origin or a typed position": "Wo die Ebene liegt: Mitte der Auswahl, größere oder kleinere Seite, Weltursprung oder eingegebene Position",
   "Copies the selection as a linked group mirrored across a plane, edits in either half show in both": "Spiegelt die Auswahl als verknüpfte Kopie an einer Ebene, Änderungen wirken auf beide Hälften",
   "Made {n} mirrored copy across {axis} at {at} u. Edits in either half show in both": { "one": "{n} gespiegelte Kopie an {axis} bei {at} u erstellt. Änderungen in einer Hälfte wirken auf beide", "other": "{n} gespiegelte Kopien an {axis} bei {at} u erstellt. Änderungen in einer Hälfte wirken auf beide" },
-  "Select objects or groups to mirror linked": "Objekte oder Gruppen zum verknüpften Spiegeln auswählen"
+  "Select objects or groups to mirror linked": "Objekte oder Gruppen zum verknüpften Spiegeln auswählen",
+  "Mirror plane {axis} at {at} u": "Spiegelebene {axis} bei {at} u"
 }

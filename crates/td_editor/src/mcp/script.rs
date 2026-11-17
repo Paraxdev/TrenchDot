@@ -83,6 +83,7 @@ const ACTIONS: &[&str] = &[
     "csg_hollow",
     "rotate",
     "flip",
+    "mirror_linked",
     "align",
     "distribute",
     "focus_selection",

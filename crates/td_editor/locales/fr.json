@@ -2331,5 +2331,6 @@
   "Where the plane sits: selection middle, larger or smaller side, world origin or a typed position": "Où se place le plan : milieu de la sélection, côté max ou min, origine du monde ou position saisie",
   "Copies the selection as a linked group mirrored across a plane, edits in either half show in both": "Copie la sélection en groupe lié reflété sur un plan, modifier une moitié met à jour l'autre",
   "Made {n} mirrored copy across {axis} at {at} u. Edits in either half show in both": { "one": "{n} copie reflétée sur {axis} à {at} u. Modifier une moitié met à jour l'autre", "other": "{n} copies reflétées sur {axis} à {at} u. Modifier une moitié met à jour l'autre" },
-  "Select objects or groups to mirror linked": "Sélectionnez des objets ou groupes à refléter en lien"
+  "Select objects or groups to mirror linked": "Sélectionnez des objets ou groupes à refléter en lien",
+  "Mirror plane {axis} at {at} u": "Plan de miroir {axis} à {at} u"
 }

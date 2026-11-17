@@ -2331,5 +2331,6 @@
   "Where the plane sits: selection middle, larger or smaller side, world origin or a typed position": "Где лежит плоскость: середина выделения, большая или меньшая сторона, начало координат или введённая позиция",
   "Copies the selection as a linked group mirrored across a plane, edits in either half show in both": "Копирует выделение как связанную группу, отражённую плоскостью, правка одной половины меняет обе",
   "Made {n} mirrored copy across {axis} at {at} u. Edits in either half show in both": { "one": "Создана {n} зеркальная копия, ось {axis}, позиция {at} u. Правка одной половины меняет обе", "few": "Созданы {n} зеркальные копии, ось {axis}, позиция {at} u. Правка одной половины меняет обе", "many": "Создано {n} зеркальных копий, ось {axis}, позиция {at} u. Правка одной половины меняет обе" },
-  "Select objects or groups to mirror linked": "Выберите объекты или группы для связанного отражения"
+  "Select objects or groups to mirror linked": "Выберите объекты или группы для связанного отражения",
+  "Mirror plane {axis} at {at} u": "Плоскость отражения {axis} на {at} u"
 }

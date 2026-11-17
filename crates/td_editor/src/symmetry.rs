@@ -225,6 +225,32 @@ fn plane_lines(target: &Target, axis: usize, at: f64, out: &mut Vec<LineVertex>)
     }
 }
 
+/// The plane at `at` on `axis` as a rectangle over the other two axes of `span`, grown by the plane margin.
+pub fn plane_rect(axis: usize, at: f64, span: &Aabb, out: &mut Vec<LineVertex>) {
+    let color = plane_color(axis);
+    let (u, v) = ((axis + 1) % 3, (axis + 2) % 3);
+    let point = |a: f64, b: f64| {
+        let mut p = DVec3::ZERO;
+        p[axis] = at;
+        p[u] = a;
+        p[v] = b;
+        p
+    };
+    let (u0, u1) = (span.min[u] - PLANE_MARGIN, span.max[u] + PLANE_MARGIN);
+    let (v0, v1) = (span.min[v] - PLANE_MARGIN, span.max[v] + PLANE_MARGIN);
+    let corners = [point(u0, v0), point(u1, v0), point(u1, v1), point(u0, v1)];
+    for i in 0..4 {
+        segment(out, corners[i], corners[(i + 1) % 4], color);
+    }
+}
+
+/// The mirror planes between the selected linked groups and their mirrored partners.
+pub fn mirror_link_lines(state: &EditorState, out: &mut Vec<LineVertex>) {
+    for m in td_doc::mirror::selection_planes(&state.doc.map, &state.doc.selection) {
+        plane_rect(m.plane.axis, m.plane.at, &m.span, out);
+    }
+}
+
 /// Where the brush at `hover` would also dab: its mirror through each target it is over, when that lands within brush
 /// reach of any target. Each spot is a center and the mirrored surface normal.
 fn mirrored_spots(targets: &[Target], hover: (DVec3, DVec3), radius: f64) -> Vec<(DVec3, DVec3)> {

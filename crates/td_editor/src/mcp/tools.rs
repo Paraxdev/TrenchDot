@@ -10,6 +10,7 @@ use std::time::Instant;
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Vec2};
 use serde_json::{Value, json};
 use td_core::{Aabb, DVec2, DVec3, NodeId};
+use td_doc::symmetry::PlaneAt;
 use td_doc::{IoConnection, NodeKind, format, issues, ops};
 use td_geom::{Brush, shapes};
 
@@ -88,6 +89,10 @@ fn arr(v: DVec3) -> Value {
 
 fn bounds_json(b: &Aabb) -> Value {
     if b.is_empty() { Value::Null } else { json!({ "min": arr(b.min), "max": arr(b.max) }) }
+}
+
+fn axis_letter(axis: usize) -> &'static str {
+    ["x", "y", "z"][axis.min(2)]
 }
 
 fn axis_index(v: &Value) -> Option<usize> {
@@ -1131,7 +1136,12 @@ impl App {
                 "selected_vertices": self.tools.vertex.selected.iter().map(|p| arr(*p)).collect::<Vec<_>>(),
                 "sculpt": { "radius": s.sculpt.radius, "strength": s.sculpt.strength },
                 "symmetry": s.symmetry,
+                "mirror_plane": s.mirror_plane,
             },
+            "mirror_planes": td_doc::mirror::selection_planes(map, sel)
+                .iter()
+                .map(|m| json!({ "axis": axis_letter(m.plane.axis), "at": m.plane.at, "group": m.group.0, "partner": m.partner.0 }))
+                .collect::<Vec<_>>(),
             "cameras": cameras,
             "ui": {
                 "language": s.prefs.lang().code(),
@@ -1237,6 +1247,7 @@ impl App {
 
         let started = Instant::now();
         self.state.replaced.clear();
+        let mut mirrored_across = None;
         let action = match name {
             "new_map" => Action::NewMap,
             "save" => {
@@ -1328,6 +1339,42 @@ impl App {
                     };
                     Action::Rotate { axis, degrees }
                 }
+            }
+            "mirror_linked" => {
+                let axis = match &a["axis"] {
+                    Value::Null => 0,
+                    v => match axis_index(v) {
+                        Some(i) => i,
+                        None => return err(format!("mirror_linked axis must be x, y or z, got {v}")),
+                    },
+                };
+                let mut choice = self.state.mirror_plane;
+                match &a["plane"] {
+                    Value::Null => {
+                        if !a["at"].is_null() {
+                            choice.at = PlaneAt::Custom;
+                        }
+                    }
+                    v => match v.as_str().and_then(|n| serde_json::from_value::<PlaneAt>(Value::from(n)).ok()) {
+                        Some(at) => choice.at = at,
+                        None => return err(format!("mirror_linked plane must be center, max, min, world or custom, got {v}")),
+                    },
+                }
+
+                match &a["at"] {
+                    Value::Null => {}
+                    v => match v.as_f64() {
+                        Some(at) => choice.custom = at,
+                        None => return err(format!("mirror_linked at must be a number, got {v}")),
+                    },
+                }
+
+                if self.state.doc.selection.nodes.is_empty() {
+                    return err("select objects or groups to mirror first");
+                }
+
+                mirrored_across = Some((axis, std::mem::replace(&mut self.state.mirror_plane, choice)));
+                Action::MirrorLinked { axis }
             }
             "align" | "distribute" => {
                 let Some(axis) = axis_index(&a["axis"]) else {
@@ -1615,6 +1662,10 @@ impl App {
         };
         let project_before = self.state.game.project_root.clone();
         crate::commands::execute(&mut self.state, action, ctx);
+        if let Some((_, saved)) = mirrored_across {
+            self.state.mirror_plane = saved;
+        }
+
         if self.state.game.project_root != project_before {
             self.project_generation += 1;
         }
@@ -1633,6 +1684,15 @@ impl App {
         let mut result = json!({ "ok": true, "status": status, "brushes": self.state.doc.map.brush_count(), "selection": self.state.doc.selection.nodes.iter().map(|i| i.0).collect::<Vec<_>>() });
         if !self.state.replaced.is_empty() {
             result["replaced"] = replaced_json(&self.state.replaced);
+        }
+
+        if let Some((axis, _)) = mirrored_across {
+            let planes = td_doc::mirror::selection_planes(&self.state.doc.map, &self.state.doc.selection);
+            let selected = &self.state.doc.selection.nodes;
+            result["copies"] = json!(selected.iter().map(|i| i.0).collect::<Vec<_>>());
+            if let Some(m) = planes.iter().find(|m| m.plane.axis == axis && selected.contains(&m.group)) {
+                result["plane"] = json!({ "axis": axis_letter(axis), "at": m.plane.at });
+            }
         }
 
         ok(result)

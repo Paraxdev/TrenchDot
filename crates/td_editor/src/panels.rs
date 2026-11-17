@@ -1088,6 +1088,10 @@ fn selection_summary(ui: &mut Ui, state: &mut EditorState, actions: &mut Vec<Act
                 }
             }
         });
+        for m in td_doc::mirror::selection_planes(&state.doc.map, &state.doc.selection) {
+            let (axis, at) = (crate::commands::axis_name(m.plane.axis), crate::gizmos::fmt_num(m.plane.at));
+            ui.label(RichText::new(trf!("Mirror plane {axis} at {at} u", axis, at)).weak());
+        }
     });
     section(ui, en!("Gameplay"), en!("Doors, lifts and trigger volumes from the selection"), false, |ui| {
         sub_heading(ui, tr("Doors and movers"));

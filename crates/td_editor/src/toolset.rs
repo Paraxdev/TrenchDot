@@ -1292,6 +1292,7 @@ impl ToolSet {
             _ => {}
         }
 
+        crate::symmetry::mirror_link_lines(state, &mut out);
         crate::gizmos::lines(state, &mut out);
         for b in &state.sweep_preview {
             for (a, c) in b.edges() {
@@ -3155,5 +3156,122 @@ mod tests {
 
         state.symmetry = Symmetry::OFF;
         assert!(ring_centers(&tools.lines(&perspective(), view_rect(), &state), ghost).is_empty());
+    }
+
+    /// The wedge grouped, with a mirrored linked copy across `axis` at the selection's max side, the copy selected.
+    fn mirrored_wedge(axis: usize) -> (EditorState, NodeId, NodeId) {
+        let mut state = EditorState::new(Default::default());
+        let layer = state.doc.map.default_layer();
+        let group = state.doc.edit("add", |m, s| {
+            s.clear();
+            s.select_node(m.insert(layer, td_doc::NodeKind::Brush(wedge())));
+            ops::group_selection(m, s, "half", layer).unwrap()
+        });
+        let choice = td_doc::symmetry::PlaneChoice::default();
+        let (copies, _) = state.doc.edit("Mirror Linked", |m, s| td_doc::mirror::mirror_linked(m, s, axis, &choice)).unwrap();
+        (state, group, copies[0])
+    }
+
+    /// The outline of the plane at `at` on `axis` over `lo` to `hi` on the other axes, grown by one meter.
+    fn rect_outline(axis: usize, at: f32, lo: [f32; 3], hi: [f32; 3]) -> Vec<Segment> {
+        let (u, v) = ((axis + 1) % 3, (axis + 2) % 3);
+        let p = |a: f32, b: f32| {
+            let mut out = [0.0; 3];
+            out[axis] = at;
+            out[u] = a;
+            out[v] = b;
+            out
+        };
+        let (u0, u1, v0, v1) = (lo[u] - 32.0, hi[u] + 32.0, lo[v] - 32.0, hi[v] + 32.0);
+        sorted(vec![(p(u0, v0), p(u1, v0)), (p(u1, v0), p(u1, v1)), (p(u1, v1), p(u0, v1)), (p(u0, v1), p(u0, v0))])
+    }
+
+    fn select_only(state: &mut EditorState, ids: &[NodeId]) {
+        state.doc.select(|_, s| {
+            s.clear();
+            s.nodes.extend(ids);
+        });
+    }
+
+    fn plane_segments(tools: &ToolSet, state: &EditorState, cam: &Camera) -> Vec<Segment> {
+        (0..3).flat_map(|axis| segments_of(&tools.lines(cam, view_rect(), state), axis_color(axis))).collect()
+    }
+
+    #[test]
+    fn a_selected_mirrored_half_draws_its_plane_over_both_halves_on_each_axis() {
+        let tools = ToolSet::default();
+        // The wedge spans x 100..280, y 64..160, z -150..-20, and its copy sits on the max side of the chosen axis.
+        let (lo, hi) = ([100.0, 64.0, -150.0], [280.0, 160.0, -20.0]);
+        for axis in 0..3 {
+            let (mut state, group, copy) = mirrored_wedge(axis);
+            let mut both = hi;
+            both[axis] = hi[axis] + (hi[axis] - lo[axis]);
+            let expected = rect_outline(axis, hi[axis], lo, both);
+            for id in [copy, group] {
+                select_only(&mut state, &[id]);
+                for cam in all_cameras() {
+                    assert_eq!(plane_segments(&tools, &state, &cam), expected, "axis {axis}");
+                }
+            }
+
+            let leaf = state.doc.map.get(copy).unwrap().children[0];
+            select_only(&mut state, &[leaf]);
+            assert_eq!(plane_segments(&tools, &state, &perspective()), expected, "axis {axis}: a brush inside a half shows it too");
+        }
+    }
+
+    #[test]
+    fn mirror_planes_show_in_every_tool() {
+        let tools = ToolSet::default();
+        let (mut state, _, _) = mirrored_wedge(0);
+        for tool in [ToolKind::Select, ToolKind::Vertex, ToolKind::Mesh, ToolKind::Clip, ToolKind::Sculpt, ToolKind::Texture] {
+            state.tool = tool;
+            let drawn = segments_of(&tools.lines(&perspective(), view_rect(), &state), axis_color(0));
+            assert_eq!(drawn.len(), 4, "{tool:?}");
+        }
+    }
+
+    #[test]
+    fn nothing_selected_or_a_plain_linked_copy_draws_no_plane() {
+        let tools = ToolSet::default();
+        let (mut state, group, copy) = mirrored_wedge(0);
+        select_only(&mut state, &[]);
+        assert!(plane_segments(&tools, &state, &perspective()).is_empty());
+
+        let linked = state.doc.edit("link", |m, s| {
+            s.clear();
+            s.select_node(group);
+            ops::duplicate_linked(m, s, DVec3::new(0.0, 0.0, 400.0), Default::default())
+        });
+        select_only(&mut state, &linked);
+        assert!(plane_segments(&tools, &state, &perspective()).is_empty(), "a copy slid along the plane is no mirror of its source");
+        select_only(&mut state, &[copy]);
+        assert_eq!(plane_segments(&tools, &state, &perspective()).len(), 4, "the real mirror still draws, so the slid copy is the only reason for nothing");
+
+        let (mut plain, only, _) = mirrored_wedge(0);
+        plain.doc.edit("unlink", |m, s| {
+            s.clear();
+            s.select_node(only);
+            ops::unlink_groups(m, s);
+        });
+        select_only(&mut plain, &[only]);
+        assert!(plane_segments(&tools, &plain, &perspective()).is_empty(), "an unlinked group has no partner");
+    }
+
+    #[test]
+    fn a_facade_of_mirrored_pairs_draws_one_plane_per_selected_pair() {
+        let tools = ToolSet::default();
+        let (mut state, a, b) = mirrored_wedge(0);
+        let shifted = state.doc.edit("link", |m, s| {
+            s.clear();
+            s.nodes.extend([a, b]);
+            ops::duplicate_linked(m, s, DVec3::new(0.0, 0.0, 300.0), Default::default())
+        });
+        select_only(&mut state, &[shifted[0]]);
+        let drawn = plane_segments(&tools, &state, &perspective());
+        assert_eq!(drawn.len(), 4, "the nearest partner only, not one plane per far copy");
+        assert_eq!(drawn[0].0[0], 280.0);
+        select_only(&mut state, &[a, shifted[0]]);
+        assert_eq!(plane_segments(&tools, &state, &perspective()).len(), 8, "two pairs, two planes");
     }
 }

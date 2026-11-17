@@ -2,7 +2,7 @@
 
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
-use td_core::{Aabb, DVec3};
+use td_core::{Aabb, DVec3, NodeId};
 use td_doc::{NodeKind, ops};
 use td_editor::commands::Action;
 use td_editor::panels::{self, PanelState};
@@ -1834,6 +1834,38 @@ fn the_inspector_mirror_row_runs_each_axis_and_keeps_the_plane_choice() {
     harness.run();
     assert_eq!(harness.state().actions, [Action::MirrorLinked { axis: 1 }]);
     assert_eq!(harness.state().state.mirror_plane.custom, -37.5, "using the button keeps the typed plane");
+}
+
+#[test]
+fn the_inspector_names_the_mirror_plane_of_a_selected_half() {
+    use td_doc::symmetry::{PlaneAt, PlaneChoice};
+    let mut f = brushes_selected(1);
+    let (group, copy) = f.state.doc.edit("mirror", |m, s| {
+        let layer = m.default_layer();
+        let group = td_doc::ops::group_selection(m, s, "half", layer).unwrap();
+        let (copies, _) = td_doc::mirror::mirror_linked(m, s, 2, &PlaneChoice { at: PlaneAt::Custom, custom: 100.5 }).unwrap();
+        (group, copies[0])
+    });
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(520.0, 900.0))
+        .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+    harness.run();
+    harness.get_by_label("Transform").click();
+    harness.run();
+    harness.get_by_label("Mirror plane Z at 100.5 u");
+    assert!(harness.query_by_label_contains("Mirror plane X").is_none());
+
+    let select = |harness: &mut Harness<'_, Fixture>, ids: &[NodeId]| {
+        harness.state_mut().state.doc.select(|_, s| {
+            s.clear();
+            s.nodes.extend(ids);
+        });
+        harness.run();
+    };
+    select(&mut harness, &[group]);
+    harness.get_by_label("Mirror plane Z at 100.5 u");
+    select(&mut harness, &[copy, group]);
+    assert_eq!(harness.query_all_by_label("Mirror plane Z at 100.5 u").count(), 1, "a pair names its plane once");
 }
 
 #[test]
