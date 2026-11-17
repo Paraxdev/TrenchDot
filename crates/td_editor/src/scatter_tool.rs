@@ -3,8 +3,9 @@
 //! instances of other sets. Instances live in the set on its own layer, or become point entities.
 
 use egui::{Color32, PointerButton, Pos2, Rect, Response, Ui};
-use td_core::{Aabb, DVec3, NodeId, Ray};
+use td_core::{Aabb, DVec2, DVec3, NodeId, Ray};
 use td_doc::scatter::{Rng, ScatterRules, SurfaceHit};
+use td_doc::terrain3d::RegionSource;
 use td_doc::{Entity, NodeKind, Scatter, ScatterItem, ScatterKind};
 use td_render::LineVertex;
 
@@ -394,14 +395,23 @@ pub fn paint(state: &mut EditorState, center: DVec3, normal: DVec3, under: Optio
 
     let ground = if settings.rules.only_targets { set.targets.clone() } else { ground_sets(state, Some(id)) };
     load_models(state, &ground);
+    let follow = state.terrain3d_followed(&set.targets);
+    if let Some((link, _)) = &follow {
+        let reach = DVec2::splat(settings.radius);
+        let flat = DVec2::new(center.x, center.z);
+        // A region held as a pyramid has no height to ground a new instance on.
+        let _ = state.load_terrain3d_rect(*link, flat - reach, flat + reach);
+    }
+
+    let source = follow.as_ref().and_then(|(_, cache)| state.terrain3d.source(cache));
     let others = other_footprints(state, Some(id), &ground, &region);
     let placed = {
         let caster = SurfaceCaster::with_targets(state, &region, &ground);
         let rules = ScatterRules { items: Some(enabled), ..settings.rules.clone() };
-        set.paint(center, normal, settings.radius, &rules, rng, &others, |o, d| caster.cast(o, d))
+        set.paint(center, normal, settings.radius, &rules, rng, &others, |o, d| {
+            caster.cast(o, d).filter(|h| godot_can_ground(&state.doc.map, follow.as_ref(), source.as_ref().map(|s| s as &dyn RegionSource), h))
+        })
     };
-    let follow = state.terrain3d_followed(&set.targets);
-    let source = follow.as_ref().and_then(|(_, cache)| state.terrain3d.source(cache));
     state.doc.edit("Scatter", |m, _| {
         if let Some(slot) = m.scatter_mut(id) {
             *slot = set;
@@ -440,6 +450,13 @@ pub fn erase(state: &mut EditorState, center: DVec3, rng: &mut Rng) -> usize {
     removed
 }
 
+/// Whether Godot's `get_surface_height` has a height under `hit`. Over a hole, or a cell with a hole vertex, it has none and
+/// the instance would float at its cast height once the map builds.
+fn godot_can_ground(map: &td_doc::Map, follow: Option<&(NodeId, std::path::PathBuf)>, source: Option<&dyn RegionSource>, hit: &SurfaceHit) -> bool {
+    let (Some((link, _)), Some(source)) = (follow, source) else { return true };
+    hit.node != *link || map.terrain3d(*link).is_none_or(|t| t.probe(source, hit.point.x, hit.point.z).height.is_some())
+}
+
 /// Fills the whole area of the active set's targets (or the selected surfaces and sets) with its enabled models.
 pub fn fill(state: &mut EditorState, rng: &mut Rng) -> Result<usize, Msg> {
     let settings = state.prefs.scatter.clone();
@@ -461,16 +478,22 @@ pub fn fill(state: &mut EditorState, rng: &mut Rng) -> Result<usize, Msg> {
     }
 
     load_models(state, &set.targets);
+    let follow = state.terrain3d_followed(&set.targets);
+    if follow.is_some() {
+        state.load_terrain3d_regions(&[crate::terrain3d::follow::ground(DVec2::splat(-1.0e7), DVec2::splat(1.0e7))]);
+    }
+
+    let source = follow.as_ref().and_then(|(_, cache)| state.terrain3d.source(cache));
     let everywhere = Aabb::from_center_size(DVec3::ZERO, DVec3::splat(1.0e7));
     let placed = {
         let caster = SurfaceCaster::with_targets(state, &everywhere, &set.targets);
         let region = caster.bounds_of(&set.targets);
         let others = other_footprints(state, Some(id), &set.targets, &region.expanded(256.0));
         let rules = ScatterRules { items: Some(enabled), only_targets: true, ..settings.rules.clone() };
-        set.fill(&region, &rules, rng, &others, |o, d| caster.cast(o, d))
+        set.fill(&region, &rules, rng, &others, |o, d| {
+            caster.cast(o, d).filter(|h| godot_can_ground(&state.doc.map, follow.as_ref(), source.as_ref().map(|s| s as &dyn RegionSource), h))
+        })
     };
-    let follow = state.terrain3d_followed(&set.targets);
-    let source = follow.as_ref().and_then(|(_, cache)| state.terrain3d.source(cache));
     state.doc.edit("Fill Scatter", |m, _| {
         if let Some(slot) = m.scatter_mut(id) {
             *slot = set;

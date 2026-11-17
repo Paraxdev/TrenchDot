@@ -158,10 +158,70 @@ mod tests {
         assert_eq!(state.doc.history.undo_labels().count(), undo + 1, "the fill is one undo step");
         let off = off_surface(&state, &cache, id, set);
         assert_eq!(off.len(), placed);
-        // The last half cell before the world's edge has no surface to sample, NaN there.
-        let on: Vec<f64> = off.into_iter().filter(|d| d.is_finite()).collect();
-        assert!(on.len() + 8 > placed && on.len() > 50, "{} of {placed} instances are over the surface", on.len());
-        assert!(on.iter().all(|d| *d < 0.01 * UPM), "worst miss {} units", on.iter().cloned().fold(0.0, f64::max));
+        assert!(off.iter().all(|d| *d < 0.01 * UPM), "worst miss {} units", off.iter().cloned().fold(0.0, f64::max));
+    }
+
+    #[test]
+    fn a_fill_leaves_the_cells_beside_a_hole_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, cache) = bumpy(dir.path(), &[[0, 0], [1, 0]]);
+        let hole = SculptBrush { mode: SculptMode::Hole, radius: 6.0 * UPM, strength: 1.0, ..Default::default() };
+        state.sculpt_terrain3d(&[id], DVec3::new(80.0 * UPM, 0.0, 80.0 * UPM), &hole, Texture { id: 0, spray: false });
+        load_regions(&mut state);
+        let set = rocks(&mut state, id);
+        state.prefs.scatter.rules.density = 2.0;
+        let placed = scatter_tool::fill(&mut state, &mut Rng::new(3)).unwrap();
+        assert!(placed > 5000, "the fill placed {placed}");
+        let off = off_surface(&state, &cache, id, set);
+        assert_eq!(off.len(), placed);
+        let floating = off.iter().filter(|d| d.is_nan()).count();
+        assert_eq!(floating, 0, "{floating} of {placed} instances have no height in Godot");
+        assert!(off.iter().all(|d| *d < 0.01 * UPM));
+    }
+
+    /// Region [0, 0] held whole by a view on it and the far region [3, 0] only as a pyramid, as the editor keeps it
+    /// while nobody looks at that end of the terrain.
+    fn far_as_pyramid(root: &Path) -> (EditorState, NodeId, std::path::PathBuf) {
+        let (mut state, id, cache) = state_over(root, &[[0, 0], [3, 0]]);
+        state.terrain3d.forget(&cache);
+        let near = [View::Flat { min: DVec2::new(100.0, 100.0), max: DVec2::new(900.0, 700.0), zoom: 1.0 }];
+        let start = Instant::now();
+        while state.update_terrain3d_residency(&near) || state.terrain3d.lod(&cache, [3, 0]).is_none() {
+            assert!(start.elapsed().as_secs() < 20, "the pyramid did not load");
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+
+        assert!(state.terrain3d.region(&cache, [0, 0]).is_some(), "the view holds the near region whole");
+        assert!(state.terrain3d.region(&cache, [3, 0]).is_none() && state.terrain3d.lod(&cache, [3, 0]).is_some(), "the far region is a pyramid");
+        (state, id, cache)
+    }
+
+    #[test]
+    fn a_fill_reaches_a_region_the_views_hold_only_as_a_pyramid() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, cache) = far_as_pyramid(dir.path());
+        let set = rocks(&mut state, id);
+        state.prefs.scatter.rules.density = 0.05;
+        let placed = scatter_tool::fill(&mut state, &mut Rng::new(3)).unwrap();
+        let far = state.doc.map.scatter(set).unwrap().instances.iter().filter(|i| i.position.x > 3.0 * 5120.0).count();
+        assert!(far > 20 && placed > far, "{far} of {placed} instances in the far region");
+        let off = off_surface(&state, &cache, id, set);
+        assert!(off.iter().all(|d| *d < 0.01 * UPM), "worst miss {} units", off.iter().cloned().fold(0.0, f64::max));
+    }
+
+    #[test]
+    fn a_dab_reaches_a_region_the_views_hold_only_as_a_pyramid() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, cache) = far_as_pyramid(dir.path());
+        let set = rocks(&mut state, id);
+        state.prefs.scatter.radius = 12.0 * UPM;
+        state.prefs.scatter.rules.density = 2.0;
+        let center = DVec3::new(3.0 * 5120.0 + 20.0 * UPM, 3.0 * UPM, 18.0 * UPM);
+        let placed = scatter_tool::paint(&mut state, center, DVec3::Y, Some(id), &mut Rng::new(5));
+        assert!(placed > 5, "the dab placed {placed}");
+        let off = off_surface(&state, &cache, id, set);
+        assert_eq!(off.len(), placed);
+        assert!(off.iter().all(|d| *d < 0.01 * UPM), "worst miss {} units", off.iter().cloned().fold(0.0, f64::max));
     }
 
     #[test]
@@ -176,6 +236,24 @@ mod tests {
         assert!(placed > 5, "the dab placed {placed}");
         let off = off_surface(&state, &cache, id, set);
         assert!(off.iter().all(|d| *d < 0.01 * UPM), "worst miss {} units", off.iter().cloned().fold(0.0, f64::max));
+    }
+
+    #[test]
+    fn a_dab_next_to_a_hole_places_nothing_over_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, cache) = bumpy(dir.path(), &[[0, 0], [1, 0]]);
+        let hole = SculptBrush { mode: SculptMode::Hole, radius: 6.0 * UPM, strength: 1.0, ..Default::default() };
+        state.sculpt_terrain3d(&[id], DVec3::new(80.0 * UPM, 0.0, 80.0 * UPM), &hole, Texture { id: 0, spray: false });
+        load_regions(&mut state);
+        let set = rocks(&mut state, id);
+        state.prefs.scatter.radius = 14.0 * UPM;
+        state.prefs.scatter.rules.density = 2.0;
+        let placed = scatter_tool::paint(&mut state, DVec3::new(82.0 * UPM, 3.0 * UPM, 71.0 * UPM), DVec3::Y, Some(id), &mut Rng::new(5));
+        assert!(placed > 50, "the dab placed {placed}");
+        let off = off_surface(&state, &cache, id, set);
+        assert_eq!(off.len(), placed);
+        let floating = off.iter().filter(|d| d.is_nan()).count();
+        assert_eq!(floating, 0, "{floating} of {placed} instances have no height in Godot");
     }
 
     #[test]

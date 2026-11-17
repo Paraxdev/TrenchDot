@@ -328,7 +328,8 @@ Pick the Terrain3D node as the only target of a [scatter set](../editor/scatter.
 **Follows Terrain3D**. Instances land on the surface Godot samples, and when the ground changes, in TrenchDot or in
 Godot, they follow it. Godot puts each instance at Terrain3D's own height, so props never float or sink. An instance over
 a missing region or a hole keeps the height it had, and the build warning names the first ones in map units and in meters
-from the map node.
+from the map node. A new dab or fill places nothing where Godot has no height, so a bare ring beside a hole and a bare
+strip at the edge of the world are expected.
 
 ## Without the Godot editor open
 
