@@ -143,6 +143,19 @@ folder. Rebuilds, *Clear Map*, live mode, the chunk streamer and hot reload neve
 [overlay](overlays.md). If you already have a Terrain3D in a scene, add a `TrenchDotTerrain3D` as a child of the map by
 hand and drag your Terrain3D under it, the build then keeps yours.
 
+Select the `TrenchDotTerrain3D` node and the Inspector shows a **TrenchDot** section with read-only lines, so you can
+see what it does without opening the files:
+
+| Line | Shows |
+|---|---|
+| **Linked Node** | The `terrain3d` map node of the last build, or *none* when the map has no `terrain3d` node or was not built yet. |
+| **Data Folder** | The folder of the `Terrain3D` child. |
+| **Pending Edits** | How many edits from TrenchDot wait to be applied. They apply when the scene opens. |
+| **Last Apply** | The newest apply, for example `#3: 2 applied, 1 refused (changed at 3, -2)`. A region is refused when Godot changed it since TrenchDot read it (*changed*), holds unsaved strokes (*dirty*) or has another region size (*size*). |
+| **Cache** | How many regions are exported for TrenchDot, and how many have unsaved edits in Godot. |
+
+The section is not saved in the scene.
+
 A `Terrain3D` node the build creates gets the **Material** (a `Terrain3DMaterial`) and **Assets** (a `Terrain3DAssets`)
 that sit in the data folder, found by their type and not by their name, so Godot shows the textures and the noise
 hills right away. A folder from the Terrain3D demo has both. A node you set up yourself keeps its own material and

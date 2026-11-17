@@ -22,6 +22,7 @@ static func run(t) -> void:
 	Export._clear(WORK)
 	_test_fixture_pending(t)
 	await _test_guards(t)
+	await _test_inspector(t)
 	await _test_add_remove(t)
 	await _test_remove_then_edit(t)
 	await _test_bad_files(t)
@@ -179,6 +180,74 @@ static func _test_guards(t) -> void:
 	t.check(seqs == [1, 2, 3, 4, 5], "each apply adds a report with the next seq, got %s" % [seqs])
 	t.check(_pending_left(folder).is_empty(), "no pending file remains after the guarded applies")
 	terrain.free()
+
+## The lines of the slot's own Inspector section, by name, the way Godot decides to draw them: its category has to
+## hold at least one editor property, or the whole section is skipped.
+static func _inspector_lines(slot: Node) -> Dictionary:
+	var lines := {}
+	var inside := false
+	for prop in slot.get_property_list():
+		if prop["usage"] & PROPERTY_USAGE_CATEGORY:
+			inside = prop["hint_string"] == slot.get_script().resource_path
+		elif inside and prop["usage"] & PROPERTY_USAGE_EDITOR and not str(prop["name"]).begins_with("metadata/"):
+			lines[prop["name"]] = prop["usage"]
+	return lines
+
+static func _test_inspector(t) -> void:
+	var folder := WORK.path_join("inspector")
+	var terrain := await _world(t, "inspector")
+	var slot := await _slot(t, terrain)
+	slot.set_meta(TrenchDotTerrain3D.LINK_META, 40)
+	var lines := _inspector_lines(slot)
+	t.check(not lines.is_empty(), "the slot draws a section of its own in the Inspector, got %s" % [lines])
+	var names := lines.keys()
+	names.sort()
+	t.check(names == ["trenchdot_cache", "trenchdot_data_folder", "trenchdot_last_apply", "trenchdot_linked_node", "trenchdot_pending_edits"], "the section has the link, folder, pending, last apply and cache lines, got %s" % [names])
+	t.check(not lines.is_empty() and lines.values().all(func(usage: int) -> bool: return usage & PROPERTY_USAGE_READ_ONLY and not usage & PROPERTY_USAGE_STORAGE), "every line is read only and never stored")
+	t.check(str(slot.get(&"trenchdot_linked_node")).contains("40") and slot.get(&"trenchdot_data_folder") == folder, "it names the linked node and the data folder, got %s and %s" % [slot.get(&"trenchdot_linked_node"), slot.get(&"trenchdot_data_folder")])
+	t.check(slot.get(&"trenchdot_pending_edits") == 0 and not str(slot.get(&"trenchdot_last_apply")).contains("#"), "with nothing pending and nothing applied it shows no apply, got %s and %s" % [slot.get(&"trenchdot_pending_edits"), slot.get(&"trenchdot_last_apply")])
+	t.check(str(slot.get(&"trenchdot_cache")).begins_with("3 "), "the cache line counts the 3 exported regions, got %s" % [slot.get(&"trenchdot_cache")])
+
+	var west := Vector2i(-1, 0)
+	var south := Vector2i(3, -2)
+	var north := Vector2i(0, -1)
+	var data: Object = terrain.get(&"data")
+	_pending(folder, west, Export._pattern(west, true), NO_BASE.replace("0", "1"))
+	_pending(folder, north, { "height": _slanted(north, 4.0), "control": Export._pattern(north, false)["control"] }, _hash(folder, north))
+	_pending(folder, south, Export._pattern(south, false), NO_BASE.replace("0", "2"))
+	t.check(slot.get(&"trenchdot_pending_edits") == 0, "the lines keep what they read until the next refresh, got %s" % [slot.get(&"trenchdot_pending_edits")])
+	slot.refresh_status()
+	t.check(slot.get(&"trenchdot_pending_edits") == 3, "three pending files show as 3 pending edits, got %s" % [slot.get(&"trenchdot_pending_edits")])
+	slot.apply_pending()
+	var last := str(slot.get(&"trenchdot_last_apply"))
+	t.check(slot.get(&"trenchdot_pending_edits") == 0 and last.begins_with("#1") and last.contains("1 applied") and last.contains("2 refused"), "after the apply nothing is pending and the last apply names 1 applied and 2 refused, got %s" % [last])
+	t.check(last.contains("changed at -1, 0") and last.contains("changed at 3, -2"), "it names the reason and location of each refused region, got %s" % [last])
+
+	_pending(folder, west, Export._pattern(west, true), NO_BASE.replace("0", "3"))
+	slot.apply_pending()
+	last = str(slot.get(&"trenchdot_last_apply"))
+	t.check(last.begins_with("#2") and last.contains("0 applied") and last.contains("1 refused") and last.contains("changed at -1, 0") and not last.contains("3, -2"), "a second apply replaces the line with its own report, got %s" % [last])
+
+	# A slot that never ran _ready is what a script reload leaves, its lines still come from disk.
+	var other_terrain := await _world(t, "inspector_other")
+	var other := TrenchDotTerrain3D.new()
+	other_terrain.get_parent().remove_child(other_terrain)
+	other.add_child(other_terrain)
+	_pending(WORK.path_join("inspector_other"), south, Export._pattern(south, false), NO_BASE)
+	var got := [other.get(&"trenchdot_linked_node"), other.get(&"trenchdot_pending_edits"), other.get(&"trenchdot_last_apply"), other.get(&"trenchdot_cache")]
+	t.check(got[0] == "none" and got[1] == 1 and got[2] == "none yet" and str(got[3]).begins_with("3 regions exported, 0 "), "a second slot reads its own state on the first look, got %s" % [got])
+	other.free()
+
+	# Only the slot is owned, like a scene a user saved, the Terrain3D under it is not part of the pack.
+	slot.owner = slot.get_parent()
+	var packed := PackedScene.new()
+	packed.pack(slot.get_parent())
+	var state := packed.get_state()
+	var stored := []
+	for i in state.get_node_property_count(1):
+		stored.append(str(state.get_node_property_name(1, i)))
+	t.check(stored.has("metadata/%s" % TrenchDotTerrain3D.LINK_META) and not stored.any(func(n: String) -> bool: return n.begins_with("trenchdot_")), "the scene keeps the link and none of the section's lines, got %s" % [stored])
+	slot.get_parent().free()
 
 static func _test_add_remove(t) -> void:
 	var folder := WORK.path_join("add_remove")
