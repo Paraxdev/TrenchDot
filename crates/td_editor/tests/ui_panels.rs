@@ -3931,3 +3931,18 @@ fn the_terrain3d_grid_follows_the_units_per_meter_of_the_game() {
         assert_eq!(f.state.terrain3d.grid(&cache).map(|g| (g.region_size, g.spacing, g.upm)), Some((64, 0.25, upm)));
     }
 }
+
+#[test]
+fn the_sculpt_mode_list_opens_tall_enough_for_every_mode() {
+    use td_doc::terrain::SculptMode;
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(400.0, 800.0))
+        .build_ui_state(|ui, mode: &mut SculptMode| td_editor::widgets::sculpt_mode_combo(ui, mode), SculptMode::Raise);
+    harness.run();
+    harness.get_by_role(egui::accesskit::Role::ComboBox).click();
+    harness.run();
+
+    harness.get_by_label("Unhole").click();
+    harness.run();
+    assert_eq!(*harness.state(), SculptMode::Unhole, "the last mode is reachable, not clipped away");
+}

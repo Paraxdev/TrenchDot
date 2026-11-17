@@ -13,6 +13,16 @@ pub const TRAILING: f32 = 30.0;
 const AXIS_LABEL: f32 = 14.0;
 const AXIS_GAP: f32 = 6.0;
 
+/// The Sculpt tool's mode list. Without a height egui stops the popup at 200 points, which hides the last modes behind a
+/// scroll bar that only shows under the pointer.
+pub fn sculpt_mode_combo(ui: &mut Ui, mode: &mut td_doc::terrain::SculptMode) {
+    egui::ComboBox::from_id_salt("sculpt_mode").selected_text(crate::i18n::tr(mode.label())).width(90.0).height(f32::INFINITY).show_ui(ui, |ui| {
+        for m in td_doc::terrain::SculptMode::ALL {
+            ui.selectable_value(mode, m, crate::i18n::tr(m.label()));
+        }
+    });
+}
+
 /// Width of the label column, shared by every row of a panel so the values line up.
 pub fn label_width(ui: &Ui) -> f32 {
     (ui.available_width() * 0.38).clamp(84.0, 170.0)

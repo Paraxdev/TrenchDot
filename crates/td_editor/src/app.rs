@@ -2537,11 +2537,7 @@ impl App {
                 ToolKind::Sculpt | ToolKind::Paint => {
                     use td_doc::terrain::SculptMode;
                     if tool == ToolKind::Sculpt {
-                        egui::ComboBox::from_id_salt("sculpt_mode").selected_text(tr(self.state.sculpt.mode.label())).width(90.0).show_ui(ui, |ui| {
-                            for m in SculptMode::ALL {
-                                ui.selectable_value(&mut self.state.sculpt.mode, m, tr(m.label()));
-                            }
-                        });
+                        crate::widgets::sculpt_mode_combo(ui, &mut self.state.sculpt.mode);
                         if self.state.sculpt.mode == SculptMode::PaintLayer {
                             let terrain3d = crate::blend_tool::StrokeScope::of(&self.state).terrain3d;
                             if terrain3d.is_empty() || self.state.doc.map.terrains().next().is_some() {
