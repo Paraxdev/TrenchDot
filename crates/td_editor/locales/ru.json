@@ -2883,6 +2883,7 @@
   "World Background": "Фон мира",
   "Water": "Вода",
   "Off draws each texture as its average color": "Выключено: каждая текстура рисуется средним цветом",
+  "This Terrain3D has no textures, give its Terrain3DAssets textures in Godot": "У этого Terrain3D нет текстур, добавьте текстуры в его Terrain3DAssets в Godot",
   "The hills or flat ground Terrain3D draws past its regions": "Холмы или плоская земля, которые Terrain3D рисует за своими регионами",
   "The ocean of a Terrain3D node": "Океан узла Terrain3D",
   "Look": "Вид",

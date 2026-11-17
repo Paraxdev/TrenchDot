@@ -2052,9 +2052,15 @@ impl App {
                 m.toggle(ui, en!("Godot Overlays"), self.state.prefs.godot_overlays, Action::ToggleGodotOverlays);
                 if self.state.prefs.terrain3d || self.state.doc.map.has_terrain3d() {
                     sub_menu(ui, None, en!("Terrain3D"), |ui| {
+                        let no_textures = self.state.terrain3d_without_textures();
                         let p = &mut self.state.prefs;
+                        let textures_tip = if no_textures {
+                            tr("This Terrain3D has no textures, give its Terrain3DAssets textures in Godot")
+                        } else {
+                            tr("Off draws each texture as its average color")
+                        };
                         let rows = [
-                            (en!("Textures"), &mut p.terrain3d_textures, tr("Off draws each texture as its average color")),
+                            (en!("Textures"), &mut p.terrain3d_textures, textures_tip),
                             (en!("World Background"), &mut p.terrain3d_background, tr("The hills or flat ground Terrain3D draws past its regions")),
                             (en!("Water"), &mut p.terrain3d_water, tr("The ocean of a Terrain3D node")),
                         ];

@@ -2883,6 +2883,7 @@
   "World Background": "世界背景",
   "Water": "水",
   "Off draws each texture as its average color": "关闭后每张纹理以平均颜色绘制",
+  "This Terrain3D has no textures, give its Terrain3DAssets textures in Godot": "此 Terrain3D 没有纹理，请在 Godot 中为其 Terrain3DAssets 添加纹理",
   "The hills or flat ground Terrain3D draws past its regions": "Terrain3D 在区域之外绘制的丘陵或平坦地面",
   "The ocean of a Terrain3D node": "Terrain3D 节点的海洋",
   "Look": "外观",

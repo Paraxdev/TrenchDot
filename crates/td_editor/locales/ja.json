@@ -2883,6 +2883,7 @@
   "World Background": "ワールド背景",
   "Water": "水",
   "Off draws each texture as its average color": "オフにすると各テクスチャを平均色で描画します",
+  "This Terrain3D has no textures, give its Terrain3DAssets textures in Godot": "この Terrain3D にはテクスチャがありません。Godot で Terrain3DAssets にテクスチャを追加してください",
   "The hills or flat ground Terrain3D draws past its regions": "Terrain3D がリージョンの外側に描く丘や平らな地面",
   "The ocean of a Terrain3D node": "Terrain3D ノードの海",
   "Look": "見た目",

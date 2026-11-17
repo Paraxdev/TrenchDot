@@ -2883,6 +2883,7 @@
   "World Background": "Fundo do mundo",
   "Water": "Água",
   "Off draws each texture as its average color": "Desligado, cada textura usa sua cor média",
+  "This Terrain3D has no textures, give its Terrain3DAssets textures in Godot": "Este Terrain3D não tem texturas, adicione texturas aos seus Terrain3DAssets no Godot",
   "The hills or flat ground Terrain3D draws past its regions": "As colinas ou o chão plano que o Terrain3D desenha além de suas regiões",
   "The ocean of a Terrain3D node": "O oceano de um nó Terrain3D",
   "Look": "Aparência",
