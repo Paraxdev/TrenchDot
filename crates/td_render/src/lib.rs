@@ -610,8 +610,9 @@ pub struct Frame<'a> {
     pub terrain: Vec<&'a GpuMesh>,
     /// Terrain3D worlds, at most [`MAX_CLIPMAPS`] are drawn.
     pub clipmaps: Vec<&'a clipmap::GpuClipmap>,
-    /// Drawn over the opaque geometry and under the translucent meshes, never in wireframe.
-    pub water: Option<Water>,
+    /// Drawn over the opaque geometry and under the translucent meshes, never in wireframe. At most [`MAX_CLIPMAPS`]
+    /// are drawn, one per Terrain3D node.
+    pub water: Vec<Water>,
 }
 
 pub struct Renderer {
@@ -652,8 +653,9 @@ pub struct Renderer {
     clipmap_shadow_bg: wgpu::BindGroup,
     clipmap_shadow_instances: wgpu::Buffer,
     water_pipeline: wgpu::RenderPipeline,
-    water_buffer: wgpu::Buffer,
-    water_bg: wgpu::BindGroup,
+    /// One per water of a frame, since every write lands before the submit and one buffer would hold the last.
+    water_buffers: Vec<wgpu::Buffer>,
+    water_bgs: Vec<wgpu::BindGroup>,
     /// The one record a mesh without instances is drawn with.
     identity_instance: wgpu::Buffer,
     shadow_uniform: wgpu::Buffer,
@@ -844,17 +846,26 @@ impl Renderer {
             label: Some("water"),
             entries: &[uniform_entry(0, wgpu::ShaderStages::VERTEX_FRAGMENT)],
         });
-        let water_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("water"),
-            size: std::mem::size_of::<WaterUniform>() as u64,
-            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        let water_bg = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("water"),
-            layout: &water_bgl,
-            entries: &[wgpu::BindGroupEntry { binding: 0, resource: water_buffer.as_entire_binding() }],
-        });
+        let water_buffers: Vec<wgpu::Buffer> = (0..MAX_CLIPMAPS)
+            .map(|_| {
+                device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("water"),
+                    size: std::mem::size_of::<WaterUniform>() as u64,
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                })
+            })
+            .collect();
+        let water_bgs: Vec<wgpu::BindGroup> = water_buffers
+            .iter()
+            .map(|buffer| {
+                device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("water"),
+                    layout: &water_bgl,
+                    entries: &[wgpu::BindGroupEntry { binding: 0, resource: buffer.as_entire_binding() }],
+                })
+            })
+            .collect();
         let lights_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("lights"),
             size: std::mem::size_of::<LightsUniform>() as u64,
@@ -1184,8 +1195,8 @@ impl Renderer {
             clipmap_shadow_camera,
             clipmap_shadow_bg,
             water_pipeline,
-            water_buffer,
-            water_bg,
+            water_buffers,
+            water_bgs,
             clipmap_shadow_instances,
             shadow_uniform,
             shadow_bg,
@@ -1998,11 +2009,11 @@ impl Renderer {
             }
 
             draw_clipmaps(&mut pass, false);
-            if let Some(water) = frame.water {
+            for ((water, buffer), bg) in frame.water.iter().zip(&self.water_buffers).zip(&self.water_bgs) {
                 let uniform = WaterUniform { color: water.color, plane: [water.level, 0.0, 0.0, 0.0] };
-                self.queue.write_buffer(&self.water_buffer, 0, bytemuck::bytes_of(&uniform));
+                self.queue.write_buffer(buffer, 0, bytemuck::bytes_of(&uniform));
                 pass.set_pipeline(&self.water_pipeline);
-                pass.set_bind_group(1, &self.water_bg, &[]);
+                pass.set_bind_group(1, bg, &[]);
                 pass.draw(0..6, 0..1);
                 pass.set_bind_group(2, &self.lightmap_bg, &[]);
             }

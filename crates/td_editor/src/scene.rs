@@ -6,7 +6,7 @@ use td_core::{Aabb, Color, DMat4, DVec2, DVec3, NodeId};
 use td_doc::{Entity, Map, NodeKind, Selection};
 use td_formats::{EntityDef, GameConfig};
 use td_geom::{Brush, Mesh, Terrain};
-use td_render::{Frame, GpuLines, GpuMesh, Lighting, LineShape, LineVertex, MeshBatch, MeshInstance, MeshVertex, PointLight, Renderer};
+use td_render::{Frame, GpuLines, GpuMesh, Lighting, LineShape, LineVertex, MAX_CLIPMAPS, MeshBatch, MeshInstance, MeshVertex, PointLight, Renderer, Water};
 
 use crate::face_cull::{FaceCull, FacePieces};
 use crate::i18n::msg;
@@ -29,6 +29,18 @@ const BUCKETS: u64 = 64;
 /// Above this many faces in the moving selection, face culling is deferred to drag release. Ordinary
 /// brush drags stay well under it and keep live culling.
 const CULL_DEFER_FACES: usize = 4000;
+
+/// The water of every Terrain3D node with an ocean, lowest node first, as many as the renderer draws clipmaps. A node's
+/// clipmap shades its own ground under its sea level, so each ocean needs its own plane.
+fn shown_waters(nodes: impl Iterator<Item = (NodeId, Option<Water>)>, shown: bool) -> Vec<Water> {
+    if !shown {
+        return Vec::new();
+    }
+
+    let mut waters: Vec<_> = nodes.filter_map(|(id, water)| Some((id, water?))).collect();
+    waters.sort_by_key(|(id, _)| *id);
+    waters.into_iter().map(|(_, water)| water).take(MAX_CLIPMAPS).collect()
+}
 
 fn node_face_count(node: &td_doc::Node) -> usize {
     match &node.kind {
@@ -2436,13 +2448,7 @@ impl SceneCache {
 
         if !is_2d {
             frame.clipmaps.extend(self.terrain3d.values().map(|n| n.clip()));
-            frame.water = self
-                .terrain3d
-                .iter()
-                .filter(|_| self.show_terrain3d_water)
-                .filter_map(|(id, n)| Some((*id, n.water()?)))
-                .min_by_key(|(id, _)| *id)
-                .map(|(_, w)| w);
+            frame.water = shown_waters(self.terrain3d.iter().map(|(id, n)| (*id, n.water())), self.show_terrain3d_water);
         }
 
         for t in self.terrains.values() {
@@ -2546,6 +2552,21 @@ impl SceneCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_node_with_an_ocean_gets_its_water_by_node_order_up_to_the_clipmap_count() {
+        let water = |level: f32| Water { level, color: [0.1, 0.2, 0.3, level / 100.0] };
+        let nodes = |ids: &[(u64, Option<f32>)]| ids.iter().map(|(id, level)| (NodeId(*id), level.map(water))).collect::<Vec<_>>();
+        assert_eq!(shown_waters(nodes(&[]).into_iter(), true), vec![]);
+        assert_eq!(shown_waters(nodes(&[(9, Some(-40.0))]).into_iter(), true), vec![water(-40.0)], "one ocean as before");
+        let two = nodes(&[(12, Some(75.0)), (3, Some(-40.0)), (8, None)]);
+        assert_eq!(shown_waters(two.clone().into_iter(), true), vec![water(-40.0), water(75.0)], "both oceans, the lower node first");
+        assert_eq!(shown_waters(two.into_iter(), false), vec![], "the switch hides both");
+        let many: Vec<_> = (0..MAX_CLIPMAPS as u64 + 2).map(|i| (50 - i, Some(i as f32))).collect();
+        let shown = shown_waters(nodes(&many).into_iter(), true);
+        assert_eq!(shown.len(), MAX_CLIPMAPS);
+        assert_eq!(shown[0], water(MAX_CLIPMAPS as f32 + 1.0), "the lowest node ids come first, the rest are left out");
+    }
 
     #[test]
     fn the_shadow_map_follows_the_eye_only_while_rings_cast() {
