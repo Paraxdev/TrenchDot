@@ -719,6 +719,14 @@ pub struct EditorState {
     pub terrain3d_sent: std::collections::HashMap<(u64, PathBuf), std::collections::BTreeMap<td_geom::terrain3d::Loc, crate::terrain3d::Sent>>,
     /// Data folders whose untested Terrain3D version was already mentioned.
     pub terrain3d_noted: std::collections::HashSet<PathBuf>,
+    /// Whether a Godot editor had the project the last time Terrain3D was polled.
+    pub terrain3d_godot_seen: bool,
+    /// When the caches a Godot editor left with unsaved changes get exported again.
+    pub terrain3d_heal_due: Option<std::time::Instant>,
+    /// The caches whose manifest listed unsaved regions when the Godot editor quit.
+    pub terrain3d_dead: std::collections::HashSet<PathBuf>,
+    /// The caches exported again since that quit, each gets one try.
+    pub terrain3d_healed: std::collections::HashSet<PathBuf>,
     /// Terrain3D nodes, per document, whose edits an earlier session saved wait for their project or manifest to load.
     pub terrain3d_unrestored: std::collections::HashSet<(u64, NodeId)>,
     /// The Edit Regions toggle of the Terrain3D Inspector.
@@ -1002,6 +1010,10 @@ impl EditorState {
             terrain3d_owed: Default::default(),
             terrain3d_sent: Default::default(),
             terrain3d_noted: Default::default(),
+            terrain3d_godot_seen: false,
+            terrain3d_heal_due: None,
+            terrain3d_dead: Default::default(),
+            terrain3d_healed: Default::default(),
             terrain3d_unrestored: Default::default(),
             terrain3d_edit_regions: false,
             terrain3d_texture: crate::terrain3d::brush::Texture { id: 0, spray: false },

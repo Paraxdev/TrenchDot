@@ -17,7 +17,7 @@ pub mod store;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use td_core::{Aabb, DVec3, NodeId};
 use td_doc::map::NodeKind;
@@ -54,6 +54,9 @@ impl Sent {
 
 /// How often an idle editor looks at the manifests of the linked folders.
 pub const POLL_EVERY: Duration = Duration::from_secs(1);
+
+/// How long after a Godot editor quit its caches are exported again, so a save before the quit is on disk by then.
+const HEAL_DELAY: Duration = Duration::from_secs(2);
 
 impl EditorState {
     pub(crate) fn terrain3d_links(&self) -> Vec<(NodeId, PathBuf)> {
@@ -284,9 +287,15 @@ impl EditorState {
             self.terrain3d.recheck();
         }
 
+        if let Some((cache, _)) = self.terrain3d_bridge.poll_export() {
+            self.terrain3d.recheck();
+            self.terrain3d.refresh(&cache);
+        }
+
         self.restore_owed_terrain3d();
         let links = self.terrain3d_links();
         let godot_open = self.godot_has_project();
+        self.heal_dead_terrain3d_caches(godot_open, &links);
         for (id, cache) in &links {
             self.terrain3d.refresh(cache);
             self.settle_terrain3d(*id, cache);
@@ -302,6 +311,43 @@ impl EditorState {
         }
 
         !links.is_empty() || self.terrain3d_bridge.busy()
+    }
+
+    /// A Godot editor that quit took the unsaved Terrain3D changes it had exported along, but its manifest keeps their
+    /// hashes, so an edit made from the saved region would read as a conflict. A headless Godot exports the saved
+    /// regions again, once per quit and cache.
+    fn heal_dead_terrain3d_caches(&mut self, godot_open: bool, links: &[(NodeId, PathBuf)]) {
+        if std::mem::replace(&mut self.terrain3d_godot_seen, godot_open) && !godot_open {
+            self.terrain3d_heal_due = Some(Instant::now() + HEAL_DELAY);
+            self.terrain3d_healed.clear();
+            let unsaved = |cache: &Path| self.terrain3d.manifest(cache).is_some_and(|m| !m.dirty.is_empty());
+            self.terrain3d_dead = links.iter().filter(|(_, cache)| unsaved(cache)).map(|(_, cache)| cache.clone()).collect();
+        }
+
+        if godot_open {
+            self.terrain3d_heal_due = None;
+        }
+
+        let Some(due) = self.terrain3d_heal_due else { return };
+        if Instant::now() < due || self.terrain3d_bridge.busy() {
+            return;
+        }
+
+        for (_, cache) in links {
+            // Note: a send before this goes through a headless Godot, which lists no unsaved region but keeps the dead
+            // hashes of the regions it did not touch. A save in the editor lists none either and leaves editor_open set.
+            let dead = self.terrain3d.manifest(cache).is_some_and(|m| !m.dirty.is_empty() || (!m.editor_open && self.terrain3d_dead.contains(cache)));
+            if dead
+                && self.godot.exe.is_some()
+                && self.terrain3d_healed.insert(cache.clone())
+                && let Ok(request) = self.terrain3d_export_request(cache)
+            {
+                self.terrain3d_bridge.export(cache.clone(), request);
+                return;
+            }
+        }
+
+        self.terrain3d_heal_due = None;
     }
 
     /// Per frame: asks the store for the Terrain3D regions the views need, whole near a camera and as a pyramid
@@ -685,6 +731,188 @@ exit 3
         state.link_state.connected = true;
         assert!(!inspector::unsaved_in_godot(&state, &cache, L), "the refusal went with the editor that quit");
         assert!(inspector::unsaved_in_godot(&state, &cache, M), "a Godot editor open again reports its own unsaved regions");
+    }
+
+    fn linked_over(root: &Path) -> (EditorState, NodeId, PathBuf) {
+        let (mut state, id, cache) = state_over(root, &[L, M]);
+        state.prefs.live_link = false;
+        state.trust_project(root, false);
+        state.link_state.connected = true;
+        state.link_state.project = Some(crate::live_link::path_key(&crate::live_link::godot_path(root)));
+        (state, id, cache)
+    }
+
+    /// A Godot executable that notes each call in `calls.txt` and, when `heals`, puts back the cache as it is now, the
+    /// way a headless export of the saved regions writes it. Otherwise it fails.
+    fn exporting_godot(root: &Path, cache: &Path, heals: bool) -> PathBuf {
+        let saved = root.join("saved");
+        std::fs::create_dir_all(saved.join("regions")).unwrap();
+        let manifest = terrain3d_cache::manifest_path(cache);
+        std::fs::copy(&manifest, saved.join(manifest.file_name().unwrap())).unwrap();
+        for loc in [L, M] {
+            let region = terrain3d_cache::region_path(cache, loc).unwrap();
+            std::fs::copy(&region, saved.join("regions").join(region.file_name().unwrap())).unwrap();
+        }
+
+        let calls = root.join("calls.txt");
+        let (exe, script) = if cfg!(windows) {
+            let body = if heals {
+                format!("xcopy \"{}\" \"{}\" /e /y /q > nul\r\necho {{\"ok\":true,\"written\":[]}}", saved.display(), cache.display())
+            } else {
+                "exit /b 3".to_string()
+            };
+            (root.join("godot.cmd"), format!("@echo off\r\necho %* >> \"{}\"\r\n{body}\r\n", calls.display()))
+        } else {
+            let body = if heals {
+                format!("cp -R '{}/.' '{}'\necho '{{\"ok\":true,\"written\":[]}}'", saved.display(), cache.display())
+            } else {
+                "exit 3".to_string()
+            };
+            (root.join("godot.sh"), format!("#!/bin/sh\necho \"$@\" >> '{}'\n{body}\n", calls.display()))
+        };
+        std::fs::write(&exe, script).unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        exe
+    }
+
+    fn godot_calls(root: &Path) -> Vec<String> {
+        std::fs::read_to_string(root.join("calls.txt")).unwrap_or_default().lines().map(str::to_string).collect()
+    }
+
+    /// What a Godot editor exports for an unsaved stroke of `loc`, a region with a new hash, with `dirty` unsaved.
+    fn stroke_in_godot(cache: &Path, loc: Loc, dirty: Vec<Loc>) {
+        let mut stroked = terrain3d_cache::read_region(cache, loc, 64).unwrap();
+        stroked.region.heights[9] += 640.0;
+        stroked.hash = FileHash([7; 32]);
+        terrain3d_cache::write_region(cache, &stroked).unwrap();
+        let mut manifest = terrain3d_cache::read_manifest(cache).unwrap();
+        manifest.regions.iter_mut().find(|r| r.loc == loc).unwrap().hash = FileHash([7; 32]);
+        manifest.dirty = dirty;
+        manifest.editor_open = true;
+        terrain3d_cache::write_manifest(cache, &manifest).unwrap();
+    }
+
+    fn rewrite_manifest(state: &mut EditorState, cache: &Path, change: impl FnOnce(&mut terrain3d_cache::Manifest)) {
+        let mut manifest = terrain3d_cache::read_manifest(cache).unwrap();
+        change(&mut manifest);
+        terrain3d_cache::write_manifest(cache, &manifest).unwrap();
+        state.terrain3d.recheck();
+        state.poll_terrain3d();
+    }
+
+    fn quit_godot(state: &mut EditorState) {
+        state.link_state.connected = false;
+        state.poll_terrain3d();
+    }
+
+    /// Polls until the export due after a quit is done, without waiting out the delay.
+    fn heal_now(state: &mut EditorState) {
+        state.terrain3d_heal_due = state.terrain3d_heal_due.map(|_| Instant::now());
+        let start = Instant::now();
+        while state.terrain3d_bridge.busy() || state.terrain3d_heal_due.is_some() {
+            assert!(start.elapsed() < Duration::from_secs(20), "the export did not finish");
+            state.poll_terrain3d();
+            std::thread::sleep(Duration::from_millis(10));
+        }
+
+        state.terrain3d.recheck();
+        for _ in 0..5 {
+            state.poll_terrain3d();
+        }
+    }
+
+    #[test]
+    fn a_region_godot_left_unsaved_is_no_conflict_once_its_editor_quit() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, cache) = linked_over(dir.path());
+        state.godot.exe = Some(exporting_godot(dir.path(), &cache, true));
+        dab(&mut state, id, L, 1000.0);
+        stroke_in_godot(&cache, L, vec![L, M]);
+        state.terrain3d.recheck();
+        state.poll_terrain3d();
+        let found = |state: &EditorState| {
+            let source = state.terrain3d.source(&cache).unwrap();
+            inspector::changes(&state.doc.map.terrain3d(id).unwrap().changed_regions(&source), |l| inspector::unsaved_in_godot(state, &cache, l))
+        };
+        let held = found(&state);
+        assert_eq!((held.total, held.conflicts, held.unsaved), (1, vec![], vec![L]));
+
+        quit_godot(&mut state);
+        assert_eq!(found(&state).conflicts, vec![L], "the manifest still has the hash of the stroke that died with its editor");
+        assert!(godot_calls(dir.path()).is_empty(), "Godot gets a moment to finish a save before the cache is read again");
+
+        heal_now(&mut state);
+        let after = found(&state);
+        assert_eq!((after.total, after.conflicts, after.unsaved), (1, vec![], vec![]));
+        let calls = godot_calls(dir.path());
+        assert!(calls.len() == 1 && calls[0].contains("export"), "{calls:?}");
+    }
+
+    #[test]
+    fn a_godot_editor_that_saved_before_it_quit_is_not_exported_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, cache) = linked_over(dir.path());
+        state.godot.exe = Some(exporting_godot(dir.path(), &cache, true));
+        dab(&mut state, id, L, 1000.0);
+        rewrite_manifest(&mut state, &cache, |m| m.editor_open = true);
+        quit_godot(&mut state);
+        heal_now(&mut state);
+        assert!(godot_calls(dir.path()).is_empty(), "a clean quit costs no export");
+
+        state.link_state.connected = true;
+        stroke_in_godot(&cache, M, vec![M]);
+        state.terrain3d.recheck();
+        state.poll_terrain3d();
+        quit_godot(&mut state);
+        rewrite_manifest(&mut state, &cache, |m| m.dirty.clear());
+        heal_now(&mut state);
+        assert!(godot_calls(dir.path()).is_empty(), "a save that lands after the quit keeps its regions");
+        assert_eq!(terrain3d_cache::read_manifest(&cache).unwrap().regions[1].hash, FileHash([7; 32]));
+    }
+
+    #[test]
+    fn a_send_before_the_export_is_due_keeps_no_dead_hash() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, cache) = linked_over(dir.path());
+        state.godot.exe = Some(exporting_godot(dir.path(), &cache, true));
+        dab(&mut state, id, L, 1000.0);
+        stroke_in_godot(&cache, M, vec![M]);
+        state.terrain3d.recheck();
+        state.poll_terrain3d();
+        quit_godot(&mut state);
+        // A headless apply of L lists no unsaved region and carries the hash of M it did not touch.
+        rewrite_manifest(&mut state, &cache, |m| {
+            m.dirty.clear();
+            m.editor_open = false;
+        });
+        heal_now(&mut state);
+        assert_eq!(godot_calls(dir.path()).len(), 1);
+        let manifest = terrain3d_cache::read_manifest(&cache).unwrap();
+        assert_eq!((manifest.regions[1].loc, manifest.regions[1].hash), (M, FileHash([9; 32])));
+    }
+
+    #[test]
+    fn a_failed_export_after_a_quit_is_tried_once_per_quit() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, _, cache) = linked_over(dir.path());
+        state.godot.exe = Some(exporting_godot(dir.path(), &cache, false));
+        stroke_in_godot(&cache, L, vec![L]);
+        state.terrain3d.recheck();
+        state.poll_terrain3d();
+        quit_godot(&mut state);
+        heal_now(&mut state);
+        assert_eq!(godot_calls(dir.path()).len(), 1);
+
+        state.link_state.connected = true;
+        state.poll_terrain3d();
+        quit_godot(&mut state);
+        heal_now(&mut state);
+        assert_eq!(godot_calls(dir.path()).len(), 2, "the next quit tries again");
     }
 
     #[test]

@@ -493,6 +493,9 @@ pub fn settings(request: &SettingsRequest) -> Result<Settings, String> {
     })
 }
 
+/// The regions Godot wrote for an export, or why it did not.
+pub type ExportAnswer = Result<Vec<Loc>, String>;
+
 /// Runs the applies on a thread so a save never waits for Godot. A request that arrives while one runs replaces the
 /// one waiting, only the latest state matters.
 #[derive(Default)]
@@ -502,11 +505,12 @@ pub struct Bridge {
     told_old_addon: bool,
     settings_running: Option<Receiver<Result<Settings, String>>>,
     settings_queued: Option<SettingsRequest>,
+    export_running: Option<(PathBuf, Receiver<ExportAnswer>)>,
 }
 
 impl Bridge {
     pub fn busy(&self) -> bool {
-        self.running.is_some() || self.settings_running.is_some()
+        self.running.is_some() || self.settings_running.is_some() || self.export_running.is_some()
     }
 
     pub fn applying(&self) -> bool {
@@ -514,7 +518,7 @@ impl Bridge {
     }
 
     pub fn send(&mut self, request: Apply) {
-        if self.running.is_some() {
+        if self.running.is_some() || self.export_running.is_some() {
             self.queued = Some(request);
             return;
         }
@@ -524,6 +528,28 @@ impl Bridge {
         std::thread::spawn(move || {
             let _ = tx.send(apply(&request));
         });
+    }
+
+    /// Has Godot write the cache at `cache` again on a thread, without waiting. A send that comes meanwhile waits for it.
+    pub fn export(&mut self, cache: PathBuf, request: Apply) {
+        let (tx, rx) = mpsc::channel();
+        self.export_running = Some((cache, rx));
+        std::thread::spawn(move || {
+            let _ = tx.send(export(&request));
+        });
+    }
+
+    /// The cache and the answer of the export that finished, and starts the send that waited for it.
+    pub fn poll_export(&mut self) -> Option<(PathBuf, ExportAnswer)> {
+        let answer = self.export_running.as_ref()?.1.try_recv().ok()?;
+        let (cache, _) = self.export_running.take()?;
+        if self.running.is_none()
+            && let Some(next) = self.queued.take()
+        {
+            self.send(next);
+        }
+
+        Some((cache, answer))
     }
 
     pub fn send_settings(&mut self, request: SettingsRequest) {
