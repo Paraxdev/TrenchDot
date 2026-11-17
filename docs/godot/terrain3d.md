@@ -338,7 +338,8 @@ and for a folder with no cache yet its world background too. A folder without th
 exports no textures: the Inspector says "No textures" and the 3D view stays grey until the Godot editor saves the scene
 or builds the map once, which writes the texture list from the *Assets* of your Terrain3D. The ocean and the resources
 you picked in a scene are only known to the Godot editor, so a headless export keeps the material, ocean and resources
-of the last cache. To refresh those from the folder, delete `manifest.json` in `.trenchdot/` and export again.
+of the last cache, unless the cache comes from an older TrenchDot addon that did not export them, then it takes the
+folder's files like a new one. To refresh those from the folder, delete `manifest.json` in `.trenchdot/` and export again.
 
 ## Good to know
 

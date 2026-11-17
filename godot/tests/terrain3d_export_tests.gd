@@ -26,6 +26,7 @@ static func run(t) -> void:
 	await _test_material(t)
 	await _test_ocean(t)
 	await _test_triggers(t)
+	await _test_old_cache(t)
 	await _test_build_exports_in_editor_only(t)
 	_test_cli(t)
 	_clear(WORK)
@@ -646,6 +647,78 @@ static func _cli(args: Array) -> Array:
 	var parsed: Variant = JSON.parse_string(lines[lines.size() - 1])
 	return [code, parsed if parsed is Dictionary else {}]
 
+## Rewrites the manifest of [param folder] the way an addon that did not export the look wrote it.
+static func _age_manifest(folder: String) -> void:
+	var m := _manifest(folder)
+	m.erase("resources")
+	m.erase("ocean")
+	m["material"] = { "world_background": 1.0, "auto_shader": false }
+	m["textures"] = []
+	FileAccess.open(folder.path_join(".trenchdot/manifest.json"), FileAccess.WRITE).store_string(JSON.stringify(m))
+
+## Saves a material with world background 2 and assets of two textures in [param folder], returns them with their paths set.
+static func _folder_look(folder: String) -> Array:
+	var assets: Resource = ClassDB.instantiate(&"Terrain3DAssets")
+	for i in 2:
+		var texture: Resource = ClassDB.instantiate(&"Terrain3DTextureAsset")
+		texture.set(&"name", ["Cliff", "Grass"][i])
+		assets.call(&"set_texture_asset", i, texture)
+	var material: Resource = ClassDB.instantiate(&"Terrain3DMaterial")
+	material.set(&"world_background", 2)
+	ResourceSaver.save(assets, folder.path_join("assets.tres"))
+	ResourceSaver.save(material, folder.path_join("M_terrain.tres"))
+	assets.resource_path = folder.path_join("assets.tres")
+	material.resource_path = folder.path_join("M_terrain.tres")
+	return [material, assets]
+
+## A cache from an addon that did not export the look takes the node's look on the next export, a cache that has one keeps it.
+static func _test_old_cache(t) -> void:
+	TrenchDotTerrain3D.export_outside_editor = true
+	var folder := WORK.path_join("old_cache")
+	var terrain := await _terrain(t, folder, 64, 2.0)
+	terrain.get(&"data").add_region_blank(Vector2i(-1, 2), false)
+	var look := _folder_look(folder)
+	terrain.set(&"assets", look[1])
+	var options := { "scene_values_from_cache": true, "textures": false }
+	t.check(TrenchDotTerrain3DCache.export(terrain, folder, null, { "textures": false }).ok, "the cache to age is written")
+	var m := {}
+	_age_manifest(folder)
+	terrain.set(&"material", look[0])
+	var result := TrenchDotTerrain3DCache.export(terrain, folder, [], options)
+	m = _manifest(folder)
+	var names: Array = m.get("textures", []).map(func(e): return e["name"])
+	t.check(result.ok and names == ["Cliff", "Grass"], "a re-export that wants no textures still lists them on an old cache, got %s" % [names])
+	t.check(int(m.get("material", {}).get("world_background", -1)) == 2 and str(m.get("resources", {}).get("assets")).ends_with("old_cache/assets.tres") and str(m.get("resources", {}).get("material")).ends_with("old_cache/M_terrain.tres"), "it takes the node's material and assets, got %s %s" % [m.get("material"), m.get("resources")])
+
+	# Not an old cache any more, so the last look stays and no texture is listed without being asked.
+	terrain.set(&"material", ClassDB.instantiate(&"Terrain3DMaterial"))
+	TrenchDotTerrain3DCache.export(terrain, folder, [], options)
+	m = _manifest(folder)
+	t.check(int(m.get("material", {}).get("world_background", -1)) == 2 and m.get("textures", []).size() == 2, "a cache that names its resources keeps its look, got %s" % [m.get("material")])
+	terrain.free()
+
+	var other := WORK.path_join("old_slot")
+	var slot := await _slot(t, other, [Vector2i(-2, 1), Vector2i(1, -1)])
+	var slot_look := _folder_look(other)
+	slot.get_terrain().set(&"material", slot_look[0])
+	slot.get_terrain().set(&"assets", slot_look[1])
+	slot.export_cache()
+	_age_manifest(other)
+	var exports: Array = []
+	slot.cache_exported.connect(func(r): exports.append(r))
+	await slot._export_stale()
+	m = _manifest(other)
+	names = m.get("textures", []).map(func(e): return e["name"])
+	t.check(exports.size() == 1 and names == ["Cliff", "Grass"] and m.has("resources"), "opening a scene on an old cache exports it once with the look, got %d %s" % [exports.size(), m])
+	exports.clear()
+	var slot_data: Object = slot.get_terrain().get(&"data")
+	for loc in slot_data.get_region_locations():
+		slot_data.get_region(loc).set(&"modified", false)
+	slot._export_stale()
+	t.check(exports.is_empty(), "a cache with the look and matching regions is left alone, got %d exports" % exports.size())
+	slot.free()
+	TrenchDotTerrain3D.export_outside_editor = false
+
 static func _test_cli(t) -> void:
 	var folder := WORK.path_join("cli")
 	_clear(folder)
@@ -700,6 +773,13 @@ static func _test_cli(t) -> void:
 		var listed: Array = m.get("textures", []).map(func(e): return [int(e["id"]), e["name"], e["albedo_color"]])
 		t.check(adopted[0] == 0 and listed == [[0, "Cliff", [0.75, 0.5, 0.25, 1.0]], [1, "Grass", [0.25, 0.75, 0.5, 1.0]]], "the CLI lists the textures of the folder's assets for %s, got %s %s" % [run, adopted, listed])
 		t.check(int(m.get("material", {}).get("world_background", -1)) == 2 and str(m.get("resources", {}).get("assets")).ends_with("cli_assets/assets.tres"), "the CLI exports the folder's material for %s, got %s %s" % [run, m.get("material"), m.get("resources")])
+
+	_age_manifest(adopting)
+	var upgraded := _cli(["export", adopting])
+	m = _manifest(adopting)
+	var names: Array = m.get("textures", []).map(func(e): return e["name"])
+	t.check(upgraded[0] == 0 and names == ["Cliff", "Grass"], "the CLI lists the folder's textures on a cache from an older addon, got %s %s" % [upgraded, names])
+	t.check(int(m.get("material", {}).get("world_background", -1)) == 2 and str(m.get("resources", {}).get("assets")).ends_with("cli_assets/assets.tres"), "the CLI takes the folder's material and assets on a cache from an older addon, got %s %s" % [m.get("material"), m.get("resources")])
 
 	var missing := _cli(["export", WORK.path_join("nowhere")])
 	t.check(missing[0] == 1 and missing[1].get("ok") == false and str(missing[1].get("error")).contains("nowhere"), "the CLI refuses a missing folder, got %s" % [missing])
