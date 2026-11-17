@@ -5,7 +5,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use egui::{Color32, Key, Modifiers, PointerButton, Pos2, Rect, Response, Stroke, Ui, Vec2};
-use td_core::{Aabb, DMat4, DQuat, DVec3, NodeId, Plane};
+use td_core::{Aabb, AxisPlane, DMat4, DQuat, DVec3, NodeId, Plane};
 use td_geom::Mesh;
 use td_render::LineVertex;
 
@@ -108,6 +108,13 @@ pub enum Modal {
     Knife { first: Option<Pos2>, view: Option<ViewKind> },
 }
 
+/// The vertices that mirror a transform across the symmetry plane, found when the transform starts.
+#[derive(Clone, Debug)]
+struct Follow {
+    plane: AxisPlane,
+    verts: BTreeMap<NodeId, Vec<u32>>,
+}
+
 #[derive(Default)]
 pub struct MeshTool {
     pub component: Component,
@@ -121,6 +128,7 @@ pub struct MeshTool {
     gizmo_drag: Option<(crate::transform_gizmo::GizmoDrag, ViewKind)>,
     /// Wheel movement not yet turned into a loop cut step, for wheels and touchpads that report fractions of a notch.
     wheel: f32,
+    follow: Option<Follow>,
 }
 
 const PICK_RADIUS: f32 = 8.0;
@@ -139,6 +147,11 @@ pub fn edit_meshes(state: &EditorState) -> Vec<NodeId> {
     state.doc.selection.meshes(&state.doc.map).into_iter().filter(|id| state.doc.map.is_editable(*id)).collect()
 }
 
+/// Around every mesh in edit, which the views draw the symmetry plane through and moves mirror across.
+pub fn edit_bounds(state: &EditorState) -> Aabb {
+    edit_meshes(state).into_iter().filter_map(|id| state.doc.map.mesh(id)).fold(Aabb::EMPTY, |acc, m| acc.union(&m.bounds()))
+}
+
 impl MeshTool {
     pub fn reset(&mut self) {
         self.modal = None;
@@ -147,6 +160,7 @@ impl MeshTool {
         self.wheel = 0.0;
         self.gizmo = false;
         self.gizmo_drag = None;
+        self.follow = None;
     }
 
     /// A modal or gizmo drag that edits inside an open undo transaction.
@@ -178,16 +192,7 @@ impl MeshTool {
         let Some((motion, status)) = crate::transform_gizmo::motion(state, drag, cam, rect, pos, modifiers) else { return };
         state.doc.reset_transaction();
         if let Some(motion) = motion {
-            let m = motion.matrix();
-            let selection = self.selection.clone();
-            state.doc.edit("Transform", |map, _| {
-                for (id, sel) in &selection {
-                    if let Some(mesh) = map.mesh_mut(*id) {
-                        let verts = sel.moved_vertices(mesh);
-                        mesh.transform_vertices(&verts, &m);
-                    }
-                }
-            });
+            self.transform_selection(state, &motion.matrix(), false);
         }
 
         if let Some(status) = status {
@@ -504,7 +509,62 @@ impl MeshTool {
             TransformKind::Rotate => en!("Rotate Vertices"),
             TransformKind::Scale => en!("Scale Vertices"),
         });
+        self.follow = self.follow_list(state);
         self.modal = Some(Modal::Transform { kind, constraint, start: None, center, numeric: String::new(), view: None });
+    }
+
+    /// The counterparts across the edit symmetry plane of what the selection moves, none while it is off. The plane
+    /// sits in the middle of the meshes in edit, taken now so it does not wander while they move.
+    fn follow_list(&self, state: &EditorState) -> Option<Follow> {
+        let plane = state.edit_symmetry.plane(&edit_bounds(state))?;
+        let verts: BTreeMap<NodeId, Vec<u32>> = self
+            .selection
+            .iter()
+            .filter_map(|(id, sel)| {
+                let mesh = state.doc.map.mesh(*id)?;
+                let moved: BTreeSet<u32> = sel.moved_vertices(mesh).into_iter().collect();
+                let follow = mesh.mirror_counterparts(&moved, plane, td_doc::symmetry::MIRROR_TOLERANCE);
+                (!follow.is_empty()).then_some((*id, follow))
+            })
+            .collect();
+        Some(Follow { plane, verts })
+    }
+
+    /// Says how many counterparts the finished transform took along, the transform's own status is stale by then.
+    fn report_mirrored(&self, state: &mut EditorState) {
+        let n: usize = self.follow.iter().flat_map(|f| f.verts.values()).map(Vec::len).sum();
+        if n > 0 {
+            state.set_status(crate::toolset::moved_mirrored(n));
+        }
+    }
+
+    /// Applies `m` to what the selection moves and its mirror image to the counterparts, in one edit. `flip_mirrored`
+    /// turns the faces a negative determinant inverts back outward, as the modal does and the gizmo does not.
+    fn transform_selection(&self, state: &mut EditorState, m: &DMat4, flip_mirrored: bool) {
+        let selection = self.selection.clone();
+        let follow = self.follow.clone();
+        let flip = flip_mirrored && m.determinant() < 0.0;
+        state.doc.edit("Transform", |map, _| {
+            for (id, sel) in &selection {
+                let Some(mesh) = map.mesh_mut(*id) else { continue };
+                let verts = sel.moved_vertices(mesh);
+                mesh.transform_vertices(&verts, m);
+                // A negative scale mirrors, so the faces it moved whole need their winding flipped back.
+                if flip {
+                    let mirrored = mesh.faces_within(&verts.iter().copied().collect());
+                    mesh.flip_faces(&mirrored);
+                }
+
+                let Some(follow) = &follow else { continue };
+                let Some(counterparts) = follow.verts.get(id) else { continue };
+                let reflect = follow.plane.matrix();
+                mesh.transform_vertices(counterparts, &(reflect * *m * reflect));
+                if flip {
+                    let mirrored = mesh.faces_within(&counterparts.iter().copied().collect());
+                    mesh.flip_faces(&mirrored);
+                }
+            }
+        });
     }
 
     fn extrude(&mut self, state: &mut EditorState) {
@@ -549,6 +609,7 @@ impl MeshTool {
         }
 
         self.modal = None;
+        self.follow = None;
         self.prune(state);
     }
 
@@ -557,7 +618,9 @@ impl MeshTool {
             state.doc.commit();
         }
 
+        self.report_mirrored(state);
         self.modal = None;
+        self.follow = None;
         self.prune(state);
     }
 
@@ -725,7 +788,9 @@ impl MeshTool {
                     }
                 } else {
                     state.doc.commit();
+                    self.report_mirrored(state);
                     self.gizmo_drag = None;
+                    self.follow = None;
                 }
             }
 
@@ -775,6 +840,7 @@ impl MeshTool {
                 crate::transform_gizmo::Part::Scale(_) => en!("Scale Vertices"),
                 _ => en!("Move Vertices"),
             });
+            self.follow = self.follow_list(state);
             self.gizmo_drag = Some((drag, cam.kind));
             return;
         }
@@ -831,20 +897,7 @@ impl MeshTool {
                 let snap = state.snap != ui.input(|i| i.modifiers.command);
                 let m = transform_matrix(kind, constraint, start, pos, center, &numeric, cam, rect, snap, state.grid);
                 state.doc.reset_transaction();
-                let selection = self.selection.clone();
-                state.doc.edit("Transform", |map, _| {
-                    for (id, sel) in &selection {
-                        if let Some(mesh) = map.mesh_mut(*id) {
-                            let verts = sel.moved_vertices(mesh);
-                            mesh.transform_vertices(&verts, &m);
-                            // A negative scale mirrors, so the faces it moved whole need their winding flipped back.
-                            if m.determinant() < 0.0 {
-                                let mirrored = mesh.faces_within(&verts.iter().copied().collect());
-                                mesh.flip_faces(&mirrored);
-                            }
-                        }
-                    }
-                });
+                self.transform_selection(state, &m, true);
                 let (_, _, t) = m.to_scale_rotation_translation();
                 let (axis, axis_shown) = constraint.map(|c| c.words()).unwrap_or_else(|| ("free".into(), tr("free").into()));
                 let value = if numeric.is_empty() { format!("{:.2} {:.2} {:.2}", t.x, t.y, t.z) } else { numeric.clone() };
@@ -1699,5 +1752,288 @@ mod tests {
         ctx.run_ui(input, |ui| assert!(f.tool.keys(ui.ctx(), &mut f.state))).textures_delta.clear();
         assert!(!f.tool.gizmo);
         assert_eq!(f.tool.selection[&id].verts.len(), 1);
+    }
+
+    /// A box off the origin whose top edges are raised in z, so it is slanted and mirror symmetric across x 37.5 only.
+    fn slanted_box() -> Mesh {
+        let mut mesh = td_geom::mesh_shapes::cuboid(&Aabb::new(DVec3::new(10.0, 5.0, -20.0), DVec3::new(65.0, 40.0, 30.0)), "m");
+        for v in mesh.vertices.iter_mut().filter(|v| v.y == 40.0 && v.z == 30.0) {
+            v.z = 36.0;
+        }
+
+        mesh
+    }
+
+    fn state_with(mesh: Mesh) -> (EditorState, NodeId) {
+        let mut state = EditorState::new(Default::default());
+        let layer = state.doc.map.default_layer();
+        let id = state.doc.edit("mesh", |m, s| {
+            let id = m.insert(layer, td_doc::NodeKind::Mesh(mesh));
+            s.select_node(id);
+            id
+        });
+        (state, id)
+    }
+
+    fn vertex_at(mesh: &Mesh, p: DVec3) -> u32 {
+        mesh.vertices.iter().position(|v| (*v - p).length() < 1e-6).unwrap_or_else(|| panic!("no vertex at {p:?}")) as u32
+    }
+
+    fn symmetric(axis: usize, at: td_doc::symmetry::PlaneAt, custom: f64) -> td_doc::symmetry::EditSymmetry {
+        td_doc::symmetry::EditSymmetry { axis: Some(axis), plane: td_doc::symmetry::PlaneChoice { at, custom } }
+    }
+
+    /// Selects `verts`, runs one grab style transform with `m` the way the modal does, and commits it.
+    fn transform(state: &mut EditorState, id: NodeId, verts: &[u32], m: DMat4, flip: bool) {
+        let mut tool = MeshTool::default();
+        tool.selection.insert(id, MeshSel { verts: verts.iter().copied().collect(), ..Default::default() });
+        tool.start_transform(TransformKind::Grab, None, state);
+        tool.transform_selection(state, &m, flip);
+        tool.confirm(state);
+    }
+
+    fn assert_vertices(actual: &Mesh, expected: &[DVec3]) {
+        assert_eq!(actual.vertices.len(), expected.len());
+        for (i, (a, e)) in actual.vertices.iter().zip(expected).enumerate() {
+            assert!((*a - *e).length() < 0.02, "vertex {i} is {a:?}, expected {e:?}");
+        }
+    }
+
+    #[test]
+    fn grabbing_a_corner_moves_its_mirrored_counterpart_in_one_undo_step() {
+        let (mut state, id) = state_with(slanted_box());
+        state.edit_symmetry = symmetric(0, td_doc::symmetry::PlaneAt::Center, 0.0);
+        let before = state.doc.map.mesh(id).unwrap().clone();
+        let corner = vertex_at(&before, DVec3::new(65.0, 40.0, 36.0));
+        let twin = vertex_at(&before, DVec3::new(10.0, 40.0, 36.0));
+        let undo = state.doc.history.undo_labels().count();
+        transform(&mut state, id, &[corner], DMat4::from_translation(DVec3::new(3.0, 2.0, -1.0)), true);
+
+        let mut expected = before.vertices.clone();
+        expected[corner as usize] += DVec3::new(3.0, 2.0, -1.0);
+        expected[twin as usize] += DVec3::new(-3.0, 2.0, -1.0);
+        assert_vertices(state.doc.map.mesh(id).unwrap(), &expected);
+        assert_eq!(state.doc.history.undo_labels().count(), undo + 1);
+        assert_eq!(state.doc.history.undo_labels().next(), Some("Grab"));
+        assert_eq!(state.status, "Moved 1 mirrored vertex too");
+
+        state.doc.undo();
+        let right_top = [corner, vertex_at(&before, DVec3::new(65.0, 40.0, -20.0))];
+        transform(&mut state, id, &right_top, DMat4::from_translation(DVec3::new(3.0, 2.0, -1.0)), true);
+        assert_eq!(state.status, "Moved 2 mirrored vertices too");
+    }
+
+    #[test]
+    fn rotating_turns_the_counterpart_the_mirrored_way() {
+        let (mut state, id) = state_with(slanted_box());
+        state.edit_symmetry = symmetric(0, td_doc::symmetry::PlaneAt::Center, 0.0);
+        let before = state.doc.map.mesh(id).unwrap().clone();
+        let corner = vertex_at(&before, DVec3::new(65.0, 40.0, 36.0));
+        let twin = vertex_at(&before, DVec3::new(10.0, 40.0, 36.0));
+        let pivot = DVec3::new(60.0, 10.0, 0.0);
+        let turn = DMat4::from_translation(pivot) * DMat4::from_rotation_z(30f64.to_radians()) * DMat4::from_translation(-pivot);
+        transform(&mut state, id, &[corner], turn, true);
+
+        let plane = td_core::AxisPlane { axis: 0, at: 37.5 };
+        let turned = turn.transform_point3(before.vertices[corner as usize]);
+        let mut expected = before.vertices.clone();
+        expected[corner as usize] = turned;
+        expected[twin as usize] = plane.reflect(turned);
+        let same_turn = turn.transform_point3(before.vertices[twin as usize]);
+        assert!((expected[twin as usize] - same_turn).length() > 1.0, "not the same turn");
+        assert_vertices(state.doc.map.mesh(id).unwrap(), &expected);
+    }
+
+    #[test]
+    fn a_negative_scale_flips_the_followers_faces_only_in_the_modal_route() {
+        let side = |mesh: &Mesh, x: f64| -> Vec<u32> { (0..mesh.vertices.len() as u32).filter(|v| mesh.vertices[*v as usize].x == x).collect() };
+        let flip_y = DMat4::from_translation(DVec3::Y * 22.5) * DMat4::from_scale(DVec3::new(1.0, -1.0, 1.0)) * DMat4::from_translation(-DVec3::Y * 22.5);
+        for (flip, flipped_faces) in [(true, 2), (false, 0)] {
+            let (mut state, id) = state_with(slanted_box());
+            state.edit_symmetry = symmetric(0, td_doc::symmetry::PlaneAt::Center, 0.0);
+            let before = state.doc.map.mesh(id).unwrap().clone();
+            let right = side(&before, 65.0);
+            let left = side(&before, 10.0);
+            transform(&mut state, id, &right, flip_y, flip);
+
+            let after = state.doc.map.mesh(id).unwrap();
+            let mut expected = before.clone();
+            let sides = [before.faces_within(&right.iter().copied().collect()), before.faces_within(&left.iter().copied().collect())].concat();
+            assert_eq!(sides.len(), 2, "the two side faces");
+            if flip {
+                expected.flip_faces(&sides);
+            }
+
+            for (i, (a, e)) in after.faces.iter().zip(&expected.faces).enumerate() {
+                assert_eq!(a.indices, e.indices, "face {i}, flip {flip}");
+            }
+
+            let changed = after.faces.iter().zip(&before.faces).filter(|(a, b)| a.indices != b.indices).count();
+            assert_eq!(changed, flipped_faces);
+            for v in right.iter().chain(&left) {
+                assert_eq!(after.vertices[*v as usize].y, 45.0 - before.vertices[*v as usize].y, "both sides turned over together");
+            }
+        }
+    }
+
+    #[test]
+    fn selected_counterparts_and_lone_vertices_move_plainly() {
+        let (mut state, id) = state_with(slanted_box());
+        state.edit_symmetry = symmetric(0, td_doc::symmetry::PlaneAt::Center, 0.0);
+        let before = state.doc.map.mesh(id).unwrap().clone();
+        let delta = DVec3::new(3.0, 2.0, -1.0);
+        let corner = vertex_at(&before, DVec3::new(65.0, 40.0, 36.0));
+        let twin = vertex_at(&before, DVec3::new(10.0, 40.0, 36.0));
+        transform(&mut state, id, &[corner, twin], DMat4::from_translation(delta), true);
+        let mut expected = before.vertices.clone();
+        expected[corner as usize] += delta;
+        expected[twin as usize] += delta;
+        assert_vertices(state.doc.map.mesh(id).unwrap(), &expected);
+
+        let all: Vec<u32> = (0..before.vertices.len() as u32).collect();
+        transform(&mut state, id, &all, DMat4::from_translation(delta), true);
+        let expected: Vec<DVec3> = expected.iter().map(|v| *v + delta).collect();
+        assert_vertices(state.doc.map.mesh(id).unwrap(), &expected);
+
+        // A corner pushed out of line has no counterpart left, so it moves alone.
+        let mut lone = before.clone();
+        let far = vertex_at(&lone, DVec3::new(65.0, 5.0, -20.0));
+        lone.vertices[far as usize].x = 75.0;
+        let near = vertex_at(&lone, DVec3::new(10.0, 5.0, -20.0));
+        let (mut state, id) = state_with(lone.clone());
+        state.edit_symmetry = symmetric(0, td_doc::symmetry::PlaneAt::Custom, 37.5);
+        transform(&mut state, id, &[near], DMat4::from_translation(delta), true);
+        let mut expected = lone.vertices.clone();
+        expected[near as usize] += delta;
+        assert_vertices(state.doc.map.mesh(id).unwrap(), &expected);
+    }
+
+    #[test]
+    fn the_center_plane_runs_through_every_mesh_in_edit_not_only_the_picked_one() {
+        let (mut state, block) = state_with(td_geom::mesh_shapes::cuboid(&Aabb::new(DVec3::new(-40.0, 5.0, -20.0), DVec3::new(-10.0, 40.0, 30.0)), "m"));
+        let strip = td_geom::mesh_shapes::grid(&Aabb::new(DVec3::new(20.0, 16.0, -24.0), DVec3::new(100.0, 16.0, -8.0)), 4, 1, "m");
+        let layer = state.doc.map.default_layer();
+        let id = state.doc.edit("strip", |m, s| {
+            let id = m.insert(layer, td_doc::NodeKind::Mesh(strip.clone()));
+            s.select_node(id);
+            id
+        });
+        state.edit_symmetry = symmetric(0, td_doc::symmetry::PlaneAt::Center, 0.0);
+        let plane = state.edit_symmetry.plane(&edit_bounds(&state));
+        assert_eq!(plane, Some(td_core::AxisPlane { axis: 0, at: 30.0 }), "between the block at -40 and the strip's end at 100");
+        let (block_before, delta) = (state.doc.map.mesh(block).unwrap().clone(), DVec3::new(3.0, 2.0, -1.0));
+        let (end, image) = (vertex_at(&strip, DVec3::new(20.0, 16.0, -24.0)), vertex_at(&strip, DVec3::new(40.0, 16.0, -24.0)));
+        transform(&mut state, id, &[end], DMat4::from_translation(delta), true);
+
+        let mut expected = strip.vertices.clone();
+        expected[end as usize] += delta;
+        expected[image as usize] += DVec3::new(-3.0, 2.0, -1.0);
+        assert_vertices(state.doc.map.mesh(id).unwrap(), &expected);
+        assert_vertices(state.doc.map.mesh(block).unwrap(), &block_before.vertices);
+    }
+
+    #[test]
+    fn symmetry_off_leaves_the_counterpart_alone() {
+        let (mut state, id) = state_with(slanted_box());
+        let before = state.doc.map.mesh(id).unwrap().clone();
+        let corner = vertex_at(&before, DVec3::new(65.0, 40.0, 36.0));
+        transform(&mut state, id, &[corner], DMat4::from_translation(DVec3::new(3.0, 2.0, -1.0)), true);
+        let mut expected = before.vertices.clone();
+        expected[corner as usize] += DVec3::new(3.0, 2.0, -1.0);
+        assert_vertices(state.doc.map.mesh(id).unwrap(), &expected);
+        assert!(!state.status.contains("mirrored"), "{}", state.status);
+    }
+
+    #[test]
+    fn the_counterpart_must_lie_within_half_a_unit_of_the_mirror_image() {
+        let corner = DVec3::new(65.0, 40.0, 36.0);
+        let twin = DVec3::new(10.0, 40.0, 36.0);
+        for (at, follows) in [(37.5, true), (37.75, true), (37.76, false), (37.25, true), (37.24, false)] {
+            let (mut state, id) = state_with(slanted_box());
+            state.edit_symmetry = symmetric(0, td_doc::symmetry::PlaneAt::Custom, at);
+            let before = state.doc.map.mesh(id).unwrap().clone();
+            let (c, t) = (vertex_at(&before, corner), vertex_at(&before, twin));
+            transform(&mut state, id, &[c], DMat4::from_translation(DVec3::new(0.0, 0.0, 4.0)), true);
+            let after = state.doc.map.mesh(id).unwrap();
+            assert_eq!(after.vertices[t as usize] != before.vertices[t as usize], follows, "plane at {at}");
+        }
+
+        // The z plane through the middle of the box pairs the top front corner with the one behind it.
+        let (mut state, id) = state_with(slanted_box());
+        state.edit_symmetry = symmetric(2, td_doc::symmetry::PlaneAt::Center, 0.0);
+        let before = state.doc.map.mesh(id).unwrap().clone();
+        let front = vertex_at(&before, DVec3::new(65.0, 40.0, 36.0));
+        let back = vertex_at(&before, DVec3::new(65.0, 40.0, -20.0));
+        transform(&mut state, id, &[front], DMat4::from_translation(DVec3::new(2.0, -3.0, 5.0)), true);
+        let mut expected = before.vertices.clone();
+        expected[front as usize] += DVec3::new(2.0, -3.0, 5.0);
+        expected[back as usize] += DVec3::new(2.0, -3.0, -5.0);
+        assert_vertices(state.doc.map.mesh(id).unwrap(), &expected);
+    }
+
+    #[test]
+    fn a_modal_grab_and_a_gizmo_drag_both_move_the_counterpart() {
+        for gizmo in [false, true] {
+            let (mut state, id) = state_with(slanted_box());
+            state.edit_symmetry = symmetric(0, td_doc::symmetry::PlaneAt::Center, 0.0);
+            let before = state.doc.map.mesh(id).unwrap().clone();
+            let corner = vertex_at(&before, DVec3::new(65.0, 40.0, 36.0));
+            let twin = vertex_at(&before, DVec3::new(10.0, 40.0, 36.0));
+            let mut tool = MeshTool::default();
+            tool.selection.insert(id, MeshSel { verts: [corner].into_iter().collect(), ..Default::default() });
+            let mut cam = Camera::new(ViewKind::Front);
+            cam.center = DVec3::new(37.5, 22.0, 0.0);
+            cam.zoom = 2.0;
+            let mut h = egui_kittest::Harness::builder().with_size(Vec2::new(800.0, 600.0)).with_step_dt(1.0 / 60.0).build_ui_state(
+                |ui, f: &mut GizmoFixture| {
+                    let rect = ui.available_rect_before_wrap();
+                    let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
+                    f.rect = rect;
+                    f.tool.viewport_input(ui, &response, &f.cam, rect, response.hover_pos(), &mut f.state);
+                },
+                GizmoFixture { state, tool, cam, rect: Rect::NOTHING },
+            );
+            h.run();
+            let at = h.state().cam.project(h.state().rect, DVec3::new(65.0, 40.0, 36.0)).unwrap();
+            let undo = h.state().state.doc.history.undo_labels().count();
+            if gizmo {
+                h.state_mut().tool.gizmo = true;
+                h.run();
+                let f = h.state();
+                let bounds = f.tool.gizmo_bounds(&f.state).unwrap();
+                let hit = |p: Pos2| crate::transform_gizmo::hit_on(&f.cam, f.rect, &bounds, p);
+                let arrow = (10..200).map(|d| at + Vec2::new(d as f32, 0.0)).find(|p| hit(*p) == Some(crate::transform_gizmo::Part::Move(0))).unwrap();
+                step_pointer(&mut h, arrow, Some(true));
+                for i in 1..=5 {
+                    step_pointer(&mut h, arrow + Vec2::new(8.0 * i as f32, 0.0), None);
+                }
+
+                step_pointer(&mut h, arrow + Vec2::new(40.0, 0.0), Some(false));
+            } else {
+                let f = h.state_mut();
+                let x = Some(Constraint { dir: DVec3::X, exclude: false, label: "X" });
+                f.tool.start_transform(TransformKind::Grab, x, &mut f.state);
+                step_pointer(&mut h, at, None);
+                for i in 1..=5 {
+                    step_pointer(&mut h, at + Vec2::new(8.0 * i as f32, 0.0), None);
+                }
+
+                step_pointer(&mut h, at + Vec2::new(40.0, 0.0), Some(true));
+                step_pointer(&mut h, at + Vec2::new(40.0, 0.0), Some(false));
+            }
+
+            h.run();
+            let f = h.state();
+            let after = f.state.doc.map.mesh(id).unwrap();
+            let moved = after.vertices[corner as usize] - before.vertices[corner as usize];
+            let followed = after.vertices[twin as usize] - before.vertices[twin as usize];
+            assert!(moved.x.abs() > 1.0, "the corner moved along x, gizmo {gizmo}: {moved:?}");
+            assert_eq!((moved.y, moved.z), (0.0, 0.0), "and only along x");
+            assert_eq!(followed, DVec3::new(-moved.x, 0.0, 0.0), "the counterpart went the other way, gizmo {gizmo}");
+            assert_eq!(f.state.doc.history.undo_labels().count(), undo + 1, "one undo step, gizmo {gizmo}");
+            for i in (0..before.vertices.len()).filter(|i| *i as u32 != corner && *i as u32 != twin) {
+                assert_eq!(after.vertices[i], before.vertices[i], "vertex {i} stays");
+            }
+        }
     }
 }

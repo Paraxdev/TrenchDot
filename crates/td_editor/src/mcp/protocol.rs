@@ -282,7 +282,7 @@ pub fn tool_definitions() -> Vec<Value> {
         ),
         json!({
             "name": "mesh_edit",
-            "description": "Topology operation on a mesh by vertex, edge and face indices (see get_node). ops: extrude_faces {faces, offset|distance}, extrude_edges {edges, offset}, inset {faces, thickness}, loop_cut {edges:[[a,b]], cuts}, bisect {point, normal, faces?, delete: front|back, fill}, subdivide {faces}, merge {verts, at?}, weld {distance}, fill {verts}, delete_faces {faces}, delete_faces_in_box {min, max} (faces whose center lies inside, e.g. door and window holes), set_material_in_box {min, max, material}, delete_vertices {verts}, bevel_edges {edges, width}, bevel_vertices {verts, width}, translate {verts, offset}, smooth {verts, factor, iterations}, solidify {thickness}, flip {faces}, triangulate {faces}, smooth_angle {angle}, set_material {faces, material}, separate {faces}. Indices outside the mesh are an error.",
+            "description": "Topology operation on a mesh by vertex, edge and face indices (see get_node). ops: extrude_faces {faces, offset|distance}, extrude_edges {edges, offset}, inset {faces, thickness}, loop_cut {edges:[[a,b]], cuts}, bisect {point, normal, faces?, delete: front|back, fill}, subdivide {faces}, merge {verts, at?}, weld {distance}, fill {verts}, delete_faces {faces}, delete_faces_in_box {min, max} (faces whose center lies inside, e.g. door and window holes), set_material_in_box {min, max, material}, delete_vertices {verts}, bevel_edges {edges, width}, bevel_vertices {verts, width}, translate {verts, offset, symmetry} (symmetry: true also moves each unselected vertex within 0.5 units of the mirror image of a moved one across the plane of set_editor edit_symmetry, which must be on, centered on the mesh unless world or custom, by the mirrored offset in the same undo step; the reply's mirrored says how many followed), smooth {verts, factor, iterations}, solidify {thickness}, flip {faces}, triangulate {faces}, smooth_angle {angle}, set_material {faces, material}, separate {faces}. Indices outside the mesh are an error.",
             "inputSchema": { "type": "object", "properties": {
                 "id": { "type": "integer" }, "op": { "type": "string" },
                 "faces": { "type": "array", "items": { "type": "integer" } },
@@ -292,7 +292,7 @@ pub fn tool_definitions() -> Vec<Value> {
                 "distance": { "type": "number" }, "thickness": { "type": "number" }, "width": { "type": "number" }, "cuts": { "type": "integer" },
                 "at": vec3_schema("merge target, default the vertices' center"), "min": vec3_schema("box min"), "max": vec3_schema("box max"),
                 "material": { "type": "string" }, "factor": { "type": "number" }, "iterations": { "type": "integer" }, "angle": { "type": "number" },
-                "delete": { "type": "string", "enum": ["front", "back"] }, "fill": { "type": "boolean" }
+                "delete": { "type": "string", "enum": ["front", "back"] }, "fill": { "type": "boolean" }, "symmetry": { "type": "boolean", "description": "translate only: also move the mirrored counterparts, see the op" }
             }, "required": ["id", "op"] }
         }),
         json!({

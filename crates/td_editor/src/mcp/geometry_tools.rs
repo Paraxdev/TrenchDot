@@ -1,13 +1,16 @@
 //! MCP tools for meshes and terrains.
 
+use std::collections::BTreeSet;
+
 use serde_json::{Value, json};
-use td_core::{Aabb, DMat4, DVec2, DVec3, NodeId, Plane};
+use td_core::{Aabb, AxisPlane, DMat4, DVec2, DVec3, NodeId, Plane};
 use td_doc::NodeKind;
 use td_geom::mesh_shapes;
 
 use super::ToolResult;
 use super::tools::{Child, editable_ids, face_list, optional_vec3, pair_list, require_id, resolve_parent, ridge_along_x, rock_params, uint, uint_list};
 use crate::app::App;
+use crate::state::EditorState;
 
 fn vec3(v: &Value) -> Option<DVec3> {
     let a = v.as_array()?;
@@ -70,6 +73,23 @@ fn mesh_rotation(args: &Value) -> Result<Option<td_core::DQuat>, String> {
     }
 
     Ok(args["rotate_y"].as_f64().map(|deg| td_core::DQuat::from_rotation_y(deg.to_radians())))
+}
+
+/// The plane and counterparts a `translate` with `symmetry: true` also moves, none without the flag. The plane comes
+/// from set_editor edit_symmetry and the mesh's own bounds, so the setting must be on.
+fn mirror_translate(state: &EditorState, id: NodeId, op: &str, flag: &Value, verts: &[u32]) -> Result<Option<(AxisPlane, Vec<u32>)>, String> {
+    if !flag.is_null() && !flag.is_boolean() {
+        return Err("symmetry must be true or false, the plane comes from set_editor edit_symmetry".into());
+    }
+
+    if op != "translate" || !flag.as_bool().unwrap_or(false) {
+        return Ok(None);
+    }
+
+    let mesh = state.doc.map.mesh(id).ok_or("mesh vanished")?;
+    let plane = state.edit_symmetry.plane(&mesh.bounds()).ok_or("symmetry needs set_editor edit_symmetry to be x, y or z")?;
+    let moved: BTreeSet<u32> = verts.iter().copied().collect();
+    Ok(Some((plane, mesh.mirror_counterparts(&moved, plane, td_doc::symmetry::MIRROR_TOLERANCE))))
 }
 
 impl App {
@@ -215,6 +235,10 @@ impl App {
         let verts: Vec<u32> = verts.into_iter().map(|v| v as u32).collect();
         let edges: Vec<(u32, u32)> = edges.into_iter().map(|(a, b)| (a as u32, b as u32)).collect();
         let a = args.clone();
+        let mirror = match mirror_translate(&self.state, id, &op, &a["symmetry"], &verts) {
+            Ok(m) => m,
+            Err(e) => return err(e),
+        };
         let parent = self.state.doc.map.get(id).and_then(|n| n.parent).unwrap_or_else(|| self.state.insert_parent());
         let result: Result<Value, String> = self.state.doc.try_edit(&format!("Mesh {op}"), |m, s| {
             let Some(mesh) = m.mesh_mut(id) else { return Err("mesh vanished".to_string()) };
@@ -307,7 +331,9 @@ impl App {
                 "translate" => {
                     let Some(offset) = vec3(&a["offset"]) else { return Err("offset [x, y, z] required".to_string()) };
                     mesh.transform_vertices(&verts, &DMat4::from_translation(offset));
-                    json!({})
+                    let Some((plane, followers)) = &mirror else { return Ok(json!({})) };
+                    mesh.transform_vertices(followers, &DMat4::from_translation(plane.reflect_vector(offset)));
+                    json!({ "mirrored": followers.len() })
                 }
                 "smooth" => {
                     let targets: Vec<u32> = if verts.is_empty() { (0..mesh.vertices.len() as u32).collect() } else { verts.clone() };

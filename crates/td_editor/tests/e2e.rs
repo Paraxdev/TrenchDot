@@ -5632,3 +5632,94 @@ fn vertex_symmetry_moves_the_mirrored_corner() {
     assert!(why.contains("concave"), "{why}");
     assert_eq!((vertices_of(&ed, c), vertices_of(&ed, b)), (c_before, b_before), "a refused symmetric move changes no brush");
 }
+
+/// A mesh box off the origin whose back top edge was lowered, so no two corners overlap in the front view.
+fn slanted_mesh(ed: &Editor) -> u64 {
+    let id = ed.call("create_mesh", json!({ "shape": "cuboid", "min": [10, 5, -20], "max": [65, 40, 30] }))["id"].as_u64().unwrap();
+    let back_top: Vec<usize> = mesh_vertices(ed, id).iter().enumerate().filter(|(_, v)| v[1] == 40.0 && v[2] == -20.0).map(|(i, _)| i).collect();
+    ed.call("mesh_edit", json!({ "id": id, "op": "translate", "verts": back_top, "offset": [0, -20, 0] }));
+    id
+}
+
+fn mesh_vertices(ed: &Editor, id: u64) -> Vec<[f64; 3]> {
+    let node = ed.call("get_node", json!({ "id": id }));
+    node["vertices"].as_array().unwrap().iter().map(|v| [0, 1, 2].map(|i| v[i].as_f64().unwrap())).collect()
+}
+
+fn vertex_near(vertices: &[[f64; 3]], p: [f64; 3]) -> [f64; 3] {
+    *vertices.iter().find(|v| (0..3).all(|i| (v[i] - p[i]).abs() < 0.01)).unwrap_or_else(|| panic!("no vertex near {p:?} in {vertices:?}"))
+}
+
+#[test]
+#[ignore]
+fn mesh_symmetry_drag_moves_the_mirrored_vertex() {
+    let ed = Editor::launch("mesh_symmetry_drag");
+    let id = slanted_mesh(&ed);
+    let before = mesh_vertices(&ed, id);
+    ed.call("select", json!({ "ids": [id] }));
+    ed.call("set_editor", json!({ "tool": "mesh", "mesh_component": "vertex", "edit_symmetry": "x" }));
+    ed.call("set_camera", json!({ "view": "front", "center": [37, 22, 0], "zoom": 2.0 }));
+    ed.input("front", json!([{ "type": "click", "world": [65, 40, 30] }]));
+    let selected = ed.state()["editor"]["mesh_selection"][0]["verts"].clone();
+    assert_eq!(selected.as_array().unwrap().len(), 1, "one corner picked {selected}");
+
+    let undo = ed.state()["undo"].as_array().unwrap().len();
+    ed.input("front", json!([{ "type": "drag", "world": [65, 40, 30], "to_world": [97, 40, 30] }]));
+    let after = mesh_vertices(&ed, id);
+    let moved = vertex_near(&after, [65.0 + 32.0, 40.0, 30.0]);
+    let twin = vertex_near(&after, [10.0 - 32.0, 40.0, 30.0]);
+    assert_eq!((moved[1], moved[2], twin[1], twin[2]), (40.0, 30.0, 40.0, 30.0));
+    let unchanged = before.iter().filter(|v| (v[0], v[1], v[2]) != (65.0, 40.0, 30.0) && (v[0], v[1], v[2]) != (10.0, 40.0, 30.0));
+    for v in unchanged {
+        vertex_near(&after, *v);
+    }
+
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), undo + 1, "the drag and its mirror are one undo step");
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(mesh_vertices(&ed, id), before);
+
+    ed.call("set_editor", json!({ "edit_symmetry": "off" }));
+    ed.input("front", json!([{ "type": "drag", "world": [65, 40, 30], "to_world": [97, 40, 30] }]));
+    let alone = mesh_vertices(&ed, id);
+    vertex_near(&alone, [97.0, 40.0, 30.0]);
+    vertex_near(&alone, [10.0, 40.0, 30.0]);
+}
+
+#[test]
+#[ignore]
+fn mesh_edit_translate_follows_the_symmetry_when_asked() {
+    let ed = Editor::launch("mesh_translate_symmetry");
+    let id = slanted_mesh(&ed);
+    let before = mesh_vertices(&ed, id);
+    let corner = before.iter().position(|v| *v == [65.0, 40.0, 30.0]).unwrap();
+    let args = |symmetry: Value| json!({ "id": id, "op": "translate", "verts": [corner], "offset": [3, 2, -1], "symmetry": symmetry });
+
+    let err = ed.call_err("mesh_edit", args(json!(true)));
+    assert!(err.contains("edit_symmetry"), "symmetry needs the setting on: {err}");
+    assert_eq!(mesh_vertices(&ed, id), before, "a refused translate changes nothing");
+
+    ed.call("set_editor", json!({ "edit_symmetry": "x" }));
+    for shape in [json!("x"), json!({ "axis": "x" }), json!(1), json!("true"), json!([true])] {
+        let err = ed.call_err("mesh_edit", args(shape.clone()));
+        assert!(err.contains("true or false"), "symmetry {shape} is neither a boolean nor null: {err}");
+        assert_eq!(mesh_vertices(&ed, id), before, "a refused translate changes nothing");
+    }
+
+    let plain = ed.call("mesh_edit", json!({ "id": id, "op": "translate", "verts": [corner], "offset": [3, 2, -1] }));
+    assert!(plain["mirrored"].is_null(), "without symmetry the setting is ignored {plain}");
+    vertex_near(&mesh_vertices(&ed, id), [10.0, 40.0, 30.0]);
+    ed.call("run_action", json!({ "action": "undo" }));
+
+    let reply = ed.call("mesh_edit", args(json!(true)));
+    assert_eq!(reply["mirrored"], 1, "{reply}");
+    let after = mesh_vertices(&ed, id);
+    vertex_near(&after, [68.0, 42.0, 29.0]);
+    vertex_near(&after, [7.0, 42.0, 29.0]);
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(mesh_vertices(&ed, id), before, "one undo step takes both back");
+
+    let all: Vec<usize> = (0..before.len()).collect();
+    let whole = ed.call("mesh_edit", json!({ "id": id, "op": "translate", "verts": all, "offset": [3, 2, -1], "symmetry": true }));
+    assert_eq!(whole["mirrored"], 0, "a selected counterpart moves plainly {whole}");
+    vertex_near(&mesh_vertices(&ed, id), [13.0, 42.0, 29.0]);
+}
