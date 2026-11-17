@@ -76,10 +76,48 @@ pub fn use_godots(link: &mut Terrain3DLink, loc: Loc) -> bool {
     link.edits.remove(&loc).is_some() | link.removed.remove(&loc).is_some()
 }
 
-/// The swatch of a texture, its albedo color as Godot shows it.
-pub fn swatch(texture: &ManifestTexture) -> Color32 {
-    let [r, g, b, _] = texture.albedo_color.map(|c| (c.clamp(0.0, 1.0) * 255.0).round() as u8);
-    Color32::from_rgb(r, g, b)
+/// The swatch of a texture: the mean color of its image, multiplied with the tint as the terrain draws it.
+/// A texture without an image shows its tint alone.
+pub fn swatch(texture: &ManifestTexture, mean: Option<[u8; 3]>) -> Color32 {
+    let tint = texture.albedo_color.map(|c| c.clamp(0.0, 1.0));
+    let [r, g, b] = mean.unwrap_or([255; 3]).map(f32::from);
+    let [tr, tg, tb, _] = tint;
+    Color32::from_rgb((r * tr).round() as u8, (g * tg).round() as u8, (b * tb).round() as u8)
+}
+
+/// The mean color of an image, ignoring the alpha that holds Terrain3D's height. None for an empty image.
+pub fn mean_color(image: &image::RgbaImage) -> Option<[u8; 3]> {
+    let count = u64::from(image.width()) * u64::from(image.height());
+    if count == 0 {
+        return None;
+    }
+
+    let mut sum = [0u64; 3];
+    for pixel in image.pixels() {
+        (0..3).for_each(|i| sum[i] += u64::from(pixel[i]));
+    }
+
+    Some(sum.map(|s| ((s as f64 / count as f64).round()) as u8))
+}
+
+type SwatchKey = (std::path::PathBuf, String, String, String);
+
+/// The mean colors of the textures' images, read once per image since the Inspector draws every frame.
+#[derive(Clone, Default)]
+struct Means(std::collections::HashMap<SwatchKey, Option<[u8; 3]>>);
+
+/// The mean color of the thumbnail Godot saved for `texture`, else of its full albedo.
+fn texture_mean(ui: &Ui, cache: &std::path::Path, texture: &ManifestTexture) -> Option<[u8; 3]> {
+    let key = (cache.to_path_buf(), texture.thumbnail.clone(), texture.albedo.clone(), texture.hash.clone());
+    let id = egui::Id::new("terrain3d texture means");
+    if let Some(known) = ui.data(|d| d.get_temp::<Means>(id)).and_then(|m| m.0.get(&key).copied()) {
+        return known;
+    }
+
+    let open = |file: &str| (!file.is_empty()).then(|| image::open(cache.join(file)).ok()).flatten();
+    let mean = [&texture.thumbnail, &texture.albedo].into_iter().find_map(|file| open(file)).and_then(|i| mean_color(&i.to_rgba8()));
+    ui.data_mut(|d| d.get_temp_mut_or_default::<Means>(id).0.insert(key, mean));
+    mean
 }
 
 /// The size of the terrain a grow plan leaves.
@@ -303,7 +341,7 @@ pub fn inspector(ui: &mut Ui, state: &mut EditorState, id: NodeId, actions: &mut
         for texture in &manifest.textures {
             ui.horizontal(|ui| {
                 let (rect, _) = ui.allocate_exact_size(egui::vec2(14.0, 14.0), egui::Sense::hover());
-                ui.painter().rect_filled(rect, 2.0, swatch(texture));
+                ui.painter().rect_filled(rect, 2.0, swatch(texture, texture_mean(ui, &cache, texture)));
                 let name =
                     if texture.name.is_empty() { trf!("Texture {id}", id = texture.id) } else { trf!("{id} {name}", id = texture.id, name = &texture.name) };
                 ui.label(name);
@@ -451,10 +489,22 @@ mod tests {
     }
 
     #[test]
-    fn a_swatch_is_the_albedo_color_clamped_to_bytes() {
+    fn a_swatch_is_the_mean_of_the_image_times_the_tint_and_the_tint_alone_without_one() {
         let texture = |albedo_color| ManifestTexture { id: 3, albedo_color, ..Default::default() };
-        assert_eq!(swatch(&texture([0.1, 0.2, 0.9, 0.5])), Color32::from_rgb(26, 51, 230));
-        assert_eq!(swatch(&texture([-1.0, 2.0, 1.0, 1.0])), Color32::from_rgb(0, 255, 255));
+        let mean = Some([200, 100, 50]);
+        assert_eq!(swatch(&texture([1.0; 4]), mean), Color32::from_rgb(200, 100, 50), "a white tint leaves the image");
+        assert_eq!(swatch(&texture([0.5, 1.0, 0.2, 0.3]), mean), Color32::from_rgb(100, 100, 10));
+        assert_eq!(swatch(&texture([-1.0, 2.0, 1.0, 1.0]), mean), Color32::from_rgb(0, 100, 50), "the tint is clamped");
+        assert_eq!(swatch(&texture([0.1, 0.2, 0.9, 0.5]), None), Color32::from_rgb(26, 51, 230));
+    }
+
+    #[test]
+    fn the_mean_color_of_an_image_ignores_the_alpha_and_an_empty_image_has_none() {
+        let mut image = image::RgbaImage::from_pixel(3, 1, image::Rgba([10, 20, 30, 0]));
+        image.put_pixel(1, 0, image::Rgba([40, 50, 60, 255]));
+        image.put_pixel(2, 0, image::Rgba([100, 20, 0, 7]));
+        assert_eq!(mean_color(&image), Some([50, 30, 30]));
+        assert_eq!(mean_color(&image::RgbaImage::new(0, 4)), None);
     }
 
     #[test]
