@@ -1,5 +1,5 @@
 use egui::{Align2, Color32, FontId, Key, PointerButton, Pos2, Rect, Response, Stroke, Ui, Vec2};
-use td_core::{Aabb, DMat4, DVec3, Mirror, NodeId, Plane, Ray};
+use td_core::{Aabb, DMat4, DVec3, NodeId, Plane, Ray};
 use td_doc::ops;
 use td_geom::Brush;
 use td_render::LineVertex;
@@ -536,10 +536,12 @@ impl ToolSet {
                     let color = state.paint_color;
                     let radius = state.sculpt.radius;
                     let strength = state.sculpt.strength;
+                    let symmetry = if sculpting { state.symmetry } else { td_doc::symmetry::Symmetry::OFF };
                     state.doc.edit("Stroke", |m, _| {
                         if sculpting {
-                            td_doc::terrain::sculpt(m, &faces, p, &brush, &Mirror::NONE);
-                            td_doc::terrain::sculpt_terrains(m, &terrains, p, &brush, &td_doc::symmetry::Symmetry::OFF);
+                            let mirror = symmetry.for_faces(m, &faces);
+                            td_doc::terrain::sculpt(m, &faces, p, &brush, &mirror);
+                            td_doc::terrain::sculpt_terrains(m, &terrains, p, &brush, &symmetry);
                         } else {
                             td_doc::terrain::paint_vertices(m, &targets, p, radius, color, (strength * seconds).min(1.0));
                         }
@@ -2637,6 +2639,180 @@ mod tests {
         let steps = steps + 1;
         click(&mut tools, &mut state, &cam);
         assert_eq!(state.doc.history.undo_labels().count(), steps, "flattening flat ground changes nothing and records nothing");
+    }
+
+    use td_doc::symmetry::{Symmetry, SymmetryAxes, SymmetryCenter};
+
+    /// An off origin 65 by 65 vertex terrain with a slanted start, its middle at x 547.5 and z 1047.75, under a camera
+    /// that sculpts about 400 units short of the middle in x and 750 in z.
+    fn slanted_terrain_under_camera() -> (EditorState, NodeId, Camera) {
+        let (mut state, id, mut cam) = terrain_under_camera();
+        state.doc.edit("move", |m, _| {
+            let t = m.terrain_mut(id).unwrap();
+            t.origin = DVec3::new(-1500.5, 20.0, -1000.25);
+            for j in 0..65 {
+                for i in 0..65 {
+                    let k = t.index(i, j);
+                    t.heights[k] = 3.0 + 0.5 * i as f32 + 0.25 * j as f32;
+                }
+            }
+        });
+        state.sculpt.radius = 128.0;
+        cam.position = DVec3::new(-400.0, 3000.0, 300.0);
+        (state, id, cam)
+    }
+
+    fn heights_of(state: &EditorState, id: NodeId) -> Vec<f32> {
+        state.doc.map.terrain(id).unwrap().heights.clone()
+    }
+
+    /// Raise per vertex, its total and the weighted middle of where it landed in x and z.
+    fn raised(state: &EditorState, id: NodeId, start: &[f32]) -> (Vec<f32>, f64, DVec3) {
+        let t = state.doc.map.terrain(id).unwrap();
+        let delta: Vec<f32> = t.heights.iter().zip(start).map(|(a, b)| a - b).collect();
+        let (mut sum, mut mid) = (0.0f64, DVec3::ZERO);
+        for j in 0..65 {
+            for i in 0..65 {
+                let w = delta[t.index(i, j)] as f64;
+                sum += w;
+                mid += DVec3::new(t.origin.x + i as f64 * 64.0, 0.0, t.origin.z + j as f64 * 64.0) * w;
+            }
+        }
+
+        (delta, sum, mid / sum)
+    }
+
+    fn sculpt_click_with(symmetry: Symmetry) -> (EditorState, NodeId, Vec<f32>) {
+        let (mut state, id, cam) = slanted_terrain_under_camera();
+        state.symmetry = symmetry;
+        let start = heights_of(&state, id);
+        click(&mut ToolSet::default(), &mut state, &cam);
+        (state, id, start)
+    }
+
+    fn sym(axes: SymmetryAxes, center: SymmetryCenter) -> Symmetry {
+        Symmetry { axes, center, ..Symmetry::OFF }
+    }
+
+    #[test]
+    fn a_sculpt_click_with_symmetry_raises_every_side_in_one_undo_step() {
+        let (off, id, start) = sculpt_click_with(Symmetry::OFF);
+        let (_, total_one, at) = raised(&off, id, &start);
+        assert!(total_one > 0.0);
+
+        for (axes, flip_x, flip_z) in [(SymmetryAxes::X, true, false), (SymmetryAxes::Z, false, true), (SymmetryAxes::Xz, true, true)] {
+            let (mut state, id, start) = sculpt_click_with(sym(axes, SymmetryCenter::Terrain));
+            let (delta, total, mid) = raised(&state, id, &start);
+            let count = 1 << (flip_x as u32 + flip_z as u32);
+            assert!((total - total_one * count as f64).abs() < 1e-3 * total, "{axes:?}: {count} dabs of {total_one} raise {total}");
+            for j in 0..65usize {
+                for i in 0..65usize {
+                    let (a, b) = (if flip_x { 64 - i } else { i }, if flip_z { 64 - j } else { j });
+                    let (p, q) = (delta[j * 65 + i], delta[b * 65 + a]);
+                    assert!((p - q).abs() < 1e-3, "{axes:?}: vertex {i},{j} raised {p}, its image {a},{b} raised {q}");
+                }
+            }
+
+            assert!((mid.x - if flip_x { 547.5 } else { at.x }).abs() < 1.0, "{axes:?}: x middle {}", mid.x);
+            assert!((mid.z - if flip_z { 1047.75 } else { at.z }).abs() < 1.0, "{axes:?}: z middle {}", mid.z);
+            let before = state.doc.history.undo_labels().count();
+            assert_eq!(state.doc.history.undo_labels().next(), Some("Sculpt"));
+            state.doc.undo();
+            assert_eq!(state.doc.history.undo_labels().count(), before - 1, "one step");
+            assert_eq!(heights_of(&state, id), start, "{axes:?}: one undo restores every side");
+        }
+    }
+
+    #[test]
+    fn sculpt_symmetry_off_changes_one_side_only() {
+        let (state, id, start) = sculpt_click_with(Symmetry::OFF);
+        let (delta, _, at) = raised(&state, id, &start);
+        assert!(at.x < 547.5 && at.z < 1047.75, "the click lands on the near corner side");
+        let far = (0..65usize).flat_map(|j| (0..65usize).map(move |i| (i, j))).filter(|(i, j)| *i > 32 || *j > 32);
+        assert!(far.into_iter().all(|(i, j)| delta[j * 65 + i] == 0.0), "nothing past the middle moves");
+    }
+
+    #[test]
+    fn symmetry_planes_sit_on_the_terrain_middle_the_world_origin_or_a_typed_spot() {
+        let custom = Symmetry { axes: SymmetryAxes::Xz, center: SymmetryCenter::Custom, x: 210.5, z: -64.25 };
+        let cases = [
+            (sym(SymmetryAxes::Xz, SymmetryCenter::Terrain), DVec3::new(547.5, 0.0, 1047.75)),
+            (sym(SymmetryAxes::Xz, SymmetryCenter::World), DVec3::ZERO),
+            (custom, DVec3::new(210.5, 0.0, -64.25)),
+        ];
+        for (symmetry, want) in cases {
+            let (state, id, start) = sculpt_click_with(symmetry);
+            let (_, _, mid) = raised(&state, id, &start);
+            assert!((mid.x - want.x).abs() < 2.0 && (mid.z - want.z).abs() < 2.0, "{:?}: the four dabs center on {mid:?}", symmetry.center);
+        }
+    }
+
+    #[test]
+    fn a_sculpt_click_mirrors_across_the_middle_of_a_displacement() {
+        let mut brush = Brush::from_aabb(&Aabb::new(DVec3::new(-40.5, 0.0, 25.25), DVec3::new(87.5, 16.0, 153.25)), "dev/grey").unwrap();
+        let top = brush.faces.iter().position(|f| f.plane.normal.y > 0.9).unwrap();
+        brush.faces[top].data.disp = Some(td_geom::displacement::Displacement::new(3));
+        let make = || {
+            let mut state = EditorState::new(Default::default());
+            let layer = state.doc.map.default_layer();
+            let id = state.doc.edit("brush", |m, _| m.insert(layer, td_doc::NodeKind::Brush(brush.clone())));
+            state.tool = ToolKind::Sculpt;
+            state.sculpt.radius = 24.0;
+            (state, id)
+        };
+        let mut cam = Camera::new(ViewKind::Perspective);
+        cam.position = DVec3::new(-16.5, 600.0, 89.25);
+        cam.pitch = (-89.0f64).to_radians();
+
+        let raise = |state: &mut EditorState, id: NodeId, axes| {
+            state.symmetry = sym(axes, SymmetryCenter::Terrain);
+            click(&mut ToolSet::default(), state, &cam);
+            let b = state.doc.map.brush(id).unwrap();
+            (td_geom::displacement::grid(b, top).unwrap().base, b.faces[top].data.disp.as_ref().unwrap().heights.clone())
+        };
+
+        let (mut plain, plain_id) = make();
+        let (base, one) = raise(&mut plain, plain_id, SymmetryAxes::Off);
+        let left: Vec<usize> = (0..base.len()).filter(|k| base[*k].x < 23.5).collect();
+        let right: Vec<usize> = (0..base.len()).filter(|k| base[*k].x > 23.5).collect();
+        assert!(left.iter().any(|k| one[*k] > 0.0));
+        assert!(right.iter().all(|k| one[*k] == 0.0), "without symmetry only the dab's side rises");
+
+        let (mut state, id) = make();
+        let (_, both) = raise(&mut state, id, SymmetryAxes::X);
+        for k in 0..base.len() {
+            let want = DVec3::new(47.0 - base[k].x, base[k].y, base[k].z);
+            let image = (0..base.len()).find(|m| (base[*m] - want).length() < 1e-6).unwrap();
+            assert!((both[k] - both[image]).abs() < 1e-4, "vertex {k} at {:?}: {} against its image {}", base[k], both[k], both[image]);
+        }
+
+        assert!(right.iter().any(|k| both[*k] > 0.0), "the far side rises too");
+        assert!(left.iter().all(|k| (both[*k] - one[*k]).abs() < 1e-4), "the dab's own side is the plain dab");
+        state.doc.undo();
+        let b = state.doc.map.brush(id).unwrap();
+        assert!(b.faces[top].data.disp.as_ref().unwrap().heights.iter().all(|h| *h == 0.0), "one undo restores both sides");
+    }
+
+    #[test]
+    fn vertex_paint_ignores_symmetry() {
+        let run = |symmetry: Symmetry| {
+            let (mut state, id) = state_with_brush();
+            state.tool = ToolKind::Paint;
+            state.paint_color = [1.0, 0.0, 0.0, 1.0];
+            state.sculpt.radius = 20.0;
+            state.symmetry = symmetry;
+            let mut cam = Camera::new(ViewKind::Perspective);
+            cam.position = DVec3::new(8.0, 600.0, 8.0);
+            cam.pitch = (-89.0f64).to_radians();
+            click(&mut ToolSet::default(), &mut state, &cam);
+            state.doc.map.brush(id).unwrap().faces.iter().map(|f| f.data.colors.clone()).collect::<Vec<_>>()
+        };
+
+        let plain = run(Symmetry::OFF);
+        assert!(plain.iter().flatten().any(|c| c[1] < 1.0), "the click painted something");
+        assert!(plain.iter().flatten().any(|c| c[1] == 1.0), "and left the far corners alone");
+        let planes = Symmetry { axes: SymmetryAxes::Xz, center: SymmetryCenter::Custom, x: 32.0, z: 32.0 };
+        assert_eq!(run(planes), plain);
     }
 
     #[test]

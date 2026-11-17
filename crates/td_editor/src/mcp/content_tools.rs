@@ -1071,7 +1071,7 @@ impl App {
                 for (k, p) in resample(&points, spacing).into_iter().enumerate() {
                     let mut b = brush;
                     b.seed = brush.seed.wrapping_add(k as u32);
-                    changed |= crate::blend_tool::dab(&mut self.state, p, &b);
+                    changed |= crate::blend_tool::dab(&mut self.state, p, &b, &td_doc::symmetry::Symmetry::OFF);
                 }
 
                 self.state.doc.commit();

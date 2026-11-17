@@ -1,8 +1,9 @@
 //! Blend tool: paints material blends on terrain layers, displacement alpha and faces that have a blend material.
 
 use egui::{Color32, PointerButton, Pos2, Rect, Response, Ui};
-use td_core::{DVec3, Mirror, NodeId, Plane};
+use td_core::{DVec3, NodeId, Plane};
 use td_doc::blend::{self, BlendMode};
+use td_doc::symmetry::Symmetry;
 use td_render::LineVertex;
 
 use crate::camera::Camera;
@@ -77,18 +78,21 @@ pub fn targets(state: &EditorState) -> BlendTargets {
 }
 
 /// One dab. Returns true when anything changed.
-pub fn dab(state: &mut EditorState, center: DVec3, brush: &blend::BlendBrush) -> bool {
+pub fn dab(state: &mut EditorState, center: DVec3, brush: &blend::BlendBrush, symmetry: &Symmetry) -> bool {
     let t = targets(state);
     state.doc.edit("Blend", |m, _| {
         let mut changed = false;
         for id in &t.terrains {
             if let Some(terrain) = m.terrain_mut(*id) {
-                changed |= blend::blend_terrain(terrain, center, brush, &Mirror::NONE);
+                changed |= blend::blend_terrain(terrain, center, brush, &symmetry.for_terrain(terrain));
             }
         }
 
-        changed |= blend::blend_displacements(m, &t.displacements, center, brush, &Mirror::NONE);
-        changed |= blend::blend_face_corners(m, &t.faces, center, brush, &Mirror::NONE);
+        let mut faces = t.displacements.clone();
+        faces.extend(t.faces.iter().copied());
+        let mirror = symmetry.for_faces(m, &faces);
+        changed |= blend::blend_displacements(m, &t.displacements, center, brush, &mirror);
+        changed |= blend::blend_face_corners(m, &t.faces, center, brush, &mirror);
         changed
     })
 }
@@ -192,7 +196,8 @@ impl BlendTool {
 
                     self.dabs = self.dabs.wrapping_add(1);
                     brush.seed = state.blend.seed.wrapping_add(if brush.falloff == blend::Falloff::Spray { self.dabs } else { 0 });
-                    dab(state, p, &brush);
+                    let symmetry = state.symmetry;
+                    dab(state, p, &brush, &symmetry);
                     self.last = Some(p);
                 }
             }
@@ -283,5 +288,109 @@ mod tests {
         state.doc.select(|_, s| s.clear());
         state.doc.map.get_mut(ter).unwrap().locked = true;
         assert!(targets(&state).terrains.is_empty(), "a locked terrain is never painted");
+    }
+
+    use td_doc::symmetry::{SymmetryAxes, SymmetryCenter};
+
+    /// A 160 by 160 displacement floor and an off origin 9 by 7 vertex terrain with a layer to paint, at the middles
+    /// (-10.5, 105.25) and (328.25, 35.5).
+    fn symmetric_map() -> (EditorState, NodeId, usize, NodeId) {
+        let mut state = EditorState::new(Default::default());
+        let layer = state.doc.map.default_layer();
+        let mut brush = Brush::from_aabb(&Aabb::new(DVec3::new(-90.5, 0.0, 25.25), DVec3::new(69.5, 16.0, 185.25)), "dev/grey").unwrap();
+        let top = brush.faces.iter().position(|f| f.plane.normal.y > 0.9).unwrap();
+        brush.faces[top].data.disp = Some(td_geom::displacement::Displacement::new(4));
+        let mut terrain = Terrain::new(DVec3::new(200.25, 8.0, -60.5), [9, 7], 32.0, "grass");
+        terrain.layers.push(td_geom::TerrainLayer::new("rock", 128.0));
+        let (id, ter) = state.doc.edit("setup", |m, _| (m.insert(layer, NodeKind::Brush(brush)), m.insert(layer, NodeKind::Terrain(terrain))));
+        (state, id, top, ter)
+    }
+
+    fn paint(symmetry: Symmetry, spots: &[DVec3]) -> (EditorState, NodeId, usize, NodeId) {
+        let (mut state, id, top, ter) = symmetric_map();
+        let brush = blend::BlendBrush { radius: 30.0, strength: 0.5, layer: 1, ..Default::default() };
+        state.doc.begin("Blend");
+        for spot in spots {
+            dab(&mut state, *spot, &brush, &symmetry);
+        }
+
+        state.doc.commit();
+        (state, id, top, ter)
+    }
+
+    fn rock(state: &EditorState, ter: NodeId) -> Vec<u8> {
+        let t = state.doc.map.terrain(ter).unwrap();
+        (0..t.splat.len() / 4).map(|k| t.splat[k * 4 + 1]).collect()
+    }
+
+    /// Where each displacement vertex sits and how much of the blend texture it shows.
+    fn alphas(state: &EditorState, id: NodeId, top: usize) -> (Vec<DVec3>, Vec<f32>) {
+        let b = state.doc.map.brush(id).unwrap();
+        let base = td_geom::displacement::grid(b, top).unwrap().base;
+        let a = b.faces[top].data.disp.as_ref().unwrap().alphas.clone();
+        (base, if a.is_empty() { vec![0.0; 17 * 17] } else { a })
+    }
+
+    const TERRAIN_SPOT: DVec3 = DVec3::new(248.25, 8.0, -20.0);
+    const FLOOR_SPOT: DVec3 = DVec3::new(-50.0, 16.0, 55.25);
+
+    #[test]
+    fn blend_symmetry_mirrors_the_terrain_and_the_displacement_about_their_own_middles() {
+        let (plain, id, top, ter) = paint(Symmetry::OFF, &[TERRAIN_SPOT, FLOOR_SPOT]);
+        let (_, one) = alphas(&plain, id, top);
+        let one_rock = rock(&plain, ter);
+        let width = |k: usize| (k % 9, k / 9);
+        assert!(one_rock.iter().enumerate().any(|(k, w)| *w > 0 && width(k).0 < 4), "the terrain dab landed on its near side");
+        assert!(one_rock.iter().enumerate().all(|(k, w)| *w == 0 || width(k).0 < 4), "and only there without symmetry");
+        assert!(one.iter().any(|a| *a > 0.0));
+
+        for symmetry in [sym_x(), Symmetry { axes: SymmetryAxes::Xz, ..sym_x() }] {
+            let flip_z = symmetry.axes == SymmetryAxes::Xz;
+            let (mut state, id, top, ter) = paint(symmetry, &[TERRAIN_SPOT, FLOOR_SPOT]);
+            let r = rock(&state, ter);
+            for k in 0..r.len() {
+                let (i, j) = width(k);
+                let image = if flip_z { (6 - j) * 9 + (8 - i) } else { j * 9 + (8 - i) };
+                assert!(r[k].abs_diff(r[image]) <= 1, "{:?}: terrain vertex {i},{j} holds {}, its image {}", symmetry.axes, r[k], r[image]);
+            }
+
+            assert!(r.iter().enumerate().any(|(k, w)| *w > 0 && width(k).0 > 4), "the terrain's far side is painted");
+
+            let (base, a) = alphas(&state, id, top);
+            for k in 0..base.len() {
+                let want = DVec3::new(-21.0 - base[k].x, base[k].y, if flip_z { 210.5 - base[k].z } else { base[k].z });
+                let image = (0..base.len()).find(|m| (base[*m] - want).length() < 1e-6).unwrap();
+                assert!((a[k] - a[image]).abs() < 1e-4, "{:?}: displacement vertex at {:?} holds {}, its image {}", symmetry.axes, base[k], a[k], a[image]);
+            }
+
+            assert!((0..base.len()).any(|k| base[k].x > -10.5 && a[k] > 0.0), "the displacement's far side is painted");
+
+            let steps = state.doc.history.undo_labels().count();
+            state.doc.undo();
+            assert_eq!(state.doc.history.undo_labels().count(), steps - 1, "one step");
+            assert!(rock(&state, ter).iter().all(|w| *w == 0), "one undo restores the terrain");
+            assert!(alphas(&state, id, top).1.iter().all(|a| *a == 0.0), "and the displacement");
+        }
+    }
+
+    fn sym_x() -> Symmetry {
+        Symmetry { axes: SymmetryAxes::X, center: SymmetryCenter::Terrain, ..Symmetry::OFF }
+    }
+
+    #[test]
+    fn blend_symmetry_planes_sit_on_the_world_origin_when_asked() {
+        let centroid = |symmetry: Symmetry| {
+            let (state, id, top, _) = paint(symmetry, &[DVec3::new(-45.0, 16.0, 105.0)]);
+            let (base, a) = alphas(&state, id, top);
+            let sum: f64 = a.iter().map(|v| *v as f64).sum();
+            base.iter().zip(&a).map(|(p, v)| p.x * *v as f64).sum::<f64>() / sum
+        };
+
+        assert!((centroid(Symmetry::OFF) + 45.0).abs() < 3.0, "one dab sits where it was dropped");
+        assert!((centroid(sym_x()) + 10.5).abs() < 3.0, "the floor's own middle");
+        let world = Symmetry { center: SymmetryCenter::World, ..sym_x() };
+        assert!(centroid(world).abs() < 3.0, "the world origin");
+        let custom = Symmetry { center: SymmetryCenter::Custom, x: -20.0, ..sym_x() };
+        assert!((centroid(custom) + 20.0).abs() < 3.0, "a typed spot");
     }
 }

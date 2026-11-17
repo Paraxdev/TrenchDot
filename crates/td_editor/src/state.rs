@@ -6,6 +6,7 @@ use std::time::Instant;
 use serde::{Deserialize, Serialize};
 use td_core::{Aabb, DVec3, NodeId};
 use td_doc::ops::EditOptions;
+use td_doc::symmetry::{Symmetry, SymmetryCenter};
 use td_doc::{Document, format};
 use td_formats::GameConfig;
 use td_render::ShadeMode;
@@ -256,6 +257,13 @@ pub struct MapTab {
     pub open_groups: Vec<NodeId>,
     pub current_layer: NodeId,
     autosave: Autosave,
+    symmetry: Symmetry,
+}
+
+/// The symmetry a new or opened map starts with: the one in use, at terrain center when its planes were typed for
+/// the map before.
+fn symmetry_for_another_map(s: Symmetry) -> Symmetry {
+    if s.center == SymmetryCenter::Custom { Symmetry { center: SymmetryCenter::Terrain, ..s } } else { s }
 }
 
 /// Autosave bookkeeping of one open map.
@@ -607,6 +615,9 @@ pub struct EditorState {
     pub link_state: crate::live_link::LinkState,
     live: LiveTick,
     pub sculpt: td_doc::terrain::SculptBrush,
+    /// Mirror planes for Sculpt and Blend strokes on the active map. Session only, like the brush settings, and each
+    /// tab keeps its own.
+    pub symmetry: Symmetry,
     /// World height Auto Paint measures its bands from, such as sea level. None measures from the lowest point.
     pub auto_paint_base: Option<f64>,
     pub paint_color: [f32; 4],
@@ -800,6 +811,7 @@ impl EditorState {
             link_state: Default::default(),
             live: LiveTick::default(),
             sculpt: td_doc::terrain::SculptBrush::default(),
+            symmetry: Symmetry::OFF,
             auto_paint_base: None,
             paint_color: [0.55, 0.45, 0.35, 1.0],
             prefabs: Default::default(),
@@ -1095,6 +1107,7 @@ impl EditorState {
             open_groups: std::mem::take(&mut self.open_groups),
             current_layer: self.current_layer,
             autosave: std::mem::take(&mut self.autosave),
+            symmetry: self.symmetry,
         }
     }
 
@@ -1105,6 +1118,7 @@ impl EditorState {
         self.open_groups = target.open_groups;
         self.current_layer = target.current_layer;
         self.autosave = target.autosave;
+        self.symmetry = target.symmetry;
         self.tabs = all;
         self.active_tab = index;
         self.scene_reset = true;
@@ -1141,7 +1155,7 @@ impl EditorState {
         all.insert(self.active_tab.min(all.len()), current);
         let layer = doc.map.default_layer();
         let autosave = Autosave::for_doc(&doc);
-        all.push(MapTab { doc, open_groups: Vec::new(), current_layer: layer, autosave });
+        all.push(MapTab { doc, open_groups: Vec::new(), current_layer: layer, autosave, symmetry: symmetry_for_another_map(self.symmetry) });
         let last = all.len() - 1;
         self.activate(all, last);
         let bounds = self.doc.map.bounds_of(self.doc.map.layers.clone());
@@ -1209,6 +1223,7 @@ impl EditorState {
         self.open_groups.clear();
         self.autosave = Autosave::for_doc(&doc);
         self.doc = doc;
+        self.symmetry = symmetry_for_another_map(self.symmetry);
         self.scene_reset = true;
         self.forget_nodes();
         let bounds = self.doc.map.bounds_of(self.doc.map.layers.clone());
@@ -2587,6 +2602,36 @@ importer=\"texture\"
         assert!(state.status.contains("a project you have not trusted"), "{}", state.status);
         assert!(state.status.ends_with(MAP_SCRIPTS), "{}", state.status);
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn each_tab_keeps_its_symmetry_and_a_new_map_drops_typed_planes() {
+        use td_doc::symmetry::SymmetryAxes;
+        let mut state = EditorState::new(Prefs::default());
+        let typed = Symmetry { axes: SymmetryAxes::X, center: SymmetryCenter::Custom, x: 461.5, z: -72.25 };
+        state.symmetry = typed;
+        state.open_tab(Document::new());
+        assert_eq!(state.symmetry, Symmetry { center: SymmetryCenter::Terrain, ..typed }, "the axes carry over, the typed plane does not");
+
+        let world = Symmetry { axes: SymmetryAxes::Xz, center: SymmetryCenter::World, x: 3.0, z: 4.0 };
+        state.symmetry = world;
+        state.open_tab(Document::new());
+        assert_eq!(state.symmetry, world, "a center that is not typed carries over whole");
+        let other = Symmetry { axes: SymmetryAxes::Z, center: SymmetryCenter::Custom, x: -8.0, z: 96.5 };
+        state.symmetry = other;
+
+        state.switch_tab(0);
+        assert_eq!(state.symmetry, typed, "back on the first map, its typed plane is back");
+        state.switch_tab(1);
+        assert_eq!(state.symmetry, world);
+        state.switch_tab(2);
+        assert_eq!(state.symmetry, other);
+
+        state.reset_document(Document::new());
+        assert_eq!(state.symmetry, Symmetry { center: SymmetryCenter::Terrain, ..other }, "a new map in the same tab drops it too");
+        state.symmetry = other;
+        assert!(state.close_tab());
+        assert_eq!(state.symmetry, world, "closing a tab shows the next one's");
     }
 
     #[test]
