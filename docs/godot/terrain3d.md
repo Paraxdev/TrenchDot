@@ -327,7 +327,8 @@ region size in Godot's Terrain3D node back to the size you sculpted at and send 
 Pick the Terrain3D node as the only target of a [scatter set](../editor/scatter.md#targets). The Scatter panel then shows
 **Follows Terrain3D**. Instances land on the surface Godot samples, and when the ground changes, in TrenchDot or in
 Godot, they follow it. Godot puts each instance at Terrain3D's own height, so props never float or sink. An instance over
-a missing region or a hole keeps the height it had.
+a missing region or a hole keeps the height it had, and the build warning names the first ones in map units and in meters
+from the map node.
 
 ## Without the Godot editor open
 

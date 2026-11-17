@@ -92,6 +92,10 @@ static func _test_follows(t) -> void:
 	children.append(_scatter(104, [link], []))
 	children.append(_scatter(105, [], on_ground))
 	children.append(_scatter(106, [link + 7], on_ground))
+	var far := []
+	for k in 5:
+		far.append([0, 9600 + k * 100, 0, 9600, 0, 0, 0, 1.0])
+	children.append(_scatter(107, [link], far))
 
 	var level := Node3D.new()
 	t.root.add_child(level)
@@ -124,8 +128,16 @@ static func _test_follows(t) -> void:
 	var ys: Array = on_ground.map(func(raw: Array) -> float: return data.get_surface_height(Vector3(raw[1], 0.0, raw[3]) * scale))
 	t.check(ys.all(func(y: float) -> bool: return not is_nan(y)) and absf(ys[0] - ys[3]) > 1.0, "the ground under the set is slanted, got %s" % [ys])
 
-	var counted := Array(report.get("warnings", [])).filter(func(w: String) -> bool: return w.contains("Terrain3D"))
+	var counted := Array(report.get("warnings", [])).filter(func(w: String) -> bool: return w.contains("Terrain3D") and w.contains("set101"))
 	t.check(counted.size() == 1 and counted[0].contains("2 instances") and counted[0].contains("set101"), "the report counts the two instances that keep their height, got %s" % [counted])
+	var places := PackedStringArray()
+	for k in [4, 5]:
+		places.append("x %.0f, z %.0f map units (%.1f, %.1f m from the map node)" % [stored[k].x / scale, stored[k].z / scale, stored[k].x, stored[k].z])
+	t.check(counted.size() == 1 and counted[0].contains("the first at " + "; ".join(places)), "the report says where the two instances are, got %s want %s" % [counted, places])
+
+	var capped := Array(report.get("warnings", [])).filter(func(w: String) -> bool: return w.contains("set107"))
+	var named := range(5).map(func(k: int) -> bool: return capped.size() == 1 and capped[0].contains("x %d, z 9600 map units (%.1f, %.1f m from the map node)" % [9600 + k * 100, (9600 + k * 100) * scale, 9600 * scale]))
+	t.check(capped.size() == 1 and capped[0].contains("5 instances") and named == [true, true, true, false, false], "a set with five off-ground instances names the first three, got %s" % [capped])
 
 	var stored_once := _origins(_scatter_node(map, 102))
 	var untouched := TrenchDotScatter.create(_scatter(102, [], on_ground), Transform3D.IDENTITY, settings)
