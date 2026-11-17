@@ -1,5 +1,5 @@
 ---
-source: 7757565706801cf3511cdef72eaa79c5eb0dc3d0
+source: 33a13c750bf063a6a063dbb590ff8baa4df796cd
 ---
 
 # Terrain malen { #terrain-painting }
@@ -49,7 +49,9 @@ Das zweite Menü in der Leiste ist der Abfall, also wie die Stärke von der Mitt
 
 Shift macht aus malen, Rauschen, Neigung und Höhe ein Löschen, und Ctrl glättet. Ctrl+Mausrad ändert die Brush-Größe.
 
-(Hinweis: **Mischmaterial setzen**, **Wiederholung**, **Enttiling**, **Schärfe** und **Kachelung anwenden** weiter rechts in der Leiste sind zum Mischen von Brush-Flächen da, ein Terrain übernimmt diese Einstellungen von seinen Ebenen.)
+Um beide Seiten eines Terrains in einem Strich gleich zu bemalen, schalte das Symmetriemenü direkt nach **Stärke** und den Feldern des Modus ein, siehe [Symmetrie](terrain.md#symmetry).
+
+Dasselbe Werkzeug malt ein zweites Material über Brush-, Mesh- und Displacement-Flächen, siehe [Ein zweites Material mischen](texturing.md#blending-a-second-material). **Mischmaterial setzen**, **Wiederholung**, **Enttiling**, **Schärfe** und **Kachelung anwenden** weiter rechts in der Leiste sind für diese Flächen da, ein Terrain übernimmt dieselben Einstellungen von seinen Ebenen.
 
 ## Automatisch malen { #auto-paint }
 
