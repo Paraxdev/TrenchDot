@@ -2332,5 +2332,12 @@
   "Copies the selection as a linked group mirrored across a plane, edits in either half show in both": "Copie la sélection en groupe lié reflété sur un plan, modifier une moitié met à jour l'autre",
   "Made {n} mirrored copy across {axis} at {at} u. Edits in either half show in both": { "one": "{n} copie reflétée sur {axis} à {at} u. Modifier une moitié met à jour l'autre", "other": "{n} copies reflétées sur {axis} à {at} u. Modifier une moitié met à jour l'autre" },
   "Select objects or groups to mirror linked": "Sélectionnez des objets ou groupes à refléter en lien",
-  "Mirror plane {axis} at {at} u": "Plan de miroir {axis} à {at} u"
+  "Mirror plane {axis} at {at} u": "Plan de miroir {axis} à {at} u",
+  "Apply Mirror": "Appliquer le miroir",
+  "Merges the selected mirrored halves into plain geometry, joined where they meet": "Fusionne les moitiés reflétées sélectionnées en géométrie ordinaire, jointes là où elles se touchent",
+  "Select one half of a mirrored pair": "Sélectionnez une moitié d'une paire reflétée",
+  "Applied the mirror: {brushes} brush(es) joined, {meshes} mesh(es) welded": "Miroir appliqué : {brushes} brush(es) joint(s), {meshes} maillage(s) soudé(s)",
+  "Applied the mirror. The halves do not form one convex brush, so they stay separate brushes": "Miroir appliqué. Les moitiés ne forment pas un brush convexe, elles restent donc des brushes séparés",
+  "Select one half of a mirrored pair to apply the mirror": "Sélectionnez une moitié d'une paire reflétée pour appliquer le miroir",
+  "The mirrored halves do not meet. Unlink Groups keeps them as plain copies": "Les moitiés reflétées ne se touchent pas. Délier les groupes les garde comme copies ordinaires"
 }

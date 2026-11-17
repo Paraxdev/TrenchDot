@@ -1406,6 +1406,9 @@ impl App {
                         m.item_enabled(ui, None, &label, Action::MirrorLinked { axis }, any, tr("Select objects or groups to mirror linked"));
                     }
 
+                    let mirrored = !td_doc::mirror::selection_planes(&self.state.doc.map, &self.state.doc.selection).is_empty();
+                    let apply = Action::ApplyMirror { distance: td_doc::symmetry::MIRROR_TOLERANCE };
+                    m.item_enabled(ui, None, en!("Apply Mirror"), apply, mirrored, tr("Select one half of a mirrored pair"));
                     sub_menu(ui, None, en!("Mirror Plane"), |ui| crate::symmetry::plane_rows(ui, &mut self.state.mirror_plane));
                     ui.separator();
                     sub_menu(ui, None, en!("Align"), |ui| {

@@ -2332,5 +2332,12 @@
   "Copies the selection as a linked group mirrored across a plane, edits in either half show in both": "Copia a seleção como grupo vinculado espelhado em um plano, editar uma metade atualiza a outra",
   "Made {n} mirrored copy across {axis} at {at} u. Edits in either half show in both": { "one": "{n} cópia espelhada em {axis} em {at} u. Editar uma metade atualiza a outra", "other": "{n} cópias espelhadas em {axis} em {at} u. Editar uma metade atualiza a outra" },
   "Select objects or groups to mirror linked": "Selecione objetos ou grupos para espelhar vinculados",
-  "Mirror plane {axis} at {at} u": "Plano de espelho {axis} em {at} u"
+  "Mirror plane {axis} at {at} u": "Plano de espelho {axis} em {at} u",
+  "Apply Mirror": "Aplicar espelho",
+  "Merges the selected mirrored halves into plain geometry, joined where they meet": "Funde as metades espelhadas selecionadas em geometria normal, unidas onde se tocam",
+  "Select one half of a mirrored pair": "Selecione uma metade de um par espelhado",
+  "Applied the mirror: {brushes} brush(es) joined, {meshes} mesh(es) welded": "Espelho aplicado: {brushes} brush(es) unido(s), {meshes} malha(s) soldada(s)",
+  "Applied the mirror. The halves do not form one convex brush, so they stay separate brushes": "Espelho aplicado. As metades não formam um brush convexo, então continuam brushes separados",
+  "Select one half of a mirrored pair to apply the mirror": "Selecione uma metade de um par espelhado para aplicar o espelho",
+  "The mirrored halves do not meet. Unlink Groups keeps them as plain copies": "As metades espelhadas não se tocam. Desvincular grupos as mantém como cópias normais"
 }

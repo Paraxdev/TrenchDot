@@ -84,6 +84,7 @@ const ACTIONS: &[&str] = &[
     "rotate",
     "flip",
     "mirror_linked",
+    "apply_mirror",
     "align",
     "distribute",
     "focus_selection",

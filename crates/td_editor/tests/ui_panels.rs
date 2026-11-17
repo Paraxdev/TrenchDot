@@ -1869,6 +1869,42 @@ fn the_inspector_names_the_mirror_plane_of_a_selected_half() {
 }
 
 #[test]
+fn the_inspector_offers_apply_mirror_only_for_a_mirrored_half() {
+    use td_doc::symmetry::PlaneChoice;
+    let mut f = brushes_selected(2);
+    let ids: Vec<NodeId> = f.state.doc.selection.nodes.iter().copied().collect();
+    let (half, loose) = (ids[0], ids[1]);
+    let group = f.state.doc.edit("mirror", |m, s| {
+        s.clear();
+        s.select_node(half);
+        let layer = m.default_layer();
+        let group = td_doc::ops::group_selection(m, s, "half", layer).unwrap();
+        td_doc::mirror::mirror_linked(m, s, 0, &PlaneChoice::default()).unwrap();
+        group
+    });
+    f.state.doc.select(|_, s| {
+        s.clear();
+        s.select_node(loose);
+    });
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(520.0, 900.0))
+        .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+    harness.run();
+    harness.get_by_label("Transform").click();
+    harness.run();
+    assert!(harness.query_by_label("Apply Mirror").is_none(), "a brush outside the mirrored pair has no mirror to apply");
+
+    harness.state_mut().state.doc.select(|_, s| {
+        s.clear();
+        s.select_node(group);
+    });
+    harness.run();
+    harness.get_by_label("Apply Mirror").click();
+    harness.run();
+    assert_eq!(harness.state().actions, [Action::ApplyMirror { distance: td_doc::symmetry::MIRROR_TOLERANCE }]);
+}
+
+#[test]
 fn the_selection_summary_counts_with_russian_plurals() {
     let _russian = td_editor::i18n::scope(td_editor::i18n::Lang::Ru);
     for (n, objects, brushes) in [

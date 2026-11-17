@@ -580,6 +580,8 @@ pub struct EditorState {
     pub carve_material: td_geom::csg::CarveMaterial,
     /// Brushes the last CSG or clip command replaced, with their replacements, for MCP results.
     pub replaced: td_doc::ops::Replaced,
+    /// What the last Apply Mirror did, for MCP results. Its `replaced` stays empty, that map is in `replaced`.
+    pub applied_mirror: Option<td_doc::mirror::Applied>,
     last_autosave: Instant,
     autosave: Autosave,
     /// MCP runs over stdin and stdout, so launched programs must not write to them.
@@ -792,6 +794,7 @@ impl EditorState {
             hollow_thickness: 16.0,
             carve_material: Default::default(),
             replaced: Default::default(),
+            applied_mirror: None,
             last_autosave: Instant::now(),
             autosave: Autosave::default(),
             stdio_mcp: false,

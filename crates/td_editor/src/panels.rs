@@ -1088,9 +1088,17 @@ fn selection_summary(ui: &mut Ui, state: &mut EditorState, actions: &mut Vec<Act
                 }
             }
         });
-        for m in td_doc::mirror::selection_planes(&state.doc.map, &state.doc.selection) {
+        let planes = td_doc::mirror::selection_planes(&state.doc.map, &state.doc.selection);
+        for m in &planes {
             let (axis, at) = (crate::commands::axis_name(m.plane.axis), crate::gizmos::fmt_num(m.plane.at));
             ui.label(RichText::new(trf!("Mirror plane {axis} at {at} u", axis, at)).weak());
+        }
+
+        if !planes.is_empty() {
+            let action = Action::ApplyMirror { distance: td_doc::symmetry::MIRROR_TOLERANCE };
+            if ui.small_button(action.title()).on_hover_text(action.help().map(|t| tr(t).to_string()).unwrap_or_default()).clicked() {
+                actions.push(action);
+            }
         }
     });
     section(ui, en!("Gameplay"), en!("Doors, lifts and trigger volumes from the selection"), false, |ui| {

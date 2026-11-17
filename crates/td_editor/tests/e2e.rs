@@ -5488,3 +5488,81 @@ fn mirror_linked_copies_follow_edits_mirrored() {
     refuse(json!({}), "select objects or groups to mirror first");
     assert_eq!(ed.state()["undo"].as_array().unwrap().len(), before, "a refused call leaves no undo step");
 }
+
+#[test]
+#[ignore]
+fn apply_mirror_joins_brushes_and_welds_meshes() {
+    let ed = Editor::launch("apply_mirror");
+    let brush = ed.box_brush([8.0, 2.0, -4.0], [40.0, 34.0, 20.0]);
+    let mesh = ed.call("create_mesh", json!({ "shape": "cuboid", "min": [8, 2, 100], "max": [40, 34, 124] }))["id"].as_u64().unwrap();
+    ed.call("select", json!({ "ids": [brush, mesh] }));
+
+    let apply = |args: Value| ed.call_err("run_action", json!({ "action": "apply_mirror", "args": args }));
+    assert!(apply(json!({})).contains("Select one half of a mirrored pair"), "nothing is mirrored yet");
+
+    let mirrored = ed.call("run_action", json!({ "action": "mirror_linked", "args": { "axis": "x", "plane": "max" } }));
+    assert_eq!(mirrored["plane"], json!({ "axis": "x", "at": 40.0 }), "{mirrored}");
+    assert_eq!(ed.brushes(), 2);
+    let undo_before = ed.state()["undo"].as_array().unwrap().len();
+
+    for (distance, words) in [(json!(-0.01), "0 to 16"), (json!(16.01), "0 to 16"), (json!("far"), "must be a number"), (json!([1]), "must be a number")] {
+        let text = apply(json!({ "distance": distance }));
+        assert!(text.contains("apply_mirror distance") && text.contains(words), "{distance}: {text}");
+    }
+
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), undo_before, "a refused call leaves no undo step");
+    assert_eq!(ed.brushes(), 2);
+
+    // The plane sits 1.5 units past the halves, so a distance of 1.4 misses and 1.5 meets.
+    ed.call("run_action", json!({ "action": "undo" }));
+    ed.call("select", json!({ "ids": [brush, mesh] }));
+    ed.call("run_action", json!({ "action": "mirror_linked", "args": { "axis": "x", "at": 41.5 } }));
+    assert!(apply(json!({ "distance": 1.4 })).contains("do not meet"));
+    assert_eq!(ed.brushes(), 2);
+    let near = ed.call("run_action", json!({ "action": "apply_mirror", "args": { "distance": 1.5 } }));
+    assert_eq!(near["joined"], 0, "boxes with a gap stay apart {near}");
+    assert_eq!(ed.brushes(), 2);
+    ed.call("run_action", json!({ "action": "undo" }));
+    ed.call("run_action", json!({ "action": "undo" }));
+
+    ed.call("select", json!({ "ids": [brush, mesh] }));
+    ed.call("run_action", json!({ "action": "mirror_linked", "args": { "axis": "x", "plane": "max" } }));
+    let undo_before = ed.state()["undo"].as_array().unwrap().len();
+    let reply = ed.call("run_action", json!({ "action": "apply_mirror", "args": { "distance": 16 } }));
+    assert_eq!((reply["joined"].as_u64(), reply["welded"].as_u64()), (Some(1), Some(1)), "{reply}");
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), undo_before + 1, "one undo step");
+    assert_eq!(ed.state()["undo"][0], "MCP: Apply Mirror");
+    let groups = reply["groups"].as_array().unwrap().clone();
+    assert_eq!(groups.len(), 1, "{reply}");
+    assert_eq!(reply["selection"], json!(groups), "the merged group is selected");
+    assert_eq!(reply["replaced"].as_object().unwrap().len(), 3, "the copy group, brush and mesh were replaced {reply}");
+    assert!(reply["replaced"].as_object().unwrap().values().all(|v| v.as_array().unwrap().len() == 1), "{reply}");
+
+    assert_eq!(ed.brushes(), 1, "the half box and its mirror joined into one brush");
+    assert_eq!(ed.state()["map"]["meshes"], 1);
+    let ids = |kind: &str| -> Vec<u64> {
+        ed.call("list_nodes", json!({ "type": kind }))["nodes"].as_array().unwrap().iter().map(|n| n["id"].as_u64().unwrap()).collect()
+    };
+    let joined = ids("brush")[0];
+    assert_eq!(vertices_of(&ed, joined).len(), 8, "one box, not two");
+    let (min, max) = {
+        let v = vertices_of(&ed, joined);
+        (
+            [v.iter().map(|p| p[0]).min().unwrap(), v.iter().map(|p| p[2]).min().unwrap()],
+            [v.iter().map(|p| p[0]).max().unwrap(), v.iter().map(|p| p[2]).max().unwrap()],
+        )
+    };
+    assert_eq!((min, max), ([8000, -4000], [72000, 20000]));
+
+    let welded = ids("mesh")[0];
+    let node = ed.call("get_node", json!({ "id": welded }));
+    assert_eq!(node["faces"].as_array().unwrap().len(), 10, "the two cap faces on the plane are gone");
+    assert_eq!(vertices_of(&ed, welded).len(), 12, "the seam vertices are shared");
+    let check = ed.call("mesh_edit", json!({ "id": welded, "op": "weld", "distance": 0.001 }));
+    assert_eq!((check["closed"].as_bool(), check["merged"].as_u64()), (Some(true), Some(0)), "one closed mesh {check}");
+
+    let group = ed.call("get_node", json!({ "id": groups[0] }));
+    assert!(group["link_id"].is_null(), "the merged group is no longer linked {group}");
+    assert!(ed.state()["mirror_planes"].as_array().unwrap().is_empty());
+    assert_eq!(ed.call("validate_map", json!({}))["count"], 0);
+}

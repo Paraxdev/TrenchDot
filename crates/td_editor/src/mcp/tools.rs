@@ -1247,6 +1247,7 @@ impl App {
 
         let started = Instant::now();
         self.state.replaced.clear();
+        self.state.applied_mirror = None;
         let mut mirrored_across = None;
         let action = match name {
             "new_map" => Action::NewMap,
@@ -1375,6 +1376,17 @@ impl App {
 
                 mirrored_across = Some((axis, std::mem::replace(&mut self.state.mirror_plane, choice)));
                 Action::MirrorLinked { axis }
+            }
+            "apply_mirror" => {
+                let distance = match &a["distance"] {
+                    Value::Null => td_doc::symmetry::MIRROR_TOLERANCE,
+                    v => match v.as_f64() {
+                        Some(d) if (0.0..=16.0).contains(&d) => d,
+                        Some(d) => return err(format!("apply_mirror distance must be 0 to 16 units, got {d}")),
+                        None => return err(format!("apply_mirror distance must be a number, got {v}")),
+                    },
+                };
+                Action::ApplyMirror { distance }
             }
             "align" | "distribute" => {
                 let Some(axis) = axis_index(&a["axis"]) else {
@@ -1693,6 +1705,15 @@ impl App {
             if let Some(m) = planes.iter().find(|m| m.plane.axis == axis && selected.contains(&m.group)) {
                 result["plane"] = json!({ "axis": axis_letter(axis), "at": m.plane.at });
             }
+        }
+
+        if name == "apply_mirror"
+            && let Some(applied) = &self.state.applied_mirror
+        {
+            result["groups"] = json!(applied.groups.iter().map(|i| i.0).collect::<Vec<_>>());
+            result["joined"] = json!(applied.joined);
+            result["welded"] = json!(applied.welded);
+            result["replaced"] = replaced_json(&self.state.replaced);
         }
 
         ok(result)

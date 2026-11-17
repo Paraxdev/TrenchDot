@@ -82,6 +82,10 @@ pub enum Action {
     MirrorLinked {
         axis: usize,
     },
+    /// Bakes the selected mirrored halves into plain geometry, joining halves that meet within `distance` map units.
+    ApplyMirror {
+        distance: f64,
+    },
     /// Lines the selected objects up on one axis, each object counting as one unit.
     Align {
         axis: usize,
@@ -318,6 +322,7 @@ impl Action {
             Action::Rotate { axis, degrees } => return trf!("Rotate {axis} {degrees}°", axis = axis_name(*axis), degrees),
             Action::Flip { axis } => return trf!("Flip {axis}", axis = axis_name(*axis)),
             Action::MirrorLinked { axis } => return trf!("Mirror Linked {axis}", axis = axis_name(*axis)),
+            Action::ApplyMirror { .. } => en!("Apply Mirror"),
             Action::Align { axis, to } => {
                 let axis = axis_name(*axis);
                 return match to {
@@ -470,6 +475,7 @@ impl Action {
             Action::IsolateSelected => en!("Hides everything except the selection, Show All brings it back"),
             Action::DuplicateLinked => en!("Copies the selection as a linked group, editing one copy changes every copy"),
             Action::MirrorLinked { .. } => en!("Copies the selection as a linked group mirrored across a plane, edits in either half show in both"),
+            Action::ApplyMirror { .. } => en!("Merges the selected mirrored halves into plain geometry, joined where they meet"),
             Action::UnlinkGroups => en!("Makes the selected linked groups independent copies again"),
             Action::OpenGroup => en!("Lets you click and edit the objects inside the selected group"),
             Action::CreatePrefab => en!("Saves the selection as a prefab map file and puts a linked instance in its place"),
@@ -1141,6 +1147,24 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
                 ));
             }
         }
+        Action::ApplyMirror { distance } => match state.doc.try_edit("Apply Mirror", |m, s| td_doc::mirror::apply_mirror(m, s, distance)) {
+            Ok(mut applied) => {
+                state.replaced = std::mem::take(&mut applied.replaced);
+                if applied.joined == 0 && applied.welded == 0 {
+                    state.set_status(msg!("Applied the mirror. The halves do not form one convex brush, so they stay separate brushes"));
+                } else {
+                    state.set_status(msg!(
+                        "Applied the mirror: {brushes} brush(es) joined, {meshes} mesh(es) welded",
+                        brushes = applied.joined,
+                        meshes = applied.welded
+                    ));
+                }
+
+                state.applied_mirror = Some(applied);
+            }
+            Err(td_doc::mirror::ApplyError::NotMirrored) => state.fail_status(msg!("Select one half of a mirrored pair to apply the mirror")),
+            Err(td_doc::mirror::ApplyError::Apart) => state.fail_status(msg!("The mirrored halves do not meet. Unlink Groups keeps them as plain copies")),
+        },
         Action::UnlinkGroups => state.doc.edit("Unlink Groups", |m, s| ops::unlink_groups(m, s)),
         Action::SelectAll => state.doc.select(|m, s| ops::select_all(m, s, &open_groups)),
         Action::SelectNone => {
@@ -3419,6 +3443,89 @@ mod tests {
         assert!(!state.doc.is_modified());
         assert_eq!(state.doc.history.undo_labels().count(), steps);
         assert!(state.doc.map.nodes.values().all(|n| !matches!(n.kind, td_doc::NodeKind::Group(_))), "no stray Mirrored group is left behind");
+    }
+
+    fn offset_box(state: &mut EditorState) -> NodeId {
+        let parent = state.insert_parent();
+        let brush = td_geom::Brush::from_aabb(&Aabb::new(DVec3::new(8.0, 2.0, -4.0), DVec3::new(40.0, 34.0, 20.0)), "wall").unwrap();
+        state.doc.edit("Create Brush", |m, _| ops::create_brush(m, parent, brush))
+    }
+
+    #[test]
+    fn apply_mirror_joins_the_halves_in_one_undo_step() {
+        let mut state = EditorState::new(Default::default());
+        let ctx = egui::Context::default();
+        let half = offset_box(&mut state);
+        state.doc.select(|_, s| s.select_node(half));
+        execute(&mut state, Action::MirrorLinked { axis: 0 }, &ctx);
+        assert_eq!(state.doc.map.brushes().count(), 2);
+        let steps = state.doc.history.undo_labels().count();
+
+        execute(&mut state, Action::ApplyMirror { distance: 0.5 }, &ctx);
+        assert!(!state.status_failed(), "{}", state.status);
+        assert_eq!(state.status, "Applied the mirror: 1 brush(es) joined, 0 mesh(es) welded");
+        assert_eq!(state.doc.history.undo_labels().count(), steps + 1);
+        assert_eq!(state.doc.history.undo_labels().next(), Some("Apply Mirror"));
+        let brushes: Vec<_> = state.doc.map.brushes().map(|(id, b)| (id, b.bounds())).collect();
+        assert_eq!(brushes.len(), 1);
+        assert_eq!((brushes[0].1.min, brushes[0].1.max), (DVec3::new(8.0, 2.0, -4.0), DVec3::new(72.0, 34.0, 20.0)));
+        assert_eq!(state.replaced.len(), 2, "the removed brush and the removed group are reported");
+        assert!(state.replaced.values().all(|v| v.len() == 1), "each removed node maps to the one that took its place");
+        assert!(state.replaced.values().any(|v| v == &[brushes[0].0]));
+        let applied = state.applied_mirror.as_ref().unwrap();
+        assert_eq!((applied.groups.len(), applied.joined, applied.welded), (1, 1, 0));
+        assert!(state.doc.map.nodes.values().all(|n| !matches!(&n.kind, td_doc::NodeKind::Group(g) if g.link_id.is_some())), "the survivor is unlinked");
+        assert!(td_doc::mirror::selection_planes(&state.doc.map, &state.doc.selection).is_empty());
+
+        state.doc.undo();
+        assert_eq!(state.doc.map.brushes().count(), 2, "one undo restores both halves");
+        assert_eq!(td_doc::mirror::selection_planes(&state.doc.map, &state.doc.selection).len(), 1);
+    }
+
+    #[test]
+    fn apply_mirror_refuses_a_selection_that_is_not_mirrored_without_an_undo_step() {
+        let mut state = EditorState::new(Default::default());
+        let ctx = egui::Context::default();
+        let loose = offset_box(&mut state);
+        state.doc.select(|_, s| s.select_node(loose));
+        state.doc.mark_saved();
+        let steps = state.doc.history.undo_labels().count();
+        let before = state.doc.map.nodes.clone();
+        execute(&mut state, Action::ApplyMirror { distance: 0.5 }, &ctx);
+        assert!(state.status_failed());
+        assert_eq!(state.status, "Select one half of a mirrored pair to apply the mirror");
+        assert!(!state.doc.is_modified());
+        assert_eq!(state.doc.history.undo_labels().count(), steps);
+        assert!(state.doc.map.nodes == before);
+        assert!(state.applied_mirror.is_none());
+    }
+
+    #[test]
+    fn apply_mirror_needs_the_halves_within_the_distance() {
+        use td_doc::symmetry::{PlaneAt, PlaneChoice};
+        let ctx = egui::Context::default();
+        for (distance, meets) in [(0.5, false), (0.74, false), (0.75, true), (16.0, true)] {
+            let mut state = EditorState::new(Default::default());
+            let half = offset_box(&mut state);
+            state.doc.select(|_, s| s.select_node(half));
+            state.mirror_plane = PlaneChoice { at: PlaneAt::Custom, custom: 40.75 };
+            execute(&mut state, Action::MirrorLinked { axis: 0 }, &ctx);
+            state.doc.mark_saved();
+            let steps = state.doc.history.undo_labels().count();
+            let before = state.doc.map.nodes.clone();
+            execute(&mut state, Action::ApplyMirror { distance }, &ctx);
+            let case = format!("distance {distance}: {}", state.status);
+            assert_eq!(!state.status_failed(), meets, "{case}");
+            if meets {
+                assert_eq!(state.doc.history.undo_labels().count(), steps + 1, "{case}");
+                assert_eq!(state.doc.map.brushes().count(), 2, "{case}: a gap keeps the boxes apart");
+                assert!(state.status.contains("do not form one convex brush"), "{case}");
+            } else {
+                assert_eq!(state.status, "The mirrored halves do not meet. Unlink Groups keeps them as plain copies", "{case}");
+                assert_eq!(state.doc.history.undo_labels().count(), steps, "{case}");
+                assert!(state.doc.map.nodes == before, "{case}");
+            }
+        }
     }
 
     #[test]

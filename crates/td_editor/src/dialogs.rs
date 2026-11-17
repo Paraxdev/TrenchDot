@@ -264,6 +264,8 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
         out.push(entry_with(en!("Tool"), || tr(t.label()).into(), Action::SetTool(t)));
     }
 
+    let apply = Action::ApplyMirror { distance: td_doc::symmetry::MIRROR_TOLERANCE };
+    out.push(entry_with(en!("Transform"), || apply.title(), apply.clone()));
     for axis in 0..3 {
         let a = commands::axis_name(axis);
         out.push(entry_with(en!("Transform"), || trf!("Rotate {axis} +90", axis = a), Action::Rotate { axis, degrees: 90.0 }));

@@ -2332,5 +2332,12 @@
   "Copies the selection as a linked group mirrored across a plane, edits in either half show in both": "把选择复制为沿平面镜像的链接组，编辑任一半都会同步",
   "Made {n} mirrored copy across {axis} at {at} u. Edits in either half show in both": { "other": "已沿 {axis} 在 {at} u 创建 {n} 个镜像副本，编辑任一半都会同步" },
   "Select objects or groups to mirror linked": "请选择要关联镜像的对象或组",
-  "Mirror plane {axis} at {at} u": "镜像平面 {axis}，位于 {at} u"
+  "Mirror plane {axis} at {at} u": "镜像平面 {axis}，位于 {at} u",
+  "Apply Mirror": "应用镜像",
+  "Merges the selected mirrored halves into plain geometry, joined where they meet": "把选中的镜像两半合并为普通几何体，相接处连在一起",
+  "Select one half of a mirrored pair": "请选择镜像对的其中一半",
+  "Applied the mirror: {brushes} brush(es) joined, {meshes} mesh(es) welded": "已应用镜像：连接 {brushes} 个笔刷，焊接 {meshes} 个网格",
+  "Applied the mirror. The halves do not form one convex brush, so they stay separate brushes": "已应用镜像。两半无法组成一个凸笔刷，因此保持为独立笔刷",
+  "Select one half of a mirrored pair to apply the mirror": "请选择镜像对的其中一半以应用镜像",
+  "The mirrored halves do not meet. Unlink Groups keeps them as plain copies": "镜像的两半没有相接。解除组链接可将它们保留为普通副本"
 }

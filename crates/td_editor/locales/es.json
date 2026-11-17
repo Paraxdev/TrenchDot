@@ -2332,5 +2332,12 @@
   "Copies the selection as a linked group mirrored across a plane, edits in either half show in both": "Copia la selección como grupo enlazado reflejado en un plano, editar una mitad actualiza la otra",
   "Made {n} mirrored copy across {axis} at {at} u. Edits in either half show in both": { "one": "{n} copia reflejada en {axis} a {at} u. Editar una mitad actualiza la otra", "other": "{n} copias reflejadas en {axis} a {at} u. Editar una mitad actualiza la otra" },
   "Select objects or groups to mirror linked": "Seleccione objetos o grupos para reflejar vinculados",
-  "Mirror plane {axis} at {at} u": "Plano de simetría {axis} en {at} u"
+  "Mirror plane {axis} at {at} u": "Plano de simetría {axis} en {at} u",
+  "Apply Mirror": "Aplicar simetría",
+  "Merges the selected mirrored halves into plain geometry, joined where they meet": "Fusiona las mitades reflejadas seleccionadas en geometría normal, unidas donde se tocan",
+  "Select one half of a mirrored pair": "Seleccione una mitad de un par reflejado",
+  "Applied the mirror: {brushes} brush(es) joined, {meshes} mesh(es) welded": "Simetría aplicada: {brushes} brush(es) unido(s), {meshes} malla(s) soldada(s)",
+  "Applied the mirror. The halves do not form one convex brush, so they stay separate brushes": "Simetría aplicada. Las mitades no forman un brush convexo, así que quedan como brushes separados",
+  "Select one half of a mirrored pair to apply the mirror": "Seleccione una mitad de un par reflejado para aplicar la simetría",
+  "The mirrored halves do not meet. Unlink Groups keeps them as plain copies": "Las mitades reflejadas no se tocan. Desenlazar grupos las conserva como copias normales"
 }
