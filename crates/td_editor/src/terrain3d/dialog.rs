@@ -38,6 +38,10 @@ impl LinkDialog {
                 ui.label(tr("Terrain3D is not installed in this project, the link works and edits wait until it is"));
             }
 
+            if state.restricted() {
+                ui.colored_label(theme::colors().warning(), tr(super::inspector::RESTRICTED_GODOT));
+            }
+
             let problem = self.choice.is_none().then(|| self.new.problem()).flatten();
             if let Some(problem) = problem {
                 ui.colored_label(theme::colors().warning(), tr(problem.english()));

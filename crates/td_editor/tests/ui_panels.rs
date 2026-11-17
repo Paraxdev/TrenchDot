@@ -3946,3 +3946,26 @@ fn the_sculpt_mode_list_opens_tall_enough_for_every_mode() {
     harness.run();
     assert_eq!(*harness.state(), SculptMode::Unhole, "the last mode is reachable, not clipped away");
 }
+
+#[test]
+fn the_terrain3d_link_dialog_warns_about_restricted_mode_until_the_project_is_trusted() {
+    use td_editor::terrain3d::dialog::LinkDialog;
+    let root = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(root.path().join("addons").join("terrain_3d")).unwrap();
+    let mut state = EditorState::new(Prefs::default());
+    state.game.project_root = Some(root.path().to_path_buf());
+    let mut dialog = LinkDialog::default();
+    dialog.open(&state);
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(800.0, 600.0))
+        .build_ui_state(|ui, (dialog, state): &mut (LinkDialog, EditorState)| dialog.show(&ui.ctx().clone(), state), (dialog, state));
+    harness.run();
+    let warning = |harness: &Harness<(LinkDialog, EditorState)>| harness.query_by_label_contains("Restricted Mode").is_some();
+    assert!(warning(&harness), "an untrusted project has the restricted warning");
+    assert!(harness.query_by_label_contains("not installed").is_none(), "the plugin is there");
+
+    let root = root.path().to_path_buf();
+    harness.state_mut().1.trust_for_session(&root);
+    harness.run();
+    assert!(!warning(&harness), "a trusted project has none");
+}
