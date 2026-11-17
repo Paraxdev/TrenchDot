@@ -31,6 +31,7 @@ static func run(t) -> void:
 	await _test_keeps_user_terrain(t)
 	await _test_adopts_folder_resources(t)
 	await _test_build_adopts_folder_resources(t)
+	await _test_build_takes_folder_ocean(t)
 	await _test_problems(t)
 	await _test_live_session_and_hot_reload(t)
 	await _test_height_at(t)
@@ -336,6 +337,31 @@ static func _test_build_adopts_folder_resources(t) -> void:
 	t.check(_texture_names(terrain) == ["Cliff", "Grass"], "a rebuild fills empty assets, got %s" % [_texture_names(terrain)])
 	map.owner.free()
 	Apply.Export._clear(folder)
+
+## A node a build creates has the ocean on when the folder's manifest says its Terrain3D had one. A node that exists
+## keeps the choice made on it, and a folder whose manifest has no ocean or an ocean that is off builds without one.
+static func _test_build_takes_folder_ocean(t) -> void:
+	var cases := { "_on": true, "_off": false, "_none": null }
+	for suffix: String in cases:
+		var folder := "user://td_t3d_build_ocean" + suffix
+		_resource_folder(folder, { "M_terrain.tres": _material(2) })
+		var manifest := { "format": TrenchDotTerrain3DCache.FORMAT, "version": TrenchDotTerrain3DCache.VERSION }
+		if cases[suffix] != null:
+			manifest["ocean"] = { "enabled": cases[suffix], "sea_level": 3.5, "water_color": [0.1, 0.2, 0.3, 1.0], "source": "" }
+		TrenchDotTerrain3DCache.write_file(TrenchDotTerrain3DCache.cache_dir(folder).path_join(TrenchDotTerrain3DCache.MANIFEST), JSON.stringify(manifest).to_utf8_buffer())
+		var map := _level(t, _map_text([folder]))
+		await t.process_frame
+		var terrain := (map.get_child(0) as TrenchDotTerrain3D).get_terrain()
+		t.check(terrain != null and terrain.get(&"ocean_enabled") == (cases[suffix] == true), "a new node has the ocean %s when the folder's manifest says %s, got %s" % [cases[suffix] == true, cases[suffix], terrain.get(&"ocean_enabled") if terrain else null])
+		if terrain and suffix == "_on":
+			terrain.set(&"ocean_enabled", false)
+			map.build_from_text(_map_text([folder]))
+			t.check(terrain.get(&"ocean_enabled") == false, "a rebuild keeps an ocean the user switched off on the node")
+			terrain.set(&"ocean_enabled", true)
+			map.build_from_text(_map_text([folder]))
+			t.check(terrain.get(&"ocean_enabled") == true, "a rebuild keeps an ocean the user switched on on the node")
+		map.owner.free()
+		Apply.Export._clear(folder)
 
 static func _test_problems(t) -> void:
 	var map := _level(t)
