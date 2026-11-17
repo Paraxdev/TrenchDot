@@ -189,6 +189,47 @@ its zero height.
 > [!TIP]
 > Shape with a large brush and smooth after every rough pass. Small brushes leave lumps.
 
+## Symmetry
+
+To sculpt both sides of a valley or an island at once, turn on symmetry. The **Sculpt** and **Blend** tools both have the
+control in the tool options bar, right after **strength** and the fields of the mode.
+
+![The symmetry menu open in the Sculpt tool's options bar, listing off, X, Z and X and Z](../assets/terrain/symmetry-menu.png)
+
+| Control | What it does |
+| --- | --- |
+| **symmetry off** menu | Pick **X** to mirror the west and east halves into each other, **Z** to mirror north and south, or **X and Z** for both. The closed menu then reads **symmetry X**, **symmetry Z** or **symmetry X and Z** |
+| **terrain center** menu | Only shows while symmetry is on. It decides where the mirror planes sit: **terrain center** (the middle of each terrain), **world origin**, or **custom** |
+| **x** and **z** fields | Only with **custom**, one per mirrored axis, the position of the plane in units. They start at the planes you were just using, so nothing jumps |
+
+With symmetry on, the views draw the planes while Sculpt or Blend is the active tool, as a red outline for X and a blue
+one for Z. A line follows the ground where each plane meets it, and a dimmer copy of the brush ring shows where the
+mirrored dabs will land before you press.
+
+![The 3D view with symmetry X and Z on, showing both mirror planes and the brush ring repeated in all four quarters](../assets/terrain/symmetry-planes.png)
+
+Drag as usual. Every dab is applied at the cursor and at its mirrored spots, and the whole stroke is still one undo
+step. A dab on a plane, or one that overlaps its own mirror, counts once, so the ground does not rise twice as high there.
+Noise, blend noise and spray come out as a true mirror image instead of a new random pattern.
+
+With **terrain center** each terrain mirrors around its own middle, and displacements mirror around the middle of all of
+them together. Sculpt and Blend share the setting. Each map tab keeps its own, a new or opened map starts with the one
+you were using but goes back to **terrain center** from **custom**, and it starts off again every time you launch the
+editor.
+
+> [!TIP]
+> To mirror across several terrains side by side, or around a spot that is not their middle, use **world origin** or
+> **custom**. Put the plane on a vertex line or halfway between two for an exact match, any other position
+> only mirrors approximately.
+
+<div class="td-mcp" markdown>
+
+The `sculpt` action, the `blend` tool and `terrain_edit` (`sculpt`, `sculpt_path`, `paint_path` and `holes` by `center`)
+take a `symmetry` argument, `off`, `x`, `z`, `xz`, or an object `{axes, center, x, z}`. `set_editor` sets the one the
+tool bar uses and `get_state` reports it, see [MCP](../mcp.md).
+
+</div>
+
 ## In Godot
 
 Every terrain becomes a `TrenchDotTerrain` node, a `StaticBody3D` (Godot's node for solid ground that never moves)

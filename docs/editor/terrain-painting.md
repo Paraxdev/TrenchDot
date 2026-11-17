@@ -47,6 +47,9 @@ The second menu in the bar is the falloff, how the strength fades from the cente
 
 Shift turns paint, noise, slope and height into erase, and Ctrl smooths. Ctrl+wheel resizes the brush.
 
+To paint both sides of a terrain the same way in one stroke, turn on the symmetry menu right after **strength** and the
+mode's fields, see [Symmetry](terrain.md#symmetry).
+
 The same tool paints a second material over brush, mesh and displacement faces, see
 [Blending a second material](texturing.md#blending-a-second-material). **Set Blend Material**, **repeat**,
 **detile**, **sharpen** and **Apply Tiling** further right in the bar are for those faces, a terrain takes the same
