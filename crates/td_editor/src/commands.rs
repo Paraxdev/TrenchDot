@@ -1379,8 +1379,17 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
                 return;
             }
 
+            let unsent = state.terrain3d_unsent();
             let n = state.doc.edit("Delete", ops::delete_selection);
-            state.set_status(msg!("Deleted {n} objects", n));
+            match unsent.saturating_sub(state.terrain3d_unsent()) {
+                0 => state.set_status(msg!("Deleted {n} objects", n)),
+                lost => state.set_status(msg_n!(
+                    lost,
+                    "Deleted {count} objects with {n} unsent Terrain3D region edit, undo brings it back",
+                    "Deleted {count} objects with {n} unsent Terrain3D region edits, undo brings them back",
+                    count = n
+                )),
+            }
         }
         Action::Rename => match state.doc.selection.nodes.first().copied().filter(|_| state.doc.selection.nodes.len() == 1) {
             Some(id) => {

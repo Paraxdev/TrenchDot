@@ -64,6 +64,21 @@ impl EditorState {
         links_in(&self.doc.map, root)
     }
 
+    /// How many regions the map's Terrain3D nodes have not sent, every edit counting while its data has not loaded.
+    pub(crate) fn terrain3d_unsent(&self) -> usize {
+        let root = self.game.project_root.as_deref();
+        let links = self.doc.map.nodes.iter().filter_map(|(_, node)| match &node.kind {
+            NodeKind::Terrain3D(link) => Some(link),
+            _ => None,
+        });
+        links
+            .map(|link| match root.and_then(|r| terrain3d_cache::cache_dir(r, &link.data_directory)).and_then(|cache| self.terrain3d.source(&cache)) {
+                Some(source) => link.changed_regions(&source).len(),
+                None => link.edits.len() + link.removed.len(),
+            })
+            .sum()
+    }
+
     /// Whether every Terrain3D cache that is read has no textures, so the Textures switch changes nothing.
     pub fn terrain3d_without_textures(&self) -> bool {
         let manifests: Vec<_> = self.terrain3d_links().iter().filter_map(|(_, cache)| self.terrain3d.manifest(cache)).collect();
@@ -510,6 +525,37 @@ mod tests {
     fn changes(state: &EditorState, id: NodeId, cache: &Path) -> Vec<(Loc, ChangeKind, Option<RegionHash>, bool)> {
         let source = state.terrain3d.source(cache).unwrap();
         state.doc.map.terrain3d(id).unwrap().changed_regions(&source).into_iter().map(|c| (c.loc, c.kind, c.base_hash, c.conflict)).collect()
+    }
+
+    #[test]
+    fn deleting_a_node_says_how_many_unsent_terrain3d_edits_went_with_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, cache) = state_over(dir.path(), &[L, M]);
+        let layer = state.doc.map.default_layer();
+        let idle = state.doc.map.insert(layer, NodeKind::Terrain3D(td_doc::terrain3d::Terrain3DLink::new("res://data")));
+        let ctx = egui::Context::default();
+        let delete = |state: &mut EditorState, ids: &[NodeId]| {
+            state.doc.select(|_, s| s.nodes = ids.iter().copied().collect());
+            crate::commands::execute(state, crate::commands::Action::Delete, &ctx);
+            let status = state.status.clone();
+            state.undo();
+            status
+        };
+
+        assert_eq!(delete(&mut state, &[id]), "Deleted 1 objects");
+        dab(&mut state, id, L, 900.0);
+        let one = delete(&mut state, &[id]);
+        assert!(one.contains("Deleted 1 objects") && one.contains("1 unsent Terrain3D region edit,") && one.contains("undo"), "{one}");
+        assert_eq!(changes(&state, id, &cache).len(), 1, "undo brings the edit back");
+
+        dab(&mut state, id, M, 2300.0);
+        let two = delete(&mut state, &[idle, id]);
+        assert!(two.contains("Deleted 2 objects") && two.contains("2 unsent Terrain3D region edits"), "{two}");
+        assert_eq!(delete(&mut state, &[idle]), "Deleted 1 objects", "the other node held none of them");
+
+        state.game.project_root = None;
+        let unloaded = delete(&mut state, &[id]);
+        assert!(unloaded.contains("2 unsent Terrain3D region edits"), "edits count while the data is not read: {unloaded}");
     }
 
     #[test]

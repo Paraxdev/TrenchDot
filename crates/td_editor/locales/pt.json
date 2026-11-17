@@ -2895,5 +2895,6 @@
   "Terrain3D cannot be drawn: {problem}": "Não é possível desenhar o Terrain3D: {problem}",
   "Region {x}, {y} was made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "A região {x}, {y} foi feita com outro tamanho de região que o do terreno do Godot, usar a do Godot ou devolver o tamanho no Godot",
   "Some regions were made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "Algumas regiões foram feitas com outro tamanho de região que o do terreno do Godot, usar as do Godot ou devolver o tamanho no Godot",
-  "File dialogs are off with --offscreen, use the map_file tool": "As caixas de diálogo de arquivo ficam desativadas com --offscreen, usar a ferramenta map_file"
+  "File dialogs are off with --offscreen, use the map_file tool": "As caixas de diálogo de arquivo ficam desativadas com --offscreen, usar a ferramenta map_file",
+  "Deleted {count} objects with {n} unsent Terrain3D region edit, undo brings it back": { "one": "{count} objetos excluídos com {n} edição de região do Terrain3D não enviada, desfazer a traz de volta", "other": "{count} objetos excluídos com {n} edições de região do Terrain3D não enviadas, desfazer as traz de volta" }
 }
