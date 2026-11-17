@@ -1,5 +1,5 @@
 ---
-source: d5a662c31724dba93b77bd318ab3a570c43e95b6
+source: 880449c5803160fffd9bbfaca60bea2c7c1cd435
 ---
 
 # Servidor MCP { #mcp-server }
@@ -116,7 +116,7 @@ Mira [Revisar cambios](editor/reviewing.md) para mantener los mapas en git.
 | Cuadros de archivo | Las acciones que abren uno se rechazan, usa `map_file` con una ruta. `run_action save` necesita un mapa que ya tenga archivo |
 | Pestañas sin guardar | `run_action close_tab` rechaza los cambios sin guardar salvo que `args.discard` sea true. `args.close_others` cierra todas las pestañas menos la activa |
 | Rutas de archivo | `res://` y las rutas relativas de `map_file`, `run_script`, `import_model`, `changes_since` y `validate_map` parten del proyecto abierto, o del directorio de trabajo del editor si no hay ninguno. `map_file open` y `open_tab` convierten la ruta en absoluta antes de abrir, así un `save` posterior no puede acabar en otro sitio |
-| Ajustes del editor | `transform` y `run_action rotate` y `flip` giran sobre el centro de la selección, ajustado a la cuadrícula solo mientras el ajuste está activo, y mantienen las texturas bloqueadas mientras el bloqueo UV está activo. `transform` acepta `snap` y `uv_lock` para anularlo en una llamada, `duplicate` acepta `uv_lock`. `run_action sculpt` y `blend` usan los ajustes de herramienta que una persona puede cambiar, `terrain_edit` usa valores fijos por defecto |
+| Ajustes del editor | `transform` y `run_action rotate` y `flip` giran sobre el centro de la selección, ajustado a la cuadrícula solo mientras el ajuste está activo, y mantienen las texturas bloqueadas mientras el bloqueo UV está activo. `transform` acepta `snap` y `uv_lock` para anularlo en una llamada, `duplicate` acepta `uv_lock`. `run_action sculpt` y `blend` usan los ajustes de herramienta que una persona puede cambiar, incluida la simetría, `terrain_edit` usa valores fijos por defecto |
 | Selección | `select` rechaza los ids desconocidos y salta los nodos ocultos o bloqueados, listándolos en `skipped` |
 | CSG | `csg_subtract`, `csg_merge`, `csg_intersect`, `csg_hollow` y `clip_apply` devuelven `replaced`, los ids antiguos asignados a los nuevos |
 | Tiempos de espera | Las llamadas caducan a los 120 s, salvo `run_script`, `project_content` y `bake_lighting` |
@@ -128,15 +128,17 @@ Mira [Revisar cambios](editor/reviewing.md) para mantener los mapas en git.
 | Herramienta | Nota |
 | --- | --- |
 | `run_action` `copy`, `cut`, `paste` | Copy y cut devuelven el texto del portapapeles, paste lo recibe como `args.text` con un `offset` u `origin` opcional |
+| `run_action` `align`, `distribute` | `align` acepta `args.axis` y `args.to` (`min`, `center` o `max`), `distribute` acepta `args.axis`. Los dos tratan cada grupo, entidad de brush u objeto seleccionado como una unidad y no ajustan a la cuadrícula |
 | `run_action` `clip_apply` | Recibe un plano (`point` y `normal`, o tres `points`) y `keep`: `front`, `back` o `both` |
 | `run_action` `create_decal` | Coloca un [decal](editor/decals.md), úsalo en lugar de brushes finos |
 | `create_brush` | `openings` abre puertas y ventanas, `{min, max, count, step, rows, row_step}` repite una como una cuadrícula |
 | `create_mesh` `rotate` | `[x, y, z]` grados en el orden YXZ de Godot, así que `[0, 0, 90]` tumba un cilindro a lo largo de X |
-| `transform` | Aplica translate, rotate, flip y scale_to en ese orden, como un solo paso de deshacer. `rotate` gira 90 grados sobre Y salvo que se diga otra cosa |
+| `transform` | Aplica translate, rotate, flip, scale_to y shear en ese orden, como un solo paso de deshacer. `rotate` gira 90 grados sobre Y salvo que se diga otra cosa, `shear` desliza un lado de los límites de la selección, por ejemplo `{"side": "+y", "along": "x", "amount": 32}` |
 | `create_terrain` | `origin` es la esquina mínima del terreno, a diferencia de otras herramientas. `center` lo coloca alrededor de un punto en su lugar |
 | `create_brush`, `create_mesh` | Una cumbrera a dos aguas corre a lo largo de Z en los brushes y de X en las mallas. Ambas herramientas aceptan `ridge_x` y `ridge_z` |
 | `map_file` exports | `path` es el archivo escrito, conservado para llamadores antiguos, `exported` también lo nombra y `map_path` es el mapa abierto |
-| `terrain_edit` | `probe [x, z]` sin `op` solo lee la altura. `clear_layer` necesita `layer` |
+| `terrain_edit` | `probe [x, z]` sin `op` solo lee la altura. `clear_layer` necesita `layer`. `op: "resize"` agranda o recorta el terreno en celdas enteras por lado, `north`, `south`, `west` y `east` (positivo añade, negativo quita), o a `cells: [x, z]` alrededor del centro con la celda sobrante yendo al este o al sur, y `cell_size` lo remuestrea sobre la misma área. Primero se aplican los lados, luego el tamaño de celda, y `cells` no se puede combinar con `cell_size`. `fill` es `edge` (por defecto, el suelo nuevo repite el borde) o `zero`, y `scatter` es `drop` (por defecto, quita el scatter del terreno sobre el suelo quitado) o `keep`. `dry_run: true` devuelve el plan sin cambiar nada, y un resize que no cambia nada devuelve `changed: false` y no registra ningún paso de deshacer. Un terreno tiene de 1 a 2048 celdas a lo largo de cada eje y un tamaño de celda de 0.001 a 100000, cualquier cosa fuera de eso se rechaza entera |
+| `symmetry` | `run_action` `sculpt`, `blend` y `terrain_edit` la aceptan y `set_editor` fija la que usan las barras de herramientas de Esculpir y Mezcla, `get_state` la informa como `editor.symmetry`. Es `off`, `x`, `z` o `xz` (planos por el centro de cada terreno), o un objeto `{axes, center, x, z}` donde `center` es `terrain`, `world` o `custom` y `x` y `z` son las posiciones en el mundo de los planos con un centro personalizado. Un valor reemplaza todo el ajuste. `sculpt` y `blend` siguen la barra cuando falta, `terrain_edit` la tiene desactivada, así que los scripts se reproducen igual. `terrain_edit` la acepta para `sculpt`, `sculpt_path`, `paint_path` y `holes` con `center`, y la rechaza en cualquier otra operación |
 | `validate_map` | Acepta como entrada cualquier método o propiedad de la clase o del script de Godot del destino. `coplanar_faces` marca las caras que parpadearán. Cada problema tiene `bounds`. `path` comprueba un mapa guardado sin abrirlo, `project: true` comprueba todos los mapas del proyecto |
 | `run_action` `place_entities` | Recibe `args.classnames`, y `at` y `normal` para apoyar las entidades en una superficie como hace un arrastre desde la pestaña Entidades. Sin classnames es un error |
 | `simulate_input` drags | Un arrastre con `"release": false` mantiene el botón y sus modificadores pulsados después de que la llamada vuelva, así una captura muestra el arrastre en curso, por ejemplo una tarjeta junto al cursor. Un evento `release` en una llamada posterior lo suelta donde está el puntero, o en su `x` e `y`, o en `world`, y un release con solo una de `x` e `y` es un error. El arrastre y sus modificadores siguen pulsados, también sobre el teclado real, hasta ese release, una acción `new_map` o un `close_tab` correcto, o hasta que MCP se apague, así que nunca olvides el release. Los clics y arrastres se rechazan hasta entonces |
