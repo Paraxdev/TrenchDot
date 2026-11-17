@@ -10,6 +10,20 @@ const EPS := 0.001
 
 var failures: Array[String] = []
 var checks := 0
+var script_errors := ScriptErrors.new()
+
+## Collects the script errors Godot logs, from any thread. A test that hits one stops where it is and the run carries
+## on, so without this it would count as passing.
+class ScriptErrors extends Logger:
+	var lines: Array[String] = []
+	var _mutex := Mutex.new()
+
+	func _log_error(function: String, file: String, line: int, code: String, rationale: String, editor_notify: bool, error_type: int, script_backtraces: Array[ScriptBacktrace]) -> void:
+		if error_type != ERROR_TYPE_SCRIPT:
+			return
+		_mutex.lock()
+		lines.append("%s (%s:%d)" % [rationale if rationale != "" else code, file, line])
+		_mutex.unlock()
 
 func check(cond: bool, what: String) -> void:
 	checks += 1
@@ -52,6 +66,8 @@ func build_map() -> FuncGodotMap:
 
 func _initialize() -> void:
 	print("TrenchDot addon tests")
+	test_script_error_is_caught()
+	OS.add_logger(script_errors)
 	await process_frame
 	await test_parser()
 	await test_build()
@@ -129,8 +145,32 @@ func _initialize() -> void:
 	await load("res://tests/definition_tests.gd").new().run(self)
 	await load("res://tests/live_session_tests.gd").new().run(self)
 	await load("res://tests/legacy_tests.gd").new().run(self)
+	OS.remove_logger(script_errors)
+	for line in script_errors.lines:
+		check(false, "script error: " + line)
 	print("%d checks, %d failures" % [checks, failures.size()])
 	quit(1 if failures.size() > 0 else 0)
+
+func test_script_error_is_caught() -> void:
+	# Logs two expected SCRIPT ERROR lines, the logger below catches them.
+	print("- script error catch")
+	var catcher := ScriptErrors.new()
+	OS.add_logger(catcher)
+	var faulty := GDScript.new()
+	faulty.source_code = "extends RefCounted\nfunc first() -> void:\n\tcall(\"no_such_method\")\nfunc second() -> void:\n\tcall(\"another_missing\", 1, \"x\")\n"
+	faulty.reload()
+	var target = faulty.new()
+	target.first()
+	target.second()
+	OS.remove_logger(catcher)
+	check(catcher.lines.size() == 2, "a missing method is logged as a script error, got %d" % catcher.lines.size())
+	check(catcher.lines.size() == 2 and "another_missing" in catcher.lines[1], "the second error keeps its own message")
+	catcher.lines.clear()
+	OS.add_logger(catcher)
+	push_error("expected push_error")
+	push_warning("expected push_warning")
+	OS.remove_logger(catcher)
+	check(catcher.lines.is_empty(), "push_error and push_warning are not script errors")
 
 func test_parser() -> void:
 	print("- parser")
