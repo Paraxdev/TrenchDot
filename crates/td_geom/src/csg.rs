@@ -92,6 +92,42 @@ pub fn merge_pieces(mut pieces: Vec<Brush>) -> Vec<Brush> {
     }
 }
 
+/// Joins pieces whose union is convex, whether they only touch or overlap, so identical pieces become one. Unlike
+/// [`merge_pieces`] it keeps thin pieces.
+pub fn join_convex(mut pieces: Vec<Brush>) -> Vec<Brush> {
+    loop {
+        let mut joined = None;
+        'search: for i in 0..pieces.len() {
+            for j in i + 1..pieces.len() {
+                if let Some(hull) = join_pair(&pieces[i], &pieces[j]) {
+                    joined = Some((i, j, hull));
+                    break 'search;
+                }
+            }
+        }
+
+        match joined {
+            Some((i, j, hull)) => {
+                pieces.remove(j);
+                pieces[i] = hull;
+            }
+            None => return pieces,
+        }
+    }
+}
+
+/// The hull of `a` and `b`, when it holds no more than their union.
+fn join_pair(a: &Brush, b: &Brush) -> Option<Brush> {
+    if !a.bounds().intersects(&b.bounds().expanded(1e-3)) {
+        return None;
+    }
+
+    let hull = convex_merge(&[a, b], "").ok()?;
+    let both = intersect(a, b).map(|p| p.volume().max(0.0)).unwrap_or(0.0);
+    let union = a.volume() + b.volume() - both;
+    ((hull.volume() - union).abs() <= 1e-4 * union.max(1.0)).then_some(hull)
+}
+
 pub fn intersect(a: &Brush, b: &Brush) -> Result<Brush, BrushError> {
     let mut planes = a.planes();
     planes.extend(b.planes());
@@ -129,7 +165,7 @@ pub fn extrude_face(brush: &Brush, face: usize, distance: f64) -> Result<Brush, 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use td_core::Aabb;
+    use td_core::{Aabb, AxisPlane, Plane};
 
     fn boxb(min: DVec3, max: DVec3) -> Brush {
         Brush::from_aabb(&Aabb::new(min, max), "m").unwrap()
@@ -184,6 +220,128 @@ mod tests {
         let m = convex_merge(&[&a, &b], "m").unwrap();
         assert_eq!(m.faces.len(), 6);
         assert!((m.volume() - 32.0 * 16.0 * 16.0).abs() < 1e-6);
+    }
+
+    const SEAM: AxisPlane = AxisPlane { axis: 0, at: 96.0 };
+
+    fn face(normal: DVec3, point: DVec3, material: &str) -> (Plane, FaceData) {
+        let n = normal.normalize();
+        (Plane::new(n, n.dot(point)), FaceData::with_normal(material, n))
+    }
+
+    /// The left half of a hut whose roof rises to a ridge on `SEAM`.
+    fn half_hut() -> Brush {
+        Brush::from_planes(vec![
+            face(DVec3::X, DVec3::new(96.0, 0.0, 0.0), "seam"),
+            face(DVec3::NEG_X, DVec3::new(40.0, 0.0, 0.0), "outer"),
+            face(DVec3::NEG_Y, DVec3::new(0.0, 16.0, 0.0), "floor"),
+            face(DVec3::new(-32.0, 56.0, 0.0), DVec3::new(40.0, 48.0, 0.0), "roof"),
+            face(DVec3::Z, DVec3::new(0.0, 0.0, 40.0), "front"),
+            face(DVec3::NEG_Z, DVec3::new(0.0, 0.0, -24.0), "back"),
+        ])
+        .unwrap()
+    }
+
+    fn assert_box(b: &Brush, min: DVec3, max: DVec3) {
+        b.validate().unwrap();
+        assert_eq!(b.bounds(), Aabb::new(min, max));
+        assert_eq!(b.faces.len(), 6);
+        let size = max - min;
+        assert!((b.volume() - size.x * size.y * size.z).abs() < 1e-6, "{}", b.volume());
+    }
+
+    #[test]
+    fn join_convex_passes_no_piece_and_one_piece_through() {
+        assert!(join_convex(Vec::new()).is_empty());
+        assert_eq!(join_convex(vec![half_hut()]), vec![half_hut()]);
+    }
+
+    #[test]
+    fn join_convex_joins_a_slanted_half_and_its_mirror() {
+        let half = half_hut();
+        let mirror = half.transformed(&SEAM.matrix(), true);
+        let joined = join_convex(vec![half.clone(), mirror.clone()]);
+        assert_eq!(joined.len(), 1);
+        let hut = &joined[0];
+        hut.validate().unwrap();
+        assert_eq!(hut.bounds(), Aabb::new(DVec3::new(40.0, 16.0, -24.0), DVec3::new(152.0, 80.0, 40.0)));
+        assert!((hut.volume() - 2.0 * 56.0 * 48.0 * 64.0).abs() < 1e-6, "{}", hut.volume());
+
+        // Planes both halves have keep the first half's face, the mirror's own faces keep its mirrored alignment.
+        let expected = [
+            (face(DVec3::NEG_X, DVec3::new(40.0, 0.0, 0.0), "outer"), &half),
+            (face(DVec3::X, DVec3::new(152.0, 0.0, 0.0), "outer"), &mirror),
+            (face(DVec3::NEG_Y, DVec3::new(0.0, 16.0, 0.0), "floor"), &half),
+            (face(DVec3::new(-32.0, 56.0, 0.0), DVec3::new(40.0, 48.0, 0.0), "roof"), &half),
+            (face(DVec3::new(32.0, 56.0, 0.0), DVec3::new(152.0, 48.0, 0.0), "roof"), &mirror),
+            (face(DVec3::Z, DVec3::new(0.0, 0.0, 40.0), "front"), &half),
+            (face(DVec3::NEG_Z, DVec3::new(0.0, 0.0, -24.0), "back"), &half),
+        ];
+        assert_eq!(hut.faces.len(), expected.len());
+        for ((plane, data), source) in &expected {
+            let on = |b: &Brush| b.faces.iter().find(|f| f.plane.approx_eq(plane, 1e-9, 1e-6)).cloned();
+            let got = on(hut).unwrap_or_else(|| panic!("no face on {plane:?}"));
+            assert_eq!(got.data.material, data.material);
+            assert_eq!(got.data, on(source).unwrap().data, "{plane:?}");
+        }
+    }
+
+    #[test]
+    fn join_convex_joins_overlapping_and_identical_pieces() {
+        // A half that runs 8 u past the plane overlaps its mirror by 16 u, which merge_pieces refuses.
+        let (min, max) = (DVec3::new(40.0, 16.0, -24.0), DVec3::new(104.0, 80.0, 40.0));
+        let half = boxb(min, max);
+        let mirror = half.transformed(&SEAM.matrix(), true);
+        assert_eq!(merge_pieces(vec![half.clone(), mirror.clone()]).len(), 2);
+        let joined = join_convex(vec![half.clone(), mirror]);
+        assert_eq!(joined.len(), 1);
+        assert_box(&joined[0], min, DVec3::new(152.0, 80.0, 40.0));
+
+        let same = join_convex(vec![half.clone(), half.clone(), half.clone()]);
+        assert_eq!(same.len(), 1);
+        assert_box(&same[0], min, max);
+
+        let inside = boxb(DVec3::new(50.0, 20.0, -10.0), DVec3::new(70.0, 30.0, 0.0));
+        let swallowed = join_convex(vec![inside, half]);
+        assert_eq!(swallowed.len(), 1);
+        assert_box(&swallowed[0], min, max);
+    }
+
+    #[test]
+    fn join_convex_keeps_an_l_shape_and_an_edge_touch_apart() {
+        let base = boxb(DVec3::new(40.0, 16.0, -24.0), DVec3::new(104.0, 48.0, 40.0));
+        let upright = boxb(DVec3::new(40.0, 48.0, -24.0), DVec3::new(72.0, 112.0, 40.0));
+        assert_eq!(join_convex(vec![base.clone(), upright.clone()]), vec![base.clone(), upright]);
+
+        let corner = boxb(DVec3::new(104.0, 48.0, -24.0), DVec3::new(150.0, 90.0, 40.0));
+        assert_eq!(join_convex(vec![base.clone(), corner.clone()]), vec![base, corner]);
+    }
+
+    #[test]
+    fn join_convex_joins_four_quarters_and_leaves_a_far_piece() {
+        let along_z = AxisPlane { axis: 2, at: 8.0 };
+        let quarter = boxb(DVec3::new(40.0, 16.0, -24.0), DVec3::new(96.0, 80.0, 8.0));
+        let across = quarter.transformed(&SEAM.matrix(), true);
+        let far = boxb(DVec3::new(400.0, 16.0, -24.0), DVec3::new(430.0, 50.0, 0.0));
+        // The first pair tried only touches at an edge.
+        let pieces = vec![quarter.clone(), across.transformed(&along_z.matrix(), true), far.clone(), across, quarter.transformed(&along_z.matrix(), true)];
+        let joined = join_convex(pieces);
+        assert_eq!(joined.len(), 2);
+        assert_box(&joined[0], DVec3::new(40.0, 16.0, -24.0), DVec3::new(152.0, 80.0, 40.0));
+        assert_eq!(joined[1], far);
+    }
+
+    #[test]
+    fn join_convex_allows_the_volume_tolerance_and_no_more() {
+        // The hull over a step of height h holds a wedge of 2048 h more than the two boxes, the tolerance is 1e-4 of
+        // their 524288 + 4096 h, so the tallest step that still joins is about 0.0256.
+        let pieces = |h: f64| {
+            let low = boxb(DVec3::new(40.0, 16.0, -24.0), DVec3::new(104.0, 80.0, 40.0));
+            vec![low, boxb(DVec3::new(104.0, 16.0, -24.0), DVec3::new(168.0, 80.0 + h, 40.0))]
+        };
+        assert_eq!(join_convex(pieces(0.0)).len(), 1);
+        assert_eq!(join_convex(pieces(0.0255)).len(), 1);
+        assert_eq!(join_convex(pieces(0.0257)), pieces(0.0257));
     }
 
     #[test]
