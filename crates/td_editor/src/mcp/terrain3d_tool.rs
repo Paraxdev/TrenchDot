@@ -2,7 +2,7 @@
 //! edits to Godot.
 
 use std::collections::BTreeSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use serde_json::{Value, json};
@@ -489,12 +489,11 @@ impl App {
         let wait = args["wait"].as_bool().unwrap_or(true);
         let cache = self.state.terrain3d_cache_of(id)?;
         self.state.send_terrain3d(&BTreeSet::new());
-        let pending = || terrain3d_cache::pending_locs(&cache).unwrap_or_default();
-        if !self.state.terrain3d_bridge.busy() {
-            let reason =
-                if self.state.restricted() { "restricted mode, trust the project in the editor to let it reach Godot" } else { "no Terrain3D edits to send" };
-            return Ok(json!({ "id": id.0, "sent": false, "route": "waiting", "reason": reason, "pending": pending() }));
+        if let Some(reply) = unsent_reply(&self.state, id, &cache) {
+            return Ok(reply);
         }
+
+        let pending = || terrain3d_cache::pending_locs(&cache).unwrap_or_default();
 
         if !wait {
             return Ok(json!({ "id": id.0, "sent": true, "done": false, "pending": pending() }));
@@ -597,6 +596,16 @@ pub(crate) fn region_count(state: &EditorState, id: NodeId) -> Option<usize> {
 
     let (_, cache) = state.terrain3d_links().into_iter().find(|(node, _)| *node == id)?;
     inspector::region_count(state, id, &cache)
+}
+
+/// The reply of a send that left nothing to wait for. None while a send runs or waits behind an export.
+pub(crate) fn unsent_reply(state: &EditorState, id: NodeId, cache: &Path) -> Option<Value> {
+    if state.terrain3d_bridge.sending() {
+        return None;
+    }
+
+    let reason = if state.restricted() { "restricted mode, trust the project in the editor to let it reach Godot" } else { "no Terrain3D edits to send" };
+    Some(json!({ "id": id.0, "sent": false, "route": "waiting", "reason": reason, "pending": terrain3d_cache::pending_locs(cache).unwrap_or_default() }))
 }
 
 /// One region of info. An edit Godot applied is Godot's region again, so it reads as unedited with Godot's height range.

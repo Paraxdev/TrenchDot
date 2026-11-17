@@ -506,11 +506,17 @@ pub struct Bridge {
     settings_running: Option<Receiver<Result<Settings, String>>>,
     settings_queued: Option<SettingsRequest>,
     export_running: Option<(PathBuf, Receiver<ExportAnswer>)>,
+    exported: Vec<(PathBuf, ExportAnswer)>,
 }
 
 impl Bridge {
     pub fn busy(&self) -> bool {
         self.running.is_some() || self.settings_running.is_some() || self.export_running.is_some()
+    }
+
+    /// Whether a send is running or waits for the export in front of it, which `busy` does not say.
+    pub fn sending(&self) -> bool {
+        self.running.is_some() || self.queued.is_some()
     }
 
     pub fn applying(&self) -> bool {
@@ -539,17 +545,23 @@ impl Bridge {
         });
     }
 
-    /// The cache and the answer of the export that finished, and starts the send that waited for it.
+    /// The cache and the answer of an export that finished, and starts the send that waited for it.
     pub fn poll_export(&mut self) -> Option<(PathBuf, ExportAnswer)> {
-        let answer = self.export_running.as_ref()?.1.try_recv().ok()?;
-        let (cache, _) = self.export_running.take()?;
+        self.settle_export();
+        (!self.exported.is_empty()).then(|| self.exported.remove(0))
+    }
+
+    /// Takes the answer of a finished export and starts the send that waited for it. `poll` does this too, so a caller
+    /// that only waits for the send, like the MCP tool, still sees it start.
+    fn settle_export(&mut self) {
+        let Some(answer) = self.export_running.as_ref().and_then(|(_, rx)| rx.try_recv().ok()) else { return };
+        let Some((cache, _)) = self.export_running.take() else { return };
+        self.exported.push((cache, answer));
         if self.running.is_none()
             && let Some(next) = self.queued.take()
         {
             self.send(next);
         }
-
-        Some((cache, answer))
     }
 
     pub fn send_settings(&mut self, request: SettingsRequest) {
@@ -579,6 +591,7 @@ impl Bridge {
     /// The outcome of the apply that finished, and starts the one that waited. The addon notice is on the first outcome
     /// that has it only, the fallback itself works every time.
     pub fn poll(&mut self) -> Option<Outcome> {
+        self.settle_export();
         let mut outcome = self.running.as_ref()?.try_recv().ok()?;
         self.running = None;
         if let Some(next) = self.queued.take() {

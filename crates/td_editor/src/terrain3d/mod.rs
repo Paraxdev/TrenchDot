@@ -510,6 +510,7 @@ mod tests {
     use td_formats::terrain3d_cache::{Applied, CachedRegion, ManifestRegion, Refused, RegionHash as FileHash};
 
     use super::*;
+    use crate::mcp::terrain3d_tool::unsent_reply;
     use crate::terrain3d::brush::tests::state_over;
 
     const L: Loc = [1, -1];
@@ -1041,6 +1042,43 @@ exit 3
         quit_godot(&mut state);
         heal_now(&mut state);
         assert_eq!(godot_calls(dir.path()).len(), 2, "the next quit tries again");
+    }
+
+    #[test]
+    fn a_send_queued_behind_the_heal_export_starts_inside_wait() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, cache) = linked_over(dir.path());
+        state.godot.exe = Some(exporting_godot(dir.path(), &cache, true));
+        state.link_state.connected = false;
+        let request = state.terrain3d_export_request(&cache).unwrap();
+        state.terrain3d_bridge.export(cache.clone(), request);
+        dab(&mut state, id, L, 1000.0);
+        state.send_terrain3d(&BTreeSet::new());
+        assert_eq!(unsent_reply(&state, id, &cache), None, "the MCP send waits for the send behind the export");
+        let outcome = bridge::wait(&mut state.terrain3d_bridge, Duration::from_secs(20)).expect("the send waited behind the export never ran");
+        assert!(outcome.is_ok(), "{:?}", outcome.problems);
+        let calls = godot_calls(dir.path());
+        assert!(calls.len() == 2 && calls[0].contains("export") && calls[1].contains("apply"), "{calls:?}");
+        assert!(state.terrain3d_bridge.poll_export().is_some(), "the export answer is still handed on after wait took the turn");
+        assert!(!state.terrain3d_bridge.busy());
+    }
+
+    #[test]
+    fn an_mcp_send_with_nothing_to_send_behind_the_heal_export_replies_at_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, cache) = linked_over(dir.path());
+        state.godot.exe = Some(exporting_godot(dir.path(), &cache, true));
+        state.link_state.connected = false;
+        let request = state.terrain3d_export_request(&cache).unwrap();
+        state.terrain3d_bridge.export(cache.clone(), request);
+        state.send_terrain3d(&BTreeSet::new());
+        assert!(state.terrain3d_bridge.busy(), "the export runs");
+        let reply = unsent_reply(&state, id, &cache);
+        let expected = serde_json::json!({ "id": id.0, "sent": false, "route": "waiting", "reason": "no Terrain3D edits to send", "pending": [] });
+        assert_eq!(reply, Some(expected));
+        while state.terrain3d_bridge.poll_export().is_none() {
+            std::thread::sleep(Duration::from_millis(10));
+        }
     }
 
     #[test]
