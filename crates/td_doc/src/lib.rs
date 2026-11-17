@@ -11,6 +11,7 @@ pub mod legacy;
 pub mod lightmap;
 pub mod linked;
 pub mod map;
+pub mod mirror;
 pub mod ops;
 pub mod scatter;
 pub mod selection;

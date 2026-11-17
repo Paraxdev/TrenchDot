@@ -1,4 +1,6 @@
-use glam::DVec3;
+use glam::{DMat4, DVec3};
+
+use crate::Aabb;
 
 /// Axis aligned planes a brush dab is mirrored across, at world x = `x` and z = `z`.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -49,6 +51,57 @@ impl Fold {
 
     pub fn vector(&self, v: DVec3) -> DVec3 {
         DVec3::new(if self.x.is_some() { -v.x } else { v.x }, v.y, if self.z.is_some() { -v.z } else { v.z })
+    }
+}
+
+/// A plane square to one world axis (0 = x, 1 = y, 2 = z), at coordinate `at` along it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AxisPlane {
+    pub axis: usize,
+    pub at: f64,
+}
+
+impl AxisPlane {
+    pub fn reflect(&self, p: DVec3) -> DVec3 {
+        let mut q = p;
+        q[self.axis] = 2.0 * self.at - p[self.axis];
+        q
+    }
+
+    pub fn reflect_vector(&self, v: DVec3) -> DVec3 {
+        let mut w = v;
+        w[self.axis] = -v[self.axis];
+        w
+    }
+
+    /// The reflection across this plane.
+    pub fn matrix(&self) -> DMat4 {
+        let (mut scale, mut at) = (DVec3::ONE, DVec3::ZERO);
+        scale[self.axis] = -1.0;
+        at[self.axis] = self.at;
+        DMat4::from_translation(at) * DMat4::from_scale(scale) * DMat4::from_translation(-at)
+    }
+
+    /// Signed, positive on the larger side.
+    pub fn distance(&self, p: DVec3) -> f64 {
+        p[self.axis] - self.at
+    }
+
+    /// Whether the plane passes through `b` grown by `tol` along the axis.
+    pub fn meets(&self, b: &Aabb, tol: f64) -> bool {
+        b.min[self.axis] - tol <= self.at && self.at <= b.max[self.axis] + tol
+    }
+
+    /// The plane `m` reflects across when it is a pure reflection on one axis. Group transforms gather rounding as
+    /// they are composed, so the slide along the plane is allowed more slack than the linear part.
+    pub fn of_reflection(m: &DMat4) -> Option<AxisPlane> {
+        const LINEAR: f64 = 1e-6;
+        const SLIDE: f64 = 1e-3;
+        (0..3).map(|axis| AxisPlane { axis, at: m.w_axis[axis] * 0.5 }).find(|plane| {
+            let r = plane.matrix();
+            let linear = [(m.x_axis, r.x_axis), (m.y_axis, r.y_axis), (m.z_axis, r.z_axis)];
+            linear.iter().all(|(a, b)| (*a - *b).abs().max_element() <= LINEAR) && (m.w_axis - r.w_axis).abs().max_element() <= SLIDE
+        })
     }
 }
 
@@ -117,5 +170,82 @@ mod tests {
             assert_eq!(f.point(f.point(p)), p, "{f:?}");
             assert_eq!(f.vector(f.vector(v)), v, "{f:?}");
         }
+    }
+
+    const P: DVec3 = DVec3::new(37.5, -12.25, 3.0);
+
+    fn planes() -> [AxisPlane; 3] {
+        [AxisPlane { axis: 0, at: X }, AxisPlane { axis: 1, at: Z }, AxisPlane { axis: 2, at: 3.0 }]
+    }
+
+    #[test]
+    fn axis_planes_reflect_points_and_vectors_and_undo_themselves() {
+        let p = DVec3::new(10.5, -4.0, 9.75);
+        let v = DVec3::new(0.6, -0.48, -0.64);
+        let [x, y, z] = planes();
+        assert_eq!(x.reflect(p), DVec3::new(64.5, -4.0, 9.75));
+        assert_eq!(y.reflect(p), DVec3::new(10.5, -20.5, 9.75));
+        assert_eq!(z.reflect(p), DVec3::new(10.5, -4.0, -3.75));
+        assert_eq!(x.reflect_vector(v), DVec3::new(-0.6, -0.48, -0.64));
+        assert_eq!(y.reflect_vector(v), DVec3::new(0.6, 0.48, -0.64));
+        assert_eq!(z.reflect_vector(v), DVec3::new(0.6, -0.48, 0.64));
+        assert_eq!((x.distance(p), y.distance(p), z.distance(p)), (-27.0, 8.25, 6.75));
+        for plane in planes() {
+            assert_eq!(plane.reflect(plane.reflect(p)), p, "{plane:?}");
+            assert_eq!(plane.reflect_vector(plane.reflect_vector(v)), v, "{plane:?}");
+            let m = plane.matrix();
+            assert!(m.transform_point3(p).abs_diff_eq(plane.reflect(p), 1e-12), "{plane:?}");
+            assert!(m.transform_vector3(v).abs_diff_eq(plane.reflect_vector(v), 1e-12), "{plane:?}");
+            assert!((m * m).abs_diff_eq(DMat4::IDENTITY, 1e-12), "{plane:?}");
+            assert!((m.determinant() + 1.0).abs() < 1e-12, "{plane:?}");
+        }
+    }
+
+    #[test]
+    fn meets_counts_the_tolerance_and_the_exact_edge() {
+        let b = Aabb::new(DVec3::new(8.0, -30.0, 4.0), DVec3::new(40.0, 14.0, 20.0));
+        let at = |axis, at: f64| AxisPlane { axis, at };
+        assert!(at(0, 8.0).meets(&b, 0.0) && at(0, 40.0).meets(&b, 0.0) && at(0, 21.5).meets(&b, 0.0));
+        assert!(!at(0, 7.9).meets(&b, 0.0) && !at(0, 40.1).meets(&b, 0.0));
+        assert!(at(0, 40.5).meets(&b, 0.5) && at(0, 7.5).meets(&b, 0.5));
+        assert!(!at(0, 40.75).meets(&b, 0.5) && !at(0, 7.25).meets(&b, 0.5));
+        assert!(at(1, -30.0).meets(&b, 0.0) && !at(1, 15.0).meets(&b, 0.5) && at(1, 14.5).meets(&b, 0.5));
+        assert!(at(2, 20.0).meets(&b, 0.0) && !at(2, 3.0).meets(&b, 0.5) && at(2, 3.5).meets(&b, 0.5));
+        assert!(!at(0, 0.0).meets(&Aabb::EMPTY, 1e9));
+    }
+
+    #[test]
+    fn of_reflection_finds_the_plane_of_a_pure_reflection_only() {
+        for plane in planes() {
+            assert_eq!(AxisPlane::of_reflection(&plane.matrix()), Some(plane), "{plane:?}");
+            let mut slide = DVec3::ZERO;
+            slide[(plane.axis + 1) % 3] = 0.9e-3;
+            slide[(plane.axis + 2) % 3] = -0.9e-3;
+            assert_eq!(AxisPlane::of_reflection(&(DMat4::from_translation(slide) * plane.matrix())), Some(plane), "slid {slide}");
+            slide[(plane.axis + 1) % 3] = 1.1e-3;
+            assert_eq!(AxisPlane::of_reflection(&(DMat4::from_translation(slide) * plane.matrix())), None, "{plane:?} slid {slide}");
+            slide[(plane.axis + 1) % 3] = 1e-2;
+            assert_eq!(AxisPlane::of_reflection(&(DMat4::from_translation(slide) * plane.matrix())), None, "{plane:?} slid {slide}");
+
+            let mut skew = plane.matrix();
+            skew.y_axis.x += 0.9e-6;
+            assert_eq!(AxisPlane::of_reflection(&skew), Some(plane));
+            skew.y_axis.x += 0.2e-6;
+            assert_eq!(AxisPlane::of_reflection(&skew), None, "{plane:?}");
+            let mut scale = DVec3::splat(1.0);
+            scale[plane.axis] = 2.0;
+            assert_eq!(AxisPlane::of_reflection(&(DMat4::from_scale(scale) * plane.matrix())), None, "{plane:?} scaled");
+        }
+
+        let turn = |axis: DVec3, degrees: f64| {
+            DMat4::from_translation(P) * DMat4::from_quat(glam::DQuat::from_axis_angle(axis, f64::to_radians(degrees))) * DMat4::from_translation(-P)
+        };
+        assert_eq!(AxisPlane::of_reflection(&DMat4::IDENTITY), None);
+        assert_eq!(AxisPlane::of_reflection(&DMat4::from_translation(DVec3::new(64.0, 0.0, 0.0))), None);
+        assert_eq!(AxisPlane::of_reflection(&turn(DVec3::Y, 30.0)), None);
+        assert_eq!(AxisPlane::of_reflection(&turn(DVec3::Y, 180.0)), None, "a half turn flips two axes but keeps handedness");
+        assert_eq!(AxisPlane::of_reflection(&(turn(DVec3::Y, 30.0) * planes()[0].matrix())), None);
+        assert_eq!(AxisPlane::of_reflection(&DMat4::from_scale(DVec3::splat(-1.0))), None);
+        assert_eq!(AxisPlane::of_reflection(&(planes()[0].matrix() * planes()[2].matrix())), None);
     }
 }

@@ -1,7 +1,8 @@
-//! Sculpt and blend symmetry: the axis planes a dab is mirrored across and where they sit.
+//! Sculpt and blend symmetry: the axis planes a dab is mirrored across and where they sit. Also the plane a mirrored
+//! linked copy or a symmetric vertex edit uses.
 
 use serde::{Deserialize, Serialize};
-use td_core::{Aabb, DVec3, Mirror, NodeId};
+use td_core::{Aabb, AxisPlane, DVec3, Mirror, NodeId};
 use td_geom::Terrain;
 
 use crate::map::Map;
@@ -83,6 +84,70 @@ impl Symmetry {
             SymmetryCenter::Custom => DVec3::new(self.x, 0.0, self.z),
         };
         Mirror { x: self.axes.x().then_some(at.x), z: self.axes.z().then_some(at.z) }
+    }
+}
+
+/// How far a vertex may sit from the mirror image of another and still count as its counterpart, and how close to a
+/// mirror plane a seam vertex is welded onto it, in map units.
+pub const MIRROR_TOLERANCE: f64 = 0.5;
+
+/// Where along its axis a mirror plane sits, mostly relative to the bounds of what is mirrored.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlaneAt {
+    Center,
+    /// So a mirrored copy lands next to the original and the halves meet.
+    #[default]
+    Max,
+    Min,
+    World,
+    /// At [`PlaneChoice::custom`].
+    Custom,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct PlaneChoice {
+    pub at: PlaneAt,
+    /// Coordinate along the axis of a custom plane.
+    pub custom: f64,
+}
+
+impl PlaneChoice {
+    /// The plane on `axis` for something within `bounds`, none when the choice depends on bounds that are empty.
+    pub fn resolve(&self, axis: usize, bounds: &Aabb) -> Option<AxisPlane> {
+        let at = match self.at {
+            PlaneAt::World => 0.0,
+            PlaneAt::Custom => self.custom,
+            _ if bounds.is_empty() => return None,
+            PlaneAt::Center => bounds.center()[axis],
+            PlaneAt::Max => bounds.max[axis],
+            PlaneAt::Min => bounds.min[axis],
+        };
+        Some(AxisPlane { axis, at })
+    }
+}
+
+/// Which plane the Vertex and Mesh tools mirror vertex edits across. Session state, never saved in a map.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct EditSymmetry {
+    /// 0, 1 or 2 for X, Y or Z, none while symmetry is off.
+    pub axis: Option<usize>,
+    pub plane: PlaneChoice,
+}
+
+impl Default for EditSymmetry {
+    fn default() -> Self {
+        Self::OFF
+    }
+}
+
+impl EditSymmetry {
+    pub const OFF: EditSymmetry = EditSymmetry { axis: None, plane: PlaneChoice { at: PlaneAt::Center, custom: 0.0 } };
+
+    pub fn plane(&self, bounds: &Aabb) -> Option<AxisPlane> {
+        self.plane.resolve(self.axis.filter(|a| *a < 3)?, bounds)
     }
 }
 
@@ -195,5 +260,61 @@ mod tests {
         assert!(serde_json::from_value::<Symmetry>(json!({"axes": "diagonal"})).is_err());
         assert!(serde_json::from_value::<Symmetry>(json!({"center": "brush"})).is_err());
         assert!(serde_json::from_value::<Symmetry>(json!("x")).is_err());
+    }
+
+    #[test]
+    fn plane_choices_resolve_against_the_bounds() {
+        let b = Aabb::new(DVec3::new(8.0, -30.0, 4.0), DVec3::new(40.0, 14.0, 21.0));
+        let choice = |at| PlaneChoice { at, custom: -77.25 };
+        let resolved = |at, bounds: &Aabb| [0, 1, 2].map(|axis| choice(at).resolve(axis, bounds).map(|p| (p.axis, p.at)));
+        assert_eq!(resolved(PlaneAt::Center, &b), [Some((0, 24.0)), Some((1, -8.0)), Some((2, 12.5))]);
+        assert_eq!(resolved(PlaneAt::Max, &b), [Some((0, 40.0)), Some((1, 14.0)), Some((2, 21.0))]);
+        assert_eq!(resolved(PlaneAt::Min, &b), [Some((0, 8.0)), Some((1, -30.0)), Some((2, 4.0))]);
+        assert_eq!(resolved(PlaneAt::World, &b), [Some((0, 0.0)), Some((1, 0.0)), Some((2, 0.0))]);
+        assert_eq!(resolved(PlaneAt::Custom, &b), [Some((0, -77.25)), Some((1, -77.25)), Some((2, -77.25))]);
+
+        for at in [PlaneAt::Center, PlaneAt::Max, PlaneAt::Min] {
+            assert_eq!(resolved(at, &Aabb::EMPTY), [None; 3], "{at:?}");
+        }
+
+        assert_eq!(resolved(PlaneAt::World, &Aabb::EMPTY), [Some((0, 0.0)), Some((1, 0.0)), Some((2, 0.0))]);
+        assert_eq!(resolved(PlaneAt::Custom, &Aabb::EMPTY), [Some((0, -77.25)), Some((1, -77.25)), Some((2, -77.25))]);
+        assert_eq!(PlaneChoice::default(), PlaneChoice { at: PlaneAt::Max, custom: 0.0 });
+    }
+
+    #[test]
+    fn edit_symmetry_resolves_only_while_on() {
+        let b = Aabb::new(DVec3::new(8.0, -30.0, 4.0), DVec3::new(40.0, 14.0, 21.0));
+        assert_eq!(EditSymmetry::default(), EditSymmetry::OFF);
+        assert_eq!(EditSymmetry::OFF.plane(&b), None);
+        assert_eq!(EditSymmetry { axis: Some(1), ..EditSymmetry::OFF }.plane(&b), Some(AxisPlane { axis: 1, at: -8.0 }));
+        let custom = PlaneChoice { at: PlaneAt::Custom, custom: 96.5 };
+        assert_eq!(EditSymmetry { axis: Some(2), plane: custom }.plane(&Aabb::EMPTY), Some(AxisPlane { axis: 2, at: 96.5 }));
+        assert_eq!(EditSymmetry { axis: Some(0), ..EditSymmetry::OFF }.plane(&Aabb::EMPTY), None);
+        assert_eq!(EditSymmetry { axis: Some(3), plane: custom }.plane(&b), None, "no fourth axis");
+    }
+
+    #[test]
+    fn plane_settings_serde_uses_lowercase_names_and_refuses_unknown_fields() {
+        let names = [(PlaneAt::Center, "center"), (PlaneAt::Max, "max"), (PlaneAt::Min, "min"), (PlaneAt::World, "world"), (PlaneAt::Custom, "custom")];
+        for (at, name) in names {
+            let choice = PlaneChoice { at, custom: -40.5 };
+            let value = json!({"at": name, "custom": -40.5});
+            assert_eq!(serde_json::to_value(choice).unwrap(), value);
+            assert_eq!(serde_json::from_value::<PlaneChoice>(value).unwrap(), choice);
+            let on = EditSymmetry { axis: Some(2), plane: choice };
+            let value = json!({"axis": 2, "plane": {"at": name, "custom": -40.5}});
+            assert_eq!(serde_json::to_value(on).unwrap(), value);
+            assert_eq!(serde_json::from_value::<EditSymmetry>(value).unwrap(), on);
+        }
+
+        assert_eq!(serde_json::to_value(EditSymmetry::OFF).unwrap(), json!({"axis": null, "plane": {"at": "center", "custom": 0.0}}));
+        assert_eq!(serde_json::from_value::<EditSymmetry>(json!({})).unwrap(), EditSymmetry::OFF);
+        assert_eq!(serde_json::from_value::<EditSymmetry>(json!({"axis": 0})).unwrap(), EditSymmetry { axis: Some(0), ..EditSymmetry::OFF });
+        assert_eq!(serde_json::from_value::<PlaneChoice>(json!({"custom": 3.0})).unwrap(), PlaneChoice { at: PlaneAt::Max, custom: 3.0 });
+        assert!(serde_json::from_value::<PlaneChoice>(json!({"at": "max", "offset": 3.0})).is_err());
+        assert!(serde_json::from_value::<PlaneChoice>(json!({"at": "middle"})).is_err());
+        assert!(serde_json::from_value::<EditSymmetry>(json!({"axis": 0, "center": "world"})).is_err());
+        assert!(serde_json::from_value::<EditSymmetry>(json!({"axis": "x"})).is_err());
     }
 }

@@ -7,7 +7,7 @@ pub mod ray;
 pub use aabb::Aabb;
 pub use color::Color;
 pub use glam::{DMat3, DMat4, DQuat, DVec2, DVec3, DVec4, EulerRot, Mat4, Vec2, Vec3, Vec4};
-pub use mirror::{Fold, Mirror};
+pub use mirror::{AxisPlane, Fold, Mirror};
 pub use plane::{Plane, PlaneSide};
 pub use ray::Ray;
 

@@ -196,7 +196,7 @@ pub fn sync(before: &Map, after: &mut Map) -> usize {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::Document;
     use td_core::{Aabb, DMat3, DVec2};
@@ -375,7 +375,7 @@ mod tests {
         assert_eq!(format::from_str(&format::to_string(&doc.map)).unwrap().nodes.len(), doc.map.nodes.len(), "every node is saved");
     }
 
-    fn wedge() -> Brush {
+    pub(crate) fn wedge() -> Brush {
         let points = [
             DVec3::new(8.0, 2.0, 4.0),
             DVec3::new(40.0, 2.0, 4.0),
@@ -626,7 +626,7 @@ mod tests {
 
     /// `b` is `a` placed by `m`: the same tree, linked groups placed by `m` on top of their counterpart's placement,
     /// plain groups left unplaced and every brush moved by `m`.
-    fn assert_copy_maps(map: &Map, a: NodeId, b: NodeId, m: &DMat4) {
+    pub(crate) fn assert_copy_maps(map: &Map, a: NodeId, b: NodeId, m: &DMat4) {
         let (x, y) = (map.get(a).unwrap(), map.get(b).unwrap());
         match (&x.kind, &y.kind) {
             (NodeKind::Group(g), NodeKind::Group(h)) => {
