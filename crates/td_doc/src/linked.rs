@@ -185,6 +185,9 @@ pub fn sync(before: &Map, after: &mut Map) -> usize {
             let m = group_transform(after, target) * source_transform.inverse();
             let leaves = sel.transformables(after);
             ops::transform_nodes(after, &leaves, &m, EditOptions { uv_lock: true, grid: 0.0 });
+            // Pasted nested linked groups carry the source's placement, which would pull them back onto the source
+            // copy when their own set syncs next.
+            ops::update_group_transforms(after, &sel, &m);
             updated += 1;
         }
     }
@@ -566,5 +569,112 @@ mod tests {
         assert!(src.vertices.iter().any(|p| close(*p, DVec3::new(6.0, 36.0, 1.0))), "{:?}", src.vertices);
         assert_brush_maps(src, doc.map.brush(child(&doc, moved)).unwrap(), &DMat4::from_translation(shift));
         assert_brush_maps(src, doc.map.brush(child(&doc, mirrored)).unwrap(), &(turn * mirror()));
+    }
+
+    fn pane() -> Brush {
+        let points = [
+            DVec3::new(14.0, 10.0, 20.0),
+            DVec3::new(22.0, 10.0, 20.0),
+            DVec3::new(14.0, 10.0, 23.0),
+            DVec3::new(22.0, 10.0, 23.0),
+            DVec3::new(14.0, 18.0, 20.0),
+            DVec3::new(14.0, 19.0, 23.0),
+            DVec3::new(22.0, 16.0, 20.0),
+            DVec3::new(22.0, 17.0, 23.0),
+        ];
+        Brush::from_points(&points, &[], "frame").unwrap()
+    }
+
+    const SECOND_WINDOW: DVec3 = DVec3::new(14.0, 2.0, 0.0);
+
+    /// House A holds a wall, a plain trim group and a window group. The house is linked first with its copy placed by
+    /// `outer`, then the window gets a linked twin inside house A, so the outer set has the lower link id.
+    fn houses(doc: &mut Document, outer: &DMat4) -> (NodeId, NodeId, NodeId) {
+        let layer = doc.map.default_layer();
+        let window = doc.edit("window", |m, s| {
+            s.select_node(m.insert(layer, NodeKind::Brush(pane())));
+            ops::group_selection(m, s, "window", layer).unwrap()
+        });
+        let trim = doc.edit("trim", |m, s| {
+            let post = Brush::from_aabb(&Aabb::new(DVec3::new(6.0, 0.0, 2.0), DVec3::new(10.0, 4.0, 22.0)), "trim").unwrap();
+            s.clear();
+            s.select_node(m.insert(layer, NodeKind::Brush(post)));
+            ops::group_selection(m, s, "trim", layer).unwrap()
+        });
+        let house = doc.edit("house", |m, s| {
+            let wall = m.insert(layer, NodeKind::Brush(wedge()));
+            s.clear();
+            s.nodes.extend([wall, trim, window]);
+            ops::group_selection(m, s, "house", layer).unwrap()
+        });
+        let copy = doc.edit("link house", |m, s| {
+            let copy = ops::duplicate_linked(m, s, DVec3::ZERO, EditOptions::default())[0];
+            ops::transform_selection(m, s, outer, EditOptions::default());
+            copy
+        });
+        doc.edit("link window", |m, s| {
+            s.clear();
+            s.select_node(window);
+            ops::duplicate_linked(m, s, SECOND_WINDOW, EditOptions::default());
+        });
+        (house, window, copy)
+    }
+
+    fn windows(map: &Map, house: NodeId) -> Vec<NodeId> {
+        map.get(house).unwrap().children.iter().copied().filter(|c| link_of(map, *c).is_some()).collect()
+    }
+
+    /// `b` is `a` placed by `m`: the same tree, linked groups placed by `m` on top of their counterpart's placement,
+    /// plain groups left unplaced and every brush moved by `m`.
+    fn assert_copy_maps(map: &Map, a: NodeId, b: NodeId, m: &DMat4) {
+        let (x, y) = (map.get(a).unwrap(), map.get(b).unwrap());
+        match (&x.kind, &y.kind) {
+            (NodeKind::Group(g), NodeKind::Group(h)) => {
+                assert_eq!((&g.name, g.link_id), (&h.name, h.link_id));
+                let want = if g.link_id.is_some() { *m * g.transform } else { DMat4::IDENTITY };
+                assert!(h.transform.abs_diff_eq(want, 1e-6), "{} {b} placed at {:?}, wants {want:?}", h.name, h.transform);
+                assert_eq!(x.children.len(), y.children.len(), "{} children", g.name);
+                for (c, d) in x.children.iter().zip(&y.children) {
+                    assert_copy_maps(map, *c, *d, m);
+                }
+            }
+            (NodeKind::Brush(p), NodeKind::Brush(q)) => assert_brush_maps(p, q, m),
+            _ => panic!("{a} and {b} differ in kind"),
+        }
+    }
+
+    /// Checks the houses right after the window twin is linked and again after the first window's brush is edited,
+    /// since both edits rebuild house B and then sync the window set inside it.
+    fn nested_windows_follow(outer: DMat4, moved_corner_in_b: DVec3) {
+        let mut doc = Document::new();
+        let (house, window, copy) = houses(&mut doc, &outer);
+        assert!(link_of(&doc.map, house) < link_of(&doc.map, window), "the outer set syncs first");
+        for edit in [false, true] {
+            if edit {
+                let pane = child(&doc, window);
+                doc.edit("reshape", |m, _| reshape(m, pane, DVec3::new(22.0, 10.0, 20.0), DVec3::new(2.0, -3.0, -1.0)));
+            }
+
+            let (a, b) = (windows(&doc.map, house), windows(&doc.map, copy));
+            assert_eq!((a.len(), b.len(), a[0]), (2, 2, window), "two windows in each house, the edited one kept");
+            assert_copy_maps(&doc.map, house, copy, &outer);
+            assert_copy_maps(&doc.map, a[0], a[1], &DMat4::from_translation(SECOND_WINDOW));
+        }
+
+        let first = doc.map.brush(child(&doc, window)).unwrap();
+        assert!(first.vertices.iter().any(|p| close(*p, DVec3::new(24.0, 7.0, 19.0))), "{:?}", first.vertices);
+        let pane = doc.map.brush(child(&doc, windows(&doc.map, copy)[0])).unwrap();
+        assert!(pane.vertices.iter().any(|p| close(*p, moved_corner_in_b)), "{:?}", pane.vertices);
+        assert_tree_consistent(&doc.map);
+    }
+
+    #[test]
+    fn nested_linked_groups_keep_their_place_when_the_outer_copy_is_rebuilt() {
+        nested_windows_follow(DMat4::from_translation(DVec3::new(160.0, 8.0, 96.0)), DVec3::new(184.0, 15.0, 115.0));
+    }
+
+    #[test]
+    fn nested_linked_groups_keep_their_place_in_a_mirrored_copy() {
+        nested_windows_follow(mirror(), DVec3::new(56.0, 7.0, 19.0));
     }
 }

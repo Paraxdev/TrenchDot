@@ -121,7 +121,7 @@ pub fn transform_selection(map: &mut Map, sel: &Selection, m: &DMat4, opts: Edit
 }
 
 /// Linked groups moved as a whole remember their placement, so edits inside them propagate with the right offset.
-fn update_group_transforms(map: &mut Map, sel: &Selection, m: &DMat4) {
+pub(crate) fn update_group_transforms(map: &mut Map, sel: &Selection, m: &DMat4) {
     let mut groups: BTreeSet<NodeId> = BTreeSet::new();
     for id in &sel.nodes {
         for g in std::iter::once(*id).chain(map.descendants(*id)) {
