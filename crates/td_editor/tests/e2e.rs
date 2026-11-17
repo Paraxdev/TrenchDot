@@ -1366,6 +1366,227 @@ fn terrain_resize_over_mcp() {
     assert_eq!(ed.call("terrain_edit", json!({ "id": id, "op": "resize", "east": 1 }))["changed"], true);
 }
 
+#[test]
+#[ignore]
+fn terrain_symmetry_mirrors_strokes_and_mcp_calls() {
+    let ed = Editor::launch("terrain_symmetry");
+    let height = |ed: &Editor, id: u64, p: [f64; 2]| ed.call("terrain_edit", json!({ "id": id, "probe": p }))["probe_height"].as_f64().unwrap();
+    let close = |a: f64, b: f64| (a - b).abs() < 1e-3;
+    let symmetry = |ed: &Editor| ed.state()["editor"]["symmetry"].clone();
+    let revision = |ed: &Editor| ed.state()["map"]["revision"].clone();
+
+    // Terrain A starts at an odd corner, so its middle is x 411.5, z 552.25 and mirrored vertices are vertices.
+    let a = ed.call("create_terrain", json!({ "origin": [-100.5, 7, 40.25], "resolution": 33, "cell_size": 32, "shape": "flat" }))["id"].as_u64().unwrap();
+    let base = height(&ed, a, [-100.5, 40.25]);
+    let st = symmetry(&ed);
+    assert_eq!((st["axes"].clone(), st["center"].clone()), (json!("off"), json!("terrain")), "a fresh editor starts with symmetry off");
+
+    ed.call("set_editor", json!({ "tool": "sculpt", "sculpt_mode": "raise", "brush_radius": 96, "symmetry": { "axes": "x" } }));
+    let st = symmetry(&ed);
+    assert_eq!((st["axes"].clone(), st["center"].clone(), st["x"].as_f64(), st["z"].as_f64()), (json!("x"), json!("terrain"), Some(0.0), Some(0.0)));
+    ed.call("set_camera", json!({ "view": "3d", "position": [411.5, 900, -300], "look_at": [300, 7, 300] }));
+    let undo_before = ed.state()["undo"].clone();
+    ed.input("3d", json!([{ "type": "drag", "world": [200.5, 7, 300.25], "to_world": [260.5, 7, 380.25], "steps": 10 }]));
+    let near = [[187.5, 296.25], [251.5, 360.25]];
+    let mirrored = [[635.5, 296.25], [571.5, 360.25]];
+    for (p, m) in near.iter().zip(&mirrored) {
+        let (hp, hm) = (height(&ed, a, *p), height(&ed, a, *m));
+        assert!(hp > base + 0.05, "the drag raised {p:?}: {hp} over {base}");
+        assert!(close(hp, hm), "{p:?} and {m:?} match: {hp} vs {hm}");
+    }
+
+    let across_z = [187.5, 808.25];
+    assert!(close(height(&ed, a, across_z), base), "x symmetry leaves the z mirror alone");
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(ed.state()["undo"], undo_before, "the whole stroke is one undo step");
+    for p in near.iter().chain(&mirrored) {
+        assert!(close(height(&ed, a, *p), base), "undo restored {p:?}");
+    }
+
+    // run_action sculpt takes the bar's setting unless it is given one. The vertices mirror across x 411.5.
+    let sculpt = |center: [f64; 3], extra: Value| {
+        let mut args = json!({ "center": center, "mode": "raise", "radius": 24, "strength": 16 });
+        args.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        ed.call("run_action", json!({ "action": "sculpt", "args": args }))
+    };
+    let (left, right, far_left, far_right) = ([379.5, 808.25], [443.5, 808.25], [-68.5, 808.25], [891.5, 808.25]);
+    sculpt([left[0], 0.0, left[1]], json!({}));
+    assert!(height(&ed, a, left) > base + 1.0 && close(height(&ed, a, left), height(&ed, a, right)), "without symmetry the bar's x applies");
+    sculpt([far_left[0], 0.0, far_left[1]], json!({ "symmetry": "off" }));
+    assert!(height(&ed, a, far_left) > base + 1.0 && close(height(&ed, a, far_right), base), "off in the call beats the bar");
+    ed.call("set_editor", json!({ "symmetry": "off" }));
+    let st = symmetry(&ed);
+    assert_eq!((st["axes"].clone(), st["x"].as_f64()), (json!("off"), Some(0.0)));
+    let (low_left, low_right) = ([27.5, 296.25], [795.5, 296.25]);
+    sculpt([low_left[0], 0.0, low_left[1]], json!({}));
+    assert!(height(&ed, a, low_left) > base + 1.0 && close(height(&ed, a, low_right), base), "the bar is off");
+    sculpt([low_left[0], 0.0, 456.25], json!({ "symmetry": "x" }));
+    assert!(
+        close(height(&ed, a, [27.5, 456.25]), height(&ed, a, [795.5, 456.25])) && height(&ed, a, [795.5, 456.25]) > base + 1.0,
+        "the call mirrors with the bar off"
+    );
+
+    // A value replaces the whole setting, so a custom center does not outlive a string.
+    ed.call("set_editor", json!({ "symmetry": { "axes": "xz", "center": "custom", "x": 100.5, "z": -20.25 } }));
+    let st = symmetry(&ed);
+    assert_eq!((st["axes"].clone(), st["center"].clone(), st["x"].as_f64(), st["z"].as_f64()), (json!("xz"), json!("custom"), Some(100.5), Some(-20.25)));
+    ed.call("set_editor", json!({ "symmetry": "z" }));
+    let st = symmetry(&ed);
+    assert_eq!((st["axes"].clone(), st["center"].clone(), st["x"].as_f64(), st["z"].as_f64()), (json!("z"), json!("terrain"), Some(0.0), Some(0.0)));
+    ed.call("set_editor", json!({ "grid": 16 }));
+    assert_eq!(symmetry(&ed)["axes"], "z", "other settings leave it alone");
+
+    // Terrain B, far from A, is edited by id. Its middle is x 2256.5, z -744.25.
+    let b = ed.call("create_terrain", json!({ "origin": [2000.5, 0, -1000.25], "resolution": 17, "cell_size": 32, "shape": "flat" }))["id"].as_u64().unwrap();
+    ed.call("terrain_edit", json!({ "id": b, "op": "set_layers", "layers": [["dev/green", 256], ["dev/grey", 256], ["dev/blue", 256], ["dev/orange", 256]] }));
+    let base_b = height(&ed, b, [2000.5, -1000.25]);
+    let raise = |ed: &Editor, op: &str, extra: Value| {
+        let mut args = json!({ "id": b, "op": op, "mode": "raise", "radius": 24, "strength": 16 });
+        args.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        ed.call("terrain_edit", args)
+    };
+
+    // No symmetry, even with the bar on z, so scripts replay the same.
+    raise(&ed, "sculpt", json!({ "center": [2096.5, 0, -904.25] }));
+    assert!(height(&ed, b, [2096.5, -904.25]) > base_b + 1.0 && close(height(&ed, b, [2096.5, -584.25]), base_b), "terrain_edit ignores the bar");
+
+    raise(&ed, "sculpt", json!({ "center": [2096.5, 0, -840.25], "symmetry": "z" }));
+    assert!(
+        height(&ed, b, [2096.5, -840.25]) > base_b + 1.0 && close(height(&ed, b, [2096.5, -840.25]), height(&ed, b, [2096.5, -648.25])),
+        "z mirrors across the terrain's middle"
+    );
+    assert!(close(height(&ed, b, [2416.5, -840.25]), base_b), "and not across x");
+
+    // Four copies around a custom cross, off the middle and between vertices: x 2208.5, z -792.25.
+    let cross = json!({ "axes": "xz", "center": "custom", "x": 2208.5, "z": -792.25 });
+    raise(&ed, "sculpt", json!({ "center": [2128.5, 0, -872.25], "symmetry": cross }));
+    let four = [[2128.5, -872.25], [2288.5, -872.25], [2128.5, -712.25], [2288.5, -712.25]];
+    let h0 = height(&ed, b, four[0]);
+    assert!(h0 > base_b + 1.0);
+    for p in &four[1..] {
+        assert!(close(height(&ed, b, *p), h0), "{p:?} matches the first dab");
+    }
+
+    // A path mirrors every dab.
+    let path = raise(&ed, "sculpt_path", json!({ "points": [[2064.5, -616.25], [2064.5, -552.25]], "spacing": 32, "symmetry": { "axes": "x" } }));
+    assert_eq!(path["changed"], true);
+    for z in [-616.25, -584.25, -552.25] {
+        let (l, r) = (height(&ed, b, [2064.5, z]), height(&ed, b, [2448.5, z]));
+        assert!(l > base_b + 1.0 && close(l, r), "path vertex {z}: {l} vs {r}");
+    }
+
+    // A world plane far from the terrain reflects the dab off it, the real dab still lands.
+    let world = raise(&ed, "sculpt", json!({ "center": [2096.5, 0, -1000.25], "symmetry": { "axes": "x", "center": "world" } }));
+    assert_eq!(world["changed"], true);
+    assert!(height(&ed, b, [2096.5, -1000.25]) > base_b + 1.0);
+
+    // Paint and holes mirror too. The weights are those of the nearest vertex.
+    let weights = |p: [f64; 3]| ed.call("blend", json!({ "op": "weights", "id": b, "center": p }))["weights"].clone();
+    ed.call(
+        "terrain_edit",
+        json!({ "id": b, "op": "paint_path", "points": [[2352.5, -936.25], [2352.5, -904.25]], "layer": 1, "radius": 24, "symmetry": "x" }),
+    );
+    let (painted, twin, bare) = (weights([2352.5, 0.0, -936.25]), weights([2160.5, 0.0, -936.25]), weights([2352.5, 0.0, -600.25]));
+    assert!(painted[1].as_f64().unwrap() > 0.1, "painted {painted}");
+    assert_eq!(painted, twin, "paint lands at the mirrored vertex");
+    assert_ne!(painted, bare);
+    assert_eq!(weights([2160.5, 0.0, -904.25]), weights([2352.5, 0.0, -904.25]));
+
+    let holed = ed.call("terrain_edit", json!({ "id": b, "op": "holes", "center": [2112.5, -888.25], "radius": 20, "symmetry": "x" }));
+    assert_eq!(holed["changed"], true);
+    let holes = |ed: &Editor| -> Vec<usize> {
+        let node = ed.call("get_node", json!({ "id": b }));
+        let bytes = base64::engine::general_purpose::STANDARD.decode(node["holes"].as_str().expect("holes are saved")).unwrap();
+        bytes.iter().enumerate().filter(|(_, h)| **h != 0).map(|(k, _)| k).collect()
+    };
+    assert_eq!(holes(&ed), vec![3 * 16 + 3, 3 * 16 + 12], "cell (3, 3) and its mirror in a 16 cell wide terrain");
+
+    // Blend: a stroke follows the bar and an explicit value wins. The bar is z, the middle z is -744.25.
+    let stroke = |extra: Value| {
+        let mut args =
+            json!({ "op": "stroke", "ids": [b], "mode": "paint", "layer": 2, "radius": 24, "strength": 1, "points": [[2480.5, -840.25], [2480.5, -808.25]] });
+        args.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        ed.call("blend", args)
+    };
+    stroke(json!({}));
+    let (p5, p6, p10, p11) =
+        (weights([2480.5, 0.0, -840.25]), weights([2480.5, 0.0, -808.25]), weights([2480.5, 0.0, -680.25]), weights([2480.5, 0.0, -648.25]));
+    assert!(p5[2].as_f64().unwrap() > 0.1, "blend painted {p5}");
+    assert_eq!((p5, p6), (p11, p10), "the bar's z mirrors the stroke");
+    stroke(json!({ "points": [[2288.5, -936.25], [2288.5, -904.25]], "symmetry": "off" }));
+    assert!(weights([2288.5, 0.0, -936.25])[2].as_f64().unwrap() > 0.1);
+    assert_eq!(weights([2288.5, 0.0, -552.25])[2].as_f64().unwrap(), 0.0, "off in the call beats the bar");
+
+    // Guards. A refused call changes nothing, not even the undo list.
+    let (rev, undo) = (revision(&ed), ed.state()["undo"].clone());
+    let refused = |args: Value, want: &[&str]| {
+        let msg = ed.call_err("terrain_edit", args.clone());
+        for w in want {
+            assert!(msg.contains(w), "{args} gave {msg}");
+        }
+    };
+    let rect = json!({ "id": b, "op": "flatten_rect", "min": [2100, -900], "max": [2200, -800], "height": 20 });
+    for (op, extra) in [
+        ("flatten_rect", json!({})),
+        ("ramp", json!({ "from": [2100, 0, -900], "to": [2200, 40, -800] })),
+        ("erode", json!({})),
+        ("auto_paint", json!({})),
+        ("clear_layer", json!({ "layer": 1 })),
+        ("resize", json!({ "north": 1 })),
+        ("holes", json!({ "min": [2100, -900], "max": [2200, -800] })),
+    ] {
+        let mut args = rect.clone();
+        args["op"] = json!(op);
+        args.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        args["symmetry"] = json!("x");
+        refused(args, &["symmetry works with sculpt, sculpt_path, paint_path and holes by center", op]);
+    }
+
+    let sculpt_args = |symmetry: Value| json!({ "id": b, "op": "sculpt", "mode": "raise", "center": [2096.5, 0, -904.25], "symmetry": symmetry });
+    refused(sculpt_args(json!("diagonal")), &["off, x, z or xz"]);
+    refused(sculpt_args(json!({ "axes": "x", "plane": 3 })), &["symmetry must be", "plane"]);
+    refused(sculpt_args(json!({ "axes": "x", "center": "middle" })), &["symmetry must be", "terrain, world or custom"]);
+    refused(sculpt_args(json!(3)), &["off, x, z or xz"]);
+    refused(json!({ "id": b, "op": "sculpt_paht", "symmetry": "x" }), &["unknown terrain op sculpt_paht"]);
+    refused(json!({ "id": b, "probe": [2096.5, -904.25], "symmetry": "diagonal" }), &["off, x, z or xz"]);
+    assert_eq!((revision(&ed), ed.state()["undo"].clone()), (rev, undo), "refused calls leave the map and the undo list alone");
+    assert!(ed.call("terrain_edit", json!({ "id": b, "probe": [2096.5, -904.25], "symmetry": "x" }))["probe_height"].is_number());
+
+    let msg = ed.call_err("set_editor", json!({ "symmetry": "diagonal", "grid": 8 }));
+    assert!(msg.contains("off, x, z or xz"), "{msg}");
+    ed.call("select", json!({ "ids": [a] }));
+    let msg = ed.call_err("blend", json!({ "op": "dab", "ids": [b], "center": [2096.5, 0, -904.25], "symmetry": "diagonal" }));
+    assert!(msg.contains("off, x, z or xz"), "{msg}");
+    assert_eq!(ed.state()["selection"]["nodes"], json!([a]), "a refused blend keeps the selection");
+    let msg = ed.call_err("run_action", json!({ "action": "sculpt", "args": { "center": [0, 0, 0], "mode": "raise", "symmetry": "q" } }));
+    assert!(msg.contains("off, x, z or xz"), "{msg}");
+    assert_eq!(symmetry(&ed)["axes"], "z", "a refused set_editor changed nothing");
+    assert_ne!(ed.state()["editor"]["grid"], json!(8), "not even the grid");
+
+    // The edge of the guard: off in any spelling goes through on the ops that refuse the rest.
+    for off in [json!("off"), json!({ "axes": "off", "center": "custom", "x": 5, "z": 6 })] {
+        let mut args = rect.clone();
+        args["symmetry"] = off;
+        assert_eq!(ed.call("terrain_edit", args)["changed"], true);
+        ed.call("terrain_edit", json!({ "id": b, "op": "flatten_rect", "min": [2100, -900], "max": [2200, -800], "height": 0 }));
+    }
+
+    // One call is one undo step, mirrored dabs and all.
+    let before = ed.state()["undo"].clone();
+    let corners = [[2352.5, -584.25], [2160.5, -584.25], [2352.5, -904.25], [2160.5, -904.25]];
+    let flat: Vec<f64> = corners.iter().map(|p| height(&ed, b, *p)).collect();
+    raise(&ed, "sculpt", json!({ "center": [2352.5, 0, -584.25], "symmetry": "xz" }));
+    let raised: Vec<f64> = corners.iter().map(|p| height(&ed, b, *p)).collect();
+    assert!(raised.iter().zip(&flat).all(|(r, f)| *r > f + 1.0), "all four corners rose: {raised:?} over {flat:?}");
+    let after = ed.state()["undo"].clone();
+    assert_eq!((after[0].clone(), after[1].clone()), (json!("MCP: Terrain sculpt"), before[0].clone()));
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(ed.state()["undo"], before);
+    for (p, f) in corners.iter().zip(&flat) {
+        assert!(close(height(&ed, b, *p), *f), "undone {p:?}");
+    }
+}
+
 fn texel(uv: &Value, p: [f64; 3]) -> [f64; 2] {
     let axis = |k: &str| -> [f64; 3] {
         let a = uv[k].as_array().unwrap();

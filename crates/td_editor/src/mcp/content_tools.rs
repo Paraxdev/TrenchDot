@@ -4,8 +4,9 @@
 use std::collections::BTreeMap;
 
 use serde_json::{Value, json};
-use td_core::{Aabb, DVec2, DVec3, Mirror, NodeId};
+use td_core::{Aabb, DVec2, DVec3, NodeId};
 use td_doc::scatter::Rng;
+use td_doc::symmetry::{Symmetry, SymmetryAxes};
 use td_doc::{IoConnection, NodeKind, ScatterItem, ops};
 
 use super::ToolResult;
@@ -50,6 +51,25 @@ fn point(v: &Value) -> Option<DVec3> {
     match a.len() {
         2 => Some(DVec3::new(a[0].as_f64()?, 0.0, a[1].as_f64()?)),
         _ => vec3(v),
+    }
+}
+
+const TERRAIN_OPS: [&str; 11] =
+    ["sculpt", "sculpt_path", "paint_path", "flatten_rect", "ramp", "erode", "auto_paint", "set_layers", "holes", "clear_layer", "resize"];
+
+fn unknown_terrain_op(op: &str) -> String {
+    format!("unknown terrain op {op}, use {}, or only probe", TERRAIN_OPS.join(", "))
+}
+
+/// The `symmetry` argument of sculpt, blend and terrain_edit: "off", "x", "z" or "xz" (planes through each terrain's
+/// center), or an object with axes, center, x and z. `missing` is what a call without it uses.
+pub(crate) fn symmetry_arg(v: &Value, missing: Symmetry) -> Result<Symmetry, String> {
+    const HELP: &str = "symmetry must be off, x, z or xz, or an object with axes (off, x, z or xz), center (terrain, world or custom), x and z";
+    match v {
+        Value::Null => Ok(missing),
+        Value::String(_) => serde_json::from_value::<SymmetryAxes>(v.clone()).map(|axes| Symmetry { axes, ..Symmetry::OFF }).map_err(|_| HELP.to_string()),
+        Value::Object(_) => serde_json::from_value(v.clone()).map_err(|e| format!("{HELP}: {e}")),
+        _ => Err(HELP.to_string()),
     }
 }
 
@@ -1014,6 +1034,15 @@ impl App {
             brush.height = [h.first().and_then(|v| v.as_f64()).unwrap_or(-1e9), h.get(1).and_then(|v| v.as_f64()).unwrap_or(1e9)];
         }
 
+        let symmetry = if matches!(op, "dab" | "stroke") {
+            match symmetry_arg(&args["symmetry"], self.state.symmetry) {
+                Ok(s) => s,
+                Err(e) => return err(e),
+            }
+        } else {
+            Symmetry::OFF
+        };
+
         let select_ids = match id_list(args, "ids").and_then(|i| editable_ids(&self.state, &i)) {
             Ok(i) => i,
             Err(e) => return err(e),
@@ -1071,7 +1100,7 @@ impl App {
                 for (k, p) in resample(&points, spacing).into_iter().enumerate() {
                     let mut b = brush;
                     b.seed = brush.seed.wrapping_add(k as u32);
-                    changed |= crate::blend_tool::dab(&mut self.state, p, &b, &td_doc::symmetry::Symmetry::OFF);
+                    changed |= crate::blend_tool::dab(&mut self.state, p, &b, &symmetry);
                 }
 
                 self.state.doc.commit();
@@ -1618,6 +1647,10 @@ impl App {
             },
         };
         let probe_height = |app: &App| probe.and_then(|p| app.state.doc.map.terrain(id).map(|t| t.height_at(p.x, p.z)));
+        let symmetry = match symmetry_arg(&args["symmetry"], Symmetry::OFF) {
+            Ok(s) => s,
+            Err(e) => return err(e),
+        };
         let op = args["op"].as_str().unwrap_or_default().to_string();
         if op.is_empty() || op == "probe" {
             return match probe {
@@ -1626,8 +1659,17 @@ impl App {
             };
         }
 
+        if !TERRAIN_OPS.contains(&op.as_str()) {
+            return err(unknown_terrain_op(&op));
+        }
+
         if !self.state.doc.map.is_editable(id) {
             return err(format!("terrain {id} is hidden or locked"));
+        }
+
+        let by_center = op == "holes" && !(point(&args["min"]).is_some() && point(&args["max"]).is_some());
+        if !symmetry.is_off() && !matches!(op.as_str(), "sculpt" | "sculpt_path" | "paint_path") && !by_center {
+            return err(format!("symmetry works with sculpt, sculpt_path, paint_path and holes by center, not {op}"));
         }
 
         if op == "resize" {
@@ -1646,12 +1688,14 @@ impl App {
         let a = args.clone();
         let result: Result<Value, String> = self.state.doc.try_edit(&format!("Terrain {op}"), |m, _| {
             let Some(t) = m.terrain_mut(id) else { return Err("terrain vanished".to_string()) };
+            let mirror = symmetry.for_terrain(t);
             let radius = a["radius"].as_f64().unwrap_or(256.0);
             let strength = a["strength"].as_f64().unwrap_or(16.0);
             let changed = match op.as_str() {
                 "sculpt" | "sculpt_path" => {
-                    let mode: SculptMode = serde_json::from_value(a["mode"].clone())
-                        .map_err(|_| "mode must be raise, lower, smooth, flatten, noise, terrace, paint_alpha, erase_alpha, paint_layer, hole or unhole".to_string())?;
+                    let mode: SculptMode = serde_json::from_value(a["mode"].clone()).map_err(|_| {
+                        "mode must be raise, lower, smooth, flatten, noise, terrace, paint_alpha, erase_alpha, paint_layer, hole or unhole".to_string()
+                    })?;
                     let points: Vec<DVec3> = if op == "sculpt" {
                         point(&a["center"]).into_iter().collect()
                     } else {
@@ -1674,7 +1718,7 @@ impl App {
                     let mut any = false;
                     for (k, p) in resample(&points, a["spacing"].as_f64().unwrap_or(radius * 0.5)).into_iter().enumerate() {
                         brush.seed = seed.wrapping_add(k as u32);
-                        any |= td_doc::terrain::sculpt_terrains_single(t, p, &brush, &Mirror::NONE);
+                        any |= td_doc::terrain::sculpt_terrains_single(t, p, &brush, &mirror);
                     }
 
                     any
@@ -1689,7 +1733,7 @@ impl App {
 
                     let mut any = false;
                     for p in resample(&points, radius * 0.4) {
-                        any |= t.paint_layer(p, radius, layer, amount, &Mirror::NONE);
+                        any |= t.paint_layer(p, radius, layer, amount, &mirror);
                     }
 
                     any
@@ -1750,7 +1794,7 @@ impl App {
                         (Some(min), Some(max)) => t.set_holes_rect(DVec2::new(min.x, min.z), DVec2::new(max.x, max.z), hole),
                         _ => {
                             let Some(c) = point(&a["center"]) else { return Err("center [x, z], or min and max [x, z], required".to_string()) };
-                            t.set_holes(c, radius, hole, &Mirror::NONE)
+                            t.set_holes(c, radius, hole, &mirror)
                         }
                     }
                 }
@@ -1760,11 +1804,7 @@ impl App {
                     Some(layer) => t.clear_layer(layer as usize),
                     None => return Err("clear_layer needs layer, the index of the blend layer to clear (0 to 3)".to_string()),
                 },
-                other => {
-                    return Err(format!(
-                        "unknown terrain op {other}, use sculpt, sculpt_path, paint_path, flatten_rect, ramp, erode, auto_paint, set_layers, holes, clear_layer or resize, or only probe"
-                    ));
-                }
+                other => return Err(unknown_terrain_op(other)),
             };
             Ok(json!({ "changed": changed, "bounds": bounds_json(&t.bounds()) }))
         });
@@ -2273,5 +2313,40 @@ mod tests {
         let e = scatter_item(&json!({ "source": "res://a.glb", "align": true })).unwrap_err();
         assert!(e.contains("align") || e.contains("bool"), "a wrong field type is reported, not dropped: {e}");
         assert!(scatter_item(&json!(3)).is_err());
+    }
+
+    #[test]
+    fn symmetry_arg_reads_a_word_or_an_object() {
+        use td_doc::symmetry::SymmetryCenter;
+        let bar = Symmetry { axes: SymmetryAxes::Z, center: SymmetryCenter::Custom, x: 3.5, z: -9.25 };
+        assert_eq!(symmetry_arg(&Value::Null, bar), Ok(bar), "missing is what the caller passes");
+        for (word, axes) in [("off", SymmetryAxes::Off), ("x", SymmetryAxes::X), ("z", SymmetryAxes::Z), ("xz", SymmetryAxes::Xz)] {
+            assert_eq!(symmetry_arg(&json!(word), bar), Ok(Symmetry { axes, ..Symmetry::OFF }), "{word} replaces the whole setting");
+        }
+
+        let full = symmetry_arg(&json!({ "axes": "xz", "center": "custom", "x": -40.5, "z": 12.25 }), Symmetry::OFF);
+        assert_eq!(full, Ok(Symmetry { axes: SymmetryAxes::Xz, center: SymmetryCenter::Custom, x: -40.5, z: 12.25 }));
+        assert_eq!(
+            symmetry_arg(&json!({ "axes": "x" }), bar),
+            Ok(Symmetry { axes: SymmetryAxes::X, ..Symmetry::OFF }),
+            "object fields not given are the defaults, not the bar's"
+        );
+        assert_eq!(symmetry_arg(&json!({}), bar), Ok(Symmetry::OFF));
+
+        for bad in [
+            json!("diagonal"),
+            json!("X"),
+            json!(""),
+            json!(3),
+            json!(true),
+            json!([1]),
+            json!({ "axes": "y" }),
+            json!({ "center": "middle" }),
+            json!({ "axes": "x", "plane": 1 }),
+            json!({ "x": "far" }),
+        ] {
+            let e = symmetry_arg(&bad, bar).unwrap_err();
+            assert!(e.starts_with("symmetry must be off, x, z or xz"), "{bad}: {e}");
+        }
     }
 }

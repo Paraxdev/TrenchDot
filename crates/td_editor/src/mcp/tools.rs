@@ -9,7 +9,7 @@ use std::time::Instant;
 
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Vec2};
 use serde_json::{Value, json};
-use td_core::{Aabb, DVec2, DVec3, Mirror, NodeId};
+use td_core::{Aabb, DVec2, DVec3, NodeId};
 use td_doc::{IoConnection, NodeKind, format, issues, ops};
 use td_geom::{Brush, shapes};
 
@@ -1130,6 +1130,7 @@ impl App {
                 "clip_points": self.tools.clip.points.iter().map(|p| arr(*p)).collect::<Vec<_>>(),
                 "selected_vertices": self.tools.vertex.selected.iter().map(|p| arr(*p)).collect::<Vec<_>>(),
                 "sculpt": { "radius": s.sculpt.radius, "strength": s.sculpt.strength },
+                "symmetry": s.symmetry,
             },
             "cameras": cameras,
             "ui": {
@@ -1422,12 +1423,16 @@ impl App {
                     layer: a["layer"].as_u64().unwrap_or(self.state.sculpt.layer as u64) as u8,
                     seed: a["seed"].as_u64().unwrap_or(7) as u32,
                 };
+                let symmetry = match super::content_tools::symmetry_arg(&a["symmetry"], self.state.symmetry) {
+                    Ok(s) => s,
+                    Err(e) => return err(e),
+                };
                 let scope = crate::blend_tool::StrokeScope::of(&self.state);
                 let faces = scope.displacements(&self.state);
                 let terrains = scope.terrains;
                 let changed = self.state.doc.edit("Sculpt", |m, _| {
-                    td_doc::terrain::sculpt(m, &faces, center, &brush, &Mirror::NONE)
-                        | td_doc::terrain::sculpt_terrains(m, &terrains, center, &brush, &td_doc::symmetry::Symmetry::OFF)
+                    let mirror = symmetry.for_faces(m, &faces);
+                    td_doc::terrain::sculpt(m, &faces, center, &brush, &mirror) | td_doc::terrain::sculpt_terrains(m, &terrains, center, &brush, &symmetry)
                 });
                 return ok(json!({ "changed": changed, "faces": faces.len(), "terrains": terrains.len() }));
             }
@@ -1972,6 +1977,10 @@ impl App {
             },
             None => None,
         };
+        let symmetry = match super::content_tools::symmetry_arg(&args["symmetry"], self.state.symmetry) {
+            Ok(s) => s,
+            Err(e) => return err(e),
+        };
         if args["live_mode"].as_bool() == Some(true) && self.state.restricted() {
             return err(crate::trust::BLOCKED);
         }
@@ -1983,6 +1992,8 @@ impl App {
         if let Some(b) = args["snap"].as_bool() {
             self.state.snap = b;
         }
+
+        self.state.symmetry = symmetry;
 
         if let Some(b) = args["uv_lock"].as_bool() {
             self.state.uv_lock = b;
