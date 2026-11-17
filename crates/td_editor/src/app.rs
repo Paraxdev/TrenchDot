@@ -3571,6 +3571,7 @@ impl eframe::App for App {
             self.scene.update(&mut self.renderer, &mut self.state, self.project_generation);
         }
 
+        self.state.sync_sculpt_size();
         self.process_mcp(&ctx);
         self.state.sync_select_mode();
 

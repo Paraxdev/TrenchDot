@@ -1110,6 +1110,9 @@ impl App {
             self.project_generation += 1;
         }
 
+        // The frame only syncs before the MCP calls, a script step must already see what an earlier step selected.
+        self.state.sync_sculpt_size();
+
         match name {
             "get_state" => {
                 let mut state = self.state_summary();
@@ -2489,8 +2492,12 @@ impl App {
             }
         }
 
+        if let Some(k) = tool {
+            self.state.tool = k;
+        }
+
         if let Some(r) = args["brush_radius"].as_f64() {
-            self.state.sculpt.radius = r;
+            self.state.set_sculpt_radius(r);
             self.state.blend.radius = r;
             self.state.prefs.scatter.radius = r;
         }
@@ -2522,10 +2529,6 @@ impl App {
 
         if let Some(m) = args["material"].as_str() {
             self.state.current_material = m.to_string();
-        }
-
-        if let Some(k) = tool {
-            self.state.tool = k;
         }
 
         if let Some(live) = args["live_mode"].as_bool() {

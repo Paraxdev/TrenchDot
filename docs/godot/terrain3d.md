@@ -255,10 +255,13 @@ seam. **Paint Layer** sets a texture id instead of one of four layers. Paint Alp
 displacements and leave Terrain3D as it is. The mode menu scrolls, Paint Layer, Hole and Unhole sit at its bottom.
 
 > [!TIP]
-> Radius and strength are in map units, 32 to a meter. The defaults, radius 48 and strength 4, make a brush 3 m across
-> (a radius of 1.5 m) that raises 1 m a second, which hardly shows on a landscape hundreds of meters wide. For hills try a radius of 1000 to
-> 3000 and a strength of 50 or more, and resize the brush with Ctrl+wheel as you go. Strength stops at 256, a larger
-> value you type becomes 256.
+> Radius and strength are in map units, 32 to a meter. When a stroke can only reach Terrain3D nodes, Sculpt uses its
+> own pair, radius 1500 (a brush about 94 m across) and strength 64, since the brush terrain defaults of 48 and 4
+> hardly show on a landscape hundreds of meters wide. That is the case when you select Terrain3D nodes but no TrenchDot
+> terrain or displacement, or select nothing in a map that has none. Change the pair in the tool options bar or resize
+> the brush with Ctrl+wheel. It is remembered until you close the editor. Selecting a TrenchDot terrain or displacement
+> brings its own radius and strength back, and so does the Paint tool, which only colors brushes. Strength stops at
+> 256, a larger value you type becomes 256.
 >
 > The Top view starts zoomed in close, at zoom 0.50 in its corner label. Scroll out to about zoom 0.02 to see a 512 m
 > terrain whole.

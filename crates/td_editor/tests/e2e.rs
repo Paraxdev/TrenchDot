@@ -9469,6 +9469,8 @@ fn ground_height(ed: &Editor, x: f64, z: f64) -> f64 {
 fn terrain3d_sculpt_and_paint_edit_the_regions_under_the_brush() {
     let (ed, _) = launch_world("terrain3d_sculpt", None);
     ed.call("set_camera", json!({ "view": "top", "center": [512, 0, 128], "zoom": 0.6 }));
+    let size = ed.state()["editor"]["sculpt"].clone();
+    assert_eq!((size["radius"].as_f64(), size["strength"].as_f64()), (Some(1500.0), Some(64.0)), "a map of only Terrain3D starts Sculpt large");
     ed.call("set_editor", json!({ "tool": "sculpt", "sculpt_mode": "raise", "brush_radius": 64 }));
     let z = 128.0;
     let spots = [504.0, 520.0, 640.0];
@@ -9514,6 +9516,71 @@ fn terrain3d_sculpt_and_paint_edit_the_regions_under_the_brush() {
     assert!(sprayed.blend() > 0);
     assert!(a.region.heights[16 * 64 + 63] > world_height([0, 0], 63, 16) as f32 / 32.0 + 0.005, "the sculpt is in the pending region");
     assert_eq!(a.base, td_formats::terrain3d_cache::RegionHash([7; 32]));
+}
+
+/// A script that selects, sets the brush radius and sculpts in one call gives the radius to the brush size of what it
+/// just selected, and the stroke uses it.
+#[test]
+#[ignore]
+fn terrain3d_sculpt_size_follows_a_selection_made_in_the_same_script() {
+    let (ed, node) = launch_world("terrain3d_sculpt_size", None);
+    let brush = ed.call("create_brush", json!({ "min": [-200, 0, 40], "max": [-136, 48, 104] }))["ids"][0].clone();
+    let size = |sculpt: &Value| (sculpt["radius"].as_f64().unwrap(), sculpt["strength"].as_f64().unwrap());
+    ed.call("select", json!({ "ids": [brush] }));
+    let small = size(&ed.state()["editor"]["sculpt"]);
+    assert!(small.0 < 1000.0 && small.1 < 50.0, "a selected brush has the brush terrain size, {small:?}");
+    let (near, far) = (ground_height(&ed, 600.0, 128.0), ground_height(&ed, 900.0, 128.0));
+
+    let summary = ed.call(
+        "run_script",
+        json!({ "steps": [
+            { "tool": "select", "args": { "ids": [node] } },
+            { "tool": "set_editor", "args": { "brush_radius": 300 } },
+            { "tool": "run_action", "args": { "action": "sculpt", "args": { "center": [512, 0, 128], "mode": "raise" } } },
+            { "tool": "get_state", "save": "terrain3d" },
+            { "tool": "select", "args": { "ids": [brush] } },
+            { "tool": "set_editor", "args": { "brush_radius": 40 } },
+            { "tool": "get_state", "save": "brush" },
+        ] }),
+    );
+    assert_eq!(summary["errors"], json!([]));
+    assert_eq!(size(&summary["vars"]["terrain3d"]["editor"]["sculpt"]), (300.0, 64.0), "the radius set after the select is the Terrain3D one");
+    assert_eq!(size(&summary["vars"]["brush"]["editor"]["sculpt"]), (40.0, small.1), "and after selecting the brush again the brush one");
+    assert!(ground_height(&ed, 600.0, 128.0) > near, "the stroke raised the ground 88 units from its center");
+    assert_eq!(ground_height(&ed, 900.0, 128.0), far, "a radius of 300 stops short of 388 units");
+    ed.call("select", json!({ "ids": [node] }));
+    assert_eq!(size(&ed.state()["editor"]["sculpt"]), (300.0, 64.0));
+}
+
+/// One set_editor call that switches the tool and sets the radius writes the radius into the pair of the new tool.
+#[test]
+#[ignore]
+fn terrain3d_set_editor_tool_and_radius_in_one_call_write_the_new_tools_pair() {
+    let (ed, _node) = launch_world("terrain3d_sculpt_tool_radius", None);
+    let size = |sculpt: &Value| (sculpt["radius"].as_f64().unwrap(), sculpt["strength"].as_f64().unwrap());
+    let summary = ed.call(
+        "run_script",
+        json!({ "steps": [
+            { "tool": "set_editor", "args": { "tool": "paint" } },
+            { "tool": "get_state", "save": "paint_start" },
+            { "tool": "set_editor", "args": { "tool": "sculpt", "brush_radius": 300 } },
+            { "tool": "get_state", "save": "sculpt" },
+            { "tool": "set_editor", "args": { "tool": "paint", "brush_radius": 40 } },
+            { "tool": "get_state", "save": "paint" },
+            { "tool": "set_editor", "args": { "tool": "sculpt" } },
+            { "tool": "get_state", "save": "sculpt_again" },
+            { "tool": "set_editor", "args": { "tool": "paint" } },
+            { "tool": "get_state", "save": "paint_again" },
+        ] }),
+    );
+    assert_eq!(summary["errors"], json!([]));
+    let at = |name: &str| size(&summary["vars"][name]["editor"]["sculpt"]);
+    let brush = at("paint_start");
+    assert!(brush.0 < 1000.0 && brush.1 < 50.0, "Paint has the brush terrain size, {brush:?}");
+    assert_eq!(at("sculpt"), (300.0, 64.0), "the radius lands on the Terrain3D pair of Sculpt");
+    assert_eq!(at("paint"), (40.0, brush.1), "and on the brush pair of Paint");
+    assert_eq!(at("sculpt_again"), (300.0, 64.0), "Sculpt keeps its 300");
+    assert_eq!(at("paint_again"), (40.0, brush.1), "Paint keeps its 40");
 }
 
 /// A click in Edit Regions mode adds a region on an empty square and removes the one on a filled square, and the

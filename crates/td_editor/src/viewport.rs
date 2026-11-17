@@ -295,7 +295,7 @@ impl Viewport {
                     match cx.state.tool {
                         ToolKind::Scatter => cx.state.prefs.scatter.radius = (cx.state.prefs.scatter.radius * factor).clamp(8.0, 16384.0),
                         ToolKind::Blend => cx.state.blend.radius = (cx.state.blend.radius * factor).clamp(2.0, 16384.0),
-                        _ => cx.state.sculpt.radius = (cx.state.sculpt.radius * factor).clamp(2.0, 16384.0),
+                        _ => cx.state.set_sculpt_radius((cx.state.sculpt.radius * factor).clamp(2.0, 16384.0)),
                     }
                 } else if self.hovered && scroll != 0.0 && !(brush_tool && modifiers.command) && !(cx.state.tool == ToolKind::Texture && modifiers.alt) {
                     // Near geometry a notch moves a fixed step, from far away it covers a fifth of the distance to

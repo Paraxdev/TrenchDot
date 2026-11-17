@@ -694,6 +694,10 @@ pub struct EditorState {
     pub mirror_plane: PlaneChoice,
     /// The plane the Vertex tool mirrors vertex moves across. Session only and shared by every tab.
     pub edit_symmetry: EditSymmetry,
+    /// The radius and strength of the other kind of target, swapped with `sculpt` when strokes cross over.
+    sculpt_parked: (f64, f64),
+    sculpt_on_terrain3d: bool,
+    sculpt_scope_key: ((u64, u64, u64), u64, ToolKind),
     /// World height Auto Paint measures its bands from, such as sea level. None measures from the lowest point.
     pub auto_paint_base: Option<f64>,
     pub paint_color: [f32; 4],
@@ -882,6 +886,10 @@ struct MirrorPairs {
     turned: Vec<(NodeId, NodeId)>,
 }
 
+/// A Terrain3D landscape spans hundreds of meters, the brush terrain defaults would barely mark it.
+pub const TERRAIN3D_SCULPT_RADIUS: f64 = 1500.0;
+pub const TERRAIN3D_SCULPT_STRENGTH: f64 = 64.0;
+
 impl EditorState {
     /// The mirror planes, the gap of each and the pairs slid off their plane around the selection, kept until the map or
     /// the selection changes, since finding them walks every node of the map and the Inspector and views ask for them
@@ -921,6 +929,34 @@ impl EditorState {
                 MirrorPairs { key, selection: doc.selection.clone(), planes, drawn, gaps, drifts, turned }
             })
         })
+    }
+
+    /// Swaps the Sculpt radius and strength when strokes move between brush terrain and Terrain3D nodes only.
+    pub fn sync_sculpt_size(&mut self) {
+        // A selection change bumps the revision too.
+        let key = (self.doc.content_key(), self.doc.revision, self.tool);
+        if key == self.sculpt_scope_key {
+            return;
+        }
+
+        self.sculpt_scope_key = key;
+        // Paint shares the pair but only colors brushes, so it never takes the Terrain3D size.
+        let only_terrain3d = self.tool != ToolKind::Paint && {
+            let scope = crate::blend_tool::StrokeScope::of(self);
+            !scope.terrain3d.is_empty() && scope.terrains.is_empty() && scope.displacements(self).is_empty()
+        };
+        if only_terrain3d != self.sculpt_on_terrain3d {
+            self.sculpt_on_terrain3d = only_terrain3d;
+            let (radius, strength) = std::mem::replace(&mut self.sculpt_parked, (self.sculpt.radius, self.sculpt.strength));
+            self.sculpt.radius = radius;
+            self.sculpt.strength = strength;
+        }
+    }
+
+    /// Picks the pair for the current tool and selection first, so the radius never lands on the pair about to be swapped away.
+    pub fn set_sculpt_radius(&mut self, radius: f64) {
+        self.sync_sculpt_size();
+        self.sculpt.radius = radius;
     }
 
     pub fn new(prefs: Prefs) -> Self {
@@ -993,6 +1029,9 @@ impl EditorState {
             symmetry: Symmetry::OFF,
             mirror_plane: PlaneChoice::default(),
             edit_symmetry: EditSymmetry::OFF,
+            sculpt_parked: (TERRAIN3D_SCULPT_RADIUS, TERRAIN3D_SCULPT_STRENGTH),
+            sculpt_on_terrain3d: false,
+            sculpt_scope_key: ((0, 0, 0), 0, ToolKind::Select),
             auto_paint_base: None,
             paint_color: [0.55, 0.45, 0.35, 1.0],
             polygon_mode: Default::default(),
@@ -2405,6 +2444,87 @@ mod tests {
         assert_eq!(log, [("Grid 32", false), ("Nothing to paste", true), ("Grid 64", false)]);
         state.status_seen(true);
         assert!(state.status_alert_age().is_none());
+    }
+
+    /// A plain brush, a displacement brush, a terrain and a Terrain3D node.
+    fn with_terrain3d_and_brush_terrain() -> (EditorState, [NodeId; 4]) {
+        let mut state = EditorState::new(Prefs::default());
+        let layer = state.doc.map.default_layer();
+        let plain = td_geom::Brush::from_aabb(&Aabb::new(DVec3::new(64.0, 0.0, 96.0), DVec3::new(160.0, 32.0, 200.0)), "dev/grey").unwrap();
+        let mut disp = td_geom::Brush::from_aabb(&Aabb::new(DVec3::new(-300.0, 8.0, 40.0), DVec3::new(-170.0, 24.0, 230.0)), "dev/grey").unwrap();
+        let top = disp.faces.iter().position(|f| f.plane.normal.y > 0.9).unwrap();
+        disp.faces[top].data.disp = Some(td_geom::displacement::Displacement::new(2));
+        let terrain = td_geom::Terrain::new(DVec3::new(700.0, 0.0, -96.0), [5, 3], 32.0, "dev/grey");
+        let ids = state.doc.edit("setup", |m, _| {
+            [
+                m.insert(layer, td_doc::NodeKind::Brush(plain)),
+                m.insert(layer, td_doc::NodeKind::Brush(disp)),
+                m.insert(layer, td_doc::NodeKind::Terrain(terrain)),
+                m.insert(layer, td_doc::NodeKind::Terrain3D(td_doc::terrain3d::Terrain3DLink::new("res://data"))),
+            ]
+        });
+        (state, ids)
+    }
+
+    fn select_only(state: &mut EditorState, ids: &[NodeId]) {
+        state.doc.select(|_, s| {
+            s.clear();
+            for id in ids {
+                s.select_node(*id);
+            }
+        });
+        state.sync_sculpt_size();
+    }
+
+    #[test]
+    fn sculpt_keeps_its_own_size_while_strokes_reach_only_terrain3d() {
+        let (mut state, [plain, disp, terrain, terrain3d]) = with_terrain3d_and_brush_terrain();
+        let size = |s: &EditorState| (s.sculpt.radius, s.sculpt.strength);
+        state.sculpt.radius = 77.0;
+        state.sculpt.strength = 5.5;
+        state.sync_sculpt_size();
+        assert_eq!(size(&state), (77.0, 5.5), "with nothing selected a stroke reaches the brush terrain too");
+
+        select_only(&mut state, &[terrain3d]);
+        assert_eq!(size(&state), (TERRAIN3D_SCULPT_RADIUS, TERRAIN3D_SCULPT_STRENGTH));
+        assert!((1000.0..=3000.0).contains(&state.sculpt.radius) && state.sculpt.strength >= 50.0);
+
+        state.sculpt.radius = 2222.0;
+        state.sculpt.strength = 123.0;
+        state.sync_sculpt_size();
+        assert_eq!(size(&state), (2222.0, 123.0), "a second sync with the same selection changes nothing");
+
+        state.tool = ToolKind::Paint;
+        state.sync_sculpt_size();
+        assert_eq!(size(&state), (77.0, 5.5), "Paint shares the pair but never reaches Terrain3D");
+        state.tool = ToolKind::Sculpt;
+        state.sync_sculpt_size();
+        assert_eq!(size(&state), (2222.0, 123.0));
+
+        select_only(&mut state, &[plain]);
+        assert_eq!(size(&state), (77.0, 5.5), "without Terrain3D in the stroke the brush terrain size is back");
+
+        select_only(&mut state, &[plain, terrain3d]);
+        assert_eq!(size(&state), (2222.0, 123.0), "a brush without displacements takes no stroke, so the Terrain3D size stays");
+
+        for (other, what) in [(disp, "a displacement"), (terrain, "a terrain")] {
+            select_only(&mut state, &[other, terrain3d]);
+            assert_eq!(size(&state), (77.0, 5.5), "{what} beside the Terrain3D node takes the stroke too");
+            select_only(&mut state, &[terrain3d]);
+            assert_eq!(size(&state), (2222.0, 123.0), "the Terrain3D size is remembered for the session");
+        }
+
+        select_only(&mut state, &[]);
+        assert_eq!(size(&state), (77.0, 5.5));
+        for (locked, expected) in [(terrain, (77.0, 5.5)), (disp, (2222.0, 123.0))] {
+            state.doc.edit("lock", |m, _| m.get_mut(locked).unwrap().locked = true);
+            state.sync_sculpt_size();
+            assert_eq!(size(&state), expected, "with nothing selected, Terrain3D alone once the brush terrain is locked");
+        }
+
+        state.doc = td_doc::Document::new();
+        state.sync_sculpt_size();
+        assert_eq!(size(&state), (77.0, 5.5), "an opened map without Terrain3D gets the brush terrain size back");
     }
 
     fn came_ago(state: &mut EditorState, ago: std::time::Duration) {
