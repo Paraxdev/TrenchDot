@@ -567,7 +567,7 @@ pub fn tool_definitions() -> Vec<Value> {
                     "type": { "type": "string", "enum": ["move", "click", "double_click", "drag", "release", "key", "text", "scroll", "motion"] },
                     "x": { "type": "number" }, "y": { "type": "number" },
                     "world": vec3_schema("world position (viewport targets)"),
-                    "to": { "type": "array", "items": { "type": "number" } },
+                    "to": { "type": "array", "items": { "type": "number" }, "description": "drag end [x, y], an {x, y} object works too" },
                     "to_world": vec3_schema("drag end in world"),
                     "button": { "type": "string", "enum": ["left", "right", "middle"] },
                     "modifiers": { "type": "array", "items": { "type": "string", "enum": ["ctrl", "shift", "alt"] } },

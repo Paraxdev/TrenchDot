@@ -299,6 +299,34 @@ fn an_infodecal_placed_with_a_normal_turns_to_the_surface() {
     assert_eq!(marker["angles"], json!([0.0, 0.0, 0.0]), "{marker}");
 }
 
+/// A drag reads `to` as [x, y] or {x, y} in a view and in the window, and names `to` when it is neither.
+#[test]
+#[ignore]
+fn a_drag_takes_to_as_a_pair_or_an_object() {
+    let ed = Editor::launch("drag_to_object");
+    let view = |ed: &Editor| ed.state()["cameras"].as_array().unwrap().iter().find(|c| c["view"] == "3d").unwrap().clone();
+    // Alt+drag in 3D orbits, so where the drag ended shows in the camera.
+    let orbit = |target: &str, ev: Value| {
+        ed.call("set_camera", json!({ "view": "3d", "position": [-300, 250, 300], "look_at": [0, 64, 0] }));
+        ed.input(target, json!([ev]));
+        view(&ed)["position"].clone()
+    };
+    let pair = orbit("3d", json!({ "type": "drag", "x": 40, "y": 30, "to": [113, 57], "modifiers": ["alt"] }));
+    let object = orbit("3d", json!({ "type": "drag", "x": 40, "y": 30, "to": { "x": 113, "y": 57 }, "modifiers": ["alt"] }));
+    assert_eq!(object, pair, "an object to ends where the pair does");
+    let rect: Vec<f64> = view(&ed)["rect"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
+    let (x, y) = (rect[0], rect[1]);
+    let window = orbit("window", json!({ "type": "drag", "x": x + 40.0, "y": y + 30.0, "to": { "x": x + 113.0, "y": y + 57.0 }, "modifiers": ["alt"] }));
+    assert_eq!(window, pair, "a window drag reads the object too");
+    let centered = orbit("3d", json!({ "type": "drag", "x": 40, "y": 30, "modifiers": ["alt"] }));
+    assert_ne!(centered, pair, "a drag with no to still ends in the view center");
+
+    for (target, to) in [("3d", json!("far")), ("3d", json!({ "x": 113 })), ("window", json!([x + 113.0])), ("window", json!({ "y": y }))] {
+        let e = ed.call_err("simulate_input", json!({ "target": target, "events": [{ "type": "drag", "x": x + 40.0, "y": y + 30.0, "to": to }] }));
+        assert!(e.contains("to must be [x, y]") && e.contains(&to.to_string()), "{target} {to}: {e}");
+    }
+}
+
 #[test]
 #[ignore]
 fn a_drag_held_open_ends_with_a_later_release() {

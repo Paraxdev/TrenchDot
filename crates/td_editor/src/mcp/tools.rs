@@ -3006,10 +3006,10 @@ impl App {
 
     fn resolve_pos(&self, target: &str, ev: &Value, key_x: &str, key_world: &str) -> Result<Pos2, String> {
         if target == "window" {
-            let (x, y) = if key_x == "x" { (ev["x"].as_f64(), ev["y"].as_f64()) } else { (ev[key_x][0].as_f64(), ev[key_x][1].as_f64()) };
-            return match (x, y) {
-                (Some(x), Some(y)) => Ok(Pos2::new(x as f32, y as f32)),
-                _ => Err("window events need x and y".into()),
+            return match event_xy(ev, key_x)? {
+                Some((x, y)) => Ok(Pos2::new(x as f32, y as f32)),
+                None if key_x == "x" => Err("window events need x and y".into()),
+                None => Err(format!("window events need {key_x} as [x, y]")),
             };
         }
 
@@ -3025,11 +3025,10 @@ impl App {
             return Ok(p);
         }
 
-        let (x, y) = if key_x == "x" { (ev["x"].as_f64(), ev["y"].as_f64()) } else { (ev[key_x][0].as_f64(), ev[key_x][1].as_f64()) };
-        match (x, y) {
-            (Some(x), Some(y)) => Ok(vp.rect.min + Vec2::new(x as f32, y as f32)),
+        match event_xy(ev, key_x)? {
+            Some((x, y)) => Ok(vp.rect.min + Vec2::new(x as f32, y as f32)),
             // No position: the view center.
-            _ => Ok(vp.rect.center()),
+            None => Ok(vp.rect.center()),
         }
     }
 
@@ -3177,6 +3176,20 @@ fn value_string(v: &Value) -> String {
         Value::Array(a) => a.iter().map(value_string).collect::<Vec<_>>().join(" "),
         other => other.to_string(),
     }
+}
+
+/// The point of `ev` under `key`: its own x and y for "x", else [x, y] or {x, y}. None when the event names none.
+fn event_xy(ev: &Value, key: &str) -> Result<Option<(f64, f64)>, String> {
+    if key == "x" {
+        return Ok(ev["x"].as_f64().zip(ev["y"].as_f64()));
+    }
+
+    let v = &ev[key];
+    if v.is_null() {
+        return Ok(None);
+    }
+
+    v[0].as_f64().zip(v[1].as_f64()).or_else(|| v["x"].as_f64().zip(v["y"].as_f64())).map(Some).ok_or_else(|| format!("{key} must be [x, y], got {v}"))
 }
 
 #[cfg(test)]
