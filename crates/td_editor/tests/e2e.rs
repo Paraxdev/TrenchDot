@@ -6668,3 +6668,158 @@ fn the_first_run_card_skips_without_changing_the_keymap() {
     assert_eq!(state["status"], before, "skip says nothing");
     assert!(state["ui"]["first_run"].is_null());
 }
+
+/// Every file under `dir` as (path below it, bytes).
+fn file_tree(dir: &std::path::Path) -> std::collections::BTreeMap<String, Vec<u8>> {
+    fn walk(base: &std::path::Path, at: &std::path::Path, out: &mut std::collections::BTreeMap<String, Vec<u8>>) {
+        for entry in std::fs::read_dir(at).into_iter().flatten().flatten() {
+            if entry.path().is_dir() {
+                walk(base, &entry.path(), out);
+            } else {
+                out.insert(entry.path().strip_prefix(base).unwrap().to_string_lossy().replace('\\', "/"), std::fs::read(entry.path()).unwrap());
+            }
+        }
+    }
+
+    let mut out = Default::default();
+    walk(dir, dir, &mut out);
+    out
+}
+
+/// A project that has the addon's core definitions and the Gameplay pack template, as the addon leaves it before the pack
+/// is installed.
+fn override_project(name: &str) -> PathBuf {
+    fn copy(from: &std::path::Path, to: &std::path::Path) {
+        std::fs::create_dir_all(to).unwrap();
+        for entry in std::fs::read_dir(from).unwrap().flatten() {
+            let target = to.join(entry.file_name());
+            if entry.path().is_dir() {
+                copy(&entry.path(), &target);
+            } else {
+                std::fs::copy(entry.path(), target).unwrap();
+            }
+        }
+    }
+
+    let dir = linked_project(name, json!([]));
+    add_pack_template(&dir);
+    let addon = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../godot/addons/func_godot");
+    copy(&addon.join("fgd"), &dir.join("addons/func_godot/fgd"));
+    copy(&addon.join("src/trenchdot/entities"), &dir.join("addons/func_godot/src/trenchdot/entities"));
+    dir
+}
+
+const OVERRIDE_SETTINGS: [(&str, &str); 2] = [("func_godot", "default_map_settings"), ("trenchdot", "game_config")];
+
+/// Override in project through MCP writes the copy and its script, builds the project FGD, map settings and game
+/// config, points project.godot at them while Godot is closed, never touches the addon, and refuses a repeat.
+#[test]
+#[ignore]
+fn override_entity_wires_a_project_that_godot_has_closed() {
+    let dir = override_project("override_closed");
+    let ed = Editor::launch_with("override_closed", &["--project", dir.to_str().unwrap()]);
+    ed.call("project_content", json!({ "install": "gameplay" }));
+    let addons = file_tree(&dir.join("addons"));
+
+    let door = ed.call("override_entity", json!({ "classname": "func_door" }));
+    assert_eq!(door["definition"], "res://entities/func_door.tres");
+    assert_eq!(door["script"], "res://entities/func_door.gd");
+    assert_eq!(door["fgd"], "res://entities/project_fgd.tres");
+    assert_eq!(door["godot"], "not open");
+    let wired = json!({ "func_godot/default_map_settings": "res://entities/project_map_settings.tres", "trenchdot/game_config": "res://entities/project_game_config.tres" });
+    assert_eq!(door["project_settings"], wired);
+    let written =
+        ["func_door.tres", "func_door.gd", "project_fgd.tres", "project_map_settings.tres", "project_game_config.tres"].map(|f| format!("res://entities/{f}"));
+    assert_eq!(door["written"], json!(written), "{door}");
+
+    let read = |rel: &str| std::fs::read_to_string(dir.join(rel)).unwrap();
+    let definition = read("entities/func_door.tres");
+    assert!(definition.contains("classname = \"func_door\"") && definition.contains("path=\"res://entities/func_door.gd\""), "{definition}");
+    let script = read("entities/func_door.gd");
+    assert!(script.contains("extends \"res://trenchdot/entities/scripts/td_door.gd\""), "{script}");
+    let fgd = read("entities/project_fgd.tres");
+    assert!(fgd.contains("trenchdot_default_fgd.tres") && fgd.contains("func_door.tres"), "{fgd}");
+    let godot = read("project.godot");
+    for (section, key) in OVERRIDE_SETTINGS {
+        let value = wired[format!("{section}/{key}")].as_str().unwrap();
+        assert_eq!(td_editor::godot_settings::get(&godot, section, key).as_deref(), Some(value), "{godot}");
+    }
+
+    let player = ed.call("override_entity", json!({ "first_person_player": true }));
+    assert_eq!(player["classname"], "info_player_start");
+    assert_eq!(player["written"], json!(["res://entities/info_player_start.tres", "res://entities/info_player_start.gd", "res://entities/project_fgd.tres"]));
+    assert_eq!(player["project_settings"], json!({}), "the settings are set once");
+    assert_eq!(read("entities/info_player_start.gd"), td_editor::entity_override::PLAYER_SCRIPT);
+    assert!(read("entities/info_player_start.tres").contains("node_class = \"CharacterBody3D\""));
+    let fgd = read("entities/project_fgd.tres");
+    assert!(fgd.contains("func_door.tres") && fgd.contains("info_player_start.tres"), "{fgd}");
+    assert_eq!(read("project.godot"), godot);
+    assert_eq!(file_tree(&dir.join("addons")), addons, "nothing under addons changes");
+
+    let again = ed.call_err("override_entity", json!({ "classname": "func_door" }));
+    assert!(again.contains("func_door is overridden already. Change it in res://entities/func_door.tres and res://entities/func_door.gd"), "{again}");
+    assert_eq!(read("entities/project_fgd.tres"), fgd);
+    assert!(ed.call_err("override_entity", json!({ "first_person_player": true, "classname": "light" })).contains("info_player_start only"));
+    assert!(ed.call_err("override_entity", json!({})).contains("classname required"));
+    assert!(ed.call_err("override_entity", json!({ "classname": "my_unknown" })).contains("no definition to copy"));
+
+    let scripts = dir.join("scripts");
+    std::fs::create_dir_all(&scripts).unwrap();
+    let script = json!({ "steps": [{ "tool": "override_entity", "args": { "classname": "light" } }] });
+    std::fs::write(scripts.join("override.json"), script.to_string()).unwrap();
+    let summary = ed.call("run_script", json!({ "path": scripts.join("override.json"), "continue_on_error": true }));
+    assert_eq!(summary["errors"].as_array().map(Vec::len), Some(1), "{summary}");
+    assert!(!dir.join("entities/light.tres").exists(), "a script cannot override");
+}
+
+/// With Godot holding the project open the editor sends the project settings first and leaves project.godot to it.
+#[test]
+#[ignore]
+fn override_entity_has_an_open_godot_take_the_settings() {
+    let dir = override_project("override_open");
+    let (godot, sent) = fake_godot_editor_with(&dir, &[], json!({ "project_settings": {}, "scan": {} }));
+    let ed = Editor::launch_with("override_open", &["--project", dir.to_str().unwrap()]);
+    ed.call("set_editor", json!({ "live_link_port": godot }));
+    wait_state(&ed, "the live link", |s| s["godot"]["project_open"] == true);
+    let before = std::fs::read_to_string(dir.join("project.godot")).unwrap();
+
+    let player = ed.call("override_entity", json!({ "first_person_player": true }));
+    assert_eq!(player["godot"], "told");
+    let events: Vec<String> = sent.lock().unwrap().iter().map(|m| m["event"].as_str().unwrap().to_string()).collect();
+    assert_eq!(events, ["project_settings", "scan"], "settings first, then the files are scanned");
+    let settings = &sent_events(&sent, "project_settings")[0]["settings"];
+    assert_eq!(
+        settings,
+        &json!({ "func_godot/default_map_settings": "res://entities/project_map_settings.tres", "trenchdot/game_config": "res://entities/project_game_config.tres" })
+    );
+    assert_eq!(std::fs::read_to_string(dir.join("project.godot")).unwrap(), before, "Godot writes project.godot itself");
+    assert!(dir.join("entities/info_player_start.gd").is_file() && dir.join("entities/project_game_config.tres").is_file());
+
+    // What Godot does after it took the settings.
+    let saved = OVERRIDE_SETTINGS
+        .iter()
+        .zip(settings.as_object().unwrap().values())
+        .fold(before, |text, ((section, key), value)| td_editor::godot_settings::with_setting(&text, section, key, value.as_str().unwrap()));
+    std::fs::write(dir.join("project.godot"), saved).unwrap();
+    ed.call("override_entity", json!({ "classname": "light" }));
+    assert_eq!(sent_events(&sent, "project_settings").len(), 1, "nothing more to set");
+    assert_eq!(sent_events(&sent, "scan").len(), 2);
+}
+
+/// An addon from before the project_settings event cannot take the settings, so nothing is written.
+#[test]
+#[ignore]
+fn override_entity_asks_to_close_a_godot_with_an_old_addon() {
+    let dir = override_project("override_old_addon");
+    let (godot, sent) = fake_godot_editor_with(&dir, &[], json!({}));
+    let ed = Editor::launch_with("override_old_addon", &["--project", dir.to_str().unwrap()]);
+    ed.call("set_editor", json!({ "live_link_port": godot }));
+    wait_state(&ed, "the live link", |s| s["godot"]["project_open"] == true);
+    let before = file_tree(&dir);
+
+    let e = ed.call_err("override_entity", json!({ "classname": "light" }));
+    assert_eq!(e, "Close Godot first. It has this project open and its addon cannot take new project settings.");
+    assert_eq!(file_tree(&dir), before);
+    assert_eq!(sent_events(&sent, "project_settings").len(), 1);
+    assert!(sent_events(&sent, "scan").is_empty());
+}

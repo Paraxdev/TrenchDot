@@ -1162,6 +1162,28 @@ impl App {
         });
     }
 
+    pub(crate) fn tool_override_entity(&mut self, args: &Value) -> ToolResult {
+        use crate::entity_override::{self, Script};
+        let player = args["first_person_player"].as_bool().unwrap_or(false);
+        let classname = match (args["classname"].as_str(), player) {
+            (Some(c), true) if c != "info_player_start" => return err("first_person_player overrides info_player_start only, leave classname out or pass it"),
+            (Some(c), _) => c,
+            (None, true) => "info_player_start",
+            (None, false) => return err("classname required"),
+        };
+        match entity_override::override_in_project(&mut self.state, classname, if player { Script::Player } else { Script::Extend }, false) {
+            Ok(report) => {
+                self.state.set_status(report.message());
+                ok(json!({
+                    "classname": report.classname, "definition": report.definition, "script": report.script, "fgd": report.fgd,
+                    "written": report.written, "project_settings": report.settings.iter().map(|(key, value)| (key.clone(), json!(value))).collect::<serde_json::Map<_, _>>(),
+                    "godot": if report.godot_open { "told" } else { "not open" }
+                }))
+            }
+            Err(e) => err(e.en),
+        }
+    }
+
     pub(crate) fn tool_gameplay(&mut self, args: &Value) -> ToolResult {
         use crate::entity_wizards as wiz;
         let op = args["op"].as_str().unwrap_or_default();

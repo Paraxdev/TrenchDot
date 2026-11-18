@@ -967,6 +967,7 @@ impl App {
                 Ok(report) => ok(json!({ "added": report.added.len(), "updated": report.updated.len(), "kept": report.kept, "summary": report.summary() })),
                 Err(e) => err(e),
             },
+            "override_entity" => self.tool_override_entity(&args),
             "project_content" if args.get("install").is_some() => err("project_content install cannot run inside scripts, call it before the script"),
             "project_content" => ok(self.content_status()),
             "list_nodes" => match self.list_nodes(&args) {
