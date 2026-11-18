@@ -270,13 +270,13 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
     }
 
     let apply = Action::ApplyMirror { distance: td_doc::symmetry::MIRROR_TOLERANCE };
-    out.push(entry_with(en!("Transform"), || apply.title(), apply.clone()));
+    out.push(entry_with(en!("Group"), || apply.title(), apply.clone()));
     for axis in 0..3 {
         let a = commands::axis_name(axis);
         out.push(entry_with(en!("Transform"), || trf!("Rotate {axis} +90", axis = a), Action::Rotate { axis, degrees: 90.0 }));
         out.push(entry_with(en!("Transform"), || trf!("Rotate {axis} -90", axis = a), Action::Rotate { axis, degrees: -90.0 }));
         out.push(entry_with(en!("Transform"), || trf!("Flip {axis}", axis = a), Action::Flip { axis }));
-        out.push(entry_with(en!("Transform"), || trf!("Mirror Linked {axis}", axis = a), Action::MirrorLinked { axis }));
+        out.push(entry_with(en!("Group"), || trf!("Mirror Linked {axis}", axis = a), Action::MirrorLinked { axis, gap: 0.0 }));
         for to in [td_doc::ops::AlignTo::Min, td_doc::ops::AlignTo::Center, td_doc::ops::AlignTo::Max] {
             let action = Action::Align { axis, to };
             out.push(entry_with(en!("Transform"), || action.title(), action.clone()));
@@ -2366,6 +2366,20 @@ mod tests {
                 assert!(shown.chars().count() <= limit, "{} {label}: {} characters", lang.code(), shown.chars().count());
             }
         }
+    }
+
+    #[test]
+    fn the_mirror_commands_sit_in_the_group_category() {
+        let state = EditorState::new(crate::state::Prefs::default());
+        let entries = palette_entries(&state);
+        let label = |action: Action| entries.iter().find(|(_, a)| *a == action).map(|(l, _)| l.en.clone());
+        for (axis, name) in ["X", "Y", "Z"].into_iter().enumerate() {
+            assert_eq!(label(Action::MirrorLinked { axis, gap: 0.0 }), Some(format!("Group: Mirror Linked {name}")));
+        }
+
+        let apply = Action::ApplyMirror { distance: td_doc::symmetry::MIRROR_TOLERANCE };
+        assert_eq!(label(apply), Some("Group: Apply Mirror".to_string()));
+        assert!(!entries.iter().any(|(l, _)| l.en.starts_with("Transform: Mirror") || l.en == "Transform: Apply Mirror"));
     }
 
     #[test]

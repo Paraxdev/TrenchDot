@@ -87,9 +87,10 @@ pub enum Action {
     Flip {
         axis: usize,
     },
-    /// Copies the selected groups as a linked group mirrored across a plane on one axis.
+    /// Copies the selection as a linked group mirrored across a plane on one axis, the halves `gap` map units apart.
     MirrorLinked {
         axis: usize,
+        gap: f64,
     },
     /// Bakes the selected mirrored halves into plain geometry, joining halves that meet within `distance` map units.
     ApplyMirror {
@@ -335,7 +336,7 @@ impl Action {
             Action::CsgHollow => en!("Hollow"),
             Action::Rotate { axis, degrees } => return trf!("Rotate {axis} {degrees}°", axis = axis_name(*axis), degrees),
             Action::Flip { axis } => return trf!("Flip {axis}", axis = axis_name(*axis)),
-            Action::MirrorLinked { axis } => return trf!("Mirror Linked {axis}", axis = axis_name(*axis)),
+            Action::MirrorLinked { axis, .. } => return trf!("Mirror Linked {axis}", axis = axis_name(*axis)),
             Action::ApplyMirror { .. } => en!("Apply Mirror"),
             Action::Align { axis, to } => {
                 let axis = axis_name(*axis);
@@ -1221,7 +1222,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
                 state.set_status(msg!("Created {n} linked group(s). Edits inside one update the others", n = ids.len()));
             }
         }
-        Action::MirrorLinked { axis } => {
+        Action::MirrorLinked { axis, gap } => {
             let choice = state.mirror_plane;
             let mirrored = edit_or(state, "Mirror Linked", msg!("Select objects or groups to mirror linked"), |m, s| {
                 let is_group = |id: &NodeId| matches!(m.get(*id).map(|n| &n.kind), Some(td_doc::NodeKind::Group(_)));
@@ -1235,7 +1236,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
                     s.nodes.insert(group);
                 }
 
-                td_doc::mirror::mirror_linked(m, s, axis, &choice, 0.0)
+                td_doc::mirror::mirror_linked(m, s, axis, &choice, gap)
             });
             if let Some((copies, plane)) = mirrored {
                 state.set_status(msg_n!(
@@ -4119,7 +4120,7 @@ mod tests {
             Action::SelectTouching,
             Action::SelectInside,
             Action::DuplicateLinked,
-            Action::MirrorLinked { axis: 0 },
+            Action::MirrorLinked { axis: 0, gap: 0.0 },
             Action::Paste("not a map".into()),
         ] {
             execute(&mut state, action.clone(), &ctx);
@@ -4207,7 +4208,7 @@ mod tests {
                 state.doc.select(|_, s| s.select_node(brush));
                 state.mirror_plane = PlaneChoice { at, custom: typed };
                 let steps = state.doc.history.undo_labels().count();
-                execute(&mut state, Action::MirrorLinked { axis }, &ctx);
+                execute(&mut state, Action::MirrorLinked { axis, gap: 0.0 }, &ctx);
                 let case = format!("axis {axis} {at:?}");
                 assert!(!state.status_failed(), "{case}: {}", state.status);
                 assert_eq!(state.doc.history.undo_labels().count(), steps + 1, "{case}: wrapping and mirroring are one step");
@@ -4241,6 +4242,28 @@ mod tests {
     }
 
     #[test]
+    fn mirror_linked_gap_moves_the_copy_further_and_clamps_at_the_width() {
+        let ctx = egui::Context::default();
+        for (gap, plane) in [(0.0, 40.0), (16.0, 48.0), (-10.0, 35.0), (-32.0, 24.0), (-500.0, 24.0)] {
+            let mut state = EditorState::new(Default::default());
+            let brush = slanted_brush(&mut state);
+            let source = state.doc.map.brush(brush).unwrap().vertices.clone();
+            state.doc.select(|_, s| s.select_node(brush));
+            execute(&mut state, Action::MirrorLinked { axis: 0, gap }, &ctx);
+            assert!(!state.status_failed(), "gap {gap}: {}", state.status);
+            assert_eq!(state.doc.map.brush(brush).unwrap().vertices, source, "gap {gap}: the original stays");
+            let copy = state.doc.map.nodes.iter().filter_map(|(id, _)| state.doc.map.brush(*id).map(|b| (*id, b))).find(|(id, _)| *id != brush).unwrap().1;
+            let mut expected = source.clone();
+            for v in &mut expected {
+                v.x = 2.0 * plane - v.x;
+            }
+
+            assert_eq!(sorted(copy.vertices.iter().copied()), sorted(expected), "gap {gap}");
+            assert!(state.status.contains(&format!("at {} u", crate::gizmos::fmt_num(plane))), "gap {gap}: {}", state.status);
+        }
+    }
+
+    #[test]
     fn mirror_linked_copies_a_selected_group_without_wrapping_it_again() {
         let mut state = EditorState::new(Default::default());
         let ctx = egui::Context::default();
@@ -4249,7 +4272,7 @@ mod tests {
         execute(&mut state, Action::Group, &ctx);
         let groups = |state: &EditorState| state.doc.map.nodes.values().filter(|n| matches!(n.kind, td_doc::NodeKind::Group(_))).count();
         let before = groups(&state);
-        execute(&mut state, Action::MirrorLinked { axis: 0 }, &ctx);
+        execute(&mut state, Action::MirrorLinked { axis: 0, gap: 0.0 }, &ctx);
         assert_eq!(groups(&state), before + 1, "only the copy is new");
         assert_eq!(state.doc.map.brushes().count(), 2);
     }
@@ -4268,7 +4291,7 @@ mod tests {
             s.nodes.extend([group, loose]);
         });
         let steps = state.doc.history.undo_labels().count();
-        execute(&mut state, Action::MirrorLinked { axis: 0 }, &ctx);
+        execute(&mut state, Action::MirrorLinked { axis: 0, gap: 0.0 }, &ctx);
 
         assert!(!state.status_failed(), "{}", state.status);
         assert_eq!(state.doc.history.undo_labels().count(), steps + 1);
@@ -4290,7 +4313,7 @@ mod tests {
         state.doc.select(|_, s| s.clear());
         state.doc.mark_saved();
         let steps = state.doc.history.undo_labels().count();
-        execute(&mut state, Action::MirrorLinked { axis: 1 }, &ctx);
+        execute(&mut state, Action::MirrorLinked { axis: 1, gap: 0.0 }, &ctx);
         assert!(state.status_failed(), "{}", state.status);
         assert!(!state.doc.is_modified());
         assert_eq!(state.doc.history.undo_labels().count(), steps);
@@ -4303,7 +4326,7 @@ mod tests {
         let ctx = egui::Context::default();
         let brush = slanted_brush(&mut state);
         state.doc.select(|_, s| s.select_node(brush));
-        execute(&mut state, Action::MirrorLinked { axis: 0 }, &ctx);
+        execute(&mut state, Action::MirrorLinked { axis: 0, gap: 0.0 }, &ctx);
         let half = state.doc.map.get(brush).unwrap().parent.unwrap();
         let copy = td_doc::mirror::partners(&state.doc.map, half)[0].0;
         let other = state.doc.map.get(copy).unwrap().children[0];
@@ -4341,7 +4364,7 @@ mod tests {
         let ctx = egui::Context::default();
         let half = offset_box(&mut state);
         state.doc.select(|_, s| s.select_node(half));
-        execute(&mut state, Action::MirrorLinked { axis: 0 }, &ctx);
+        execute(&mut state, Action::MirrorLinked { axis: 0, gap: 0.0 }, &ctx);
         assert_eq!(state.doc.map.brushes().count(), 2);
         let steps = state.doc.history.undo_labels().count();
 
@@ -4393,7 +4416,7 @@ mod tests {
             let half = offset_box(&mut state);
             state.doc.select(|_, s| s.select_node(half));
             state.mirror_plane = PlaneChoice { at: PlaneAt::Custom, custom: 40.75 };
-            execute(&mut state, Action::MirrorLinked { axis: 0 }, &ctx);
+            execute(&mut state, Action::MirrorLinked { axis: 0, gap: 0.0 }, &ctx);
             state.doc.mark_saved();
             let steps = state.doc.history.undo_labels().count();
             let before = state.doc.map.nodes.clone();
@@ -4418,7 +4441,7 @@ mod tests {
         let ctx = egui::Context::default();
         let brush = slanted_brush(&mut state);
         state.doc.select(|_, s| s.select_node(brush));
-        execute(&mut state, Action::MirrorLinked { axis: 0 }, &ctx);
+        execute(&mut state, Action::MirrorLinked { axis: 0, gap: 0.0 }, &ctx);
         execute(&mut state, Action::RepeatLast, &ctx);
         let xs: Vec<(f64, f64)> = {
             let mut v: Vec<_> = state.doc.map.brushes().map(|(_, b)| (b.bounds().min.x, b.bounds().max.x)).collect();

@@ -1468,12 +1468,22 @@ impl App {
                     },
                 }
 
+                let gap = match &a["gap"] {
+                    Value::Null => 0.0,
+                    v => match v.as_f64() {
+                        Some(g) if g > td_doc::mirror::MAX_GAP => {
+                            return err(format!("mirror_linked gap must be at most {} units, got {g}", td_doc::mirror::MAX_GAP));
+                        }
+                        Some(g) => g,
+                        None => return err(format!("mirror_linked gap must be a number, got {v}")),
+                    },
+                };
                 if self.state.doc.selection.nodes.is_empty() {
                     return err("select objects or groups to mirror first");
                 }
 
                 mirrored_across = Some((axis, std::mem::replace(&mut self.state.mirror_plane, choice)));
-                Action::MirrorLinked { axis }
+                Action::MirrorLinked { axis, gap }
             }
             "apply_mirror" => {
                 let distance = match &a["distance"] {
@@ -1809,6 +1819,7 @@ impl App {
             result["copies"] = json!(selected.iter().map(|i| i.0).collect::<Vec<_>>());
             if let Some(m) = planes.iter().find(|m| m.plane.axis == axis && selected.contains(&m.group)) {
                 result["plane"] = json!({ "axis": axis_letter(axis), "at": m.plane.at });
+                result["gap"] = json!(td_doc::mirror::gap(&self.state.doc.map, m));
             }
         }
 

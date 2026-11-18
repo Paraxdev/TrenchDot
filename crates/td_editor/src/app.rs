@@ -619,6 +619,29 @@ fn menu<R>(ui: &mut Ui, title: &'static str, add_contents: impl FnOnce(&mut Ui) 
     help::register(&response, Topic::Menu(title));
 }
 
+fn groups_menu(ui: &mut Ui, m: &mut MenuCx<'_>, state: &mut EditorState) {
+    m.item(ui, None, en!("Group"), Action::Group);
+    m.item(ui, None, en!("Ungroup"), Action::Ungroup);
+    ui.separator();
+    m.item(ui, None, en!("Open Group"), Action::OpenGroup);
+    m.item(ui, None, en!("Close Group"), Action::CloseGroup);
+    ui.separator();
+    m.item(ui, None, en!("Duplicate Linked"), Action::DuplicateLinked);
+    m.item(ui, None, en!("Select Linked Groups"), Action::SelectLinkedGroups);
+    m.item(ui, None, en!("Separate Linked Groups"), Action::UnlinkGroups);
+    ui.separator();
+    let any = !state.doc.selection.nodes.is_empty();
+    for axis in 0..3 {
+        let label = msg!("Mirror Linked {axis}", axis = commands::axis_name(axis));
+        m.item_enabled(ui, None, &label, Action::MirrorLinked { axis, gap: 0.0 }, any, tr("Select objects or groups to mirror linked"));
+    }
+
+    let mirrored = !td_doc::mirror::selection_planes(&state.doc.map, &state.doc.selection).is_empty();
+    let apply = Action::ApplyMirror { distance: td_doc::symmetry::MIRROR_TOLERANCE };
+    m.item_enabled(ui, None, en!("Apply Mirror"), apply, mirrored, tr("Select one half of a mirrored pair"));
+    sub_menu(ui, None, en!("Mirror Plane"), |ui| crate::symmetry::plane_rows(ui, &mut state.mirror_plane));
+}
+
 fn sub_menu<R>(ui: &mut Ui, icon: Option<icons::Icon>, label: impl MenuLabel, add_contents: impl FnOnce(&mut Ui) -> R) {
     use egui::containers::menu::SubMenuButton;
     let (en, shown) = label.parts();
@@ -1442,17 +1465,7 @@ impl App {
                     m.item(ui, None, en!("Siblings"), Action::SelectSiblings);
                     m.item(ui, None, en!("Same Material"), Action::SelectSameMaterial);
                 });
-                sub_menu(ui, Some(icons::GROUP), en!("Groups"), |ui| {
-                    m.item(ui, None, en!("Group"), Action::Group);
-                    m.item(ui, None, en!("Ungroup"), Action::Ungroup);
-                    ui.separator();
-                    m.item(ui, None, en!("Open Group"), Action::OpenGroup);
-                    m.item(ui, None, en!("Close Group"), Action::CloseGroup);
-                    ui.separator();
-                    m.item(ui, None, en!("Duplicate Linked"), Action::DuplicateLinked);
-                    m.item(ui, None, en!("Select Linked Groups"), Action::SelectLinkedGroups);
-                    m.item(ui, None, en!("Separate Linked Groups"), Action::UnlinkGroups);
-                });
+                sub_menu(ui, Some(icons::GROUP), en!("Groups"), |ui| groups_menu(ui, &mut m, &mut self.state));
                 sub_menu(ui, Some(icons::INSTANCE), en!("Prefabs"), |ui| {
                     m.item(ui, None, en!("Create from Selection…"), Action::CreatePrefab);
                     m.item(ui, None, en!("Insert Prefab…"), Action::InsertPrefab);
@@ -1524,17 +1537,6 @@ impl App {
                         m.item(ui, None, &msg!("Flip {axis}", axis = commands::axis_name(axis)), Action::Flip { axis });
                     }
 
-                    ui.separator();
-                    let any = !self.state.doc.selection.nodes.is_empty();
-                    for axis in 0..3 {
-                        let label = msg!("Mirror Linked {axis}", axis = commands::axis_name(axis));
-                        m.item_enabled(ui, None, &label, Action::MirrorLinked { axis }, any, tr("Select objects or groups to mirror linked"));
-                    }
-
-                    let mirrored = !td_doc::mirror::selection_planes(&self.state.doc.map, &self.state.doc.selection).is_empty();
-                    let apply = Action::ApplyMirror { distance: td_doc::symmetry::MIRROR_TOLERANCE };
-                    m.item_enabled(ui, None, en!("Apply Mirror"), apply, mirrored, tr("Select one half of a mirrored pair"));
-                    sub_menu(ui, None, en!("Mirror Plane"), |ui| crate::symmetry::plane_rows(ui, &mut self.state.mirror_plane));
                     ui.separator();
                     sub_menu(ui, None, en!("Align"), |ui| {
                         for axis in 0..3 {
@@ -4176,6 +4178,35 @@ mod tests {
     struct MenuProbe {
         actions: Vec<Action>,
         under_pointer: Option<String>,
+    }
+
+    #[test]
+    fn edit_groups_menu_holds_the_mirror_commands() {
+        let mut state = EditorState::new(Prefs::default());
+        let layer = state.doc.map.default_layer();
+        let bounds = td_core::Aabb::new(td_core::DVec3::new(8.0, 2.0, -4.0), td_core::DVec3::new(40.0, 34.0, 20.0));
+        let brush = state.doc.edit("brush", |m, _| m.insert(layer, td_doc::NodeKind::Brush(td_geom::Brush::from_aabb(&bounds, "wall").unwrap())));
+        state.doc.select(|_, s| s.select_node(brush));
+        let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(500.0, 500.0)).build_ui_state(
+            |ui, p: &mut (MenuProbe, EditorState)| {
+                let mut m = MenuCx { ctx: ui.ctx().clone(), shortcuts: Vec::new(), actions: &mut p.0.actions };
+                groups_menu(ui, &mut m, &mut p.1);
+            },
+            (MenuProbe::default(), state),
+        );
+        harness.run();
+        for name in ["Mirror Linked X", "Mirror Linked Y", "Mirror Linked Z", "Apply Mirror", "Mirror Plane", "Select Linked Groups"] {
+            harness.get_by_label_contains(name);
+        }
+
+        harness.get_by_label("Mirror Linked Z").click();
+        harness.run();
+        assert_eq!(harness.state().0.actions, [Action::MirrorLinked { axis: 2, gap: 0.0 }]);
+        assert_eq!(
+            include_str!("app.rs").matches(["Mirror Linked", " {axis}"].concat().as_str()).count(),
+            1,
+            "the mirror commands are no longer in Edit > Transform"
+        );
     }
 
     #[test]

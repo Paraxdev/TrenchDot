@@ -1813,7 +1813,7 @@ fn the_inspector_mirror_row_runs_each_axis_and_keeps_the_plane_choice() {
     for axis in 0..3 {
         harness.get_by_label(&format!("Mirror Linked {}", ["X", "Y", "Z"][axis])).click();
         harness.run();
-        assert_eq!(harness.state().actions, [Action::MirrorLinked { axis }]);
+        assert_eq!(harness.state().actions, [Action::MirrorLinked { axis, gap: 0.0 }]);
         harness.state_mut().actions.clear();
     }
 
@@ -1833,7 +1833,7 @@ fn the_inspector_mirror_row_runs_each_axis_and_keeps_the_plane_choice() {
     assert_eq!(harness.state().state.mirror_plane.custom, -37.5);
     harness.get_by_label("Mirror Linked Y").click();
     harness.run();
-    assert_eq!(harness.state().actions, [Action::MirrorLinked { axis: 1 }]);
+    assert_eq!(harness.state().actions, [Action::MirrorLinked { axis: 1, gap: 0.0 }]);
     assert_eq!(harness.state().state.mirror_plane.custom, -37.5, "using the button keeps the typed plane");
 }
 

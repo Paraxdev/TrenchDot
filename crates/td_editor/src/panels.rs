@@ -1142,7 +1142,7 @@ fn selection_summary(ui: &mut Ui, state: &mut EditorState, actions: &mut Vec<Act
             ui.label(tr("Mirror Plane"));
             crate::symmetry::plane_combo(ui, &mut state.mirror_plane);
             for axis in 0..3 {
-                let action = Action::MirrorLinked { axis };
+                let action = Action::MirrorLinked { axis, gap: 0.0 };
                 if ui.small_button(action.title()).on_hover_text(action.help().map(|t| tr(t).to_string()).unwrap_or_default()).clicked() {
                     actions.push(action);
                 }

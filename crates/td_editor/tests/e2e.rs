@@ -6005,6 +6005,23 @@ fn mirror_linked_copies_follow_edits_mirrored() {
     ed.call("select", json!({ "ids": [source] }));
     let world = ed.call("run_action", json!({ "action": "mirror_linked", "args": { "axis": "y", "plane": "world" } }));
     assert_eq!(world["plane"], json!({ "axis": "y", "at": 0.0 }), "{world}");
+    assert_eq!(world["gap"], json!(4.0), "the slanted source reaches y 2, so the halves start 4 apart {world}");
+    ed.call("run_action", json!({ "action": "undo" }));
+
+    ed.call("select", json!({ "ids": [source] }));
+    let wide = ed.call("run_action", json!({ "action": "mirror_linked", "args": { "axis": "x", "plane": "max", "gap": 16 } }));
+    assert_eq!(wide["plane"], json!({ "axis": "x", "at": 48.0 }), "half the gap moves the plane {wide}");
+    assert_eq!(wide["gap"], json!(16.0), "{wide}");
+    let (min, max) = ed.selection_bounds();
+    assert!(approx(&[min[0], max[0]], &[56.0, 88.0]), "the copy sits 16 further out {min:?} {max:?}");
+    assert_eq!(vertices_of(&ed, source), flat, "the original stays");
+    ed.call("run_action", json!({ "action": "undo" }));
+
+    ed.call("select", json!({ "ids": [source] }));
+    let overlap = ed.call("run_action", json!({ "action": "mirror_linked", "args": { "axis": "x", "plane": "max", "gap": -500 } }));
+    assert_eq!(overlap["gap"], json!(-32.0), "a gap below minus the width stops there {overlap}");
+    let at = overlap["plane"]["at"].as_f64().unwrap();
+    assert!(at > 24.0 && at < 24.001, "the plane stops a hair past the middle, so the halves keep their sides {overlap}");
     ed.call("run_action", json!({ "action": "undo" }));
 
     let before = ed.state()["undo"].as_array().unwrap().len();
@@ -6017,6 +6034,8 @@ fn mirror_linked_copies_follow_edits_mirrored() {
     refuse(json!({ "plane": "left" }), "mirror_linked plane must be center, max, min, world or custom");
     refuse(json!({ "plane": 3 }), "mirror_linked plane must be center, max, min, world or custom");
     refuse(json!({ "at": "far" }), "mirror_linked at must be a number");
+    refuse(json!({ "gap": "far" }), "mirror_linked gap must be a number");
+    refuse(json!({ "axis": "x", "gap": 1e300 }), "mirror_linked gap must be at most 65536 units");
     ed.call("run_action", json!({ "action": "select_none" }));
     refuse(json!({}), "select objects or groups to mirror first");
     assert_eq!(ed.state()["undo"].as_array().unwrap().len(), before, "a refused call leaves no undo step");
