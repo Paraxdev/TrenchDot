@@ -156,6 +156,9 @@ The number a calculation works with besides the one it receives. In a math_calc 
 ## ORM
 A texture that packs three grayscale maps into its color channels, ambient occlusion in red, roughness in green and metallic in blue. Godot materials and TrenchDot terrain layers read it as one file.
 
+## override
+A project's own copy of an entity definition that keeps the original's classname, so it wins over the addon's or the Gameplay pack's. Override in project makes one, and the script that comes with it is yours to change.
+
 ## point entity
 An entity that sits at a single spot instead of taking its shape from brushes, such as a light, a sound or a spawn point. Place one by dragging it from the Entities panel into a view.
 

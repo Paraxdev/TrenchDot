@@ -32,7 +32,7 @@ Not an entity but the node that runs the streaming. Add it to your world scene a
 | --- | --- |
 | `first_section` | The section the game starts in, a scene path or a name |
 | `sections_dir` | Folder short names are found in, as `name.tscn` or `name.scn` |
-| `player_scene` | The player to spawn at the first section's `info_player_start` |
+| `player_scene` | The player to spawn at the first section's `info_player_start`. Leave it empty when the start is already the player, see [Add a first person player](../../getting-started.md#7-play-it), or the section gets a second one |
 | `player_path` | Or a player already in the scene. With neither, the first node in the `player` group a section brings is kept |
 | `recenter_distance` | Meters a loop of sections may drift from the origin before the whole world moves back, 8000 |
 

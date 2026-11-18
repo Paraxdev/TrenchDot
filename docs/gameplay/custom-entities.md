@@ -86,6 +86,42 @@ with `my_` in front, so `func_button` gives `res://entities/my_func_button.tres`
 
 ![The Reference panel on the FGD .tres tab, Create in project hovered with its tooltip, Writes res://entities/my_func_button.tres, a definition with a classname of its own, and the script it runs](../assets/custom-entities/reference-create-definition.png)
 
+## Override an entity
+
+To change an entity that ships with the addon or the Gameplay pack, such as how `func_door` moves or what `light`
+builds, override it instead of editing its files. An override is your project's own copy of the definition, with the
+same classname, so your maps keep working and your copy is the one Godot builds.
+
+Right click the entity's card in the Entities panel and choose **Override in project**, or open the entity in the
+Reference panel and click **Override in project** next to **Create in project**. The button shows while a Godot
+project is open.
+
+![The context menu of an entity card in the Entities panel with Override in project in it](../assets/custom-entities/entities-override-menu.png)
+
+![The button row of the Reference panel, Override in project next to Create in project, with its tooltip showing](../assets/custom-entities/reference-override.png)
+
+It writes two files and wires them up:
+
+| File | What it holds |
+| --- | --- |
+| `res://entities/<classname>.tres` | A copy of the definition, with a *Script Class* that is the script below. Its *Scene File*, collision and keys stay as they were |
+| `res://entities/<classname>.gd` | A script that extends the original one, so you add your code under the first lines. A definition without a script gets a short template that extends its node class |
+
+The copy also has to be in the FGD that Godot builds with. If your project has an FGD of its own, the copy is added to
+its *Entity Definitions*. If it has none, **Override in project** creates `res://entities/project_fgd.tres`,
+`project_map_settings.tres` and `project_game_config.tres`, and sets the project settings `func_godot/default_map_settings` and
+`trenchdot/game_config` to them while they are still unset or name the addon's defaults, see
+[Project setup](../godot/project-setup.md#your-own-resources). The status bar then says what was written. Build your
+maps again in Godot, because a scene that was built before keeps the old nodes.
+
+Nothing is written inside `addons/`, and nothing is written at all if a file is in the way. The status bar says which
+one, so rename it or delete it and click again.
+
+> [!NOTE]
+> The script extends the original by its path, so fixes the addon or the pack makes to that script still reach your
+> copy. The definition is a copy, so changes to the original's keys, inputs and outputs do not. To undo an override,
+> delete the two files and its entry in `project_fgd.tres`.
+
 ## Calling I/O from code
 
 Game code can use the same machinery as a map connection:

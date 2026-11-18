@@ -106,5 +106,8 @@ map entity, for example to open a door or listen for a button.
 | *GDScript class*, *C# class*, *FGD .tres* | Skeletons for writing your own |
 
 **Copy** puts the code on the clipboard. On the skeleton tabs **Create in project** writes the file under
-`res://entities/`, and leaves a file that already exists alone. Drag the divider between the class list and the details
+`res://entities/`, and leaves a file that already exists alone. **Override in project** next to it copies the entity's
+definition and a script of its own into `res://entities`, so you can change an entity of the addon or the pack, the
+same item is on the right click menu of its card in the Entities panel, see
+[Override an entity](custom-entities.md#override-an-entity). Drag the divider between the class list and the details
 to resize the list, double click it to fit the names.

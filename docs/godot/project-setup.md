@@ -112,10 +112,15 @@ later one wins, in this order:
 2. The installed pack in `res://trenchdot/entities`
 3. The entities of your own FGD file
 
-To change an entity, edit its copy in the pack, or define the same classname in your own FGD. Both work, but a
+To change an entity, edit its copy in the pack, define the same classname in your own FGD, or click **Override in project**, which does the second for you. All three work, but a
 classname defined twice is easy to forget, so the editor tells you. When the project opens, the status bar names the
 definition that wins. The Issues panel warns about each doubly defined class a map uses. Delete one of the two to
 settle it.
+
+A copy made with **Override in project** is the exception. It shares its classname with the original on purpose, so the
+status bar and the Issues panel leave it out, and only a definition you wrote twice by hand still warns. This needs the
+addon that came with this version of TrenchDot, an older one warns about overrides too. See
+[Override an entity](../gameplay/custom-entities.md#override-an-entity).
 
 ## Your own resources
 
@@ -123,7 +128,11 @@ Three resources work together. The FGD file lists the entities your maps can use
 textures are and which FGD to read. The game config tells TrenchDot about both, so the editor offers the same
 entities and textures while you edit.
 
-The quickest route is to copy `demo_fgd.tres`, `demo_map_settings.tres` and `demo_game_config.tres` from
+The quickest route is **Override in project**, on an entity card in the Entities panel or in the Reference panel. When
+your project has no FGD of its own, it creates the three resources below in `res://entities` along with the first
+override, and points the two project settings at them. The steps that follow are for choosing other names or paths.
+
+Another route is to copy `demo_fgd.tres`, `demo_map_settings.tres` and `demo_game_config.tres` from
 [`godot/demo`](https://github.com/Paraxdev/TrenchDot/tree/main/godot/demo) into your project and fix the paths. To
 make them yourself, do this in the Godot editor:
 

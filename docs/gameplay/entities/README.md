@@ -46,7 +46,9 @@ To add your own classes, see [Custom entities in GDScript](../custom-entities.md
 **The core** comes with the addon and needs no pack. Worldspawn holds the sun, ambient light, sky, fog and streaming
 settings, and the Inspector shows it when nothing is selected. The FuncGodot classes `func_geo`, `func_detail`,
 `func_detail_illusionary` and `func_illusionary` build plain geometry. `info_player_start` marks where the player
-spawns but spawns nothing itself, your game code puts the player there. [`light` and `light_spot`](effects.md) are the
+spawns, and by itself it spawns nothing, your game code puts the player there. To get a first person player without
+writing one, click **Add a first person player** in the Set up this project window, it turns `info_player_start` into
+the player, see [Build your first room](../../getting-started.md#7-play-it). [`light` and `light_spot`](effects.md) are the
 switchable lights.
 
 Brush entities and model entities collide by default, see [Collision](collision.md) for the keys that change it.

@@ -69,7 +69,7 @@ An agent can turn MCP off as well, with `set_editor` and `"mcp": false`. Only yo
 | Edit | Change what exists: entity keys, selection, placement, faces, textures, terrain, layers and groups, and worldspawn | `update_entity`, `select`, `transform`, `duplicate`, `set_face`, `mesh_edit`, `texture`, `terrain_edit`, `hierarchy`, `set_map_properties`, `bake_lighting` |
 | Paint and gameplay | Scatter models, blend materials, paste pieces from the prefab library, and turn brushes into doors, platforms and buttons | `scatter`, `blend`, `prefab_library`, `random_fill`, `gameplay` |
 | Editor | Run menu actions, open and save files, change editor settings, move the camera, take screenshots, send input and check where a player can walk | `run_action`, `map_file`, `open_project`, `set_editor`, `set_camera`, `screenshot`, `simulate_input`, `walkability` |
-| Project | Add the Gameplay entities pack, the nature models or the demo to the open Godot project | `project_content` |
+| Project | Add the Gameplay entities pack, the nature models or the demo to the open Godot project, and override an entity or add the first person player | `project_content`, `override_entity` |
 | Scripts | Replay a saved list of tool calls, see [MCP scripts](mcp-scripts.md) | `run_script` |
 
 Each tool's description lists its operations and arguments, so an agent learns them straight from the server.

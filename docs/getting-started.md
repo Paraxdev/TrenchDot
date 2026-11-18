@@ -275,87 +275,23 @@ bar says why, see [Rebuild on save](godot/live.md#rebuild-on-save).
 
 ## 7. Play it
 
-Your player is your `info_player_start`. You give the start a script of your own, and every build turns it into the
-player, standing where you placed the start and facing its way. The script below is short, it walks, looks around and
-opens the door you look at.
+The first person player comes from the Set up this project window. It turns your `info_player_start` into a player that
+walks, looks around and opens the door you look at, so there is nothing to put together in Godot.
 
-The addon's `info_player_start` is only a marker, so your project gets its own definition of it, listed in a small FGD
-on top of the addon's. [Custom entities in GDScript](gameplay/custom-entities.md) explains these resources.
+1. In TrenchDot, choose *Godot > Add Content to Project…* to open the Set up this project window again. Under
+    *First person player*, click **Add a first person player**.
 
-1. In Godot's FileSystem panel at the bottom left, right click `res://`, choose *Create New > Folder…* and name it
-   `entities`.
-2. Right click `entities`, choose *Create New > Script…*, set *Inherits* to `CharacterBody3D`, name it `player.gd` and
-   click Create. Replace everything in the script editor with this:
+    ![The First person player section of the Set up this project window after clicking Add a first person player](assets/getting-started/setup-first-person-player.png)
 
-    ```gdscript
-    extends CharacterBody3D
-    ## First person player for a TrenchDot map, the script of info_player_start. The build puts it where the player start
-    ## is and turns it the way the start faces. WASD walks, the mouse looks, E uses the door or button you look at, Esc
-    ## frees the mouse and a click captures it again.
+    The note under the button says what was written. If you do not see the section, the addon is not installed in this
+    project yet, see step 3.
 
-    const SPEED := 5.0
-    const USE_DISTANCE := 2.5
-    const LOOK := 0.0025
+2. Press Ctrl+S in TrenchDot, or **Build Map** on the map node in Godot, so the room is built again.
+3. Press F6 to play the scene.
 
-    var head := Node3D.new()
-    var camera := Camera3D.new()
-
-    func _ready() -> void:
-    	var shape := CollisionShape3D.new()
-    	shape.shape = CapsuleShape3D.new()
-    	shape.position.y = 1.0
-    	add_child(shape)
-    	head.position.y = 1.6
-    	head.add_child(camera)
-    	add_child(head)
-    	add_to_group(&"player")
-    	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-
-    func _unhandled_input(event: InputEvent) -> void:
-    	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
-    		rotate_y(-event.relative.x * LOOK)
-    		head.rotation.x = clampf(head.rotation.x - event.relative.y * LOOK, -1.5, 1.5)
-    	elif event is InputEventMouseButton and event.pressed:
-    		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-    	elif event is InputEventKey and event.pressed and not event.echo:
-    		if event.keycode == KEY_ESCAPE:
-    			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-    		elif event.keycode == KEY_E:
-    			_use()
-
-    func _physics_process(delta: float) -> void:
-    	if not is_on_floor():
-    		velocity += get_gravity() * delta
-    	var keys := Vector2(
-    		float(Input.is_key_pressed(KEY_D)) - float(Input.is_key_pressed(KEY_A)),
-    		float(Input.is_key_pressed(KEY_S)) - float(Input.is_key_pressed(KEY_W)))
-    	var walk := basis * Vector3(keys.x, 0.0, keys.y).normalized() * SPEED
-    	velocity = Vector3(walk.x, velocity.y, walk.z)
-    	move_and_slide()
-
-    func _use() -> void:
-    	var from := camera.global_position
-    	var query := PhysicsRayQueryParameters3D.create(from, from - camera.global_basis.z * USE_DISTANCE)
-    	query.exclude = [get_rid()]
-    	var node: Node = get_world_3d().direct_space_state.intersect_ray(query).get("collider")
-    	while node and not node.has_method(&"use"):
-    		node = node.get_parent()
-    	if node:
-    		node.use(self)
-    ```
-
-3. Right click `entities`, choose *Create New > Resource…*, pick `FuncGodotFGDPointClass` and save it as
-   `info_player_start.tres`. In the Inspector, set *Classname* to `info_player_start` and drag `player.gd` from the
-   FileSystem panel onto *Script Class*. Leave *Node Class* empty, the build then makes the `CharacterBody3D` that
-   the script extends.
-4. Create another resource there, a `FuncGodotFGDFile` saved as `fgd.tres`. Add
-   `res://addons/func_godot/fgd/trenchdot_default_fgd.tres` to its *Base Fgd Files*, which keeps the light, the door
-   and every other entity, and add `info_player_start.tres` to its *Entity Definitions*. A definition there wins over
-   the one of the same classname in a base file.
-5. Create a third, a `FuncGodotMapSettings` saved as `map_settings.tres`, and set its *Entity Fgd* to `fgd.tres`.
-6. Select the `FuncGodotMap` from step 6, set its *Map Settings* to `map_settings.tres` and press **Build Map**. In
-   the Scene panel the start is now a `CharacterBody3D` with `player.gd` on it.
-7. Press F6 to play the scene.
+> [!NOTE]
+> If you added a `Player` node by hand in an earlier version of this page, delete it. The player start is the player
+> now, and a second one would stand in the same spot.
 
 | Key | Action |
 | --- | --- |
@@ -365,15 +301,74 @@ on top of the addon's. [Custom entities in GDScript](gameplay/custom-entities.md
 | Esc | Free the mouse, a click captures it again |
 | F8 | Stop the game |
 
-The light you placed lights the room, and E slides the door up by its `travel`. That is the whole loop, block out,
-texture, entities, play. Go back to TrenchDot, move the start or change the room, press Ctrl+S, and Godot rebuilds
-the scene with the player in its new spot.
+The button wrote the script to `res://entities/info_player_start.gd`, next to a copy of the `info_player_start`
+definition that uses it. When Godot builds the map, the player start becomes the player itself, a `CharacterBody3D` at
+the start that faces the way the start faces, with the script attached. The light you placed lights the room, and E
+slides the door up by its `travel`. That is the whole loop, block out, texture, entities, play. Go back to TrenchDot,
+change the room, press Ctrl+S, and Godot rebuilds the scene.
 
-> [!TIP]
-> To have every map in the project build with your FGD, point the project setting `func_godot/default_map_settings`
-> at `map_settings.tres` instead, see [Project setup](godot/project-setup.md#your-own-resources). That page also
-> adds a game config, so TrenchDot reads your FGD while you edit. This room does not need it, TrenchDot already offers
-> `info_player_start`.
+Open the script to change how the player moves, it is yours now:
+
+```gdscript
+extends CharacterBody3D
+## First person player for a TrenchDot map, the script of info_player_start. The build puts it where the player start
+## is and turns it the way the start faces. WASD walks, the mouse looks, E uses the door or button you look at, Esc
+## frees the mouse and a click captures it again.
+
+const SPEED := 5.0
+const USE_DISTANCE := 2.5
+const LOOK := 0.0025
+
+var head := Node3D.new()
+var camera := Camera3D.new()
+
+func _ready() -> void:
+	var shape := CollisionShape3D.new()
+	shape.shape = CapsuleShape3D.new()
+	shape.position.y = 1.0
+	add_child(shape)
+	head.position.y = 1.6
+	head.add_child(camera)
+	add_child(head)
+	add_to_group(&"player")
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+		rotate_y(-event.relative.x * LOOK)
+		head.rotation.x = clampf(head.rotation.x - event.relative.y * LOOK, -1.5, 1.5)
+	elif event is InputEventMouseButton and event.pressed:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	elif event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_ESCAPE:
+			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		elif event.keycode == KEY_E:
+			_use()
+
+func _physics_process(delta: float) -> void:
+	if not is_on_floor():
+		velocity += get_gravity() * delta
+	var keys := Vector2(
+		float(Input.is_key_pressed(KEY_D)) - float(Input.is_key_pressed(KEY_A)),
+		float(Input.is_key_pressed(KEY_S)) - float(Input.is_key_pressed(KEY_W)))
+	var walk := basis * Vector3(keys.x, 0.0, keys.y).normalized() * SPEED
+	velocity = Vector3(walk.x, velocity.y, walk.z)
+	move_and_slide()
+
+func _use() -> void:
+	var from := camera.global_position
+	var query := PhysicsRayQueryParameters3D.create(from, from - camera.global_basis.z * USE_DISTANCE)
+	query.exclude = [get_rid()]
+	var node: Node = get_world_3d().direct_space_state.intersect_ray(query).get("collider")
+	while node and not node.has_method(&"use"):
+		node = node.get_parent()
+	if node:
+		node.use(self)
+```
+
+The same click is on every entity card. Right click a card in the Entities panel and choose **Override in project**
+to copy that entity's definition and a script of its own into `res://entities`, see
+[Override an entity](gameplay/custom-entities.md#override-an-entity).
 
 Your own player needs two things for the pack's entities. Triggers only react to bodies in the Godot group `player` on
 physics layer 1, and doors and buttons move when your player code calls `use()` on the one it looks at, as this script
