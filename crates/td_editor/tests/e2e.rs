@@ -3429,6 +3429,104 @@ fn ctrl_click_adds_to_the_selection_with_the_uv_editor_showing() {
     assert_eq!(state["selection"]["faces"].as_array().unwrap().len(), 12, "both boxes' faces for UV work: {}", state["selection"]);
 }
 
+/// The TrenchBroom click rules in the 3D view: a click replaces the selection, Ctrl+click toggles an object, Shift+click
+/// picks one face and Ctrl+Shift+click toggles a face. Shift on something without faces acts like a click.
+#[test]
+#[ignore]
+fn shift_click_picks_one_face_and_ctrl_shift_click_toggles_faces() {
+    let ed = Editor::launch("click_rules");
+    let a = ed.box_brush([8.0, -16.0, 0.0], [72.0, 48.0, 40.0]);
+    let b = ed.box_brush([136.0, 4.0, 12.0], [200.0, 52.0, 76.0]);
+    let wedge = ed.call("create_brush", json!({ "min": [-72, 8, 200], "max": [-8, 72, 296], "shape": "wedge" }))["ids"][0].as_u64().unwrap();
+    let light = ed.call("create_entity", json!({ "classname": "light", "origin": [250, 30, 100] }))["id"].as_u64().unwrap();
+    ed.call("select", json!({ "ids": [] }));
+
+    // The 3D view puts a transform gizmo over a selected object that takes clicks on small boxes, so the clicks go
+    // through the top view for top and slanted faces and the front view for the front face.
+    let click = |view: &str, at: [f64; 3], modifiers: &[&str]| {
+        ed.call("set_camera", json!({ "view": view, "center": at, "zoom": 1.0 }));
+        ed.input(view, json!([{ "type": "click", "world": at, "modifiers": modifiers }]));
+    };
+    let nodes = || {
+        let mut n = selected(&ed);
+        n.sort_unstable();
+        n
+    };
+    let faces = || {
+        let state = ed.state();
+        let mut f: Vec<(u64, u64)> = state["selection"]["faces"].as_array().unwrap().iter().map(|p| (p[0].as_u64().unwrap(), p[1].as_u64().unwrap())).collect();
+        f.sort_unstable();
+        f
+    };
+    let normal = |(id, face): (u64, u64)| -> Vec<f64> {
+        let got = ed.call("texture", json!({ "op": "get", "faces": [[id, face]] }));
+        got["faces"][0]["normal"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect()
+    };
+    let top_a = [14.0, 48.0, 4.0];
+    let top_b = [192.0, 52.0, 70.0];
+    let front_b = [192.0, 10.0, 76.0];
+    let slant = [-14.0, 59.2, 219.2];
+    let empty = [150.0, 20.0, 250.0];
+
+    click("top", top_a, &[]);
+    assert_eq!((nodes(), faces()), (vec![a], vec![]), "a click selects the object");
+    click("top", top_a, &["shift"]);
+    let first = faces();
+    assert_eq!((nodes(), first.len()), (vec![], 1), "Shift+click leaves the object for one face of it");
+    assert_eq!(first[0].0, a);
+    assert!(approx(&normal(first[0]), &[0.0, 1.0, 0.0]), "the face under the cursor is the top");
+
+    click("top", top_b, &["ctrl", "shift"]);
+    let both = faces();
+    assert_eq!(both.len(), 2, "Ctrl+Shift+click adds a face on another brush: {both:?}");
+    assert_eq!(both.iter().map(|f| f.0).collect::<Vec<_>>(), vec![a, b]);
+    assert!(nodes().is_empty());
+
+    click("front", front_b, &["ctrl", "shift"]);
+    assert_eq!(faces().len(), 3, "a second face of the same brush is added");
+    click("front", front_b, &["ctrl", "shift"]);
+    assert_eq!(faces(), both, "Ctrl+Shift+click on a selected face removes just that face");
+
+    click("top", slant, &["ctrl", "shift"]);
+    let with_slant = faces();
+    assert_eq!(with_slant.len(), 3);
+    let slanted = *with_slant.iter().find(|f| f.0 == wedge).expect("the wedge face is selected");
+    let n = normal(slanted);
+    assert!(n[0].abs() < 1e-3 && (n[1] - 0.8321).abs() < 1e-3 && (n[2] - 0.5547).abs() < 1e-3, "the slanted face {n:?}");
+
+    click("front", front_b, &["shift"]);
+    let only = faces();
+    assert_eq!(only.len(), 1, "Shift+click replaces the face selection: {only:?}");
+    assert_eq!(only[0].0, b);
+    assert!(approx(&normal(only[0]), &[0.0, 0.0, 1.0]), "the front face of B");
+
+    click("top", top_a, &[]);
+    assert_eq!((nodes(), faces()), (vec![a], vec![]), "a plain click on an object leaves face selection");
+    click("top", top_b, &["ctrl"]);
+    assert_eq!((nodes(), faces()), (vec![a, b], vec![]), "Ctrl+click adds an object");
+    click("top", top_a, &["ctrl"]);
+    assert_eq!((nodes(), faces()), (vec![b], vec![]), "Ctrl+click on a selected object removes it");
+
+    click("top", top_a, &["shift"]);
+    assert_eq!(faces().len(), 1);
+    click("top", [250.0, 30.0, 100.0], &["shift"]);
+    assert_eq!((nodes(), faces()), (vec![light], vec![]), "Shift+click on an entity selects it like a click");
+    click("top", top_a, &["shift"]);
+    click("top", [250.0, 30.0, 100.0], &["ctrl", "shift"]);
+    assert_eq!((nodes(), faces()), (vec![light], vec![]), "Ctrl+Shift on an entity toggles the object, and objects and faces never mix");
+
+    click("top", top_a, &["shift"]);
+    click("top", empty, &["ctrl"]);
+    assert_eq!((nodes(), faces().len()), (vec![], 1), "Ctrl+click on empty space keeps the selection");
+    click("top", empty, &["ctrl", "shift"]);
+    assert_eq!((nodes(), faces().len()), (vec![], 1), "so does Ctrl+Shift+click");
+    click("top", empty, &["shift"]);
+    assert_eq!((nodes(), faces()), (vec![], vec![]), "Shift+click on empty space clears like a click");
+    click("top", top_a, &[]);
+    click("top", empty, &[]);
+    assert_eq!((nodes(), faces()), (vec![], vec![]), "a click on empty space clears");
+}
+
 /// Ctrl+Shift+A turns the selected brushes into their faces, and is not swallowed by Ctrl+A (select all).
 #[test]
 #[ignore]

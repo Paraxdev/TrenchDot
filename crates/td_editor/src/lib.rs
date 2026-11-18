@@ -35,6 +35,7 @@ pub mod mcp;
 pub mod mesh_tool;
 pub mod model_thumbs;
 pub mod models;
+pub mod mouse_map;
 pub mod overlays;
 pub mod panels;
 pub mod picking;

@@ -7,6 +7,7 @@ use td_render::{Frame, FrameParams, LineVertex, Renderer, ViewTarget};
 use crate::camera::{Camera, ViewKind};
 use crate::commands::Action;
 use crate::i18n::{en, msg, msg_n, tr, trf};
+use crate::mouse_map::{ClickHit, ClickRule, click_rule};
 use crate::panels::DndPayload;
 use crate::picking::{self, Hit};
 use crate::scene::{SceneCache, v3};
@@ -420,25 +421,19 @@ impl Viewport {
 
             self.last_click = (self.camera.kind.is_2d() && plain).then_some((pos, now));
             let map = &cx.state.doc.map;
+            let click_hit = match hit {
+                None => ClickHit::None,
+                Some(h) if h.face.is_some() => ClickHit::Face,
+                Some(_) => ClickHit::Object,
+            };
+            let rule = click_rule(modifiers.command, modifiers.shift, click_hit);
             match hit {
-                Some(h) if modifiers.shift && h.face.is_some() => {
-                    let (id, face) = (h.node, h.face.unwrap());
-                    cx.state.doc.select(|_, s| {
-                        if modifiers.command {
-                            s.toggle_face(id, face);
-                        } else {
-                            s.clear();
-                            s.select_face(id, face);
-                        }
-                    });
-                }
-
                 // With the UV editor open, ctrl+click grabs every face of the object so all sides are edited at
                 // once. Repeating on another object adds its faces, and selected brushes and meshes turn into their
                 // faces too. A selection holding anything without faces keeps the usual add or remove.
                 Some(h)
                     if cx.state.uv_panel_open
-                        && modifiers.command
+                        && rule == ClickRule::ToggleObject
                         && h.face.is_some()
                         && cx.state.doc.selection.nodes.iter().all(|id| map.brush(*id).is_some() || map.mesh(*id).is_some()) =>
                 {
@@ -447,21 +442,34 @@ impl Viewport {
                     cx.state.doc.select(|m, s| s.select_faces_of(m, objects));
                     cx.state.set_status(msg!("Selected every face for UV work. Ctrl+click adds whole objects once the UV Editor tab is hidden"));
                 }
-                Some(h) => {
-                    let target = map.click_target(h.node, &open_groups);
-                    cx.state.last_bounds = map.bounds(target);
-                    cx.state.outliner_reveal = Some(target);
-                    cx.state.doc.select(|_, s| {
-                        if modifiers.command {
-                            s.toggle_node(target);
-                        } else {
-                            s.clear();
-                            s.select_node(target);
-                        }
-                    });
-                }
+                Some(h) => match rule {
+                    ClickRule::ReplaceFace | ClickRule::ToggleFace => {
+                        let (id, face) = (h.node, h.face.unwrap());
+                        cx.state.doc.select(|_, s| {
+                            if rule == ClickRule::ToggleFace {
+                                s.toggle_face(id, face);
+                            } else {
+                                s.clear();
+                                s.select_face(id, face);
+                            }
+                        });
+                    }
+                    _ => {
+                        let target = map.click_target(h.node, &open_groups);
+                        cx.state.last_bounds = map.bounds(target);
+                        cx.state.outliner_reveal = Some(target);
+                        cx.state.doc.select(|_, s| {
+                            if rule == ClickRule::ToggleObject {
+                                s.toggle_node(target);
+                            } else {
+                                s.clear();
+                                s.select_node(target);
+                            }
+                        });
+                    }
+                },
                 None => {
-                    if !modifiers.command {
+                    if rule == ClickRule::Clear {
                         cx.state.doc.select(|_, s| s.clear());
                     }
                 }
