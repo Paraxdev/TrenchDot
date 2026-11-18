@@ -2359,7 +2359,7 @@
   "Welcome to TrenchDot": "TrenchDotへようこそ",
   "The box height caps the sweep at {angle}°": "ボックスの高さによりアーチの角度は {angle}° までに制限されます",
   "At least half the span. At 180 the arch is a half ellipse and this shows half the span": "最小値はスパンの半分です。180 ではアーチは半楕円になり、スパンの半分を表示します",
-  "How much of a circle the arch sweeps, 180 is a half circle": "アーチが描く円の角度です。180 で半円になります",
+  "How much of a circle the arch sweeps. At 180 it is a half ellipse as tall as the box, below 180 the box height only caps how high it rises": "アーチが描く円の角度です。180 ではボックスと同じ高さの半楕円になり、180 未満ではボックスの高さは立ち上がりの上限にだけ使われます",
   "Radius of the arch circle in map units, linked to the angle": "アーチの円の半径です (マップ単位)。角度と連動します",
   "Tunnel": "トンネル",
   "Profile": "断面",

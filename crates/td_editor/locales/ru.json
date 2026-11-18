@@ -2359,7 +2359,7 @@
   "Welcome to TrenchDot": "Добро пожаловать в TrenchDot",
   "The box height caps the sweep at {angle}°": "Высота рамки ограничивает арку до {angle}°",
   "At least half the span. At 180 the arch is a half ellipse and this shows half the span": "Не меньше половины пролёта. При 180 арка это половина эллипса, и здесь показана половина пролёта",
-  "How much of a circle the arch sweeps, 180 is a half circle": "Какую часть окружности занимает арка, 180 это полуокружность",
+  "How much of a circle the arch sweeps. At 180 it is a half ellipse as tall as the box, below 180 the box height only caps how high it rises": "Какую часть окружности занимает арка. При 180 это половина эллипса высотой с рамку, ниже 180 высота рамки только ограничивает подъём арки",
   "Radius of the arch circle in map units, linked to the angle": "Радиус окружности арки в единицах карты, связан с углом",
   "Tunnel": "Тоннель",
   "Profile": "Профиль",

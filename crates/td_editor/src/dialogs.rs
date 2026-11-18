@@ -743,7 +743,9 @@ impl ShapeDialog {
         let span = if self.kind == ShapeKind::Arch { size.x } else { (size.x - self.thickness * 2.0).max(1.0) };
         let height = if self.kind == ShapeKind::Arch { size.y } else { (size.y - self.thickness).max(1.0) };
         ui.horizontal(|ui| {
-            ui.label(tr("Angle")).on_hover_text(tr("How much of a circle the arch sweeps, 180 is a half circle"));
+            ui.label(tr("Angle")).on_hover_text(tr(
+                "How much of a circle the arch sweeps. At 180 it is a half ellipse as tall as the box, below 180 the box height only caps how high it rises",
+            ));
             // Clamped on edits only, else the slider rounds an angle set from a typed radius to its one decimal.
             ui.add(egui::Slider::new(&mut self.angle, shapes::ARCH_MIN_ANGLE..=180.0).suffix("°").max_decimals(1).clamping(egui::SliderClamping::Edits));
         });
