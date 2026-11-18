@@ -11,6 +11,8 @@ struct Camera {
 struct VOut {
     @builtin(position) clip: vec4<f32>,
     @location(0) color: vec4<f32>,
+    // Linear color the 2D views on paper draw with instead of flipping `color`, alpha 1 when set.
+    @location(1) paper: vec4<f32>,
 };
 
 const NEAR_W: f32 = 0.0001;
@@ -63,5 +65,6 @@ fn fs_main(f: VOut) -> @location(0) vec4<f32> {
     if (cam.viewport.w <= 0.0) {
         return f.color;
     }
-    return vec4<f32>(flip(f.color.rgb, cam.viewport.w), paper_alpha(f.color.a));
+    let ink = select(flip(f.color.rgb, cam.viewport.w), f.paper.rgb, f.paper.a > 0.5);
+    return vec4<f32>(ink, paper_alpha(f.color.a));
 }

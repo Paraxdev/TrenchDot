@@ -46,6 +46,8 @@ pub struct LineShape {
     max: [f32; 3],
     /// Snorm: xyz the arrow direction, w 1 for a box with an arrow, 0 for a box without, -1 for a cross.
     arrow: [i16; 4],
+    /// sRGB encoded, alpha 255 when the 2D views on paper draw the shape in this color instead of flipping `color`.
+    paper: [u8; 4],
 }
 
 impl LineShape {
@@ -56,13 +58,23 @@ impl LineShape {
             None => (Vec3::ZERO, 0),
         };
         let snorm = |v: f32| (v * i16::MAX as f32).round() as i16;
-        LineShape { min: min.to_array(), color: srgb_bytes(color), max: max.to_array(), arrow: [snorm(dir.x), snorm(dir.y), snorm(dir.z), w] }
+        LineShape { min: min.to_array(), color: srgb_bytes(color), max: max.to_array(), arrow: [snorm(dir.x), snorm(dir.y), snorm(dir.z), w], paper: [0; 4] }
     }
 
     /// Two lines through `center` along X and Z, `radius` long each way.
     pub fn cross(center: Vec3, radius: f32, color: [f32; 4]) -> Self {
         let r = Vec3::new(radius, 0.0, radius);
-        LineShape { min: (center - r).to_array(), color: srgb_bytes(color), max: (center + r).to_array(), arrow: [0, 0, 0, -i16::MAX] }
+        LineShape { min: (center - r).to_array(), color: srgb_bytes(color), max: (center + r).to_array(), arrow: [0, 0, 0, -i16::MAX], paper: [0; 4] }
+    }
+
+    /// Draws the shape in `rgb` on paper, where the lightness flip would turn a bright color into a dull one.
+    pub fn with_paper(mut self, rgb: [u8; 3]) -> Self {
+        self.paper = [rgb[0], rgb[1], rgb[2], u8::MAX];
+        self
+    }
+
+    pub fn paper(&self) -> Option<[u8; 3]> {
+        (self.paper[3] != 0).then_some([self.paper[0], self.paper[1], self.paper[2]])
     }
 
     fn segments(&self) -> u32 {
@@ -916,7 +928,7 @@ impl Renderer {
         let mesh_overlay = make("mesh overlay", &mesh_shader, &mesh_layout, &mesh_buffers, tri, false, true, false, Always);
         let line_depth = make("line depth", &line_shader, &line_layout, &line_buffers, tri, false, true, false, GreaterEqual);
         let line_overlay = make("line overlay", &line_shader, &line_layout, &line_buffers, tri, false, true, false, Always);
-        let shape_attrs = wgpu::vertex_attr_array![0 => Float32x3, 1 => Unorm8x4, 2 => Float32x3, 3 => Snorm16x4];
+        let shape_attrs = wgpu::vertex_attr_array![0 => Float32x3, 1 => Unorm8x4, 2 => Float32x3, 3 => Snorm16x4, 4 => Unorm8x4];
         let shape_buffers = [Some(wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<LineShape>() as u64,
             step_mode: wgpu::VertexStepMode::Instance,
@@ -1890,8 +1902,13 @@ mod tests {
     fn line_shapes_pack_small_and_keep_8_bit_colors() {
         use super::{LineShape, srgb_bytes, srgb_to_linear};
         use glam::Vec3;
-        assert_eq!(std::mem::size_of::<LineShape>(), 36);
+        assert_eq!(std::mem::size_of::<LineShape>(), 40);
         let (lo, hi) = (Vec3::ZERO, Vec3::splat(16.0));
+        let plain = LineShape::outline(lo, hi, [1.0; 4], None);
+        assert_eq!(plain.paper(), None);
+        assert_eq!(plain.with_paper([0xA0, 0x6C, 0x38]).paper(), Some([0xA0, 0x6C, 0x38]));
+        assert_eq!(LineShape::cross(lo, 8.0, [1.0; 4]).paper(), None);
+        assert_eq!(plain.with_paper([0, 0, 0]).paper(), Some([0, 0, 0]), "black is a color, only alpha marks it unset");
         assert_eq!(LineShape::outline(lo, hi, [1.0; 4], None).segments(), 12);
         assert_eq!(LineShape::outline(lo, hi, [1.0; 4], Some(Vec3::NEG_Z)).segments(), 13);
         assert_eq!(LineShape::outline(lo, hi, [1.0; 4], Some(Vec3::ZERO)).segments(), 12, "a zero arrow draws no arrow");

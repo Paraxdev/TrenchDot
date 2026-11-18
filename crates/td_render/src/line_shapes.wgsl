@@ -4,6 +4,7 @@ struct ShapeIn {
     @location(1) color: vec4<f32>,
     @location(2) max: vec3<f32>,
     @location(3) arrow: vec4<f32>,
+    @location(4) paper: vec4<f32>,
 };
 
 fn srgb_decode(c: vec3<f32>) -> vec3<f32> {
@@ -52,5 +53,7 @@ fn vs_main(v: ShapeIn) -> VOut {
         b = center + normalize(v.arrow.xyz) * max(size.x, max(size.y, size.z)) * 0.75;
         color.a = color.a * 0.9;
     }
-    return segment(a, b, color, color, corner);
+    var o = segment(a, b, color, color, corner);
+    o.paper = vec4<f32>(srgb_decode(v.paper.rgb), v.paper.a);
+    return o;
 }

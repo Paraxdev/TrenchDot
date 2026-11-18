@@ -1216,6 +1216,44 @@ mod tests {
     }
 
     #[test]
+    fn light_entity_boxes_stay_distinguishable_on_paper() {
+        use crate::scene::{CORDON_COLOR, EDGE_COLOR_2D, INSTANCE_EDGE, IO_LINK, LIGHT_PAPER, SELECTED_COLOR, TARGET_LINK, TERRAIN_EDGE};
+        use crate::toolset::{HOVER_COLOR, PREVIEW_COLOR};
+        const MIN: f32 = 60.0;
+        let ground = LIGHT.view_2d;
+        let amber = Color32::from_rgb(LIGHT_PAPER[0], LIGHT_PAPER[1], LIGHT_PAPER[2]);
+        let ratio = contrast(amber, ground);
+        assert!(ratio >= 3.0, "light box {amber:?} is {ratio:.2}:1 on the paper");
+
+        let game = td_formats::GameConfig::with_gameplay_pack();
+        let oranges: Vec<_> = ["env_explosion", "prop_physics", "func_button", "trigger_area", "func_door_rotating"]
+            .into_iter()
+            .map(|class| {
+                let c = game.entity(class).unwrap().color;
+                (line_on([c.r, c.g, c.b, 1.0], ground, true), class)
+            })
+            .collect();
+        let lines = [
+            (line_on(IO_LINK, ground, true), "I/O link"),
+            (line_on(TARGET_LINK, ground, true), "target link"),
+            (line_on(INSTANCE_EDGE, ground, true), "instance edge"),
+            (line_on(SELECTED_COLOR, ground, true), "selection"),
+            (line_on(TERRAIN_EDGE, ground, true), "terrain edge"),
+            (line_on(EDGE_COLOR_2D, ground, true), "brush edge"),
+            (line_on(PREVIEW_COLOR, ground, true), "shape preview"),
+            (line_on(HOVER_COLOR, ground, true), "outliner hover"),
+            (line_on(CORDON_COLOR, ground, true), "cordon"),
+            (line_on(crate::shape_bounds::color(), ground, true), "shape box"),
+        ];
+        for (other, what) in lines.into_iter().chain(oranges) {
+            for kind in 0..3 {
+                let d = distance(simulate(amber, kind), simulate(other, kind));
+                assert!(d >= MIN, "cvd {kind}: light box vs {what} too close ({d:.0} < {MIN})");
+            }
+        }
+    }
+
+    #[test]
     fn link_lines_stay_distinguishable_from_other_lines() {
         use crate::scene::{EDGE_COLOR_2D, INSTANCE_EDGE, IO_LINK, SELECTED_COLOR, TARGET_LINK, TERRAIN_EDGE};
         const MIN: f32 = 60.0;

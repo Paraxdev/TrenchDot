@@ -225,6 +225,18 @@ pub fn is_decal(def: Option<&EntityDef>) -> bool {
     def.is_some_and(|d| d.node_class == "Decal" || d.classname.contains("decal"))
 }
 
+/// Light entity boxes on paper. Their bright yellow flips to a dull olive, so they carry an amber of their own.
+pub const LIGHT_PAPER: [u8; 3] = [0xA0, 0x6C, 0x38];
+
+/// The box outline of a point entity, with its own color for paper when its group needs one.
+fn box_shape(def: Option<&EntityDef>, lo: Vec3, hi: Vec3, c: Color, arrow: Option<Vec3>) -> LineShape {
+    let shape = LineShape::outline(lo, hi, [c.r, c.g, c.b, 1.0], arrow);
+    match def {
+        Some(d) if d.group == "light" => shape.with_paper(LIGHT_PAPER),
+        _ => shape,
+    }
+}
+
 const DECAL_DEFAULT_SIZE: DVec3 = DVec3::new(64.0, 32.0, 64.0);
 
 /// Decal projector size in map units from the "size" property ("x depth z"). Left at the default, the footprint of the
@@ -1046,10 +1058,10 @@ impl Builder<'_> {
             push_line(&mut self.edges_2d, start, end, line_color);
             push_line(&mut self.sel_edges, start, end, line_color);
         } else if model.is_none() {
-            self.marker_edges.push(LineShape::outline(lo, hi, [c.r, c.g, c.b, 1.0], Some(Vec3::from_array(v3(fwd)))));
+            self.marker_edges.push(box_shape(def, lo, hi, c, Some(Vec3::from_array(v3(fwd)))));
         } else {
             // Models already show their orientation, arrows on hundreds of scattered props only add noise.
-            self.model_boxes.push(LineShape::outline(lo, hi, [c.r, c.g, c.b, 1.0], None));
+            self.model_boxes.push(box_shape(def, lo, hi, c, None));
         }
 
         if is_decal(def) {
@@ -1604,8 +1616,8 @@ fn upload_bucket(ctx: &BucketCtx, builder: Builder) -> Bucket {
         overlay: renderer.upload_mesh(&builder.face_overlay),
         edges: renderer.upload_lines(&builder.edges),
         edges_2d: renderer.upload_lines(&builder.edges_2d),
-        marker_edges: renderer.upload_shapes(&builder.marker_edges),
-        model_boxes: renderer.upload_shapes(&builder.model_boxes),
+        marker_edges: renderer.upload_shapes(&builder.marker_edges).map(GpuLines::wide),
+        model_boxes: renderer.upload_shapes(&builder.model_boxes).map(GpuLines::wide),
         placed,
         placed_keys: builder.placed.into_keys().collect(),
         sel_edges: renderer.upload_lines(&builder.sel_edges).map(GpuLines::wide),
@@ -2367,6 +2379,27 @@ impl SceneCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn light_entity_boxes_carry_their_own_color_for_paper() {
+        let game = GameConfig::with_gameplay_pack();
+        let (lo, hi) = (Vec3::new(-8.0, 3.0, 5.0), Vec3::new(24.0, 19.0, 11.0));
+        let c = Color::rgb(1.0, 0.9, 0.3);
+        for arrow in [None, Some(Vec3::new(0.3, -0.5, 0.8))] {
+            let paper = |class: &str| box_shape(game.entity(class), lo, hi, c, arrow).paper();
+            for class in ["light", "light_spot", "light_probe"] {
+                assert_eq!(paper(class), Some(LIGHT_PAPER), "{class}");
+            }
+
+            for class in ["info_player_start", "env_explosion", "prop_physics"] {
+                assert_eq!(paper(class), None, "{class}");
+            }
+
+            assert_eq!(paper("no_such_entity"), None, "an unknown entity keeps the flip");
+        }
+
+        assert_eq!(box_shape(game.entity("light"), lo, hi, c, None), LineShape::outline(lo, hi, [c.r, c.g, c.b, 1.0], None).with_paper(LIGHT_PAPER));
+    }
 
     #[test]
     fn dark_fixtures_draw_the_copy_without_emission() {
