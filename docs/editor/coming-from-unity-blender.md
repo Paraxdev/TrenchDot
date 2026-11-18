@@ -2,7 +2,7 @@
 
 TrenchDot is a brush editor in the line of TrenchBroom and Hammer. A level starts as solid blocks you draw on a grid,
 not as imported meshes. Most of what you know from Unity and Blender still has a place here, only under other names and
-keys. This page maps them, and [Getting started](../getting-started.md) walks you through a first room.
+keys. This page maps them, and [Build your first room](../getting-started.md) walks you through a first room.
 
 ## Where things are
 

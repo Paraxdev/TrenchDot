@@ -925,7 +925,10 @@ class HeadingTest(unittest.TestCase):
             self.skipTest("markdown is not installed")
         for page in ("editor/brushes.md", "gameplay/io.md", "GLOSSARY.md", "getting-started.md"):
             text = bs.read_page(bs.ROOT / "docs" / page)
-            html = markdown.Markdown(extensions=["attr_list", "toc", "md_in_html"]).convert(text)
+            lines = text.split("\n")
+            # Python-Markdown here has no fenced_code, so it would read the comments of an indented code block as headings
+            kept = [line for line, inside in zip(lines, bs.fenced(lines)) if not inside]
+            html = markdown.Markdown(extensions=["attr_list", "toc", "md_in_html"]).convert("\n".join(kept))
             self.assertEqual(self.ids(text), re.findall(r'<h[1-6][^>]*id="([^"]+)"', html), page)
 
 
@@ -1419,6 +1422,52 @@ class RealTranslationsTest(unittest.TestCase):
     def test_every_catalogue_is_found_for_every_language(self):
         for code in tr.known_languages():
             self.assertTrue((tr.LOCALES / f"{code}.json").is_file(), code)
+
+
+class FirstRoomPageTest(unittest.TestCase):
+    PAGE = bs.read_page(bs.ROOT / "docs" / "getting-started.md")
+    SCRIPT = bs.read_page(bs.ROOT / "godot" / "tests" / "first_room" / "player.gd")
+
+    def blocks(self, tag):
+        found = []
+        lines = self.PAGE.split("\n")
+        i = 0
+        while i < len(lines):
+            m = re.match(r"^( *)```" + tag + r"$", lines[i])
+            if m:
+                indent = len(m.group(1))
+                body = []
+                i += 1
+                while not re.match(r"^ *```$", lines[i]):
+                    body.append(lines[i][indent:])
+                    i += 1
+                found.append("\n".join(body) + "\n")
+            i += 1
+        return found
+
+    def test_the_page_has_one_player_script_and_it_is_the_tested_file(self):
+        found = self.blocks("gdscript")
+        self.assertEqual(len(found), 1)
+        self.assertEqual(found[0], self.SCRIPT)
+
+    def test_the_page_is_titled_and_has_its_seven_steps_in_order(self):
+        self.assertTrue(self.PAGE.startswith("# Build your first room\n"))
+        steps = re.findall(r"^## (\d)\. (.+)$", self.PAGE, re.M)
+        self.assertEqual([n for n, _ in steps], list("1234567"))
+        self.assertEqual(steps[3][1], "Build a room")
+
+    def test_the_manual_starts_with_the_page(self):
+        summary = bs.read_page(bs.ROOT / "docs" / "SUMMARY.md").split("\n")
+        self.assertEqual(summary[2], "* [Introduction](README.md)")
+        self.assertEqual(summary[3], "* [Build your first room](getting-started.md)")
+
+    def test_every_language_names_the_page(self):
+        sites = sorted((bs.ROOT / "docs" / "translations").glob("*/site.toml"))
+        self.assertEqual(len(sites), 7)
+        for site in sites:
+            nav = tomllib.loads(site.read_text(encoding="utf-8"))["nav"]
+            self.assertIn("Build your first room", nav, site.parent.name)
+            self.assertNotIn("Getting started", nav, site.parent.name)
 
 
 class WorkflowTest(unittest.TestCase):

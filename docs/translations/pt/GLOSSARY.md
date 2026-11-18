@@ -22,6 +22,9 @@ Um script ou cena que o Godot carrega uma vez na inicialização e mantém vivo 
 ## iluminação pré-calculada { #baked-lighting data-forms="iluminações pré-calculadas" }
 Luz que é calculada uma vez de antemão e guardada, em vez de ser calculada a cada frame. Godot > Pré-calcular iluminação… grava sol, céu, lâmpadas e materiais que brilham em um lightmap, e o Godot o desenha por um LightmapGI.
 
+## blockout { #block-out }
+Montar o formato bruto de um nível com brushes simples, antes das texturas e das entidades, para julgar a escala e a disposição enquanto mudar ainda custa pouco. A sala de Construa sua primeira sala começa como um blockout.
+
 ## bloom { #bloom }
 O brilho suave que lâmpadas fortes e materiais que brilham espalham pelos pixels ao redor. Ele é ligado com a key glow_intensity do worldspawn.
 
@@ -201,6 +204,9 @@ As coordenadas que dizem qual parte de uma textura cai em cada ponto de uma face
 
 ## vértice { #vertex }
 Um ponto de canto de uma forma. Um terreno tem um em cada cruzamento da sua grade, cada um com uma altura e uma mistura de pintura, e as células são os quadrados entre eles. Malhas também têm vértices, e uma face é a área entre os seus cantos.
+
+## VisGroup { #visgroup }
+Um conjunto nomeado de objetos no Hammer que você mostra ou esconde junto. As camadas do TrenchDot fazem o mesmo trabalho, mas você mesmo as preenche.
 
 ## worldspawn { #worldspawn }
 A entidade raiz do mapa, que guarda os brushes do mundo. As keys dela guardam configurações do mapa todo, como céu, névoa, sol e streaming, e o Inspetor a mostra quando nada está selecionado.

@@ -1,8 +1,17 @@
-# Getting started
+# Build your first room
 
-Steps 1 to 3: First setup. If you already have a Godot project set up with TrenchDot, you may skip these.
+TrenchDot is a brush editor for building playable Godot levels, in the way of TrenchBroom and Hammer. You work in a
+loop: **block out** a room from brushes, **texture** it, **add entities** such as lights and doors, then **play** it in
+Godot. This page goes around that loop once with a small room.
 
-Steps 4 and 5: Creating the first room in TrenchDot and seeing it in Godot.
+1. Block out the room from brushes and texture it, in step 4.
+2. Add a light, a player start and a door, in step 5.
+3. Build the map in Godot, in step 6.
+4. Walk around in it and open the door, in step 7.
+
+Steps 1 to 3 are the first setup. If you already have a Godot project set up with TrenchDot, skip them. If you come from
+Hammer or TrenchBroom, [Coming from Hammer or TrenchBroom](editor/coming-from-hammer-trenchbroom.md) maps their keys
+to TrenchDot's.
 
 ## What you need
 
@@ -42,6 +51,15 @@ Then hit "Create".
 
 ## 2. Opening the Project within TrenchDot
 
+The first time TrenchDot starts, the 3D view shows a *Welcome to TrenchDot* card with the four steps of the loop and a
+question, which editor's keys you know.
+
+![The first start card with the four steps, the TrenchBroom, Hammer and Blender key rows and the Skip button](assets/getting-started/first-run-card.png)
+
+Click **TrenchBroom**, **Hammer** or **Blender** to use that editor's keys, or **Skip** to keep the TrenchBroom keys that
+are already picked. It is the only thing the first start asks, and *File > Preferences… > Keymap preset* changes it
+later. This page names the keys of the TrenchBroom preset.
+
 Choose *Godot > Open Godot Project…*
 
 ![The Godot menu in TrenchDot with Open Godot Project… highlighted](assets/getting-started/menu-open-godot-project.png)
@@ -52,7 +70,7 @@ or the **Open Godot Project…** button at the top right of the toolbar
 
 and pick the project folder or any folder inside it. The editor reopens it on the next start.
 
-## 3. The Welcome Screen
+## 3. Set up the project
 
 Once TrenchDot detects that it's a new Godot project, it shows the *Set up this project* window.
 
@@ -107,6 +125,8 @@ To add entities of your own, see [Custom entities in GDScript](gameplay/custom-e
 
 ## 4. Build a room
 
+First you block out the room, which means building its rough shape from plain brushes before anything else.
+
 The editor has 4 main views: a 3D view you can fly around just like in Godot, and 3 wireframe views from the top,
 front and side.
 
@@ -128,10 +148,15 @@ or just start drawing, it goes away once the map has something in it.
 
 2. Add Height
 
-    In the Side view, hold your mouse over the top edge of the box until it turns yellow, hold down the left click, then
-    move your mouse up until the box is 256 units tall.
+    The new box is only 128 units tall. Look at the **Inspector** at the top right of the window. With the box
+    selected it shows a *size* row with three fields: X is the width, Y the height and Z the depth, in map units.
+    Click the Y field, type `256` and press Enter. The box grows upward and its bottom stays where it was.
 
-    ![The Side view with the top edge of the box dragged up, 256 printed above and beside it](assets/getting-started/side-view-depth.png)
+    ![The Inspector with the box selected, its size row reading 512, 256 and 256](assets/getting-started/inspector-size.png)
+
+    You can also drag the height: in the Side view, hold your mouse over the top edge of the box until it turns yellow
+    and drag it up. The 2D views start zoomed in close, so zoom the Side view out with the mouse wheel first, or the
+    top edge has nowhere to go.
 
 3. Making it Hollow
 
@@ -144,14 +169,17 @@ or just start drawing, it goes away once the map has something in it.
 
 4. Cutting a doorway
 
-    Using Escape you can deselect the selected brushes. Once nothing is selected, draw a smaller vertical rect within
-    the box in the Front view, shaped like a doorway.
+    Using Escape you can deselect the selected brushes. Once nothing is selected, draw a rect in the Front view shaped
+    like a doorway, 64 wide and 96 tall. Start it on top of the floor, one grid line above the bottom of the room, so
+    the floor stays whole.
 
-    ![The door brush inside the hollow box, 64 wide and 96 tall in the Front view](assets/getting-started/doorway-brush.png)
+    ![The door brush in the Front view, 64 wide and 96 tall, and in the Top view running the whole depth of the room](assets/getting-started/doorway-brush.png)
 
-    Then in the Side view extend one side of the door brush so it has a depth, all the way through the wall.
+    A brush you draw in a 2D view takes its depth from the last brush you drew, here the whole room, so the Top view
+    shows it running through both end walls. In the Inspector, set Z in the *size* row to `16`. The brush keeps its
+    lowest corner, so it shrinks to the 16 units of the wall at the top of the Top view.
 
-    ![Dragging one side of the door brush in the Side view so it crosses the wall](assets/getting-started/doorway-extend.gif)
+    ![The Inspector with the door brush selected, its size row reading 64, 96 and 16](assets/getting-started/doorway-depth.png)
 
     Now, with the brush selected, hit Ctrl+K or use the Subtract button in the toolbar.
 
@@ -181,7 +209,47 @@ or just start drawing, it goes away once the map has something in it.
 
     ![The File menu with Save and Maps in Project, which lists room under res://maps](assets/getting-started/file-menu-maps-in-project.png)
 
-## 5. See it in Godot
+## 5. Add a light, a player start and a door
+
+Brushes are the walls, entities are everything else. Click the **Entities** tab at the top right of the window, next
+to **Inspector**. It has a card for every entity class your project knows, and three of them are enough for a room you
+can walk in. Type a name into its search field to find a card quickly.
+
+![The Entities tab with the light card hovered](assets/getting-started/entities-light.png)
+
+1. A light
+
+    Drag the `light` card into the Front view, a little above the middle of the room, and hold Alt while you drop it.
+    Without Alt it lands on the near wall, with Alt it lands inside the room, halfway across it. A small yellow marker
+    shows where it is.
+
+2. A player start
+
+    Drag the `info_player_start` card onto the floor in the 3D view. It is the spot where the player begins, Godot
+    puts the player there when the level starts. It shows as a green box.
+
+    ![The 3D view of the room with the player start, a green box, standing on the floor](assets/getting-started/player-start.png)
+
+3. A door
+
+    A door is a brush entity, it takes its shape from a brush you build. Press Escape to deselect, then draw the same
+    doorway rect in the Front view as in step 4. Click the **Inspector** tab next to **Entities** and set Z in the
+    *size* row to `16` again, so the brush fills the doorway. This time you keep it, so do not subtract it.
+
+    With the new brush still selected, right click in the Front view and pick *Create Brush Entity > func_door*. The
+    menu works on the selection, so it does not matter which of the brushes lies under the cursor.
+
+    ![The right click menu on the door brush with Create Brush Entity open and func_door hovered](assets/getting-started/create-func-door.png)
+
+    With the door selected, set `travel` in the Inspector to `0 96 0`. It is how far the door slides when it opens, in
+    map units, and 96 is as tall as the doorway, so it slides up into the wall and leaves the way free.
+
+    ![The Inspector of the func_door with travel set to 0 96 0](assets/getting-started/door-inspector.png)
+
+Save again with Ctrl+S. The door comes from the Gameplay entities pack of step 3, without it Godot builds the door as
+a plain shape. [Placing and wiring](gameplay/placing.md) has the other ways to place and move entities.
+
+## 6. See it in Godot
 
 In Godot, a level is a scene: a tree of nodes, saved as a `.tscn` file, where each node is one thing such as a mesh, a
 light or a camera. Godot writes paths inside the project with `res://`, so `res://maps/room.tdm` is the file
@@ -205,32 +273,114 @@ bar says why, see [Rebuild on save](godot/live.md#rebuild-on-save).
 > A build deletes the children of the `FuncGodotMap` first. Put your own nodes next to the map node, or in
 > an [overlay](godot/overlays.md).
 
-## Try the demo project
+## 7. Play it
 
-The repository's `godot` folder, also in the release as `trenchdot-demo-project.zip`, is a project with the addon
-installed. Its main scene plays the showcase maps, which are saved in `godot/demo/maps/showcase`. Open the project in
-the editor and pick one under *File > Maps in Project* to see how a finished map is put together.
+Your own player is a node with a script, next to the map node. This one is short, it walks, looks around and opens the
+door you look at.
 
-The demo choice of *Godot > Add Content to Project…* puts the same maps and scenes into your own project. In Godot,
-open `res://demo/demo.tscn` and press F6 to play them. Opened in TrenchDot from your project they show without their
-textures, because they use the demo's texture folder `res://demo/textures` rather than your project's. The demo project
-shows them as they were built.
+1. In the scene from step 6, right click the root node, choose *Add Child Node*, and add a `CharacterBody3D`. Rename
+   it `Player`.
+2. With `Player` selected, click the *Attach Script* button above the Scene panel, name the file `player.gd` and click
+   Create. Replace everything in the script editor with this:
+
+    ```gdscript
+    extends CharacterBody3D
+    ## First person player for a TrenchDot map. WASD walks, the mouse looks, E uses the door or button you look at,
+    ## Esc frees the mouse and a click captures it again. Add it next to the map node.
+
+    const SPEED := 5.0
+    const USE_DISTANCE := 2.5
+    const LOOK := 0.0025
+
+    var head := Node3D.new()
+    var camera := Camera3D.new()
+
+    func _ready() -> void:
+    	var shape := CollisionShape3D.new()
+    	shape.shape = CapsuleShape3D.new()
+    	shape.position.y = 1.0
+    	add_child(shape)
+    	head.position.y = 1.6
+    	head.add_child(camera)
+    	add_child(head)
+    	add_to_group(&"player")
+    	var start := find_start(get_parent())
+    	if start:
+    		global_transform = Transform3D(Basis(Vector3.UP, start.global_rotation.y), start.global_position + Vector3.UP * 0.1)
+    	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+
+    static func find_start(node: Node) -> Node3D:
+    	if node is Node3D and String(node.name).contains("info_player_start"):
+    		return node
+    	for child in node.get_children():
+    		var found := find_start(child)
+    		if found:
+    			return found
+    	return null
+
+    func _unhandled_input(event: InputEvent) -> void:
+    	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
+    		rotate_y(-event.relative.x * LOOK)
+    		head.rotation.x = clampf(head.rotation.x - event.relative.y * LOOK, -1.5, 1.5)
+    	elif event is InputEventMouseButton and event.pressed:
+    		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+    	elif event is InputEventKey and event.pressed and not event.echo:
+    		if event.keycode == KEY_ESCAPE:
+    			Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+    		elif event.keycode == KEY_E:
+    			_use()
+
+    func _physics_process(delta: float) -> void:
+    	if not is_on_floor():
+    		velocity += get_gravity() * delta
+    	var keys := Vector2(
+    		float(Input.is_key_pressed(KEY_D)) - float(Input.is_key_pressed(KEY_A)),
+    		float(Input.is_key_pressed(KEY_S)) - float(Input.is_key_pressed(KEY_W)))
+    	var walk := basis * Vector3(keys.x, 0.0, keys.y).normalized() * SPEED
+    	velocity = Vector3(walk.x, velocity.y, walk.z)
+    	move_and_slide()
+
+    func _use() -> void:
+    	var from := camera.global_position
+    	var query := PhysicsRayQueryParameters3D.create(from, from - camera.global_basis.z * USE_DISTANCE)
+    	query.exclude = [get_rid()]
+    	var node: Node = get_world_3d().direct_space_state.intersect_ray(query).get("collider")
+    	while node and not node.has_method(&"use"):
+    		node = node.get_parent()
+    	if node:
+    		node.use(self)
+    ```
+
+3. Press F6 to play the scene.
 
 | Key | Action |
 | --- | --- |
-| WASD, Space, Shift | Walk, jump, run |
-| E | Use doors and buttons |
-| 1 to 5 | Switch between the showcase maps |
-| F3 | Show the I/O debug overlay, a log of every input and output as it fires, with trigger volumes drawn in |
+| WASD | Walk |
+| Mouse | Look around |
+| E | Use the door you look at, pressing it again closes it |
+| Esc | Free the mouse, a click captures it again |
+| F8 | Stop the game |
+
+The script puts the player on your `info_player_start` and turns it the way the start faces, so you begin in the room.
+With no start in the map the player stays where the node is. The light you placed lights the room, and E slides the
+door up by its `travel`. That is the whole loop, block out, texture, entities, play. Go back to TrenchDot, change the
+room, press Ctrl+S, and Godot rebuilds the scene.
+
+Your own player needs two things for the pack's entities. Triggers only react to bodies in the Godot group `player` on
+physics layer 1, and doors and buttons move when your player code calls `use()` on the one it looks at, as this script
+does. See [Let the player press it](tutorials/button-door.md#let-the-player-press-it).
+
+## Try the demo project
+
+The repository's `godot` folder, also in the release as `trenchdot-demo-project.zip`, is a project with the addon
+installed and a finished example of everything above. Its main scene plays the showcase maps, saved in
+`godot/demo/maps/showcase`, and you can open one under *File > Maps in Project*. The demo choice of *Godot > Add Content
+to Project…* puts the same maps and scenes into your own project, and `res://demo/demo.tscn` plays them with F6.
 
 ## Next
 
 To make the room do something, read [How entity I/O works](gameplay/io.md) and build
 [Button opens a door](tutorials/button-door.md).
-
-Your own player needs two things for the pack's entities. Triggers only react to bodies in the Godot group `player` on
-physics layer 1, so put your player there. Doors and buttons move when your player code calls `use()` on the one it
-looks at, see [Let the player press it](tutorials/button-door.md#let-the-player-press-it).
 
 <div class="td-mcp" markdown>
 

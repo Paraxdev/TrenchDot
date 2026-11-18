@@ -1,7 +1,7 @@
 # Summary
 
 * [Introduction](README.md)
-* [Getting started](getting-started.md)
+* [Build your first room](getting-started.md)
 * [Tips](tips.md)
 * Editor
     * [Interface and navigation](editor/interface.md)

@@ -433,7 +433,7 @@ All four also have a button in the toolbar, to the right of the snapping and UV 
 | Intersect | Ctrl+L | Keeps only where the selected brushes overlap |
 
 To punch a doorway or window, place a brush where the hole goes and Subtract it,
-[Getting started](../getting-started.md) walks you through one. The faces a cut opens take the cutter's material,
+[Build your first room](../getting-started.md) walks you through one. The faces a cut opens take the cutter's material,
 unless you tick *Carved faces keep the target's material* in the same menu.
 
 ## Displacements

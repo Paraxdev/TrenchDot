@@ -60,7 +60,7 @@ to use a map in Godot, add a `FuncGodotMap` node, point it at a `.tdm` file and 
 The documentation is at **[paraxdev.github.io/TrenchDot](https://paraxdev.github.io/TrenchDot/)**, built from
 [docs](docs/README.md). Good places to start:
 
-* [Getting started](docs/getting-started.md)
+* [Build your first room](docs/getting-started.md)
 * [Shortcuts](docs/editor/shortcuts.md)
 * [Building maps in Godot](docs/godot/building.md)
 * [How entity I/O works](docs/gameplay/io.md)

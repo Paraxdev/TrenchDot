@@ -22,6 +22,9 @@ Ein Skript oder eine Szene, die Godot einmal beim Start lädt und für das ganze
 ## Gebackene Beleuchtung { #baked-lighting data-forms="gebackenen Beleuchtung|gebackener Beleuchtung" }
 Licht, das einmal im Voraus berechnet und gespeichert wird, statt in jedem Frame neu ausgerechnet zu werden. Godot > Beleuchtung backen backt Sonne, Himmel, Lampen und leuchtende Materialien in eine Lightmap, und Godot zeichnet sie über ein LightmapGI.
 
+## Blockout { #block-out }
+Der grobe Aufbau eines Levels aus schlichten Brushes, bevor Texturen und Entitäten dazukommen. So beurteilst du Größe und Aufteilung, solange sich Änderungen noch billig machen lassen. Der Raum aus Baue deinen ersten Raum beginnt als Blockout.
+
 ## Bloom { #bloom }
 Das weiche Leuchten, das helle Lampen und leuchtende Materialien in die Pixel um sich herum streuen. Eingeschaltet wird es mit dem worldspawn-Key glow_intensity.
 
@@ -201,6 +204,9 @@ Die Koordinaten, die sagen, welcher Teil einer Textur auf jeden Punkt einer Flä
 
 ## Vertex { #vertex }
 Ein Eckpunkt einer Form. Ein Terrain hat einen an jeder Kreuzung seines Gitters, jeder mit einer Höhe und einer Farbmischung, und die Zellen sind die Quadrate dazwischen. Meshes haben ebenfalls Vertices, und eine Fläche ist der Bereich zwischen ihren Ecken.
+
+## VisGroup { #visgroup }
+Eine benannte Menge von Objekten in Hammer, die du gemeinsam ein- oder ausblendest. Die Ebenen von TrenchDot erfüllen dieselbe Aufgabe, nur füllst du sie selbst.
 
 ## worldspawn { #worldspawn }
 Die Wurzel-Entität der Karte, die die Welt-Brushes enthält. Ihre Keys halten Einstellungen für die ganze Karte, etwa Himmel, Nebel, Sonne und Streaming, und der Inspektor zeigt sie, wenn nichts ausgewählt ist.

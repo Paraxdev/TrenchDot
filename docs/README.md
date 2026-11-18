@@ -16,7 +16,7 @@ You may also join the [official Discord](https://discord.gg/Hu86UjRwMD) for furt
 
 | You want to | Read |
 | --- | --- |
-| Set up a project and build a first room | [Getting started](getting-started.md) |
+| Set up a project and build your first room | [Build your first room](getting-started.md) |
 | Find your way around the editor | [Interface and navigation](editor/interface.md), [Shortcuts](editor/shortcuts.md) |
 | Understand what happens in Godot | [Building maps](godot/building.md) |
 | See edits in Godot before saving | [Saving, live mode and hot reload](godot/live.md) |

@@ -18,6 +18,9 @@ A script or scene that Godot loads once at startup and keeps alive for the whole
 ## baked lighting
 Light that's traced once ahead of time and stored, instead of worked out every frame. Godot > Bake Lighting bakes the sun, sky, lamps and glowing materials into a light map, and Godot draws it through a LightmapGI.
 
+## Block out
+To build the rough shape of a level from plain brushes before textures and entities, so you can judge scale and layout while changes are still cheap. The room in Build your first room starts as a block out.
+
 ## bloom
 The soft glow that bright lamps and glowing materials spread into the pixels around them. It is switched on with the worldspawn key glow_intensity.
 

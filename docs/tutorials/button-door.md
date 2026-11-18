@@ -15,7 +15,7 @@ the button fires an output called `pressed`, and a link turns that into a call o
 
 1. Make the door
 
-    Draw a door sized brush in a doorway, [Getting started](../getting-started.md#4-build-a-room) shows how to cut one.
+    Draw a door sized brush in a doorway, [Build your first room](../getting-started.md#4-build-a-room) shows how to cut one.
     Right click the brush and pick *Create Brush Entity > func_door*.
 
     ![The right click menu on an orange door brush, with Create Brush Entity open and func_door hovered](../assets/button-door/create-brush-entity-func-door.png)
