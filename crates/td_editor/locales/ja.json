@@ -2370,5 +2370,6 @@
   "Select a brush, a mesh or a face to edit its UVs.": "UV を編集するブラシ、メッシュ、または面を選択してください。",
   "Select Touching needs brushes selected.": "接触を選択するには、ブラシを選択しておく必要があります。",
   "Select Inside needs brushes selected.": "内側を選択するには、ブラシを選択しておく必要があります。",
-  "Selected {n} object": { "other": "{n} 個のオブジェクトを選択しました" }
+  "Selected {n} object": { "other": "{n} 個のオブジェクトを選択しました" },
+  "{faces} on {owners}": "{owners}の{faces}"
 }

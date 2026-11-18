@@ -2370,5 +2370,6 @@
   "Select a brush, a mesh or a face to edit its UVs.": "选择笔刷、网格或面以编辑 UV。",
   "Select Touching needs brushes selected.": "选择接触的需要先选中笔刷。",
   "Select Inside needs brushes selected.": "选择内部的需要先选中笔刷。",
-  "Selected {n} object": { "other": "已选择 {n} 个对象" }
+  "Selected {n} object": { "other": "已选择 {n} 个对象" },
+  "{faces} on {owners}": "{owners}上的{faces}"
 }

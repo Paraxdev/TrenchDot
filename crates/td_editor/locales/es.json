@@ -2370,5 +2370,6 @@
   "Select a brush, a mesh or a face to edit its UVs.": "Elige un brush, una malla o una cara para editar sus UV.",
   "Select Touching needs brushes selected.": "Seleccionar los que tocan necesita brushes seleccionados.",
   "Select Inside needs brushes selected.": "Seleccionar el interior necesita brushes seleccionados.",
-  "Selected {n} object": { "one": "{n} objeto seleccionado", "other": "{n} objetos seleccionados" }
+  "Selected {n} object": { "one": "{n} objeto seleccionado", "other": "{n} objetos seleccionados" },
+  "{faces} on {owners}": "{faces} en {owners}"
 }

@@ -2370,5 +2370,6 @@
   "Select a brush, a mesh or a face to edit its UVs.": "Выберите браш, меш или грань, чтобы править UV.",
   "Select Touching needs brushes selected.": "Для «Выделить касающиеся» нужно выбрать браши.",
   "Select Inside needs brushes selected.": "Для «Выделить внутренние» нужно выбрать браши.",
-  "Selected {n} object": { "one": "Выделен {n} объект", "few": "Выделено {n} объекта", "many": "Выделено {n} объектов" }
+  "Selected {n} object": { "one": "Выделен {n} объект", "few": "Выделено {n} объекта", "many": "Выделено {n} объектов" },
+  "{faces} on {owners}": "{faces} на {owners}"
 }

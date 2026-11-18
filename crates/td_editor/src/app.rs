@@ -180,6 +180,7 @@ pub struct App {
     pub(crate) trust: crate::trust::TrustPrompt,
     /// Where the Restricted Mode chip is in the status bar, reported by get_state like `open_windows`.
     pub(crate) trust_chip: Option<egui::Rect>,
+    face_chip: FaceChipCache,
     /// project_content calls waiting for the running install.
     pub(crate) content_replies: Vec<std::sync::mpsc::Sender<crate::mcp::ToolResult>>,
     /// Godot screenshots and walkability bakes that MCP calls wait for.
@@ -660,6 +661,46 @@ fn stats_text(s: &crate::scene::SceneStats) -> String {
     parts.join("  ")
 }
 
+type FaceChipKey = (usize, u64, usize, Option<(td_doc::NodeId, usize)>, Option<(td_doc::NodeId, usize)>, crate::i18n::Lang);
+
+/// The status bar chip, worked out again only when the selection changes, since Face mode can hold every face of a
+/// big map.
+#[derive(Default)]
+pub(crate) struct FaceChipCache(Option<(FaceChipKey, Option<String>)>);
+
+impl FaceChipCache {
+    fn get(&mut self, state: &EditorState) -> Option<String> {
+        let faces = &state.doc.selection.faces;
+        let key = (state.active_tab, state.doc.revision, faces.len(), faces.first().copied(), faces.last().copied(), crate::i18n::current());
+        match &self.0 {
+            Some((k, chip)) if *k == key => chip.clone(),
+            _ => {
+                let chip = face_chip(&state.doc.map, &state.doc.selection);
+                self.0 = Some((key, chip.clone()));
+                chip
+            }
+        }
+    }
+}
+
+/// "4 faces on 1 brush" for the status bar, or None while no faces are selected.
+fn face_chip(map: &td_doc::Map, sel: &td_doc::Selection) -> Option<String> {
+    if !sel.has_faces() {
+        return None;
+    }
+
+    let owners: std::collections::BTreeSet<_> = sel.faces.iter().map(|(id, _)| *id).collect();
+    let brushes = owners.iter().filter(|id| map.brush(**id).is_some()).count();
+    let meshes = owners.iter().filter(|id| map.mesh(**id).is_some()).count();
+    let faces = tr_n!(sel.faces.len(), "{n} face", "{n} faces");
+    let owners = match (brushes, meshes) {
+        (n, 0) => tr_n!(n, "{n} brush", "{n} brushes"),
+        (0, n) => tr_n!(n, "{n} mesh", "{n} meshes"),
+        _ => tr_n!(owners.len(), "{n} object", "{n} objects"),
+    };
+    Some(trf!("{faces} on {owners}", faces = faces, owners = owners))
+}
+
 /// Help menu entries that open the manual in the browser.
 fn help_menu_links(ui: &mut Ui) {
     let mouse = [
@@ -1022,6 +1063,7 @@ impl App {
             updater,
             trust: Default::default(),
             trust_chip: None,
+            face_chip: FaceChipCache::default(),
             content_replies: Vec::new(),
             godot_replies: Vec::new(),
             tool_options_rect: egui::Rect::NOTHING,
@@ -2411,8 +2453,8 @@ impl App {
 
                 ui.separator();
                 let sel = &s.doc.selection;
-                if sel.has_faces() {
-                    ui.label(tr_n!(sel.faces.len(), "{n} face selected", "{n} faces selected"));
+                if let Some(chip) = self.face_chip.get(s) {
+                    ui.label(chip);
                 } else if !sel.nodes.is_empty() {
                     ui.label(trf!("{n} selected", n = sel.nodes.len()));
                 }
@@ -3856,6 +3898,87 @@ mod tests {
         let stats = crate::scene::SceneStats { brushes: 12, meshes: 0, terrains: 1, entities: 0, triangles: 900 };
         assert_eq!(stats_text(&stats), "12 brushes  1 terrain  900 tris");
         assert_eq!(stats_text(&crate::scene::SceneStats::default()), "");
+    }
+
+    fn chip_map() -> (EditorState, [td_doc::NodeId; 5], td_doc::NodeId) {
+        let mut state = EditorState::new(Default::default());
+        let parent = state.insert_parent();
+        let mut brush = |x: f64| {
+            let min = glam::DVec3::new(x, 5.0, -3.0);
+            let b = td_geom::Brush::from_aabb(&td_core::Aabb::new(min, min + glam::DVec3::new(32.0, 16.0, 8.0)), "dev/grey").unwrap();
+            state.doc.edit("Create Brush", |m, _| td_doc::ops::create_brush(m, parent, b))
+        };
+        let brushes = [brush(7.0), brush(-70.0), brush(100.0), brush(150.0), brush(-130.0)];
+        let min = glam::DVec3::new(-200.0, 9.0, 4.0);
+        let mesh =
+            td_geom::Mesh::from_brush(&td_geom::Brush::from_aabb(&td_core::Aabb::new(min, min + glam::DVec3::new(24.0, 40.0, 8.0)), "dev/grey").unwrap());
+        let mesh = state.doc.edit("Create Mesh", |m, _| m.insert(parent, td_doc::NodeKind::Mesh(mesh)));
+        (state, brushes, mesh)
+    }
+
+    fn chip_for(state: &mut EditorState, faces: &[(td_doc::NodeId, usize)]) -> Option<String> {
+        state.doc.select(|_, s| {
+            s.clear();
+            for (id, face) in faces {
+                s.select_face(*id, *face);
+            }
+        });
+        face_chip(&state.doc.map, &state.doc.selection)
+    }
+
+    #[test]
+    fn face_chip_counts_faces_and_the_brushes_they_sit_on() {
+        let (mut state, [a, b, c, ..], _) = chip_map();
+        assert_eq!(chip_for(&mut state, &[]), None, "no faces, no chip");
+        state.doc.select(|_, s| s.select_node(a));
+        assert_eq!(face_chip(&state.doc.map, &state.doc.selection), None, "a selected brush is not a face selection");
+        assert_eq!(chip_for(&mut state, &[(b, 4)]).as_deref(), Some("1 face on 1 brush"));
+        assert_eq!(chip_for(&mut state, &[(b, 1), (b, 2), (b, 4), (b, 5)]).as_deref(), Some("4 faces on 1 brush"));
+        assert_eq!(chip_for(&mut state, &[(a, 0), (a, 3), (c, 3)]).as_deref(), Some("3 faces on 2 brushes"));
+        assert_eq!(chip_for(&mut state, &[(a, 0), (b, 0), (c, 0)]).as_deref(), Some("3 faces on 3 brushes"));
+        assert_eq!(chip_for(&mut state, &[(a, 0), (a, 1), (a, 2), (a, 3), (a, 4), (a, 5)]).as_deref(), Some("6 faces on 1 brush"));
+    }
+
+    #[test]
+    fn cached_face_chip_follows_the_selection_and_the_language() {
+        let (mut state, [a, b, ..], _) = chip_map();
+        let mut cache = FaceChipCache::default();
+        chip_for(&mut state, &[(a, 0), (a, 1)]);
+        assert_eq!(cache.get(&state).as_deref(), Some("2 faces on 1 brush"));
+        assert_eq!(cache.get(&state).as_deref(), Some("2 faces on 1 brush"));
+        chip_for(&mut state, &[(a, 0), (b, 1)]);
+        assert_eq!(cache.get(&state).as_deref(), Some("2 faces on 2 brushes"));
+        {
+            let _ru = crate::i18n::scope(crate::i18n::Lang::Ru);
+            assert_eq!(cache.get(&state).as_deref(), Some("2 грани на 2 браша"));
+        }
+
+        state.doc.select(|_, s| s.clear());
+        assert_eq!(cache.get(&state), None);
+    }
+
+    #[test]
+    fn face_chip_names_meshes_and_falls_back_to_objects_when_they_mix() {
+        let (mut state, [a, b, ..], mesh) = chip_map();
+        assert_eq!(chip_for(&mut state, &[(mesh, 2)]).as_deref(), Some("1 face on 1 mesh"));
+        assert_eq!(chip_for(&mut state, &[(mesh, 1), (mesh, 5), (mesh, 3)]).as_deref(), Some("3 faces on 1 mesh"));
+        assert_eq!(chip_for(&mut state, &[(mesh, 1), (a, 2), (a, 5), (b, 5)]).as_deref(), Some("4 faces on 3 objects"));
+        assert_eq!(chip_for(&mut state, &[(mesh, 1), (a, 2)]).as_deref(), Some("2 faces on 2 objects"));
+    }
+
+    #[test]
+    fn russian_face_chip_takes_the_form_of_each_number() {
+        let _ru = crate::i18n::scope(crate::i18n::Lang::Ru);
+        let (mut state, brushes, _) = chip_map();
+        let mut chip = |faces: usize, owners: usize| {
+            let picked: Vec<_> = (0..faces).map(|i| (brushes[i % owners], i / owners)).collect();
+            chip_for(&mut state, &picked).unwrap()
+        };
+        assert_eq!(chip(1, 1), "1 грань на 1 браш");
+        assert_eq!(chip(3, 3), "3 грани на 3 браша");
+        assert_eq!(chip(5, 5), "5 граней на 5 брашей");
+        assert_eq!(chip(21, 4), "21 грань на 4 браша");
+        assert_eq!(chip(11, 2), "11 граней на 2 браша");
     }
 
     #[test]
