@@ -749,7 +749,7 @@ fn mouse_help(preset: &str) -> String {
     [
         tr("3D: right drag looks, WASD flies, Q and E go down and up, middle drag pans, Alt+left drag orbits").to_string(),
         tr("2D: right or middle drag pans, the wheel zooms, drag a selection edge to resize").to_string(),
-        tr("Click selects, double click selects the group. Drag empty space to draw a brush").to_string(),
+        tr("Click selects an object or a whole group, double click opens a group. Drag empty space to draw a brush").to_string(),
         tr("3D gizmo: arrows and squares move, rings rotate, boxes scale").to_string(),
         trf!(
             "{click} selects faces, Shift+drag a face pushes it, Ctrl+Shift+drag extrudes",
@@ -4295,6 +4295,7 @@ mod tests {
         assert!(tb[4].starts_with("Shift+click selects faces, Shift+drag a face pushes it"), "{}", tb[4]);
         assert!(blender[4].starts_with("Click (Face mode) selects faces, Shift+drag a face pushes it"), "{}", blender[4]);
         assert_eq!(tb[..4], blender[..4]);
+        assert!(tb[2].contains("double click opens"), "{}", tb[2]);
         assert_eq!(tb[5], blender[5]);
         let _de = crate::i18n::scope(crate::i18n::Lang::De);
         assert!(mouse_help("trenchbroom").contains("Shift+Klick"), "{}", mouse_help("trenchbroom"));

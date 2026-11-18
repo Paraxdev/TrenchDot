@@ -219,7 +219,7 @@ pub fn hint(ui: &mut Ui, hint: &str) {
 /// see [`crate::panels::TOOL_HELP`].
 pub fn tool_line(tool: ToolKind) -> &'static str {
     match tool {
-        ToolKind::Select => en!("Click to pick, drag empty space to draw a brush, drag the selection to move it"),
+        ToolKind::Select => en!("Click picks, a group whole, double click opens it, drag empty space to draw a brush"),
         ToolKind::Clip => en!("Click two or three points, Tab picks the side to keep, Enter clips"),
         ToolKind::Polygon => en!("Click the corners of an outline, Enter or the first corner closes it"),
         ToolKind::Vertex => en!("Drag corners and midpoints, Delete removes vertices"),

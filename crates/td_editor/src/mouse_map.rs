@@ -196,9 +196,12 @@ pub fn row_click(command: bool, shift: bool) -> RowClick {
     }
 }
 
-/// The handler decision a fixed Mouse tab row stands for, checked against [`texture_gesture`] and [`row_click`].
+/// The handler decision a fixed Mouse tab row stands for, checked against [`texture_gesture`], [`row_click`] and
+/// [`double_click`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Bound {
+    /// A double click in a view on this hit, with a group open or not.
+    View(DoubleClickHit, bool, DoubleClick),
     Texture(Chord, TextureGesture),
     Outliner(Chord, RowClick),
 }
@@ -219,6 +222,7 @@ pub struct MouseRow {
 const VIEWS: &str = en!("3D and 2D views");
 const TEXTURE_TOOL: &str = en!("Texture Tool");
 const OUTLINER: &str = en!("Outliner");
+const OUTLINER_DOUBLE_CLICK: &str = en!("Double click a row");
 
 /// The mouse gestures of `preset`, grouped by where they apply. The click rows come from [`chord_label`] and
 /// [`click_rule`], so they cannot drift from what a click does.
@@ -241,6 +245,7 @@ pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
         bound: Some(Bound::Texture(chord(button, mods), g)),
         ..fixed(TEXTURE_TOOL, gesture, what)
     };
+    let view = |gesture: &'static str, what: &'static str, hit, open, d| MouseRow { bound: Some(Bound::View(hit, open, d)), ..fixed(VIEWS, gesture, what) };
     let outliner = |mods: &str, gesture: &'static str, what: &'static str, g| MouseRow {
         bound: Some(Bound::Outliner(chord(Button::Click, mods), g)),
         ..fixed(OUTLINER, gesture, what)
@@ -250,7 +255,9 @@ pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
         .map(|rule| MouseRow { context: VIEWS, gesture: chord_label(preset, rule), what: rule_what(rule), rule: Some(rule), bound: None })
         .collect();
     rows.extend([
-        fixed(VIEWS, en!("Double click"), en!("Select the whole group")),
+        view(en!("Double click a group"), en!("Open it, so clicks reach what is inside"), DoubleClickHit::ClosedGroup, false, DoubleClick::OpenGroup),
+        view(en!("Double click an entity brush"), en!("Select every brush of the entity"), DoubleClickHit::EntityBrush, false, DoubleClick::SelectEntity),
+        view(en!("Double click empty space"), en!("Close the open group and clear the selection"), DoubleClickHit::Nothing, true, DoubleClick::CloseGroup),
         fixed(VIEWS, en!("Click again soon at the same spot, or Alt+click (2D)"), en!("Select the next object under the cursor")),
         fixed(VIEWS, en!("Drag off the selection"), en!("Draw a brush")),
         fixed(VIEWS, en!("Drag the selection"), en!("Move it. Ctrl copies, Shift locks the axis")),
@@ -275,10 +282,11 @@ pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
         texture(Button::Drag, "", en!("Drag a selected face"), en!("Slide the texture"), TextureGesture::Slide),
         texture(Button::Wheel, "c", en!("Ctrl+wheel"), en!("Scale the texture, Shift in finer steps"), TextureGesture::Scale),
         texture(Button::Wheel, "a", en!("Alt+wheel"), en!("Rotate the texture, Shift in 1 degree steps"), TextureGesture::Rotate),
-        outliner("", en!("Click a row"), en!("Select it"), RowClick::Replace),
-        outliner("c", en!("Ctrl+click a row"), en!("Add it to the selection or remove it"), RowClick::Toggle),
+        outliner("", en!("Click a row"), en!("Select it, or the outermost closed group around it"), RowClick::Replace),
+        outliner("c", en!("Ctrl+click a row"), en!("Add it or its outermost closed group to the selection or remove it"), RowClick::Toggle),
         outliner("s", en!("Shift+click a row"), en!("Select the rows from the last clicked one"), RowClick::Range),
         outliner("cs", en!("Ctrl+Shift+click a row"), en!("Add the rows from the last clicked one"), RowClick::AddRange),
+        fixed(OUTLINER, OUTLINER_DOUBLE_CLICK, en!("Open every closed group down to it and select it. Outside a closed group it folds or unfolds the row")),
     ]);
     rows
 }
@@ -287,8 +295,8 @@ fn rule_what(rule: ClickRule) -> &'static str {
     match rule {
         ClickRule::Clear => en!("Clear the selection"),
         ClickRule::Keep => en!("Keep the selection"),
-        ClickRule::ReplaceObject => en!("Select the object under the cursor"),
-        ClickRule::ToggleObject => en!("Add the object to the selection or remove it"),
+        ClickRule::ReplaceObject => en!("Select the object under the cursor, or the whole group around it"),
+        ClickRule::ToggleObject => en!("Add the object or its whole group to the selection or remove it"),
         ClickRule::ReplaceFace => en!("Select the face under the cursor, replacing the selection"),
         ClickRule::ToggleFace => en!("Add the face to the selection or remove it"),
         ClickRule::FaceModeMiss => en!("Nothing changes, it has no faces to pick"),
@@ -462,6 +470,7 @@ mod tests {
         let rows = mouse_rows("trenchbroom");
         let mut texture = Vec::new();
         let mut outliner = Vec::new();
+        let mut double = Vec::new();
         for row in &rows {
             match row.bound {
                 Some(Bound::Texture(chord, g)) => {
@@ -469,12 +478,17 @@ mod tests {
                     assert!(row.gesture.starts_with(&chord_prefix(chord)), "{} is not {:?}", row.gesture, chord);
                     texture.push(g);
                 }
+                Some(Bound::View(hit, open, d)) => {
+                    assert_eq!(double_click(hit, open), d, "{}", row.gesture);
+                    assert!(row.gesture.starts_with("Double click "), "{}", row.gesture);
+                    double.push(d);
+                }
                 Some(Bound::Outliner(chord, click)) => {
                     assert_eq!(row_click(chord.command, chord.shift), click, "{}", row.gesture);
                     assert!(row.gesture.starts_with(&chord_prefix(chord)), "{} is not {:?}", row.gesture, chord);
                     outliner.push(click);
                 }
-                None => assert!(row.context == VIEWS, "{} has no handler to check", row.gesture),
+                None => assert!(row.context == VIEWS || row.gesture == OUTLINER_DOUBLE_CLICK, "{} has no handler to check", row.gesture),
             }
         }
 
@@ -483,6 +497,19 @@ mod tests {
                 assert!(texture.contains(&g), "no Texture tool row for {g:?}");
             }
         }
+
+        for (hit, open) in [
+            (DoubleClickHit::Nothing, false),
+            (DoubleClickHit::Nothing, true),
+            (DoubleClickHit::ClosedGroup, false),
+            (DoubleClickHit::EntityBrush, true),
+            (DoubleClickHit::Other, false),
+        ] {
+            let d = double_click(hit, open);
+            assert!(d == DoubleClick::Keep || double.contains(&d), "no Mouse tab row for {d:?}");
+        }
+
+        assert_eq!(double.len(), 3, "one row per double click action");
 
         for chord in chords(Button::Click) {
             assert!(outliner.contains(&row_click(chord.command, chord.shift)));
@@ -500,6 +527,17 @@ mod tests {
             let rows = mouse_rows(preset);
             let row = rows.iter().find(|r| r.what == "Select the next object under the cursor").unwrap();
             assert!(row.gesture.contains("Alt+click"), "{preset}: {}", row.gesture);
+        }
+    }
+
+    #[test]
+    fn the_outliner_rows_name_the_closed_groups_and_the_double_click() {
+        for preset in ["trenchbroom", "hammer", "blender"] {
+            let rows = mouse_rows(preset);
+            let what = |gesture: &str| rows.iter().find(|r| r.context == OUTLINER && r.gesture == gesture).map(|r| r.what).unwrap_or_default();
+            assert!(what("Click a row").contains("closed group"), "{preset}");
+            assert!(what("Ctrl+click a row").contains("closed group"), "{preset}");
+            assert!(what("Double click a row").starts_with("Open every closed group down to it"), "{preset}");
         }
     }
 

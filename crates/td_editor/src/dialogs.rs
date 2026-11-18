@@ -2693,6 +2693,7 @@ mod tests {
         assert!(h.query_by_label("Shift+click a row").is_some());
         assert!(h.query_by_label("Alt+right click a face").is_some());
         assert!(h.query_by_label("Nothing changes, it has no faces to pick").is_none());
+        assert!(h.query_by_label("Double click a group").is_some());
 
         h.get_by_role(egui::accesskit::Role::ComboBox).click();
         h.run();
@@ -2703,6 +2704,16 @@ mod tests {
         assert!(h.query_by_label("Shift+click (Face mode)").is_some());
         assert!(h.query_by_label("Shift+click (Object mode)").is_some());
         assert!(h.query_by_label("Nothing changes, it has no faces to pick").is_some());
+        for label in ["Double click a group", "Double click an entity brush", "Double click empty space"] {
+            assert!(h.query_by_label(label).is_some(), "{label} in the Blender preset");
+        }
+
+        h.get_by_role(egui::accesskit::Role::ComboBox).click();
+        h.run();
+        h.get_by_label(commands::preset_label("hammer")).click();
+        h.run();
+        assert_eq!(h.state().1.prefs.keymap_preset, "hammer");
+        assert!(h.query_by_label("Double click a group").is_some(), "the Hammer preset names it too");
     }
 
     #[test]
