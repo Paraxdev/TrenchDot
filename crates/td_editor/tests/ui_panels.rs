@@ -2705,3 +2705,160 @@ fn the_custom_edit_plane_starts_where_the_middle_plane_was() {
         }
     }
 }
+
+/// A mirrored pair of groups, each holding two differently sized brushes off the origin, and a plain group beside them.
+struct LinkedRows {
+    left: NodeId,
+    right: NodeId,
+    left_brushes: Vec<NodeId>,
+    right_brushes: Vec<NodeId>,
+    plain: NodeId,
+    plain_child: NodeId,
+}
+
+fn linked_rows_fixture() -> (Fixture, LinkedRows) {
+    use td_doc::symmetry::{PlaneAt, PlaneChoice};
+    let mut f = Fixture::new();
+    let layer = f.state.doc.map.default_layer();
+    let rows = f.state.doc.edit("add", |m, s| {
+        let cube =
+            |m: &mut td_doc::Map, min: DVec3, size: DVec3| m.insert(layer, NodeKind::Brush(Brush::from_aabb(&Aabb::new(min, min + size), "dev/grey").unwrap()));
+        let a = cube(m, DVec3::new(32.0, 96.0, 16.0), DVec3::new(64.0, 32.0, 48.0));
+        let b = cube(m, DVec3::new(160.0, 64.0, 0.0), DVec3::new(32.0, 96.0, 24.0));
+        s.clear();
+        s.nodes.extend([a, b]);
+        let left = ops::group_selection(m, s, "half", layer).unwrap();
+        let (copies, _) = td_doc::mirror::mirror_linked(m, s, 0, &PlaneChoice { at: PlaneAt::Custom, custom: -40.0 }).unwrap();
+        let right = copies[0];
+        let kids = |m: &td_doc::Map, g: NodeId| m.get(g).unwrap().children.clone();
+        let plain_child = cube(m, DVec3::new(512.0, 320.0, 64.0), DVec3::splat(48.0));
+        s.clear();
+        s.select_node(plain_child);
+        let plain = ops::group_selection(m, s, "crate", layer).unwrap();
+        s.clear();
+        LinkedRows { left, right, left_brushes: kids(m, left), right_brushes: kids(m, right), plain, plain_child }
+    });
+    (f, rows)
+}
+
+fn outliner_harness(f: Fixture) -> Harness<'static, Fixture> {
+    // Frames this close together keep two clicks inside egui's double click delay.
+    Harness::builder()
+        .with_size(egui::vec2(360.0, 500.0))
+        .with_step_dt(0.02)
+        .build_ui_state(|ui, f: &mut Fixture| panels::outliner(ui, &mut f.state, &mut f.panels, &mut f.actions), f)
+}
+
+fn reveal_rows(harness: &mut Harness<'_, Fixture>, ids: &[NodeId]) {
+    for id in ids {
+        harness.state_mut().state.outliner_reveal = Some(*id);
+        harness.run();
+    }
+}
+
+fn selection(harness: &Harness<'_, Fixture>) -> Vec<NodeId> {
+    harness.state().state.doc.selection.nodes.iter().copied().collect()
+}
+
+fn row_label(harness: &Harness<'_, Fixture>, id: NodeId) -> String {
+    harness.state().state.doc.map.get(id).unwrap().name()
+}
+
+#[test]
+fn outliner_click_inside_a_closed_linked_half_selects_the_half() {
+    let (f, r) = linked_rows_fixture();
+    let mut harness = outliner_harness(f);
+    harness.run();
+    let all: Vec<NodeId> = [r.left_brushes.clone(), r.right_brushes.clone(), vec![r.plain_child]].concat();
+    reveal_rows(&mut harness, &all);
+    let brush = row_label;
+
+    let label = brush(&harness, r.left_brushes[1]);
+    harness.get_all_by_label(&label).next().unwrap().click();
+    harness.run();
+    assert_eq!(selection(&harness), [r.left], "a row inside a closed linked half selects exactly the half");
+
+    let label = brush(&harness, r.right_brushes[0]);
+    harness.get_all_by_label(&label).next().unwrap().click_modifiers(egui::Modifiers::COMMAND);
+    harness.run();
+    let mut both = selection(&harness);
+    both.sort();
+    assert_eq!(both, [r.left, r.right], "Ctrl click adds the other half");
+
+    harness.get_all_by_label(&brush(&harness, r.right_brushes[1])).next().unwrap().click_modifiers(egui::Modifiers::COMMAND);
+    harness.run();
+    assert_eq!(selection(&harness), [r.left], "Ctrl click on another row of a selected half toggles the whole half off");
+
+    let label = brush(&harness, r.plain_child);
+    harness.get_by_label(&label).click();
+    harness.run();
+    assert_eq!(selection(&harness), [r.plain_child], "a plain group's child row selects the child");
+
+    harness.get_all_by_label(&brush(&harness, r.left_brushes[0])).next().unwrap().click();
+    harness.run();
+    harness.get_all_by_label(&brush(&harness, r.right_brushes[1])).next().unwrap().click_modifiers(egui::Modifiers::SHIFT);
+    harness.run();
+    let mut range = selection(&harness);
+    range.sort();
+    assert_eq!(range, [r.left, r.right], "a Shift range over rows of both halves holds each half once");
+
+    harness.get_all_by_label(&brush(&harness, r.right_brushes[0])).next().unwrap().click_secondary();
+    harness.run();
+    assert_eq!(selection(&harness), [r.right], "a right click on an unselected row inside a half selects the half");
+}
+
+#[test]
+fn outliner_click_selects_the_row_itself_once_the_half_is_open() {
+    let (f, r) = linked_rows_fixture();
+    let mut harness = outliner_harness(f);
+    harness.run();
+    reveal_rows(&mut harness, &[r.left_brushes[0], r.right_brushes[0]]);
+    harness.state_mut().state.open_groups.push(r.left);
+    harness.run();
+    let label = row_label(&harness, r.left_brushes[1]);
+    harness.get_all_by_label(&label).next().unwrap().click();
+    harness.run();
+    assert_eq!(selection(&harness), [r.left_brushes[1]], "inside an opened half the row is the target");
+    let label = row_label(&harness, r.right_brushes[1]);
+    harness.get_all_by_label(&label).next().unwrap().click();
+    harness.run();
+    assert_eq!(selection(&harness), [r.right], "the other half is still closed");
+}
+
+#[test]
+fn outliner_double_click_opens_the_group_and_reaches_the_row() {
+    let (f, r) = linked_rows_fixture();
+    let mut harness = outliner_harness(f);
+    harness.run();
+    reveal_rows(&mut harness, &[r.left_brushes[0], r.right_brushes[0], r.plain_child]);
+    let double = |h: &mut Harness<'_, Fixture>, id: NodeId| {
+        let label = row_label(h, id);
+        // Two pairs of clicks closer than twice the delay would make the second pair a triple click.
+        h.run_steps(40);
+        // Both halves are named alike, the second one is the later row.
+        h.get_all_by_label(&label).last().unwrap().click();
+        h.step();
+        h.get_all_by_label(&label).last().unwrap().click();
+        h.run();
+    };
+
+    double(&mut harness, r.left_brushes[1]);
+    assert_eq!(harness.state().state.open_groups, [r.left]);
+    assert_eq!(selection(&harness), [r.left_brushes[1]], "the brush itself is selected, not the half");
+
+    double(&mut harness, r.right);
+    assert_eq!(harness.state().state.open_groups, [r.left, r.right]);
+    assert!(selection(&harness).is_empty(), "a group row opens the group and clears the selection");
+
+    let rows = |h: &Harness<'_, Fixture>| h.query_all_by_label(&row_label(h, r.right_brushes[0])).count();
+    let shown = rows(&harness);
+    assert!(shown > 0);
+    double(&mut harness, r.right);
+    assert_eq!(harness.state().state.open_groups, [r.left, r.right], "a second double click does not push it again");
+    assert!(rows(&harness) < shown, "it folds the open group's row instead");
+    double(&mut harness, r.right);
+    assert_eq!(rows(&harness), shown, "and the next one unfolds it");
+
+    double(&mut harness, r.plain);
+    assert_eq!(harness.state().state.open_groups, [r.left, r.right, r.plain], "a plain group opens too");
+}

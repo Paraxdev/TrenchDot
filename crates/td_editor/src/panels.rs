@@ -169,6 +169,7 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
     // Hide or lock from the menu of a selected row, for the whole selection: (hide, value).
     let mut selection_flag: Option<(bool, bool)> = None;
     let mut clicked: Option<(NodeId, egui::Modifiers)> = None;
+    let mut opened: Option<NodeId> = None;
     let mut set_layer: Option<NodeId> = None;
     let mut renamed: Option<(NodeId, Option<String>)> = None;
     let mut hovered: Option<NodeId> = None;
@@ -268,7 +269,7 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
                         td_doc::ops::selection_roots(map, &state.doc.selection).into_iter().filter(|n| !map.layers.contains(n)).collect()
                     } else {
                         clicked = Some((*id, egui::Modifiers::NONE));
-                        vec![*id]
+                        vec![map.click_target(*id, &state.open_groups)]
                     };
                     resp.dnd_set_drag_payload(OutlinerDrag(ids));
                 }
@@ -306,7 +307,12 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
                 }
 
                 if resp.double_clicked() {
-                    toggles.push((*id, 0));
+                    if matches!(node.kind, NodeKind::Layer(_)) {
+                        toggles.push((*id, 0));
+                    } else {
+                        opened = Some(*id);
+                        clicked = None;
+                    }
                 }
 
                 if resp.secondary_clicked() && !selected && !matches!(node.kind, NodeKind::Layer(_)) {
@@ -505,10 +511,47 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
         state.current_layer = l;
     }
 
+    if let Some(id) = opened {
+        open_outliner_row(state, ps, id);
+    }
+
     if let Some((id, modifiers)) = clicked {
         let order: Vec<NodeId> = rows.iter().map(|(_, r)| *r).collect();
         select_outliner_row(state, ps, &order, id, modifiers);
     }
+}
+
+/// A double click opens the closed groups around a row, outer first, like Open Group. A group row also expands and
+/// leaves nothing selected, any other row stays selected so a brush inside a half is reached in one gesture. A row with
+/// no closed group around it keeps the old double click, which folds or unfolds its children.
+fn open_outliner_row(state: &mut EditorState, ps: &mut PanelState, id: NodeId) {
+    let map = &state.doc.map;
+    let is_group = |n: NodeId| matches!(map.get(n).map(|n| &n.kind), Some(NodeKind::Group(_)));
+    let mut chain = map.ancestors(id);
+    chain.reverse();
+    chain.extend(is_group(id).then_some(id));
+    chain.retain(|g| is_group(*g) && !state.open_groups.contains(g));
+    let group_row = is_group(id);
+    if chain.is_empty() {
+        if !ps.expanded.remove(&id) {
+            ps.expanded.insert(id);
+        }
+
+        return;
+    }
+
+    state.open_groups.extend(chain);
+    if group_row {
+        ps.expanded.insert(id);
+        state.doc.select(|_, s| s.clear());
+    } else {
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_node(id);
+        });
+    }
+
+    ps.outliner_anchor = Some(id);
 }
 
 /// Plain click selects one row, Ctrl toggles it, Shift selects the rows from the last clicked one and Ctrl+Shift adds
@@ -522,12 +565,21 @@ fn select_outliner_row(state: &mut EditorState, ps: &mut PanelState, order: &[No
         (true, Some(from), Some(to)) => {
             let rows = &order[from.min(to)..=from.max(to)];
             let objects = |r: &&NodeId| !matches!(map.get(**r).map(|n| &n.kind), Some(NodeKind::Layer(_)) | None);
-            Some(rows.iter().filter(objects).copied().collect())
+            let mut targets: Vec<NodeId> = Vec::new();
+            for r in rows.iter().filter(objects) {
+                let target = map.click_target(*r, &state.open_groups);
+                if !targets.contains(&target) {
+                    targets.push(target);
+                }
+            }
+
+            Some(targets)
         }
         _ => None,
     };
+    let target = map.click_target(id, &state.open_groups);
 
-    state.last_bounds = map.bounds(id);
+    state.last_bounds = map.bounds(target);
     state.doc.select(|map, s| match range {
         Some(rows) => {
             if click == RowClick::Range {
@@ -539,10 +591,10 @@ fn select_outliner_row(state: &mut EditorState, ps: &mut PanelState, order: &[No
             let all = s.nodes.clone();
             s.nodes.retain(|r| !map.ancestors(*r).iter().any(|a| all.contains(a)));
         }
-        None if click == RowClick::Toggle || click == RowClick::AddRange => s.toggle_node(id),
+        None if click == RowClick::Toggle || click == RowClick::AddRange => s.toggle_node(target),
         None => {
             s.clear();
-            s.select_node(id);
+            s.select_node(target);
         }
     });
     if !ranged || anchor.is_none() {
