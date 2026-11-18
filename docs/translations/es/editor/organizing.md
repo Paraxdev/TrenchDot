@@ -47,8 +47,16 @@ Un grupo mantiene objetos juntos para que se seleccionen y se muevan como uno, c
 | Entrada | Resultado |
 | --- | --- |
 | Ctrl+G, Ctrl+Shift+G | Agrupar la selección, desagruparla |
-| Clic | Seleccionar el objeto dentro del grupo |
-| Doble clic | Seleccionar el grupo entero |
+| Clic | Seleccionar el grupo entero, sea cual sea el objeto que aciertes |
+| Ctrl+clic | Añadir el grupo entero a la selección o quitarlo |
+| Doble clic en un grupo | Abrirlo, para que los clics lleguen a los objetos de dentro |
+| Doble clic en el espacio vacío, o Esc | Cerrar el grupo abierto |
+
+Un grupo cerrado actúa como un solo objeto, así que un clic en cualquier parte suyo lo selecciona entero y un arrastre lo mueve entero, también cuando empiezas el arrastre en la fila de un grupo en el Outliner. La fila propia de un brush es la excepción, arrastrarla mientras no está seleccionado mueve solo ese brush, así que puedes sacarlo de un grupo cerrado a otra fila. Dentro de una copia enlazada cerrada, la fila sigue moviendo la copia entera. Para trabajar en un brush de dentro, haz doble clic en el grupo en una vista, o doble clic en su fila del Outliner. La barra de estado dice entonces *Grupo abierto* y muestra **1 grupo abierto** en cian, y un clic dentro elige objetos sueltos. Un brush que dibujes mientras hay un grupo abierto queda en ese grupo.
+
+![La barra de estado tras un doble clic en un grupo, con Grupo Crate abierto y 1 grupo abierto](../assets/organizing/open-group.png)
+
+Hacer clic en algo fuera del grupo abierto lo cierra, así que un brush nuevo nunca acaba en un grupo que olvidaste. Con grupos dentro de grupos, cada doble clic abre un nivel y cada doble clic en el espacio vacío o pulsación de Esc cierra uno. Esc solo hace esto cuando no hay nada seleccionado y la herramienta Seleccionar está activa, mira [Atajos](shortcuts.md#tools). *Editar > Grupos > Abrir grupo* abre el grupo seleccionado, y *Cerrar grupo* cierra el grupo abierto y lo selecciona. Shift+clic sigue eligiendo una sola cara dentro de un grupo cerrado. El preajuste de Blender es distinto aquí, Shift+clic y Ctrl+clic añaden o quitan los dos el grupo entero en Modo objeto, y eliges una sola cara en Modo cara, mira [Otros preajustes](shortcuts.md#other-presets).
 
 También puedes agrupar en el Outliner arrastrando. Arrastra una fila sobre otro brush y suéltala, y los dos acaban en un grupo nuevo. Un tooltip junto al puntero indica qué hará soltar antes de que sueltes, y la fila de destino recibe un contorno.
 
@@ -56,7 +64,7 @@ También puedes agrupar en el Outliner arrastrando. Arrastra una fila sobre otro
 
 Suelta una fila sobre un grupo o una capa para moverla dentro. Soltarla sobre un objeto que ya está en un grupo la mueve a ese grupo, y los brushes soltados sobre una entidad brush, como una puerta, pasan a formar parte de esa entidad. Arrastra una fila hasta su capa para sacarla de un grupo. Si arrastras una fila seleccionada, toda la selección se mueve con ella.
 
-**Duplicar enlazado** (Ctrl+Shift+D) hace una copia que se mantiene sincronizada con su original, así que arreglar un marco de ventana arregla todos. Las copias enlazadas muestran *(enlazado)* en el Outliner, y un clic en una selecciona el grupo entero, ya que sus copias se editan como una sola. *Editar > Grupos > Desenlazar grupos* rompe el enlace cuando una copia tiene que ser distinta.
+**Duplicar enlazado** (Ctrl+Shift+D) hace una copia que se mantiene sincronizada con su original, así que arreglar un marco de ventana arregla todos. Las copias enlazadas muestran *(enlazado)* en el Outliner, y un clic en una selecciona el grupo entero, ya que sus copias se editan como una sola, y un doble clic lo abre, para que lo edites y las demás copias lo sigan. *Editar > Grupos > Desenlazar grupos* rompe el enlace cuando una copia tiene que ser distinta.
 
 ## Prefabs { #prefabs }
 

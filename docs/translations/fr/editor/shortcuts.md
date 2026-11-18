@@ -19,7 +19,7 @@ touche destinée à la fenêtre ne supprime ni ne modifie jamais votre carte.
 ## Outils { #tools }
 
 Appuyez de nouveau sur la touche d'un outil pour revenir à Sélectionner. Esc annule un glissement ou un trait, sinon il
-revient à Sélectionner, et dans Sélectionner il efface la sélection.
+revient à Sélectionner, et dans Sélectionner il efface la sélection. Quand rien n'est sélectionné, il ferme le groupe ouvert, un niveau par appui.
 
 | Touche | Outil |
 | --- | --- |
@@ -44,7 +44,10 @@ revient à Sélectionner, et dans Sélectionner il efface la sélection.
 | --- | --- |
 | Glisser hors de la sélection | Dessiner un brush |
 | Glisser la sélection | Déplacer. Ctrl copie, Shift verrouille l'axe, Alt déplace à la verticale en 3D |
-| Clic, double clic | Sélectionner, sélectionner tout le groupe |
+| Clic | Sélectionner l'objet sous le curseur, ou tout le groupe qui l'entoure |
+| Double clic sur un groupe | L'ouvrir, pour que les clics atteignent l'intérieur |
+| Double clic sur une entité brush | Sélectionner tous les brushes de l'entité |
+| Double clic dans le vide | Fermer le groupe ouvert le plus intérieur, un niveau par double clic, et effacer la sélection. Esc ferme un niveau par appui, voir [Outils](#tools) |
 | Cliquer de nouveau peu après au même endroit, ou Alt+clic (2D) | Sélectionner l'objet suivant sous le curseur, comme un mur sous son plafond dans la vue de dessus |
 | Ctrl+clic | Ajouter à la sélection ou retirer, dans les vues et dans l'Outliner |
 | Shift+clic dans l'Outliner | Sélectionner les lignes à partir de la dernière sur laquelle vous avez cliqué |

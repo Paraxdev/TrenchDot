@@ -14,7 +14,7 @@ Los atajos esperan mientras escribes en un campo o hay un menú abierto. Mientra
 
 ## Herramientas { #tools }
 
-Pulsa otra vez la tecla de una herramienta para volver a Seleccionar. Esc cancela un arrastre o un trazo, y si no, vuelve a Seleccionar, y en Seleccionar borra la selección.
+Pulsa otra vez la tecla de una herramienta para volver a Seleccionar. Esc cancela un arrastre o un trazo, y si no, vuelve a Seleccionar, y en Seleccionar borra la selección. Sin nada seleccionado, cierra el grupo abierto, un nivel por pulsación.
 
 | Tecla | Herramienta |
 | --- | --- |
@@ -39,7 +39,10 @@ Pulsa otra vez la tecla de una herramienta para volver a Seleccionar. Esc cancel
 | --- | --- |
 | Arrastrar fuera de la selección | Dibujar un brush |
 | Arrastrar la selección | Mover. Ctrl copia, Shift fija el eje, Alt mueve en vertical en 3D |
-| Clic, doble clic | Seleccionar, seleccionar el grupo entero |
+| Clic | Seleccionar el objeto bajo el cursor, o el grupo entero que lo rodea |
+| Doble clic en un grupo | Abrirlo, para que los clics lleguen a lo de dentro |
+| Doble clic en una entidad brush | Seleccionar todos los brushes de la entidad |
+| Doble clic en el espacio vacío | Cerrar el grupo abierto más interior, un nivel por doble clic, y borrar la selección. Esc cierra un nivel por pulsación, mira [Herramientas](#tools) |
 | Clic otra vez enseguida en el mismo punto, o Alt+clic (2D) | Seleccionar el siguiente objeto bajo el cursor, como una pared bajo su techo en la vista Superior |
 | Ctrl+clic | Añadir a la selección o quitar de ella, en las vistas y en el Outliner |
 | Shift+clic en el Outliner | Seleccionar las filas desde la última en la que hiciste clic |

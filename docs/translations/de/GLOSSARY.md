@@ -142,6 +142,9 @@ Ein vereinfachter Umriss der Böden, auf denen KI-Agenten laufen können und mit
 ## Normal-Map { #normal-map data-forms="Normal-Maps" }
 Eine Textur, die speichert, wohin jedes Pixel einer Oberfläche zeigt, sodass ebene Flächen das Licht einfangen, als hätten sie Beulen und Rillen. Sie bringt feine Details ohne zusätzliche Geometrie.
 
+## Gruppe öffnen { #open-group data-forms="offene Gruppe|offenen Gruppe|offene Gruppen|offenen Gruppen" }
+Eine Gruppe, auf die du doppelt geklickt hast, sodass Klicks darin einzelne Objekte statt der ganzen Gruppe wählen. Eine geschlossene Gruppe wird als eines ausgewählt und verschoben. Neue Brushes landen in der offenen Gruppe, und ein Doppelklick auf leeren Raum oder Esc schließt sie wieder. Die Statusleiste zählt offene Gruppen.
+
 ## Operand { #operand data-forms="Operanden" }
 Die Zahl, mit der eine Rechnung außer der, die sie erhält, arbeitet. In einem math_calc, das 5 addiert, ist der Operand 5.
 

@@ -47,8 +47,16 @@ Um grupo mantém objetos juntos para que sejam selecionados e movidos como um s�
 | Entrada | Resultado |
 | --- | --- |
 | Ctrl+G, Ctrl+Shift+G | Agrupar a seleção, desagrupá-la |
-| Clique | Seleciona o objeto dentro do grupo |
-| Clique duplo | Seleciona o grupo inteiro |
+| Clique | Seleciona o grupo inteiro, qualquer que seja o objeto que você acertar |
+| Ctrl+clique | Adiciona o grupo inteiro à seleção ou o tira dela |
+| Clique duplo em um grupo | Abre o grupo, para que os cliques alcancem os objetos dentro dele |
+| Clique duplo no espaço vazio, ou Esc | Fecha o grupo aberto |
+
+Um grupo fechado age como um único objeto, então um clique em qualquer parte dele seleciona tudo e um arraste move tudo, também quando você começa o arraste na linha de um grupo no Outliner. A linha própria de um brush é a exceção, arrastá-la enquanto ele não está selecionado move só esse brush, então você pode tirá-lo de um grupo fechado para outra linha. Dentro de uma cópia vinculada fechada, a linha ainda move a cópia inteira. Para trabalhar em um brush de dentro, dê um clique duplo no grupo em uma vista, ou um clique duplo na linha dele no Outliner. A barra de status então diz *Grupo aberto* e mostra **1 grupo aberto** em ciano, e um clique dentro escolhe objetos individuais. Um brush que você desenha com um grupo aberto vai parar nesse grupo.
+
+![A barra de status depois de um clique duplo em um grupo, com o grupo Crate aberto e 1 grupo aberto](../assets/organizing/open-group.png)
+
+Clicar em algo fora do grupo aberto o fecha, então um brush novo nunca acaba em um grupo que você esqueceu. Com grupos dentro de grupos, cada clique duplo abre um nível, e cada clique duplo no espaço vazio ou toque em Esc fecha um. Esc só faz isso quando nada está selecionado e a ferramenta Selecionar está ativa, veja [Atalhos](shortcuts.md#tools). *Editar > Grupos > Abrir grupo* abre o grupo selecionado, e *Fechar grupo* fecha o grupo aberto e o seleciona. Shift+clique ainda escolhe uma única face dentro de um grupo fechado. A predefinição Blender é diferente aqui, Shift+clique e Ctrl+clique adicionam ou tiram os dois o grupo inteiro no Modo objeto, e você escolhe uma única face no Modo face, veja [Outras predefinições](shortcuts.md#other-presets).
 
 Você também pode agrupar no Outliner arrastando. Arraste uma linha sobre outro brush e solte, e os dois vão parar em um grupo novo. Uma dica ao lado do ponteiro diz o que vai acontecer antes de você soltar, e a linha de destino ganha um contorno.
 
@@ -56,7 +64,7 @@ Você também pode agrupar no Outliner arrastando. Arraste uma linha sobre outro
 
 Solte uma linha sobre um grupo ou uma camada para movê-la para dentro. Soltá-la sobre um objeto que já está em um grupo a move para esse grupo, e brushes soltos sobre uma entidade brush, como uma porta, passam a fazer parte dessa entidade. Arraste uma linha até a sua camada para tirá-la de um grupo. Ao arrastar uma linha selecionada, a seleção inteira vai junto.
 
-**Duplicar vinculado** (Ctrl+Shift+D) faz uma cópia que continua em sincronia com a original, então consertar um batente de janela conserta todos. As cópias vinculadas mostram *(linked)* no Outliner, e um clique em uma seleciona o grupo inteiro, já que as cópias são editadas como uma só. *Editar > Grupos > Desvincular grupos* quebra o vínculo quando uma cópia precisa ser diferente.
+**Duplicar vinculado** (Ctrl+Shift+D) faz uma cópia que continua em sincronia com a original, então consertar um batente de janela conserta todos. As cópias vinculadas mostram *(linked)* no Outliner, e um clique em uma seleciona o grupo inteiro, já que as cópias são editadas como uma só, e um clique duplo a abre, para que você a edite e as outras cópias acompanhem. *Editar > Grupos > Desvincular grupos* quebra o vínculo quando uma cópia precisa ser diferente.
 
 ## Prefabs { #prefabs }
 

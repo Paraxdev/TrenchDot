@@ -142,6 +142,9 @@ Un contorno simplificado de los suelos por los que pueden caminar los agentes de
 ## mapa normal { #normal-map data-forms="mapas normales" }
 Una textura que guarda hacia dónde mira cada píxel de una superficie, para que las caras planas capten la luz como si tuvieran bultos y surcos. Añade detalle fino sin geometría adicional.
 
+## Abrir grupo { #open-group data-forms="grupo abierto|grupos abiertos" }
+Un grupo en el que has hecho doble clic, así que los clics dentro eligen objetos sueltos en vez del grupo entero. Un grupo cerrado se selecciona y se mueve como uno solo. Los brushes nuevos van al grupo abierto, y un doble clic en el espacio vacío o Esc lo cierra otra vez. La barra de estado cuenta los grupos abiertos.
+
 ## operando { #operand data-forms="operandos" }
 El número con el que trabaja un cálculo además del que recibe. En un math_calc que suma 5, el operando es 5.
 

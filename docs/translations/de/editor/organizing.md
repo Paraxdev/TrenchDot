@@ -47,8 +47,16 @@ Eine Gruppe hält Objekte zusammen, damit sie sich als eines auswählen und vers
 | Eingabe | Ergebnis |
 | --- | --- |
 | Ctrl+G, Ctrl+Shift+G | Die Auswahl gruppieren, die Gruppierung aufheben |
-| Klick | Das Objekt in der Gruppe auswählen |
-| Doppelklick | Die ganze Gruppe auswählen |
+| Klick | Die ganze Gruppe auswählen, egal welches ihrer Objekte du triffst |
+| Ctrl+Klick | Die ganze Gruppe zur Auswahl hinzufügen oder daraus entfernen |
+| Doppelklick auf eine Gruppe | Sie öffnen, damit Klicks die Objekte darin erreichen |
+| Doppelklick auf leeren Raum, oder Esc | Die offene Gruppe schließen |
+
+Eine geschlossene Gruppe verhält sich wie ein einzelnes Objekt: Ein Klick irgendwo darauf wählt sie ganz aus und ein Ziehen verschiebt sie ganz, auch wenn du das Ziehen auf der Zeile einer Gruppe im Outliner beginnst. Die eigene Zeile eines Brushs ist die Ausnahme: Ziehst du sie, solange er nicht ausgewählt ist, bewegt sich nur dieser Brush, sodass du ihn aus einer geschlossenen Gruppe auf eine andere Zeile ziehen kannst. In einer geschlossenen verknüpften Kopie bewegt die Zeile weiterhin die ganze Kopie. Um an einem einzelnen Brush darin zu arbeiten, doppelklick die Gruppe in einer Ansicht oder doppelklick ihre Zeile im Outliner. Die Statusleiste sagt dann *Gruppe geöffnet* und zeigt **1 offene Gruppe** in Cyan, und ein Klick darin wählt einzelne Objekte. Ein Brush, den du bei geöffneter Gruppe zeichnest, landet in dieser Gruppe.
+
+![Die Statusleiste nach einem Doppelklick auf eine Gruppe, mit Gruppe Crate geöffnet und 1 offene Gruppe](../assets/organizing/open-group.png)
+
+Ein Klick auf etwas außerhalb der offenen Gruppe schließt sie, damit ein neuer Brush nie in einer Gruppe landet, die du vergessen hast. Bei Gruppen in Gruppen öffnet jeder Doppelklick eine Ebene, und jeder Doppelklick auf leeren Raum oder Druck auf Esc schließt eine. Esc tut das erst, wenn nichts ausgewählt ist und das Werkzeug Auswählen aktiv ist, siehe [Tastenkürzel](shortcuts.md#tools). *Bearbeiten > Gruppen > Gruppe öffnen* öffnet die ausgewählte Gruppe, und *Gruppe schließen* schließt die offene Gruppe und wählt sie aus. Shift+Klick wählt in einer geschlossenen Gruppe weiterhin eine einzelne Fläche. Die Voreinstellung Blender weicht hier ab, Shift+Klick und Ctrl+Klick fügen im Objektmodus beide die ganze Gruppe hinzu oder nehmen sie heraus, und eine einzelne Fläche wählst du im Flächenmodus, siehe [Weitere Voreinstellungen](shortcuts.md#other-presets).
 
 Du kannst auch im Outliner per Ziehen gruppieren. Zieh eine Zeile auf einen anderen Brush und lass los, dann landen die beiden in einer neuen Gruppe. Ein Tooltip neben dem Mauszeiger sagt dir vor dem Loslassen, was das Ablegen bewirkt, und die Zielzeile bekommt eine Umrandung.
 
@@ -56,7 +64,7 @@ Du kannst auch im Outliner per Ziehen gruppieren. Zieh eine Zeile auf einen ande
 
 Lege eine Zeile auf einer Gruppe oder einer Ebene ab, um sie hineinzuschieben. Ein Objekt, das du auf einem Objekt ablegst, das schon in einer Gruppe steckt, wandert in diese Gruppe, und Brushes, die du auf einer Brush-Entität wie einer Tür ablegst, werden Teil dieser Entität. Zieh eine Zeile auf ihre Ebene, um sie wieder aus einer Gruppe zu nehmen. Wenn du eine ausgewählte Zeile ziehst, bewegt sich die ganze Auswahl mit.
 
-**Verknüpft duplizieren** (Ctrl+Shift+D) macht eine Kopie, die mit ihrem Original synchron bleibt, sodass die Reparatur eines Fensterrahmens alle repariert. Verknüpfte Kopien zeigen im Outliner *(verknüpft)*, und ein Klick auf eine wählt die ganze Gruppe aus, da ihre Kopien als eines bearbeitet werden. *Bearbeiten > Gruppen > Gruppen trennen* löst die Verknüpfung, wenn sich eine Kopie unterscheiden muss.
+**Verknüpft duplizieren** (Ctrl+Shift+D) macht eine Kopie, die mit ihrem Original synchron bleibt, sodass die Reparatur eines Fensterrahmens alle repariert. Verknüpfte Kopien zeigen im Outliner *(verknüpft)*, und ein Klick auf eine wählt die ganze Gruppe aus, da ihre Kopien als eines bearbeitet werden, und ein Doppelklick öffnet sie, damit du sie bearbeiten kannst und die anderen Kopien folgen. *Bearbeiten > Gruppen > Gruppen trennen* löst die Verknüpfung, wenn sich eine Kopie unterscheiden muss.
 
 ## Prefabs { #prefabs }
 

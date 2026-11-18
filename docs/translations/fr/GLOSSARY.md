@@ -142,6 +142,9 @@ Un contour simplifié des sols sur lesquels les agents IA peuvent marcher, que G
 ## carte normale { #normal-map data-forms="cartes normales" }
 Une texture qui stocke dans quelle direction regarde chaque pixel d'une surface, pour que des faces plates captent la lumière comme si elles avaient des bosses et des rainures. Elle ajoute du détail fin sans géométrie supplémentaire.
 
+## Ouvrir le groupe { #open-group data-forms="groupe ouvert|groupes ouverts" }
+Un groupe sur lequel vous avez fait un double clic, si bien que les clics à l'intérieur choisissent des objets seuls plutôt que le groupe entier. Un groupe fermé se sélectionne et se déplace d'un bloc. Les nouveaux brushes vont dans le groupe ouvert, et un double clic dans le vide ou Esc le referme. La barre d'état compte les groupes ouverts.
+
 ## opérande { #operand data-forms="opérandes" }
 Le nombre avec lequel un calcul travaille en plus de celui qu'il reçoit. Dans un math_calc qui ajoute 5, l'opérande est 5.
 

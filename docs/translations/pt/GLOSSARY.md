@@ -142,6 +142,9 @@ Um contorno simplificado dos pisos em que agentes de IA podem andar, que o Godot
 ## mapa normal { #normal-map data-forms="mapas normais" }
 Uma textura que guarda para onde cada pixel de uma superfície aponta, para que faces planas peguem a luz como se tivessem relevos e sulcos. Ela adiciona detalhe fino sem geometria extra.
 
+## Abrir grupo { #open-group data-forms="grupo aberto|grupos abertos" }
+Um grupo em que você deu um clique duplo, então os cliques dentro dele escolhem objetos individuais em vez do grupo inteiro. Um grupo fechado é selecionado e movido como um só. Os brushes novos vão para o grupo aberto, e um clique duplo no espaço vazio ou Esc o fecha de novo. A barra de status conta os grupos abertos.
+
 ## operando { #operand data-forms="operandos" }
 O número com que um cálculo trabalha além daquele que ele recebe. Em um math_calc que soma 5, o operando é 5.
 

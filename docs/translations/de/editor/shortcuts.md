@@ -14,7 +14,7 @@ Kürzel warten, während du in ein Feld tippst oder ein Menü offen ist. Solange
 
 ## Werkzeuge { #tools }
 
-Drück die Taste eines Werkzeugs noch einmal, um zu Auswählen zurückzukehren. Esc bricht ein Ziehen oder einen Pinselstrich ab, sonst geht es zurück zu Auswählen, und in Auswählen hebt es die Auswahl auf.
+Drück die Taste eines Werkzeugs noch einmal, um zu Auswählen zurückzukehren. Esc bricht ein Ziehen oder einen Pinselstrich ab, sonst geht es zurück zu Auswählen, und in Auswählen hebt es die Auswahl auf. Ist nichts ausgewählt, schließt es die offene Gruppe, eine Ebene pro Druck.
 
 | Taste | Werkzeug |
 | --- | --- |
@@ -39,7 +39,10 @@ Drück die Taste eines Werkzeugs noch einmal, um zu Auswählen zurückzukehren. 
 | --- | --- |
 | Neben der Auswahl ziehen | Einen Brush zeichnen |
 | Die Auswahl ziehen | Verschieben. Ctrl kopiert, Shift sperrt die Achse, Alt verschiebt in 3D vertikal |
-| Klick, Doppelklick | Auswählen, die ganze Gruppe auswählen |
+| Klick | Das Objekt unter dem Cursor auswählen, oder die ganze Gruppe darum |
+| Doppelklick auf eine Gruppe | Sie öffnen, damit Klicks das Innere erreichen |
+| Doppelklick auf eine Brush-Entität | Alle Brushes der Entität auswählen |
+| Doppelklick auf leeren Raum | Die innerste offene Gruppe schließen, eine Ebene pro Doppelklick, und die Auswahl aufheben. Esc schließt eine Ebene pro Druck, siehe [Werkzeuge](#tools) |
 | Kurz darauf noch einmal an derselben Stelle klicken, oder Alt+Klick (2D) | Das nächste Objekt unter dem Cursor auswählen, etwa eine Wand unter ihrer Decke in der Ansicht Oben |
 | Ctrl+Klick | Zur Auswahl hinzufügen oder daraus entfernen, in den Ansichten und im Outliner |
 | Shift+Klick im Outliner | Die Zeilen ab der zuletzt angeklickten auswählen |

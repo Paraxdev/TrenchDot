@@ -14,7 +14,7 @@ Os atalhos esperam enquanto você digita num campo ou um menu está aberto. Enqu
 
 ## Ferramentas { #tools }
 
-Aperte a tecla de uma ferramenta de novo para voltar para Selecionar. Esc cancela um arraste ou traço, senão volta para Selecionar, e em Selecionar limpa a seleção.
+Aperte a tecla de uma ferramenta de novo para voltar para Selecionar. Esc cancela um arraste ou traço, senão volta para Selecionar, e em Selecionar limpa a seleção. Com nada selecionado, fecha o grupo aberto, um nível por toque.
 
 | Tecla | Ferramenta |
 | --- | --- |
@@ -39,7 +39,10 @@ Aperte a tecla de uma ferramenta de novo para voltar para Selecionar. Esc cancel
 | --- | --- |
 | Arrastar fora da seleção | Desenha um brush |
 | Arrastar a seleção | Move. Ctrl copia, Shift trava o eixo, Alt move na vertical em 3D |
-| Clique, clique duplo | Seleciona, seleciona o grupo inteiro |
+| Clique | Seleciona o objeto sob o cursor, ou o grupo inteiro em volta dele |
+| Clique duplo em um grupo | Abre o grupo, para que os cliques alcancem o que há dentro |
+| Clique duplo em uma entidade brush | Seleciona todos os brushes da entidade |
+| Clique duplo no espaço vazio | Fecha o grupo aberto mais interno, um nível por clique duplo, e limpa a seleção. Esc fecha um nível por toque, veja [Ferramentas](#tools) |
 | Clicar de novo logo no mesmo ponto, ou Alt+clique (2D) | Seleciona o próximo objeto sob o cursor, como uma parede sob o teto na vista Topo |
 | Ctrl+clique | Adiciona à seleção ou tira dela, nas vistas e no Outliner |
 | Shift+clique no Outliner | Seleciona as linhas a partir da última clicada |

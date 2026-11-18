@@ -64,8 +64,16 @@ Tout ce qui concerne les groupes se trouve sous *Édition > Groupes*.
 | Entrée | Résultat |
 | --- | --- |
 | Ctrl+G, Ctrl+Shift+G | Grouper la sélection, la dégrouper |
-| Clic | Sélectionner l'objet à l'intérieur du groupe |
-| Double clic | Sélectionner tout le groupe |
+| Clic | Sélectionner tout le groupe, quel que soit l'objet touché |
+| Ctrl+clic | Ajouter tout le groupe à la sélection ou le retirer |
+| Double clic sur un groupe | L'ouvrir, pour que les clics atteignent les objets à l'intérieur |
+| Double clic dans le vide, ou Esc | Fermer le groupe ouvert |
+
+Un groupe fermé se comporte comme un seul objet, si bien qu'un clic n'importe où dessus le sélectionne en entier et qu'un glissement le déplace en entier, y compris quand vous commencez le glissement sur la ligne d'un groupe dans l'Outliner. La ligne propre d'un brush fait exception, la glisser quand il n'est pas sélectionné déplace seulement ce brush, si bien que vous pouvez le sortir d'un groupe fermé vers une autre ligne. Dans une copie liée fermée, la ligne déplace toujours la copie entière. Pour travailler sur un seul brush à l'intérieur, faites un double clic sur le groupe dans une vue, ou sur sa ligne dans l'Outliner. La barre d'état affiche alors *Groupe ouvert* et **1 groupe ouvert** en cyan, et un clic à l'intérieur choisit des objets seuls. Un brush que vous dessinez pendant qu'un groupe est ouvert atterrit dans ce groupe.
+
+![La barre d'état après un double clic sur un groupe, avec Groupe Crate ouvert et 1 groupe ouvert](../assets/organizing/open-group.png)
+
+Cliquer sur quelque chose en dehors du groupe ouvert le ferme, si bien qu'un nouveau brush ne finit jamais dans un groupe oublié. Avec des groupes dans des groupes, chaque double clic ouvre un niveau, et chaque double clic dans le vide ou appui sur Esc en ferme un. Esc ne le fait que lorsque rien n'est sélectionné et que l'outil Sélectionner est actif, voir [Raccourcis](shortcuts.md#tools). *Édition > Groupes > Ouvrir le groupe* ouvre le groupe sélectionné, et *Fermer le groupe* ferme le groupe ouvert et le sélectionne. Shift+clic choisit toujours une seule face à l'intérieur d'un groupe fermé. Le préréglage Blender diffère ici, Shift+clic et Ctrl+clic ajoutent ou retirent tous les deux le groupe entier en Mode objet, et vous choisissez une seule face en Mode face, voir [Autres préréglages](shortcuts.md#other-presets).
 
 Vous pouvez aussi grouper dans l'Outliner en faisant glisser. Faites glisser une ligne sur un autre brush et relâchez, et les
 deux se retrouvent dans un nouveau groupe. Une infobulle à côté du pointeur dit ce que fait le dépôt avant que vous
@@ -79,8 +87,7 @@ Faites glisser une ligne sur son calque pour la sortir d'un groupe. Quand vous f
 la sélection suit.
 
 **Dupliquer en lien** (Ctrl+Shift+D) crée une copie qui reste synchronisée avec son original, si bien que corriger un
-cadre de fenêtre les corrige tous. Les copies liées affichent *(lié)* dans l'Outliner, et un clic sur l'une sélectionne
-tout le groupe, puisque ses copies se modifient d'un bloc. *Édition > Groupes > Délier les groupes* rompt le lien quand une
+cadre de fenêtre les corrige tous. Les copies liées affichent *(lié)* dans l'Outliner, et un clic sur l'une sélectionne tout le groupe, puisque ses copies se modifient d'un bloc, et un double clic l'ouvre, pour que vous la modifiiez et que les autres copies suivent. *Édition > Groupes > Délier les groupes* rompt le lien quand une
 copie doit différer.
 
 ## Prefabs { #prefabs }
