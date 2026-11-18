@@ -162,13 +162,22 @@ impl AddonWizard {
 
         ui.label(text);
         ui.ctx().request_repaint_after(Duration::from_secs_f64(RECHECK));
+        let mut enable_offered = false;
+        if let Installed::Older(v) | Installed::Newer(v) = &status.installed {
+            self.enabled_ui(ui);
+            if !status.enabled {
+                self.enable_ui(ui, root, v, godot_open, !status.git);
+                enable_offered = true;
+            }
+        }
+
         if status.git {
             ui.label(RichText::new(tr("It is a git checkout, update it with git.")).color(theme::colors().yellow));
             return;
         }
 
         let replacing = status.installed != Installed::Missing;
-        if replacing && godot_open {
+        if replacing && godot_open && !enable_offered {
             ui.label(RichText::new(tr("Godot has this project open. Close it first.")).color(theme::colors().yellow));
         }
 
@@ -182,7 +191,7 @@ impl AddonWizard {
         }
     }
 
-    fn current_ui(&mut self, ui: &mut Ui, state: &mut EditorState, root: &Path, status: &Status, godot_open: bool) {
+    fn enabled_ui(&self, ui: &mut Ui) {
         if let Some(result) = &self.enabled {
             let (text, color) = match result {
                 Ok(_) => (tr("Enabled the plugin in project.godot."), theme::colors().success()),
@@ -190,19 +199,36 @@ impl AddonWizard {
             };
             ui.label(RichText::new(text).color(color));
         }
+    }
 
-        if !status.enabled {
-            ui.label(trf!("The addon {version} is installed but not enabled, so Godot does not use it yet.", version = crate::VERSION));
-            if godot_open {
-                ui.label(tr("Godot has this project open, enable it there under Project > Project Settings > Plugins."));
-            } else {
-                if ui.button(RichText::new(tr("Enable the plugin")).strong()).clicked() {
-                    self.enabled = Some(addon_install::enable(root));
-                    self.checked = None;
-                }
-
-                ui.label(RichText::new(tr("Adds it to the plugins in project.godot. Close Godot first if it has this project open.")).weak());
+    /// `replace_follows` is true when an Update or Replace button follows, which has its own close Godot hints.
+    fn enable_ui(&mut self, ui: &mut Ui, root: &Path, version: &str, godot_open: bool, replace_follows: bool) {
+        ui.label(trf!("The addon {version} is installed but not enabled, so Godot does not use it yet.", version));
+        if godot_open && replace_follows {
+            let text =
+                tr("Godot has this project open. Enable the plugin there under Project > Project Settings > Plugins, or close Godot to replace the addon.");
+            ui.label(RichText::new(text).color(theme::colors().yellow));
+        } else if godot_open {
+            ui.label(tr("Godot has this project open, enable it there under Project > Project Settings > Plugins."));
+        } else {
+            if ui.button(RichText::new(tr("Enable the plugin")).strong()).clicked() {
+                self.enabled = Some(addon_install::enable(root));
+                self.checked = None;
             }
+
+            let hint = if replace_follows {
+                tr("Adds it to the plugins in project.godot.")
+            } else {
+                tr("Adds it to the plugins in project.godot. Close Godot first if it has this project open.")
+            };
+            ui.label(RichText::new(hint).weak());
+        }
+    }
+
+    fn current_ui(&mut self, ui: &mut Ui, state: &mut EditorState, root: &Path, status: &Status, godot_open: bool) {
+        self.enabled_ui(ui);
+        if !status.enabled {
+            self.enable_ui(ui, root, crate::VERSION, godot_open, false);
         } else if !status.exported {
             ui.label(tr("Next, open the project in Godot once. The addon then exports the project's entities and textures for the editor."));
             if !godot_open && state.godot.found() && ui.button(tr("Open Project in Godot Editor")).clicked() {
@@ -343,7 +369,7 @@ mod tests {
     #[test]
     fn an_old_addon_waits_for_godot_to_close_and_a_failed_download_links_to_the_pages() {
         let server = Server::start();
-        let (mut fixture, root) = known("update", "config_version=5\n", &server);
+        let (mut fixture, root) = known("update", &format!("[editor_plugins]\n\nenabled=PackedStringArray(\"{}\")\n", addon_install::PLUGIN), &server);
         std::fs::create_dir_all(root.join(addon_install::DIR)).unwrap();
         std::fs::write(root.join(addon_install::DIR).join("plugin.cfg"), "[plugin]\nversion=\"0.0.1\"\n").unwrap();
         fixture.state.load_project(&root);
@@ -354,13 +380,15 @@ mod tests {
         let mut harness = harness(fixture);
         harness.run();
         assert!(harness.query_by_label_contains("older than this editor").is_some());
-        assert!(harness.query_by_label_contains("Godot has this project open").is_some());
+        assert!(harness.query_by_label("Godot has this project open. Close it first.").is_some());
         assert!(harness.get_by_label(&update).accesskit_node().is_disabled(), "Godot would keep the old addon loaded");
 
         harness.state_mut().state.link_state.connected = false;
         server.release("beta", &[], true);
         harness.run();
         assert!(!harness.get_by_label(&update).accesskit_node().is_disabled());
+        harness.get_by_label(&update).scroll_to_me();
+        harness.run();
         harness.get_by_label(&update).click();
         wait(&mut harness);
         assert!(harness.query_by_label_contains("is not published yet").is_some());
@@ -368,6 +396,8 @@ mod tests {
         assert_eq!(addon_install::Status::check(&root).installed, Installed::Older("0.0.1".into()));
 
         release(&server, crate::VERSION);
+        harness.get_by_label(&update).scroll_to_me();
+        harness.run();
         harness.get_by_label(&update).click();
         wait(&mut harness);
         assert!(harness.query_by_label_contains("Updated the addon from 0.0.1").is_some());
@@ -401,6 +431,68 @@ mod tests {
         harness.run();
         assert!(harness.query_by_label_contains("It is a git checkout").is_some());
         assert!(harness.query_by_label_contains("Update the addon").is_none(), "no button replaces a checkout");
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn a_newer_addon_can_be_enabled_as_it_is() {
+        let server = Server::start();
+        let (mut fixture, root) = known("newer", "config_version=5\n", &server);
+        std::fs::create_dir_all(root.join(addon_install::DIR).join(".git")).unwrap();
+        std::fs::write(root.join(addon_install::DIR).join("plugin.cfg"), "[plugin]\nversion=\"999.0.0\"\n").unwrap();
+        fixture.state.load_project(&root);
+        let mut harness = harness(fixture);
+        harness.run();
+        assert!(harness.query_by_label_contains("newer than this editor").is_some());
+        assert!(harness.query_by_label_contains("It is a git checkout").is_some());
+        assert!(harness.query_by_label_contains("The addon 999.0.0 is installed but not enabled").is_some());
+
+        harness.get_by_label("Enable the plugin").click();
+        harness.run();
+        assert!(harness.query_by_label("Enabled the plugin in project.godot.").is_some());
+        assert!(harness.query_by_label("Enable the plugin").is_none());
+        assert!(std::fs::read_to_string(root.join("project.godot")).unwrap().contains(addon_install::PLUGIN));
+
+        std::fs::remove_dir_all(root.join(addon_install::DIR).join(".git")).unwrap();
+        harness.state_mut().wizard.addon.reset();
+        harness.run();
+        assert!(harness.query_by_label(&format!("Replace the addon with {}", crate::VERSION)).is_some(), "a plain copy can still be replaced");
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    const GODOT_OPEN_ENABLE_OR_CLOSE: &str =
+        "Godot has this project open. Enable the plugin there under Project > Project Settings > Plugins, or close Godot to replace the addon.";
+
+    #[test]
+    fn an_older_addon_can_be_enabled_once_godot_is_closed() {
+        let server = Server::start();
+        let (mut fixture, root) = known("older", "config_version=5\n", &server);
+        std::fs::create_dir_all(root.join(addon_install::DIR)).unwrap();
+        std::fs::write(root.join(addon_install::DIR).join("plugin.cfg"), "[plugin]\nversion=\"0.0.1\"\n").unwrap();
+        fixture.state.load_project(&root);
+        fixture.state.link_state.connected = true;
+        fixture.state.link_state.project = Some(crate::live_link::path_key(&crate::live_link::godot_path(&root)));
+        let update = format!("Update the addon to {}", crate::VERSION);
+        let mut harness = harness(fixture);
+        harness.run();
+        assert!(harness.query_by_label_contains("The addon 0.0.1 is installed but not enabled").is_some());
+        assert!(harness.query_by_label(GODOT_OPEN_ENABLE_OR_CLOSE).is_some(), "says both how to enable and why Update is off");
+        assert!(harness.query_by_label("Godot has this project open, enable it there under Project > Project Settings > Plugins.").is_none());
+        assert!(harness.query_by_label("Godot has this project open. Close it first.").is_none(), "one Godot open line, not two");
+        assert!(harness.query_by_label("Enable the plugin").is_none());
+        assert!(harness.get_by_label(&update).accesskit_node().is_disabled());
+
+        harness.state_mut().state.link_state.connected = false;
+        harness.run();
+        assert!(harness.query_by_label("Adds it to the plugins in project.godot.").is_some());
+        assert_eq!(harness.query_all_by_label_contains("Close Godot first if it has this project open").count(), 1);
+        harness.get_by_label("Enable the plugin").scroll_to_me();
+        harness.run();
+        harness.get_by_label("Enable the plugin").click();
+        harness.run();
+        assert!(harness.query_by_label("Enabled the plugin in project.godot.").is_some());
+        assert!(std::fs::read_to_string(root.join("project.godot")).unwrap().contains(addon_install::PLUGIN));
+        assert!(!harness.get_by_label(&update).accesskit_node().is_disabled(), "it can still be updated");
         std::fs::remove_dir_all(&root).unwrap();
     }
 }

@@ -2552,5 +2552,7 @@
   "First person player": "一人称プレイヤー",
   "info_player_start is overridden in {definition}. Change it in {script}.": "info_player_start は {definition} で上書きされています。{script} で変更してください。",
   "Turns info_player_start into a player you walk around with. Its script lands in {dir} for your own changes.": "info_player_start を歩き回れるプレイヤーにします。スクリプトは {dir} に置かれ、自由に変更できます。",
-  "Add a first person player": "一人称プレイヤーを追加"
+  "Add a first person player": "一人称プレイヤーを追加",
+  "Adds it to the plugins in project.godot.": "project.godot のプラグインに追加します。",
+  "Godot has this project open. Enable the plugin there under Project > Project Settings > Plugins, or close Godot to replace the addon.": "Godot がこのプロジェクトを開いています。Project > Project Settings > Plugins でプラグインを有効にするか、Godot を閉じてアドオンを置き換えてください。"
 }

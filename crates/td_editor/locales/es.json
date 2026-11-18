@@ -2552,5 +2552,7 @@
   "First person player": "Jugador en primera persona",
   "info_player_start is overridden in {definition}. Change it in {script}.": "info_player_start está sobrescrito en {definition}. Cámbialo en {script}.",
   "Turns info_player_start into a player you walk around with. Its script lands in {dir} for your own changes.": "Convierte info_player_start en un jugador con el que caminas. Su script queda en {dir} para tus propios cambios.",
-  "Add a first person player": "Añadir un jugador en primera persona"
+  "Add a first person player": "Añadir un jugador en primera persona",
+  "Adds it to the plugins in project.godot.": "Lo añade a los plugins en project.godot.",
+  "Godot has this project open. Enable the plugin there under Project > Project Settings > Plugins, or close Godot to replace the addon.": "Godot tiene abierto este proyecto. Activa el plugin allí en Project > Project Settings > Plugins o cierra Godot para reemplazar el addon."
 }
