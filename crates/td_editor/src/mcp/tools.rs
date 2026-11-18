@@ -1343,6 +1343,7 @@ impl App {
         let started = Instant::now();
         self.state.replaced.clear();
         self.state.applied_mirror = None;
+        self.state.mirrored_again = None;
         let mut mirrored_across = None;
         let mut mirror_gap_axis = None;
         let action = match name {
@@ -1501,6 +1502,10 @@ impl App {
 
                 let planes = td_doc::mirror::selection_planes(&self.state.doc.map, &self.state.doc.selection);
                 if planes.is_empty() {
+                    if !td_doc::mirror::drifted(&self.state.doc.map, &self.state.doc.selection).is_empty() {
+                        return err("the selected half is off its mirror plane, run mirror_again first to put its partner back across");
+                    }
+
                     return err("select one half of a mirrored pair first");
                 }
 
@@ -1510,6 +1515,13 @@ impl App {
 
                 mirror_gap_axis = Some(axis);
                 Action::SetMirrorGap { axis, gap }
+            }
+            "mirror_again" => {
+                if td_doc::mirror::drifted(&self.state.doc.map, &self.state.doc.selection).is_empty() {
+                    return err("nothing selected is off its mirror plane");
+                }
+
+                Action::MirrorAgain
             }
             "apply_mirror" => {
                 let distance = match &a["distance"] {
@@ -1855,6 +1867,14 @@ impl App {
                 result["plane"] = json!({ "axis": axis_letter(m.plane.axis), "at": m.plane.at });
                 result["gap"] = json!(td_doc::mirror::gap(&self.state.doc.map, m));
             }
+        }
+
+        if name == "mirror_again"
+            && let Some((moved, distance, plane)) = self.state.mirrored_again
+        {
+            result["moved"] = json!(moved);
+            result["distance"] = json!(distance);
+            result["plane"] = json!({ "axis": axis_letter(plane.axis), "at": plane.at });
         }
 
         if name == "apply_mirror"

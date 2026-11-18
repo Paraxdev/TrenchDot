@@ -90,6 +90,7 @@ const ACTIONS: &[&str] = &[
     "mirror_linked",
     "apply_mirror",
     "set_mirror_gap",
+    "mirror_again",
     "align",
     "distribute",
     "focus_selection",

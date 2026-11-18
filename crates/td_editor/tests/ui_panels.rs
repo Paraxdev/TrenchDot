@@ -1875,8 +1875,6 @@ fn gap_harness(mut f: Fixture, selected: NodeId) -> Harness<'static, Fixture> {
         .with_size(egui::vec2(520.0, 900.0))
         .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
     harness.run();
-    harness.get_by_label("Transform").click();
-    harness.run();
     harness
 }
 
@@ -1891,6 +1889,7 @@ fn the_inspector_gap_moves_both_halves_and_keeps_the_plane() {
     let mut harness = gap_harness(f, rows.left);
     harness.get_by_label("Mirror plane X = -40");
     harness.get_by_label("Gap");
+    harness.get_by_label("units");
     let gap_field = number_fields(&harness) - 1;
     assert_eq!(harness.get_all_by_role(egui::accesskit::Role::SpinButton).nth(gap_field).unwrap().value().as_deref(), Some("144"));
 
@@ -1914,6 +1913,11 @@ fn the_inspector_gap_moves_both_halves_and_keeps_the_plane() {
         (map.solid_bounds(rows.left).max.x - map.solid_bounds(rows.left).min.x).min(map.solid_bounds(rows.right).max.x - map.solid_bounds(rows.right).min.x);
     assert_eq!(td_doc::mirror::gap(map, &first_plane(&harness)), -narrower, "below minus the narrower width it clamps");
     assert_eq!(first_plane(&harness).plane.at, -40.0);
+
+    harness.state_mut().state.doc.edit("Something else", |_, _| ());
+    let steps = undo_steps(&harness);
+    type_number(&mut harness, gap_field, "-2000");
+    assert_eq!(undo_steps(&harness), steps, "a gap that clamps to the one already set adds no undo step");
 }
 
 #[test]
@@ -1934,6 +1938,35 @@ fn apply_mirror_greys_out_while_the_halves_are_apart() {
     harness.get_by_label("Apply Mirror").click();
     harness.run();
     assert_eq!(harness.state().actions, [Action::ApplyMirror { distance: td_doc::symmetry::MIRROR_TOLERANCE }]);
+}
+
+#[test]
+fn mirror_again_shows_only_for_a_half_off_its_plane() {
+    let (f, rows) = linked_rows_fixture();
+    let mut harness = gap_harness(f, rows.left);
+    let drift_line = |harness: &Harness<'_, Fixture>| {
+        harness.get_all_by_role(egui::accesskit::Role::Label).filter_map(|n| n.value()).find(|v| v.contains("off the mirror plane"))
+    };
+    harness.get_by_label("Mirror plane X = -40");
+    assert!(harness.query_by_label("Mirror Again").is_none(), "a pair on its plane has nothing to put back");
+    assert_eq!(drift_line(&harness), None);
+
+    let slide = |harness: &mut Harness<'_, Fixture>, by: DVec3| {
+        harness.state_mut().state.doc.edit("slide", |m, s| ops::translate_selection(m, s, by, ops::EditOptions::default()));
+        harness.run();
+    };
+    slide(&mut harness, DVec3::new(0.0, 9.0, 12.0));
+    let line = drift_line(&harness).expect("a drift line");
+    assert!(line.starts_with("half") && line.contains(" 15 units ") && line.ends_with("X = -40"), "{line}");
+    assert!(harness.query_by_label_contains("Mirror plane X").is_none(), "the readout goes with the plane");
+    harness.get_by_label("Mirror Again").click();
+    harness.run();
+    assert_eq!(harness.state().actions, [Action::MirrorAgain]);
+
+    slide(&mut harness, DVec3::new(0.0, -9.0, -12.0));
+    harness.get_by_label("Mirror plane X = -40");
+    assert!(harness.query_by_label("Mirror Again").is_none(), "back on the plane");
+    assert_eq!(drift_line(&harness), None);
 }
 
 #[test]
@@ -1961,6 +1994,7 @@ fn the_inspector_offers_apply_mirror_only_for_a_mirrored_half() {
     harness.get_by_label("Transform").click();
     harness.run();
     assert!(harness.query_by_label("Apply Mirror").is_none(), "a brush outside the mirrored pair has no mirror to apply");
+    assert!(harness.query_by_label("Mirror").is_none(), "no Mirror section for a brush outside the pair");
 
     harness.state_mut().state.doc.select(|_, s| {
         s.clear();

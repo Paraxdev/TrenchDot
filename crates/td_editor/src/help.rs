@@ -119,6 +119,7 @@ pub const PAGES: &[(Topic<'static>, &str, &str)] = &[
     (Section("Map (worldspawn)"), "godot/building", "environment-and-sun"),
     (Section("Selection"), "editor/brushes", "exact-position-and-size"),
     (Section("Transform"), "editor/brushes", "draw-and-move"),
+    (Section("Mirror"), "editor/brushes", "moving-the-halves"),
     (Section("Gameplay"), "gameplay/placing", "placing-entities"),
     (Section("Make Brush Entity"), "gameplay/placing", "placing-entities"),
     (Section("Mesh Operations"), "editor/meshes", ""),

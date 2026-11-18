@@ -326,7 +326,7 @@ pub fn edit_lines(state: &EditorState, out: &mut Vec<LineVertex>) {
 
 /// The mirror planes between the selected linked groups and their mirrored partners.
 pub fn mirror_link_lines(state: &EditorState, out: &mut Vec<LineVertex>) {
-    for m in td_doc::mirror::selection_planes(&state.doc.map, &state.doc.selection) {
+    for m in state.mirror_pairs().0 {
         plane_rect(m.plane.axis, m.plane.at, &m.span, out);
     }
 }

@@ -617,6 +617,8 @@ pub struct EditorState {
     pub replaced: td_doc::ops::Replaced,
     /// What the last Apply Mirror did, for MCP results. Its `replaced` stays empty, that map is in `replaced`.
     pub applied_mirror: Option<td_doc::mirror::Applied>,
+    /// How many groups the last Mirror Again moved, how far and onto which plane, for MCP results.
+    pub mirrored_again: Option<(usize, f64, td_core::AxisPlane)>,
     last_autosave: Instant,
     autosave: Autosave,
     /// MCP runs over stdin and stdout, so launched programs must not write to them.
@@ -681,6 +683,7 @@ pub struct EditorState {
     pub terrain_resize: Option<crate::terrain_size::TerrainResizeDraft>,
     /// The height range of the draft's terrain and the revision it was read at, see `terrain_size::height_range`.
     pub terrain_heights: std::cell::Cell<Option<(NodeId, u64, [f64; 2])>>,
+    mirror_pairs: std::cell::RefCell<Option<MirrorPairs>>,
     pub walkable: crate::walkable::WalkableView,
     pub void_cull: crate::void_cull::VoidView,
     pub models: crate::models::ModelCache,
@@ -790,7 +793,32 @@ pub struct DragPreview {
     pub offset: DVec3,
 }
 
+/// What [`EditorState::mirror_pairs`] found for one document revision and selection.
+struct MirrorPairs {
+    key: ((u64, u64, u64), u64),
+    selection: td_doc::Selection,
+    planes: Vec<td_doc::mirror::MirrorPlane>,
+    drifts: Vec<td_doc::mirror::Drift>,
+}
+
 impl EditorState {
+    /// The mirror planes and the pairs slid off their plane around the selection, kept until the map or the selection
+    /// changes, since finding them walks every node of the map and the Inspector and views ask for them every frame.
+    pub fn mirror_pairs(&self) -> (Vec<td_doc::mirror::MirrorPlane>, Vec<td_doc::mirror::Drift>) {
+        let (doc, mut cache) = (&self.doc, self.mirror_pairs.borrow_mut());
+        let key = (doc.content_key(), doc.revision);
+        let c = match &mut *cache {
+            Some(c) if c.key == key && c.selection == doc.selection => c,
+            slot => slot.insert(MirrorPairs {
+                key,
+                selection: doc.selection.clone(),
+                planes: td_doc::mirror::selection_planes(&doc.map, &doc.selection),
+                drifts: td_doc::mirror::drifted(&doc.map, &doc.selection),
+            }),
+        };
+        (c.planes.clone(), c.drifts.clone())
+    }
+
     pub fn new(prefs: Prefs) -> Self {
         let game = GameConfig::builtin();
         let materials = MaterialLibrary::new(&game);
@@ -834,6 +862,7 @@ impl EditorState {
             link_conflicts: 0,
             replaced: Default::default(),
             applied_mirror: None,
+            mirrored_again: None,
             last_autosave: Instant::now(),
             autosave: Autosave::default(),
             stdio_mcp: false,
@@ -870,6 +899,7 @@ impl EditorState {
             shape_bounds: None,
             terrain_resize: None,
             terrain_heights: Default::default(),
+            mirror_pairs: Default::default(),
             walkable: Default::default(),
             void_cull: Default::default(),
             models: Default::default(),
