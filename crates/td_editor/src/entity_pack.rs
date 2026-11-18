@@ -731,6 +731,12 @@ mod tests {
         let mut state = crate::state::EditorState::new(Default::default());
         state.load_project(dir.path());
         assert_eq!(state.status, "func_door is defined more than once. res://my_door.tres wins over res://trenchdot/entities/definitions/func_door.tres.");
+
+        let config = r#"{"format": "trenchdot-game", "version": 1, "entities": [{"classname": "func_door", "type": "solid"}],
+            "clashes": [{"classname": "func_door", "definitions": ["res://trenchdot/entities/definitions/func_door.tres", "res://entities/func_door.tres"], "intended": true}]}"#;
+        write(&dir.path().join(td_formats::game::GAME_FILE_NAME), config);
+        state.load_project(dir.path());
+        assert!(state.status.starts_with("Loaded game config"), "an override of the pack door is meant: {}", state.status);
     }
 
     #[test]

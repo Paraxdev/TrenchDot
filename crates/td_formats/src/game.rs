@@ -284,6 +284,9 @@ pub struct Clash {
     pub classname: String,
     /// res:// paths of the definitions in the order they were read, the last one wins.
     pub definitions: Vec<String>,
+    /// The winning definition is an Override in project copy, so the clash is meant and the editor stays quiet.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub intended: bool,
 }
 
 impl Clash {
@@ -890,6 +893,30 @@ mod tests {
             "func_door is defined more than once. res://my/door.tres wins over res://trenchdot/entities/definitions/func_door.tres"
         );
         assert!(GameConfig::builtin().clashes.is_empty());
+    }
+
+    #[test]
+    fn an_override_clash_reads_as_intended_and_older_files_as_unintended() {
+        let text = r#"{"format": "trenchdot-game", "version": 1, "clashes": [
+            {"classname": "func_door", "definitions": ["res://addons/func_godot/fgd/func_door.tres", "res://entities/func_door.tres"], "intended": true},
+            {"classname": "light_spot", "definitions": ["res://a/light_spot.tres", "res://b/light_spot.tres", "res://c/light_spot.tres"], "intended": false},
+            {"classname": "info_player_start", "definitions": ["res://x/info_player_start.tres", "res://y/info_player_start.tres"]}]}"#;
+        let cfg: GameConfig = serde_json::from_str(text).unwrap();
+        let read: Vec<(&str, bool, &str)> = cfg.clashes.iter().map(|c| (c.classname.as_str(), c.intended, c.winner())).collect();
+        assert_eq!(
+            read,
+            [
+                ("func_door", true, "res://entities/func_door.tres"),
+                ("light_spot", false, "res://c/light_spot.tres"),
+                ("info_player_start", false, "res://y/info_player_start.tres"),
+            ]
+        );
+
+        let written = serde_json::to_value(&cfg.clashes).unwrap();
+        assert_eq!(written[0]["intended"], serde_json::Value::Bool(true));
+        assert!(written[1].get("intended").is_none() && written[2].get("intended").is_none(), "{written}");
+        let again: Vec<Clash> = serde_json::from_value(written).unwrap();
+        assert_eq!(again, cfg.clashes);
     }
 
     #[test]

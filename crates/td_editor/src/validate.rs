@@ -89,7 +89,7 @@ pub fn map_issues(
     list.extend(definition_issues(map, game, context));
     list.extend(godot_issues(map, game, context));
     list.extend(stale_issue(map_path, context));
-    for clash in &game.clashes {
+    for clash in game.clashes.iter().filter(|c| !c.intended) {
         if map.entities().any(|(_, e)| e.classname == clash.classname) {
             list.push(Issue::plain(None, Severity::Warning, "entity_clash", clash.describe()));
         }
@@ -816,8 +816,8 @@ mod tests {
     fn a_class_defined_twice_is_a_warning_where_a_map_uses_it() {
         let mut game = GameConfig::with_gameplay_pack();
         let definitions = vec!["res://trenchdot/entities/definitions/func_door.tres".to_string(), "res://doors/func_door.tres".to_string()];
-        game.clashes.push(td_formats::Clash { classname: "func_door".into(), definitions });
-        game.clashes.push(td_formats::Clash { classname: "logic_relay".into(), definitions: vec!["a.tres".into(), "b.tres".into()] });
+        game.clashes.push(td_formats::Clash { classname: "func_door".into(), definitions, intended: false });
+        game.clashes.push(td_formats::Clash { classname: "logic_relay".into(), definitions: vec!["a.tres".into(), "b.tres".into()], intended: false });
         let mut map = Map::new();
         let layer = map.default_layer();
         map.insert(layer, NodeKind::Entity(Entity::new("func_door")));
@@ -826,6 +826,29 @@ mod tests {
         assert_eq!(clashes.len(), 1, "only the class the map uses: {found:?}");
         assert_eq!(clashes[0].severity, Severity::Warning);
         assert!(clashes[0].message.contains("res://doors/func_door.tres wins over res://trenchdot/entities/definitions/func_door.tres"));
+    }
+
+    #[test]
+    fn an_intended_override_is_no_warning_next_to_a_real_clash() {
+        let mut game = GameConfig::with_gameplay_pack();
+        let clash = |class: &str, intended: bool| td_formats::Clash {
+            classname: class.into(),
+            definitions: vec![format!("res://addons/func_godot/fgd/{class}.tres"), format!("res://entities/{class}.tres")],
+            intended,
+        };
+        game.clashes.extend([clash("func_door", true), clash("trigger_once", false), clash("logic_relay", true), clash("light_spot", false)]);
+        let mut map = Map::new();
+        let layer = map.default_layer();
+        for class in ["func_door", "trigger_once", "logic_relay", "func_door"] {
+            map.insert(layer, NodeKind::Entity(Entity::new(class)));
+        }
+
+        let found = map_issues(&map, &game, &mut MaterialLibrary::new(&game), &mut PrefabCache::default(), None, &Context::default());
+        let clashes: Vec<&str> = found.iter().filter(|i| i.code == "entity_clash").map(|i| i.message.as_str()).collect();
+        assert_eq!(
+            clashes,
+            ["trigger_once is defined more than once. res://entities/trigger_once.tres wins over res://addons/func_godot/fgd/trigger_once.tres"]
+        );
     }
 
     #[test]

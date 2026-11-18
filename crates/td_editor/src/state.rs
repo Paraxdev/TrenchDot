@@ -1830,13 +1830,14 @@ impl EditorState {
         self.prefs.recent_projects.truncate(8);
         if let Some(status) = crate::entity_pack::install_for_maps(self) {
             self.set_status(status);
-        } else if let Some(clash) = self.game.clashes.first().filter(|_| announce) {
+        } else if let Some(clash) = self.game.clashes.iter().find(|c| !c.intended).filter(|_| announce) {
             let mut status = Msg::from(format!("{}.", clash.describe()));
-            if self.game.clashes.len() > 1 {
+            let more = self.game.clashes.iter().filter(|c| !c.intended).count() - 1;
+            if more > 0 {
                 status = status.then(
                     "",
                     msg_n!(
-                        self.game.clashes.len() - 1,
+                        more,
                         " {n} more classname is defined twice, the Issues panel lists the ones a map uses.",
                         " {n} more classnames are defined twice, the Issues panel lists the ones a map uses."
                     ),
@@ -2496,6 +2497,42 @@ mod tests {
         }
 
         assert_eq!(load(r#"{"language": "ZH-hans"}"#).lang(), Lang::ZhHans);
+    }
+
+    #[test]
+    fn the_open_status_names_only_clashes_nobody_meant() {
+        let open = |clashes: &[(&str, bool)]| {
+            let dir = tempfile::tempdir().unwrap();
+            std::fs::write(dir.path().join("project.godot"), "").unwrap();
+            let clashes: Vec<serde_json::Value> = clashes
+                .iter()
+                .map(|(class, intended)| {
+                    let definitions = [format!("res://addons/func_godot/fgd/{class}.tres"), format!("res://entities/{class}.tres")];
+                    serde_json::json!({ "classname": class, "definitions": definitions, "intended": intended })
+                })
+                .collect();
+            let config = serde_json::json!({ "format": "trenchdot-game", "version": 1, "clashes": clashes });
+            std::fs::write(dir.path().join(td_formats::game::GAME_FILE_NAME), config.to_string()).unwrap();
+            let mut state = EditorState::new(Prefs::default());
+            state.load_project(dir.path());
+            state.status.to_string()
+        };
+        let named = |class: &str| format!("{class} is defined more than once. res://entities/{class}.tres wins over res://addons/func_godot/fgd/{class}.tres.");
+
+        let none = open(&[("func_door", true)]);
+        assert!(none.starts_with("Loaded game config") && !none.contains("defined"), "{none}");
+        let none = open(&[("func_door", true), ("light_spot", true), ("info_player_start", true)]);
+        assert!(none.starts_with("Loaded game config") && !none.contains("defined"), "{none}");
+
+        assert_eq!(open(&[("func_door", true), ("info_player_start", true), ("light_spot", false)]), named("light_spot"));
+        assert_eq!(
+            open(&[("func_door", false), ("info_player_start", true), ("prop_box", true), ("light_spot", false)]),
+            format!("{} 1 more classname is defined twice, the Issues panel lists the ones a map uses.", named("func_door"))
+        );
+        assert_eq!(
+            open(&[("func_door", true), ("light_spot", false), ("prop_box", true), ("trigger_once", false), ("info_player_start", false)]),
+            format!("{} 2 more classnames are defined twice, the Issues panel lists the ones a map uses.", named("light_spot"))
+        );
     }
 
     #[test]
