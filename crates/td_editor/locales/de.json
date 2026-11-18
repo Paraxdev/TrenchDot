@@ -2474,7 +2474,7 @@
   "Double click an entity brush": "Doppelklick auf einen Entity-Brush",
   "Select every brush of the entity": "Alle Brushes der Entity auswählen",
   "Double click empty space": "Doppelklick auf leeren Raum",
-  "Close the open group and clear the selection": "Die offene Gruppe schließen und die Auswahl aufheben",
+  "Close the innermost open group, one level per double click, and clear the selection. Esc closes one level per press": "Die innerste offene Gruppe schließen, eine Ebene pro Doppelklick, und die Auswahl aufheben. Esc schließt eine Ebene pro Druck",
   "Click again soon at the same spot, or Alt+click (2D)": "Kurz danach an derselben Stelle erneut klicken oder Alt+Klick (2D)",
   "Select the next object under the cursor": "Das nächste Objekt unter dem Cursor auswählen",
   "Drag off the selection": "Neben der Auswahl ziehen",

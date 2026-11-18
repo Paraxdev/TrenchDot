@@ -2474,7 +2474,7 @@
   "Double click an entity brush": "双击实体的笔刷",
   "Select every brush of the entity": "选择该实体的所有笔刷",
   "Double click empty space": "双击空白处",
-  "Close the open group and clear the selection": "关闭打开的组并清空选择",
+  "Close the innermost open group, one level per double click, and clear the selection. Esc closes one level per press": "关闭最内层打开的组并清空选择，每次双击一层。Esc 每按一次也关闭一层",
   "Click again soon at the same spot, or Alt+click (2D)": "很快在同一位置再次单击，或 Alt+单击 (2D)",
   "Select the next object under the cursor": "选择光标下的下一个对象",
   "Drag off the selection": "在选择之外拖动",

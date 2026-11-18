@@ -3021,9 +3021,11 @@ fn outliner_double_click_opens_the_group_and_reaches_the_row() {
         h.run();
     };
 
+    harness.state_mut().state.status = "Closed group Crate".into();
     double(&mut harness, r.left_brushes[1]);
     assert_eq!(harness.state().state.open_groups, [r.left]);
     assert_eq!(selection(&harness), [r.left_brushes[1]], "the brush itself is selected, not the half");
+    assert!(harness.state().state.status.starts_with("Opened group"), "{}", harness.state().state.status);
 
     double(&mut harness, r.right);
     assert_eq!(harness.state().state.open_groups, [r.right], "opening another half closes the first one");

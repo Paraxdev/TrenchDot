@@ -2474,7 +2474,7 @@
   "Double click an entity brush": "Двойной клик по брашу сущности",
   "Select every brush of the entity": "Выделить все браши сущности",
   "Double click empty space": "Двойной клик по пустому месту",
-  "Close the open group and clear the selection": "Закрыть открытую группу и снять выделение",
+  "Close the innermost open group, one level per double click, and clear the selection. Esc closes one level per press": "Закрыть самую внутреннюю открытую группу, по одному уровню за двойной щелчок, и снять выделение. Esc закрывает по одному уровню за нажатие",
   "Click again soon at the same spot, or Alt+click (2D)": "Снова кликнуть в то же место или Alt+клик (2D)",
   "Select the next object under the cursor": "Выделить следующий объект под курсором",
   "Drag off the selection": "Тянуть вне выделения",

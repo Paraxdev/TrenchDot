@@ -257,7 +257,13 @@ pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
     rows.extend([
         view(en!("Double click a group"), en!("Open it, so clicks reach what is inside"), DoubleClickHit::ClosedGroup, false, DoubleClick::OpenGroup),
         view(en!("Double click an entity brush"), en!("Select every brush of the entity"), DoubleClickHit::EntityBrush, false, DoubleClick::SelectEntity),
-        view(en!("Double click empty space"), en!("Close the open group and clear the selection"), DoubleClickHit::Nothing, true, DoubleClick::CloseGroup),
+        view(
+            en!("Double click empty space"),
+            en!("Close the innermost open group, one level per double click, and clear the selection. Esc closes one level per press"),
+            DoubleClickHit::Nothing,
+            true,
+            DoubleClick::CloseGroup,
+        ),
         fixed(VIEWS, en!("Click again soon at the same spot, or Alt+click (2D)"), en!("Select the next object under the cursor")),
         fixed(VIEWS, en!("Drag off the selection"), en!("Draw a brush")),
         fixed(VIEWS, en!("Drag the selection"), en!("Move it. Ctrl copies, Shift locks the axis")),

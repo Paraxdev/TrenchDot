@@ -935,6 +935,7 @@ fn group_gestures_walk(ed: &Editor, view: &str, spots: GroupSpots) {
         ed.input(view, json!([{ "type": "double_click", "world": at }]));
         pause();
     };
+    let status = || ed.state()["status"].as_str().unwrap().to_string();
     let brush_a = ed.box_brush([40.0, 0.0, -64.0], [104.0, 32.0, 0.0]);
     let brush_b = ed.box_brush([140.0, 0.0, 24.0], [172.0, 64.0, 88.0]);
     let brush_c = ed.box_brush([-130.0, 0.0, 40.0], [-70.0, 48.0, 112.0]);
@@ -948,6 +949,7 @@ fn group_gestures_walk(ed: &Editor, view: &str, spots: GroupSpots) {
     click(a, &[]);
     assert_eq!(selected(ed), [group]);
     assert_eq!(open_groups(ed), json!([]));
+    assert!(status().starts_with("Selected group"), "{}", status());
     click(b, &[]);
     assert_eq!(selected(ed), [group], "the other brush of the group gives the same group");
     click(c, &["ctrl"]);
@@ -962,9 +964,10 @@ fn group_gestures_walk(ed: &Editor, view: &str, spots: GroupSpots) {
     click(b, &[]);
     assert_eq!(selected(ed), [brush_b], "inside the open group a click picks one brush");
     assert_eq!(open_groups(ed), json!([group]));
-    click(c, &[]);
-    assert_eq!(selected(ed), [brush_c]);
+    click(c, &["ctrl"]);
     assert_eq!(open_groups(ed), json!([]), "a click outside the open group closes it");
+    assert_eq!(selected(ed), [brush_c], "and drops the brush picked inside it");
+    assert!(status().starts_with("Closed group"), "{}", status());
 
     // A double click on empty space closes the innermost open group and clears the selection.
     double_click(a);
@@ -974,6 +977,22 @@ fn group_gestures_walk(ed: &Editor, view: &str, spots: GroupSpots) {
     assert_eq!(selected(ed), Vec::<u64>::new());
     double_click(empty);
     assert_eq!(open_groups(ed), json!([]), "with no group open it changes nothing");
+
+    // Esc clears the selection first, the next one closes the open group, and one more changes nothing.
+    let escape = || ed.input(view, json!([{ "type": "key", "key": "Escape" }]));
+    double_click(a);
+    assert_eq!((open_groups(ed), selected(ed)), (json!([group]), vec![brush_a]));
+    escape();
+    assert_eq!((open_groups(ed), selected(ed)), (json!([group]), Vec::<u64>::new()), "the first Esc clears the selection");
+    escape();
+    assert_eq!(open_groups(ed), json!([]), "the next Esc closes the group");
+    ed.call("select", json!({ "ids": [group] }));
+    click(b, &["ctrl"]);
+    assert_eq!(selected(ed), Vec::<u64>::new());
+    assert!(!status().contains(" group "), "a Ctrl+click that removes the group neither says it selected it nor keeps the old message: {}", status());
+    escape();
+    assert_eq!(open_groups(ed), json!([]));
+    assert_eq!(selected(ed), Vec::<u64>::new());
 
     // A double click on a loose brush opens nothing.
     double_click(c);
@@ -1006,6 +1025,54 @@ fn group_gestures_walk(ed: &Editor, view: &str, spots: GroupSpots) {
     assert_eq!(selected(ed), [outer]);
     assert_eq!(open_groups(ed), json!([]));
     ed.call("set_editor", json!({ "keymap": "trenchbroom" }));
+
+    // The Vertex tool reshapes brushes, so its click picks one brush inside a closed group and opens nothing.
+    ed.call("select", json!({ "ids": [] }));
+    ed.call("set_editor", json!({ "tool": "vertex" }));
+    click(a, &[]);
+    assert_eq!(selected(ed), [brush_a]);
+    click(b, &["ctrl"]);
+    assert_eq!(selected_sorted(ed), [brush_a.min(brush_b), brush_a.max(brush_b)]);
+    assert_eq!(open_groups(ed), json!([]));
+    ed.call("set_editor", json!({ "tool": "select" }));
+}
+
+#[test]
+#[ignore]
+fn a_group_click_in_top_keeps_the_cycling_hint() {
+    let ed = Editor::launch("group_cycle_hint");
+    ed.call("set_camera", json!({ "view": "top", "center": [0, 0, 0], "zoom": 1.0 }));
+    let p = ed.box_brush([40.0, 64.0, -64.0], [104.0, 96.0, 0.0]);
+    let q = ed.box_brush([140.0, 0.0, 24.0], [172.0, 64.0, 88.0]);
+    let under = ed.box_brush([24.0, -40.0, -80.0], [120.0, -8.0, 16.0]);
+    ed.call("select", json!({ "ids": [p, q] }));
+    ed.call("run_action", json!({ "action": "group" }));
+    let group = selected(&ed)[0];
+    ed.call("hierarchy", json!({ "op": "close_group", "all": true }));
+    ed.call("select", json!({ "ids": [] }));
+    let click = |modifiers: &[&str]| {
+        ed.input("top", json!([{ "type": "click", "world": [72.0, 96.0, -32.0], "modifiers": modifiers }]));
+        // Two clicks less than 0.3 s apart at one spot make a double click, which opens the group instead.
+        std::thread::sleep(std::time::Duration::from_secs_f64(0.7));
+        ed.state()["status"].as_str().unwrap().to_string()
+    };
+
+    let status = click(&[]);
+    assert_eq!(selected(&ed), [group], "the group on top comes first");
+    assert!(status.starts_with("Selected group"), "{status}");
+    assert!(status.contains("2 objects under the cursor"), "the hint to reach the brush below stays: {status}");
+    let status = click(&["alt"]);
+    assert_eq!(selected(&ed), [under]);
+    assert!(status.starts_with("Object 2 of 2"), "{status}");
+
+    // A click that closes the open group still says so beside the hint.
+    let low = ed.box_brush([108.0, -80.0, -40.0], [118.0, -60.0, -20.0]);
+    ed.call("hierarchy", json!({ "op": "open_group", "id": group }));
+    ed.input("top", json!([{ "type": "click", "world": [112.0, 96.0, -32.0], "modifiers": [] }]));
+    let status = ed.state()["status"].as_str().unwrap().to_string();
+    assert!([under, low].contains(&selected(&ed)[0]), "{:?}", selected(&ed));
+    assert!(status.starts_with("Closed group"), "{status}");
+    assert!(status.contains("2 objects under the cursor"), "{status}");
 }
 
 #[test]

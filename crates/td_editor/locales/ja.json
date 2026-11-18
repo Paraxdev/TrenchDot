@@ -2474,7 +2474,7 @@
   "Double click an entity brush": "エンティティのブラシをダブルクリック",
   "Select every brush of the entity": "エンティティのブラシをすべて選択",
   "Double click empty space": "空きをダブルクリック",
-  "Close the open group and clear the selection": "開いているグループを閉じて選択を解除",
+  "Close the innermost open group, one level per double click, and clear the selection. Esc closes one level per press": "最も内側の開いているグループを閉じて選択を解除（ダブルクリックごとに1階層）。Escでも1回押すごとに1階層閉じる",
   "Click again soon at the same spot, or Alt+click (2D)": "同じ場所をすぐにもう一度クリック、または Alt+クリック (2D)",
   "Select the next object under the cursor": "カーソル下の次のオブジェクトを選択",
   "Drag off the selection": "選択範囲の外をドラッグ",

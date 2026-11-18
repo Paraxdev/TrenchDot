@@ -1373,12 +1373,16 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         }
         Action::SelectAllInMode => state.doc.select(|m, s| ops::select_all(m, s, &open_groups)),
         Action::Cancel => {
+            state.drop_group_status();
             if state.doc.selection.has_faces() {
                 state.doc.select(|_, s| s.faces.clear());
             } else if !state.doc.selection.nodes.is_empty() {
                 state.doc.select(|_, s| s.clear());
-            } else {
+            } else if state.tool != ToolKind::Select {
                 state.tool = ToolKind::Select;
+            } else if let Some(group) = state.close_innermost_group() {
+                let name = state.doc.map.get(group).map(|n| n.name()).unwrap_or_default();
+                state.set_status(msg!("Closed group {name}", name));
             }
         }
         Action::SelectInverse => state.doc.select(|m, s| ops::select_inverse(m, s, &open_groups)),
@@ -1716,11 +1720,14 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             }
         }
         Action::CloseGroup => {
-            if let Some(g) = state.open_groups.pop() {
+            if let Some(g) = state.innermost_open_group() {
+                state.open_groups.retain(|o| *o != g);
                 state.doc.select(|_, s| {
                     s.clear();
                     s.nodes.insert(g);
                 });
+                let name = state.doc.map.get(g).map(|n| n.name()).unwrap_or_default();
+                state.set_status(msg!("Closed group {name}", name));
             }
         }
 
@@ -3515,6 +3522,106 @@ mod tests {
         assert_eq!(state.tool, ToolKind::Select, "then the tool");
         execute(&mut state, Action::Cancel, &ctx);
         assert_eq!((selection(&state), state.tool), ((vec![], vec![]), ToolKind::Select), "with nothing left it does nothing");
+    }
+
+    fn nested_groups(state: &mut EditorState) -> (NodeId, NodeId, NodeId) {
+        let (a, b) = (brush_at(state, 72.0), brush_at(state, -136.0));
+        let parent = state.insert_parent();
+        state.doc.edit("Group", |m, s| {
+            s.clear();
+            s.nodes.insert(a);
+            let inner = ops::group_selection(m, s, "Inner", parent).unwrap();
+            s.clear();
+            s.nodes.extend([inner, b]);
+            let outer = ops::group_selection(m, s, "Outer", parent).unwrap();
+            (a, inner, outer)
+        })
+    }
+
+    #[test]
+    fn cancel_closes_the_open_groups_one_level_per_press_once_nothing_else_is_left() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        let (brush, inner, outer) = nested_groups(&mut state);
+        state.open_groups = vec![outer, inner];
+        state.doc.select(|_, s| {
+            s.select_face(brush, 2);
+            s.nodes.insert(brush);
+        });
+        state.tool = ToolKind::Vertex;
+        let open = |state: &EditorState| (state.open_groups.clone(), state.doc.selection.faces.len(), state.doc.selection.nodes.len(), state.tool);
+
+        execute(&mut state, Action::Cancel, &ctx);
+        assert_eq!(open(&state), (vec![outer, inner], 0, 1, ToolKind::Vertex), "faces go before any group");
+        execute(&mut state, Action::Cancel, &ctx);
+        assert_eq!(open(&state), (vec![outer, inner], 0, 0, ToolKind::Vertex), "objects go before any group");
+        execute(&mut state, Action::Cancel, &ctx);
+        assert_eq!(open(&state), (vec![outer, inner], 0, 0, ToolKind::Select), "the tool goes before any group");
+        execute(&mut state, Action::Cancel, &ctx);
+        assert_eq!(state.open_groups, [outer], "then the innermost group closes");
+        assert!(state.status.starts_with("Closed group Inner"), "{}", state.status);
+        execute(&mut state, Action::Cancel, &ctx);
+        assert!(state.open_groups.is_empty());
+        assert!(state.status.starts_with("Closed group Outer"), "{}", state.status);
+    }
+
+    #[test]
+    fn cancel_that_closes_nothing_drops_the_old_group_message() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        let (brush, inner, outer) = nested_groups(&mut state);
+        state.open_groups = vec![outer];
+        state.doc.select(|_, s| s.clear());
+        execute(&mut state, Action::Cancel, &ctx);
+        assert_eq!(state.status, "Closed group Outer");
+        execute(&mut state, Action::Cancel, &ctx);
+        assert_eq!(state.status, "", "nothing left to close");
+
+        state.open_groups = vec![outer, inner];
+        state.doc.select(|_, s| s.select_node(brush));
+        state.set_status(msg!("Opened group Inner, double click empty space or press Esc to close it"));
+        execute(&mut state, Action::Cancel, &ctx);
+        assert_eq!((state.open_groups.len(), state.status.as_str()), (2, ""), "clearing the selection closes no group");
+
+        state.doc.select(|_, s| s.select_node(brush));
+        state.set_status(msg!("marker"));
+        execute(&mut state, Action::Cancel, &ctx);
+        assert_eq!(state.status, "marker", "other messages stay");
+    }
+
+    #[test]
+    fn close_group_closes_one_level_selects_it_and_says_so() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        let (brush, inner, outer) = nested_groups(&mut state);
+        state.open_groups = vec![outer, inner];
+        state.doc.select(|_, s| s.select_node(brush));
+        let selected = |state: &EditorState| state.doc.selection.nodes.iter().copied().collect::<Vec<_>>();
+
+        execute(&mut state, Action::CloseGroup, &ctx);
+        assert_eq!((state.open_groups.clone(), selected(&state)), (vec![outer], vec![inner]));
+        assert_eq!(state.status, "Closed group Inner");
+        execute(&mut state, Action::CloseGroup, &ctx);
+        assert_eq!((state.open_groups.clone(), selected(&state)), (vec![], vec![outer]));
+        assert_eq!(state.status, "Closed group Outer");
+
+        state.set_status(msg!("marker"));
+        execute(&mut state, Action::CloseGroup, &ctx);
+        assert_eq!((selected(&state), state.status.as_str()), (vec![outer], "marker"), "nothing open, nothing changes");
+    }
+
+    #[test]
+    fn cancel_with_no_open_group_changes_nothing_once_the_rest_is_cleared() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        let (_, _, outer) = nested_groups(&mut state);
+        state.set_status(msg!("marker"));
+        execute(&mut state, Action::Cancel, &ctx);
+        assert_eq!((state.open_groups.is_empty(), state.tool, state.status.as_str()), (true, ToolKind::Select, "marker"));
+        state.open_groups = vec![outer];
+        state.doc.map.nodes.remove(&outer);
+        execute(&mut state, Action::Cancel, &ctx);
+        assert_eq!(state.status, "marker", "a group that no longer exists is not closed");
     }
 
     #[test]

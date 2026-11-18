@@ -433,15 +433,8 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
     }
 
     if let Some((ids, target)) = dropped
-        && let Some(plan) = td_doc::ops::drop_plan(&state.doc.map, &ids, target, |e| state.is_brush_entity(e))
+        && drop_outliner_rows(state, ps, &ids, target)
     {
-        let label = if matches!(plan, td_doc::ops::DropPlan::GroupWith(_)) { en!("Group") } else { en!("Move Into") };
-        state.doc.edit(label, |m, s| td_doc::ops::drop_nodes(m, s, &ids, plan));
-        if label == "Group" {
-            ps.expanded.extend(state.doc.selection.nodes.iter().copied());
-        }
-
-        state.outliner_reveal = state.doc.selection.nodes.iter().next().copied();
         clicked = None;
     }
 
@@ -576,9 +569,26 @@ fn open_outliner_row(state: &mut EditorState, ps: &mut PanelState, id: NodeId) {
     ps.outliner_anchor = Some(id);
 }
 
+/// Moves the dragged rows into `target` or groups them with it. Returns false when they cannot go there.
+fn drop_outliner_rows(state: &mut EditorState, ps: &mut PanelState, ids: &[NodeId], target: NodeId) -> bool {
+    let Some(plan) = td_doc::ops::drop_plan(&state.doc.map, ids, target, |e| state.is_brush_entity(e)) else {
+        return false;
+    };
+    let label = if matches!(plan, td_doc::ops::DropPlan::GroupWith(_)) { en!("Group") } else { en!("Move Into") };
+    state.doc.edit(label, |m, s| td_doc::ops::drop_nodes(m, s, ids, plan));
+    if label == "Group" {
+        ps.expanded.extend(state.doc.selection.nodes.iter().copied());
+    }
+
+    state.drop_group_status();
+    state.outliner_reveal = state.doc.selection.nodes.iter().next().copied();
+    true
+}
+
 /// Plain click selects one row, Ctrl toggles it, Shift selects the rows from the last clicked one and Ctrl+Shift adds
 /// them. A range leaves out layers and keeps no row together with its group, those would move twice.
 fn select_outliner_row(state: &mut EditorState, ps: &mut PanelState, order: &[NodeId], id: NodeId, modifiers: egui::Modifiers) {
+    state.drop_group_status();
     state.leave_groups_outside(id);
     let map = &state.doc.map;
     let anchor = ps.outliner_anchor.and_then(|a| order.iter().position(|r| *r == a));
@@ -601,7 +611,12 @@ fn select_outliner_row(state: &mut EditorState, ps: &mut PanelState, order: &[No
         _ => None,
     };
     let target = map.click_target(id, &state.open_groups);
+    let toggles = click == RowClick::Toggle || click == RowClick::AddRange;
+    if range.is_none() && !(toggles && state.doc.selection.nodes.contains(&target)) {
+        state.report_group_selected(target);
+    }
 
+    let map = &state.doc.map;
     state.last_bounds = map.bounds(target);
     state.doc.select(|map, s| match range {
         Some(rows) => {
@@ -614,7 +629,7 @@ fn select_outliner_row(state: &mut EditorState, ps: &mut PanelState, order: &[No
             let all = s.nodes.clone();
             s.nodes.retain(|r| !map.ancestors(*r).iter().any(|a| all.contains(a)));
         }
-        None if click == RowClick::Toggle || click == RowClick::AddRange => s.toggle_node(target),
+        None if toggles => s.toggle_node(target),
         None => {
             s.clear();
             s.select_node(target);
@@ -3550,5 +3565,75 @@ pub fn history(ui: &mut Ui, state: &mut EditorState) {
 
     for _ in 0..redo_steps {
         state.redo();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::i18n::msg;
+    use crate::state::Prefs;
+
+    #[test]
+    fn an_outliner_click_names_the_closed_group_it_selects() {
+        let mut state = EditorState::new(Prefs::default());
+        let layer = state.valid_layer();
+        let (group, brush, loose) = state.doc.edit("add", |m, s| {
+            let mut cube = |x: f64| {
+                let min = DVec3::new(x, 0.0, 0.0);
+                let aabb = td_core::Aabb::new(min, min + DVec3::splat(32.0));
+                m.insert(layer, NodeKind::Brush(td_geom::Brush::from_aabb(&aabb, "dev/grey").unwrap()))
+            };
+            let (brush, loose) = (cube(0.0), cube(96.0));
+            s.clear();
+            s.nodes.insert(brush);
+            let group = td_doc::ops::group_selection(m, s, "House", layer).unwrap();
+            s.clear();
+            (group, brush, loose)
+        });
+        let (mut ps, order) = (PanelState::default(), [group, brush, loose]);
+        let ctrl = egui::Modifiers::COMMAND;
+        state.set_status(msg!("Closed group House"));
+        select_outliner_row(&mut state, &mut ps, &order, brush, egui::Modifiers::NONE);
+        assert_eq!(state.status, "Selected group House, double click to open it");
+
+        select_outliner_row(&mut state, &mut ps, &order, brush, ctrl);
+        assert!(state.doc.selection.nodes.is_empty());
+        assert_eq!(state.status, "", "a Ctrl+click that removes the group does not say it selected it");
+
+        state.set_status(msg!("Opened group House"));
+        select_outliner_row(&mut state, &mut ps, &order, loose, egui::Modifiers::NONE);
+        assert_eq!(state.status, "", "a loose brush drops the message about the group");
+        state.set_status(msg!("marker"));
+        select_outliner_row(&mut state, &mut ps, &order, loose, egui::Modifiers::NONE);
+        assert_eq!(state.status, "marker", "other messages stay");
+    }
+
+    #[test]
+    fn an_outliner_drop_drops_the_old_group_message() {
+        let mut state = EditorState::new(Prefs::default());
+        let layer = state.valid_layer();
+        let (group, loose) = state.doc.edit("add", |m, s| {
+            let mut cube = |x: f64| {
+                let min = DVec3::new(x, 0.0, 0.0);
+                let aabb = td_core::Aabb::new(min, min + DVec3::splat(32.0));
+                m.insert(layer, NodeKind::Brush(td_geom::Brush::from_aabb(&aabb, "dev/grey").unwrap()))
+            };
+            let (brush, loose) = (cube(0.0), cube(96.0));
+            s.clear();
+            s.nodes.insert(brush);
+            let group = td_doc::ops::group_selection(m, s, "Lamp", layer).unwrap();
+            s.clear();
+            (group, loose)
+        });
+        let mut ps = PanelState::default();
+        state.set_status(msg!("Closed group Lamp"));
+        assert!(drop_outliner_rows(&mut state, &mut ps, &[loose], group));
+        assert_eq!(state.doc.map.get(loose).and_then(|n| n.parent), Some(group));
+        assert_eq!(state.status, "");
+
+        state.set_status(msg!("marker"));
+        assert!(!drop_outliner_rows(&mut state, &mut ps, &[group], group), "a row does not go into itself");
+        assert_eq!(state.status, "marker");
     }
 }

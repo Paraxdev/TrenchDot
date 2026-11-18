@@ -1128,6 +1128,45 @@ impl EditorState {
         if self.doc.selection.nodes.iter().any(inside) {
             self.doc.select(|m, s| s.nodes.retain(|n| !closed.iter().any(|g| m.is_ancestor(*g, *n))));
         }
+
+        if let Some(name) = closed.iter().find_map(|g| self.doc.map.get(*g)).map(|n| n.name()) {
+            self.set_status(msg!("Closed group {name}", name));
+        }
+    }
+
+    /// Says that a click selected `target` whole when it is a closed group, the one thing a click does not show plainly.
+    pub fn report_group_selected(&mut self, target: NodeId) {
+        if is_group(&self.doc.map, target) && !self.open_groups.contains(&target) {
+            let name = self.doc.map.get(target).map(|n| n.name()).unwrap_or_default();
+            self.set_status(msg!("Selected group {name}, double click to open it", name));
+        }
+    }
+
+    /// Clears a status line that a click on a group left behind, so the next click does not seem to say it too. Any
+    /// other status line stays.
+    pub fn drop_group_status(&mut self) {
+        if self.says_group_status() {
+            self.status.clear();
+            self.status_tr = None;
+            self.status_failed = false;
+            self.status_rang = false;
+            self.status_selection = None;
+            self.status_tool = None;
+        }
+    }
+
+    fn says_group_status(&self) -> bool {
+        ["Selected group ", "Opened group ", "Closed group "].iter().any(|s| self.status.starts_with(s))
+    }
+
+    /// Shows the hint about the other objects under the cursor after what the same click said about a group, so the
+    /// hint does not hide it.
+    pub fn show_cycle_hint(&mut self, hint: Msg) {
+        if self.says_group_status() {
+            self.extend_status(". ", hint);
+        } else {
+            self.set_status(hint);
+        }
     }
 
     /// Opens the closed groups around `id`, outer first, and `id` itself when it is a group. Open groups that do not
@@ -1141,6 +1180,10 @@ impl EditorState {
         chain.retain(|g| is_group(map, *g) && !self.open_groups.contains(g));
         let opened = !chain.is_empty();
         self.open_groups.extend(chain);
+        if let Some(name) = self.innermost_open_group().filter(|_| opened).and_then(|g| self.doc.map.get(g)).map(|n| n.name()) {
+            self.set_status(msg!("Opened group {name}, double click empty space or press Esc to close it", name));
+        }
+
         opened
     }
 
@@ -3124,6 +3167,78 @@ importer=\"texture\"
 
         assert!(!state.open_groups_to(n.loose), "a loose brush has no group to open");
         assert!(state.open_groups.is_empty(), "but the groups elsewhere still close");
+    }
+
+    #[test]
+    fn opening_and_leaving_groups_say_so_in_the_status_bar() {
+        let (mut state, n) = nest();
+        state.set_status(msg!("marker"));
+        state.leave_groups_outside(n.leg);
+        assert!(!state.open_groups_to(n.loose));
+        assert_eq!(state.status, "marker", "nothing opened or closed, nothing said");
+
+        assert!(state.open_groups_to(n.leg));
+        assert!(state.status.starts_with("Opened group inner,"), "the innermost group it opened: {}", state.status);
+        state.set_status(msg!("marker"));
+        assert!(!state.open_groups_to(n.leg));
+        assert_eq!(state.status, "marker");
+
+        state.leave_groups_outside(n.loose);
+        assert_eq!(state.status, "Closed group outer", "the outermost group it closed");
+
+        state.open_groups = vec![n.other_group];
+        state.open_groups_to(n.side);
+        assert!(state.status.starts_with("Opened group outer,"), "opening wins over closing the other group: {}", state.status);
+    }
+
+    #[test]
+    fn a_click_names_the_closed_group_it_selects_and_drops_older_group_messages() {
+        let (mut state, n) = nest();
+        state.report_group_selected(n.outer);
+        assert_eq!(state.status, "Selected group outer, double click to open it");
+        state.drop_group_status();
+        assert_eq!(state.status, "");
+
+        state.open_groups = vec![n.outer];
+        state.set_status(msg!("marker"));
+        for target in [n.outer, n.leg] {
+            state.report_group_selected(target);
+            assert_eq!(state.status, "marker", "an open group or a brush is no closed group to name");
+        }
+
+        state.drop_group_status();
+        assert_eq!(state.status, "marker", "other messages survive a click");
+        state.leave_groups_outside(n.loose);
+        state.drop_group_status();
+        assert_eq!(state.status, "", "a closed group message goes on the next click");
+        assert!(state.open_groups_to(n.leg));
+        state.drop_group_status();
+        assert_eq!(state.status, "", "so does an opened group message");
+    }
+
+    #[test]
+    fn the_cycle_hint_follows_every_group_message_of_the_same_click() {
+        let (mut state, n) = nest();
+        let hint = || msg!("Object 2 of 2 under the cursor, click again for the next");
+        state.report_group_selected(n.outer);
+        state.show_cycle_hint(hint());
+        assert_eq!(state.status, "Selected group outer, double click to open it. Object 2 of 2 under the cursor, click again for the next");
+
+        assert!(state.open_groups_to(n.leg));
+        state.show_cycle_hint(hint());
+        assert!(
+            state.status.starts_with("Opened group inner,") && state.status.ends_with(". Object 2 of 2 under the cursor, click again for the next"),
+            "{}",
+            state.status
+        );
+
+        state.leave_groups_outside(n.loose);
+        state.show_cycle_hint(hint());
+        assert_eq!(state.status, "Closed group outer. Object 2 of 2 under the cursor, click again for the next");
+
+        state.set_status(msg!("marker"));
+        state.show_cycle_hint(hint());
+        assert_eq!(state.status, "Object 2 of 2 under the cursor, click again for the next", "any other message gives way");
     }
 
     #[test]

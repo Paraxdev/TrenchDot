@@ -414,6 +414,7 @@ impl Viewport {
             let mut hit = self.pick(cx, pos);
             let plain = !modifiers.command && !modifiers.shift;
             let now = ui.input(|i| i.time);
+            let mut cycle_hint = None;
             if self.camera.kind.is_2d() && plain {
                 // Clicking again soon at the same spot, or Alt+click, steps through everything under the cursor, so a
                 // wall under its ceiling in the Top view can be picked.
@@ -428,9 +429,9 @@ impl Viewport {
                 } else if (again || modifiers.alt) && targets.len() > 1 {
                     let next = current.map_or(0, |i| (i + 1) % targets.len());
                     hit = Some(targets[next].1);
-                    cx.state.set_status(msg!("Object {n} of {total} under the cursor, click again for the next", n = next + 1, total = targets.len()));
+                    cycle_hint = Some(msg!("Object {n} of {total} under the cursor, click again for the next", n = next + 1, total = targets.len()));
                 } else if targets.len() > 1 {
-                    cx.state.set_status(msg_n!(
+                    cycle_hint = Some(msg_n!(
                         targets.len(),
                         "{n} object under the cursor, click again or Alt+click to select the next",
                         "{n} objects under the cursor, click again or Alt+click to select the next"
@@ -445,6 +446,7 @@ impl Viewport {
                 Some(_) => ClickHit::Object,
             };
             let rule = click_rule(&cx.state.prefs.keymap_preset, cx.state.select_mode, modifiers.command, modifiers.shift, click_hit);
+            cx.state.drop_group_status();
             match hit {
                 Some(_) if rule == ClickRule::FaceModeMiss => cx.state.set_status(msg!("Face mode picks faces, press 1 for objects")),
                 Some(h) => match rule {
@@ -466,9 +468,9 @@ impl Viewport {
                         let target = map.click_target(h.node, &cx.state.open_groups);
                         cx.state.last_bounds = map.bounds(target);
                         cx.state.outliner_reveal = Some(target);
-                        if target != h.node && is_group(map, target) {
-                            let name = map.get(target).map(|n| n.name()).unwrap_or_default();
-                            cx.state.set_status(msg!("Selected group {name}, double click to open it", name));
+                        let deselects = rule == ClickRule::ToggleObject && cx.state.doc.selection.nodes.contains(&target);
+                        if !deselects {
+                            cx.state.report_group_selected(target);
                         }
 
                         cx.state.doc.select(|_, s| {
@@ -486,6 +488,10 @@ impl Viewport {
                         cx.state.doc.select(|_, s| s.clear());
                     }
                 }
+            }
+
+            if let Some(hint) = cycle_hint {
+                cx.state.show_cycle_hint(hint);
             }
         }
 
@@ -517,8 +523,6 @@ impl Viewport {
                         s.clear();
                         s.select_node(target);
                     });
-                    let name = cx.state.doc.map.get(group).map(|n| n.name()).unwrap_or_default();
-                    cx.state.set_status(msg!("Opened group {name}, double click empty space or press Esc to close it", name));
                 }
                 (DoubleClick::CloseGroup, ..) => {
                     if let Some(g) = cx.state.close_innermost_group() {
