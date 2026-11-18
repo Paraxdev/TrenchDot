@@ -11,6 +11,7 @@ use crate::commands::{self, Action, ModelImport};
 use crate::i18n::{self, Lang, Msg, en, tr, tr_n, trf};
 use crate::mesh_tool::MeshOp;
 use crate::state::{EditorState, Shade};
+use crate::tool_keys::{ToolKeyRow, describe, tool_key_rows};
 use crate::tools::ToolKind;
 use crate::widgets;
 
@@ -1209,9 +1210,17 @@ impl TerrainDialog {
     }
 }
 
+#[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
+pub enum KeymapTab {
+    #[default]
+    Keys,
+    ToolKeys,
+}
+
 #[derive(Default)]
 pub struct KeymapWindow {
     pub open: bool,
+    pub tab: KeymapTab,
     filter: String,
     recording: Option<String>,
 }
@@ -1246,6 +1255,15 @@ impl KeymapWindow {
 
         let mut open = self.open;
         widgets::centered_window(en!("Keyboard Shortcuts"), ctx).open(&mut open).default_size([520.0, 520.0]).show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.selectable_value(&mut self.tab, KeymapTab::Keys, tr("Keys"));
+                ui.selectable_value(&mut self.tab, KeymapTab::ToolKeys, tr("Tool keys"));
+            });
+            if self.tab == KeymapTab::ToolKeys {
+                self.tool_keys_tab(ui);
+                return;
+            }
+
             ui.horizontal(|ui| {
                 ui.label(tr("Preset"));
                 egui::ComboBox::from_id_salt("keymap_preset").selected_text(commands::preset_label(&state.prefs.keymap_preset)).show_ui(ui, |ui| {
@@ -1296,6 +1314,36 @@ impl KeymapWindow {
             });
         });
         self.open = open;
+    }
+
+    fn tool_keys_tab(&mut self, ui: &mut egui::Ui) {
+        ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text(tr("filter")).desired_width(160.0));
+        ui.label(RichText::new(tr("Keys a tool reads while it is the active tool. They are fixed and cannot be rebound.")).weak());
+        ui.separator();
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            for tool in ToolKind::all() {
+                let rows: Vec<&ToolKeyRow> = tool_key_rows()
+                    .iter()
+                    .filter(|r| r.tool == tool)
+                    .filter(|r| {
+                        self.filter.is_empty() || [tr(tool.label()), r.what(), r.chord().as_str()].iter().any(|t| fuzzy_score(&self.filter, t).is_some())
+                    })
+                    .collect();
+                if rows.is_empty() {
+                    continue;
+                }
+
+                ui.label(RichText::new(tr(tool.label())).strong());
+                egui::Grid::new(("tool_keys", tool.label())).striped(true).num_columns(2).show(ui, |ui| {
+                    for row in rows {
+                        ui.label(RichText::new(row.chord()).monospace());
+                        ui.label(describe(row));
+                        ui.end_row();
+                    }
+                });
+                ui.add_space(6.0);
+            }
+        });
     }
 }
 /// Connects an output of one selected entity to an input of the other.
@@ -2364,5 +2412,50 @@ mod tests {
         let hm: Vec<f32> = (0..16).map(|i| i as f32 / 15.0).collect();
         let from_image = make_terrain(DVec3::ZERO, 17, 32.0, &TerrainGen { erosion_iterations: 0, ..params }, &layers, Some((&hm, [4, 4])), false, None);
         assert!((from_image.height(16, 16) - 300.0).abs() < 1e-3);
+    }
+
+    fn keymap_harness() -> egui_kittest::Harness<'static, (KeymapWindow, EditorState)> {
+        let window = KeymapWindow { open: true, ..Default::default() };
+        let mut h = egui_kittest::Harness::builder().with_size(egui::vec2(700.0, 900.0)).build_ui_state(
+            |ui, (window, state): &mut (KeymapWindow, EditorState)| window.show(&ui.ctx().clone(), state),
+            (window, EditorState::new(crate::state::Prefs::default())),
+        );
+        h.run();
+        h
+    }
+
+    #[test]
+    fn the_tool_keys_tab_lists_what_the_keys_do_and_leaves_the_keys_tab_behind() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        assert_eq!(h.state().0.tab, KeymapTab::Keys);
+        assert!(h.query_by_label("Preset").is_some());
+        assert!(h.query_by_label("Bevel vertices (with vertices, edges or faces selected)").is_none());
+
+        h.get_by_label("Tool keys").click();
+        h.run();
+        assert_eq!(h.state().0.tab, KeymapTab::ToolKeys);
+        assert!(h.query_by_label("Preset").is_none(), "the preset belongs to the Keys tab");
+        assert!(h.query_by_label("Ctrl+Shift+B").is_some());
+        assert!(h.query_by_label("Bevel vertices (with vertices, edges or faces selected)").is_some());
+        assert!(h.query_by_label("Close the outline and extrude it").is_some());
+
+        h.get_by_label("Keys").click();
+        h.run();
+        assert!(h.query_by_label("Preset").is_some());
+    }
+
+    #[test]
+    fn the_tool_keys_filter_keeps_matching_rows_of_every_tool() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        h.get_by_label("Tool keys").click();
+        h.run();
+        h.state_mut().0.filter = "backspace".into();
+        h.run();
+        assert!(h.query_by_label("Remove the last point (once a point is placed)").is_some());
+        assert!(h.query_by_label("Remove the last corner (once a corner is placed)").is_some());
+        assert!(h.query_by_label("Ctrl+Shift+B").is_none());
+        assert!(h.query_by_label("Tab").is_none());
     }
 }

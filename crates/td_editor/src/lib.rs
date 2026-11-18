@@ -60,6 +60,7 @@ pub mod texture_convert;
 pub mod texture_ops;
 pub mod texture_tool;
 pub mod theme;
+pub mod tool_keys;
 pub mod tools;
 pub mod toolset;
 pub mod transform_gizmo;

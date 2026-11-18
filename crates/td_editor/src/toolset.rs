@@ -2779,6 +2779,104 @@ mod tests {
         tools.keys(&ctx, state)
     }
 
+    fn press_chord(tools: &mut ToolSet, state: &mut EditorState, key: Key, modifiers: egui::Modifiers) -> bool {
+        let ctx = egui::Context::default();
+        let mut input = egui::RawInput::default();
+        input.events.push(egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers });
+        ctx.begin_pass(input);
+        let returned = tools.keys(&ctx, state);
+        returned || !ctx.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Key { key: k, pressed: true, .. } if *k == key)))
+    }
+
+    /// An editor with the tool active and what the row's condition asks for, on an off-origin brush and mesh.
+    fn tool_key_setup(tool: ToolKind, when: crate::tool_keys::When) -> (ToolSet, EditorState) {
+        use crate::tool_keys::When;
+        let mut state = EditorState::new(Default::default());
+        let layer = state.doc.map.default_layer();
+        let mesh = td_geom::mesh_shapes::cuboid(&Aabb::new(DVec3::new(-300.5, 4.0, 90.0), DVec3::new(-220.5, 36.0, 118.0)), "dev/grey");
+        let (brush, mesh) = state.doc.edit("add", |m, s| {
+            s.clear();
+            (m.insert(layer, td_doc::NodeKind::Brush(trapezoid())), m.insert(layer, td_doc::NodeKind::Mesh(mesh)))
+        });
+        state.tool = tool;
+        let mut tools = ToolSet::default();
+        tools.sync(&state);
+        match when {
+            When::Always => {}
+            When::ClipPoint => tools.clip.points.push(DVec3::new(10.0, 4.0, -7.0)),
+            When::PolygonPoint => tools.polygon.points.push(DVec3::new(10.0, 4.0, -7.0)),
+            When::VertexSelected => tools.vertex.selected.push(DVec3::new(-20.0, 0.0, 10.0)),
+            When::PathStarted => tools.path.last = Some(brush),
+            When::FacesInReach => select_only(&mut state, &[brush]),
+            When::MeshSelected | When::MeshGizmo | When::MeshTransform | When::MeshLoopCut => {
+                select_only(&mut state, &[mesh]);
+                tools.mesh.component = crate::mesh_tool::Component::Face;
+                tools.mesh.select_all(&state);
+                match when {
+                    When::MeshGizmo => tools.mesh.gizmo = true,
+                    When::MeshTransform => tools.mesh.start_transform(crate::mesh_tool::TransformKind::Grab, None, &mut state),
+                    When::MeshLoopCut => tools.mesh.modal = Some(crate::mesh_tool::Modal::LoopCut { hover: None, cuts: 2 }),
+                    _ => {}
+                }
+            }
+        }
+
+        (tools, state)
+    }
+
+    #[test]
+    fn every_tool_key_row_is_read_by_its_tool() {
+        use crate::tool_keys::tool_key_rows;
+        assert!(tool_key_rows().len() > 40);
+        for row in tool_key_rows() {
+            let (mut tools, mut state) = tool_key_setup(row.tool, row.when);
+            assert!(
+                press_chord(&mut tools, &mut state, row.key, row.modifiers),
+                "{:?} {} {:?} is listed but the tool leaves it",
+                row.tool,
+                row.chord(),
+                row.when
+            );
+        }
+    }
+
+    #[test]
+    fn a_plain_key_the_tool_does_not_list_is_left_alone() {
+        use crate::tool_keys::{When, tool_key_rows};
+        let ready = |tool| match tool {
+            ToolKind::Clip => When::ClipPoint,
+            ToolKind::Polygon => When::PolygonPoint,
+            ToolKind::Vertex => When::VertexSelected,
+            ToolKind::Path => When::PathStarted,
+            ToolKind::Texture => When::FacesInReach,
+            ToolKind::Mesh => When::MeshSelected,
+            _ => When::Always,
+        };
+        let plain = |k: &Key| {
+            k.name().len() == 1 || matches!(k, Key::Enter | Key::Tab | Key::Backspace | Key::Delete | Key::Escape | Key::Space | Key::Plus | Key::Minus)
+        };
+        let arrows = [Key::ArrowLeft, Key::ArrowRight, Key::ArrowUp, Key::ArrowDown];
+        for tool in ToolKind::all() {
+            let listed = |key: Key, extra: When| {
+                tool_key_rows().iter().any(|r| {
+                    r.tool == tool
+                        && r.key == key
+                        && r.modifiers == egui::Modifiers::NONE
+                        && (r.when == ready(tool) || r.when == When::Always || r.when == extra)
+                })
+            };
+            for key in Key::ALL.iter().copied().filter(plain).chain(arrows) {
+                let (mut tools, mut state) = tool_key_setup(tool, ready(tool));
+                let taken = press_chord(&mut tools, &mut state, key, egui::Modifiers::NONE);
+                assert_eq!(taken, listed(key, When::Always), "{tool:?} {key:?}");
+            }
+        }
+
+        let (mut tools, mut state) = tool_key_setup(ToolKind::Clip, When::ClipPoint);
+        assert!(!press_chord(&mut tools, &mut state, Key::P, egui::Modifiers::NONE), "P belongs to the Mesh tool");
+        assert_eq!(tools.clip.points.len(), 1);
+    }
+
     fn polygon_tools(state: &mut EditorState) -> ToolSet {
         let mut tools = ToolSet::default();
         state.tool = ToolKind::Polygon;
