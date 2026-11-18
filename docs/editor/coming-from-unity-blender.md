@@ -40,16 +40,24 @@ Rather keep your Blender keys? Switch *File > Preferences > Keymap preset* to Bl
 
 ![The Keymap preset dropdown in the Preferences window, open with TrenchBroom, Hammer and Blender](../assets/coming-from-unity-blender/keymap-preset.png)
 
-It adds A to select all, X to delete, Shift+D to duplicate, H and Alt+H to hide and show, S for the Scale tool and
-Shift+A for the shape generator. G stays Sculpt, and typing a number during a move only works inside the Mesh tool.
-The full list is under [Other presets](shortcuts.md#other-presets).
+It adds A to select all, Alt+A to select none, X to delete, Shift+D to duplicate, H and Alt+H to hide and show, S for
+the Scale tool and Shift+A for the shape generator. G stays Sculpt, and typing a number during a move only works inside
+the Mesh tool.
+
+It also brings Blender's select modes. Press **1** for Object mode and **3** for Face mode, or use the **Object** and
+**Face** buttons that show up after the tool buttons in the toolbar with this preset. A click and Shift+click then pick and
+toggle objects or single faces, the way they do in Blender, and A selects all in the current mode. The other presets
+have no modes: Shift+click picks a face and a plain click an object. The
+[Texture tool](texturing.md#the-texture-tool) clicks the same in every preset, a click selects a face, Ctrl+click adds
+or removes one, and with this preset the toolbar switches to Face. The full list is under
+[Other presets](shortcuts.md#other-presets).
 
 There are no numpad views. The Top, Front and Side views are always open, Shift+Space maximizes the one under the
 pointer and *View > Views* switches between one, two and four.
 
 ## Habits that carry over
 
-In the Mesh tool the keys follow Blender: 1, 2 and 3 for vertices, edges and faces, G, R and S with X, Y or Z to lock
+In the Mesh tool the keys follow Blender: 1, 2 and 3 for vertices, edges and faces (outside it, 1 and 3 are the Object and Face modes of the Blender preset), G, R and S with X, Y or Z to lock
 an axis, E to extrude, Ctrl+R for a loop cut and Ctrl+B to bevel.
 
 Right drag with WASD flies the 3D camera like Unity's scene view, and F frames the selection. Ctrl+Z and Ctrl+Shift+Z

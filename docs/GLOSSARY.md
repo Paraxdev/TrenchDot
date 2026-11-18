@@ -57,6 +57,9 @@ A four sided brush face split into a grid of vertices that can each be raised or
 ## entity definition
 The description of one entity class in an FGD: its classname, keys, inputs and outputs, and what Godot builds for it, such as the node class and the script. In Godot it is a FuncGodotFGDPointClass or FuncGodotFGDSolidClass resource, listed under Entity Definitions of an FGD file.
 
+## Face mode
+The Blender preset's way of selecting single faces. In Face mode a click picks the face under the cursor and A selects every face, in Object mode they pick whole brushes and meshes. Press 3 for Face mode and 1 for Object mode. The other presets have no modes and use Shift+click for a face.
+
 ## falloff
 How a paint brush, such as the Blend tool's, fades from its center to its edge. A smooth falloff gives soft borders, a constant one paints the whole disc at the same strength.
 
@@ -158,6 +161,9 @@ An entity that sits at a single spot instead of taking its shape from brushes, s
 
 ## prefab
 A reusable piece of a map saved as its own .tdm file and placed in other maps as instances. Editing the prefab file updates every instance of it.
+
+## preset
+A named set of key bindings. TrenchBroom is the default, Hammer and Blender change the keys those editors are known for. Pick one on the first start, under Help > Keyboard Shortcuts or in File > Preferences, and your own bindings stay on top of it.
 
 ## res://
 Godot's way of writing a path inside the project folder, whatever the folder is called on disk. res://maps/room.tdm is room.tdm in the maps folder of your Godot project. That's why maps and models have to be saved inside the project for the addon to find them.

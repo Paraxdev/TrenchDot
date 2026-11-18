@@ -21,7 +21,11 @@ go.
 ![Dragging withered/mossy_plaster onto the front of a brick wall, then the same wall with the plaster on its front face only](../assets/texturing/drop-on-face.png)
 
 To texture one face without dragging, Shift+click it in a view first, then click the thumbnail. Ctrl+Shift+click adds
-or removes more faces.
+or removes more faces. In the Blender preset, press **3** for Face mode first, then a click picks the face and
+Shift+click adds or removes more. While faces are selected the status bar counts them and the brushes they sit on, like "6 faces
+on 1 brush".
+
+![The status bar showing 6 faces on 1 brush after Select Brush Faces on a box](../assets/texturing/status-face-chip.png)
 
 Right click a thumbnail for more: add it to your favourites, select the faces that use it, swap it in for the current
 material across the whole map, open the hotspot editor, or *Show in File Manager* to open the folder of its texture
@@ -68,7 +72,7 @@ gets a yellow outline.
 
 | Input | Result |
 | --- | --- |
-| Click, Ctrl+click | Click selects a face, Ctrl+click adds or removes one |
+| Click, Ctrl+click | Click selects a face, Ctrl+click adds or removes one, in every keymap preset |
 | Drag a selected face | Slide the texture, the pixel under the cursor stays under it |
 | Arrow keys | Slide the selected faces by the grid size in pixels, with Shift by one pixel |
 | Ctrl+wheel | Scale the selected faces by 2, with Shift in fine steps |
@@ -84,7 +88,8 @@ scroll straight away. Several selected faces or brushes change together.
 
 To work on faces one by one, for example to leave a few out:
 
-1. Select the brushes and choose *Edit > Select > Brush Faces* (**Ctrl+Shift+A** in the Hammer preset)
+1. Select the brushes and choose *Edit > Select > Brush Faces*. In the Hammer preset **Ctrl+Shift+A** does it too, and
+    **Ctrl+A** with the Texture tool active selects the faces of the selected brushes
 
     ![The Edit menu with the Select submenu open, listing All, None, Inverse, Brush Faces and more](../assets/texturing/menu-brush-faces.png)
 
@@ -92,7 +97,7 @@ To work on faces one by one, for example to leave a few out:
 
 2. **Ctrl+click** each face you do not want, to remove it from the selection
 
-With the [UV Editor](uv-editor.md) as the visible tab, Ctrl+click on a brush does the same for that brush.
+The [UV Editor](uv-editor.md) follows the same selection.
 
 Alt+right click is how a texture, like a trim or a row of bricks, runs cleanly around a corner.
 
@@ -163,8 +168,9 @@ shows. The tool works on brushes, meshes and displacements, it is the same one t
 
 2. Select the brush and press Shift+G
 
-    The tool options bar at the top left turns into the Blend tool's. Select a brush, or Shift+click single faces, to
-    choose what gets the blend.
+    The tool options bar at the top left turns into the Blend tool's. To blend only some faces, select them before you
+    press Shift+G, the way [Applying materials](#applying-materials) picks single faces. In the Blend tool a click
+    paints instead.
 
 3. Click **Set Blend Material**
 

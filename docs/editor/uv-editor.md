@@ -7,15 +7,19 @@ like placing mesh UVs to the pixel.
 ## Opening it
 
 The UV Editor starts closed. *Texture > UV Editor*, or *View > Panels > UV Editor*, opens it as a tab in the right
-panel, next to the Inspector. Then select faces: Shift+click one in a view, or use the Texture tool. The top line names the
-material and how many faces you have.
+panel, next to the Inspector. It works on what you have selected: the faces, or when no face is selected, every face of
+the selected brushes and meshes, the same rule as the [Texture tool](texturing.md#the-texture-tool). Opening the tab
+never changes your selection. To pick single faces, Shift+click one in a view or click it with the Texture tool. In the
+Blender preset, press **3** for Face mode first, a click in a view then picks the face. The top line names the material
+and how many faces you have.
 
 ![The UV Editor with one wall face selected, drawn as an orange rectangle over the tiled showcase/plaster texture](../assets/uv-editor/uv-editor-face.png)
 
-> [!TIP]
-> While the UV Editor is the visible tab in its panel, Ctrl+click on a brush or mesh selects all its faces, so
-> every side can be textured at once. Brushes and meshes that were already selected turn into their faces as well. When
-> the selection holds anything else, such as a terrain or an entity, Ctrl+click adds and removes objects as usual.
+Select a brush and the tab shows all of its sides at once, so you can lay out a whole box without selecting each face.
+With nothing selected, or only something without faces such as an entity, it asks you to select a brush, a mesh or a
+face.
+
+![The UV Editor with a brush selected and no faces, the six sides of the brush drawn over the texture](../assets/uv-editor/uv-editor-brush.png)
 
 A brush face normally gets its texture from one offset, scale and rotation. A face with **explicit UVs** stores a
 texture position for each corner instead, which is what meshes need. The UV Editor draws those faces blue, and you can

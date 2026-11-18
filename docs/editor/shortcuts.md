@@ -2,19 +2,48 @@
 
 These are the default keys, the TrenchBroom preset.
 
-Want other keys? *Help > Keyboard Shortcuts…* lists every binding. Type in the filter to find one, press **Set** and
-then the new shortcut. **Preset** at the top of that window, or *File > Preferences > Keymap preset*, switches to
-Hammer or Blender, see [Other presets](#other-presets).
+Want other keys? *Help > Keyboard Shortcuts…* lists every binding on its **Keys** tab. Type in the filter to find
+one, press **Set** and then the new shortcut. The **Preset** row at the top of that window, or *File > Preferences >
+Keymap preset*, switches to Hammer or Blender, see [Other presets](#other-presets). On the first start the welcome card
+asks the same question, and **Skip** keeps TrenchBroom.
 
-![The Keyboard Shortcuts window filtered for csg, with the Preset dropdown, Reset overrides and a Set and Clear button on every row](../assets/shortcuts/keyboard-shortcuts-window.png)
+![The Keyboard Shortcuts window on its Keys tab, with the Preset row for the keymap preset, Reset overrides, Press a key and a Set and Clear button on every row](../assets/shortcuts/keyboard-shortcuts-window.png)
+
+### Find what a key does
+
+Not sure what a key is for, or whether it is free? Press **Press a key** next to the filter, then the key. The window
+lists everything that reacts to it, with any modifier: the menu commands first, exact chord on top, then what the
+tools do with it. Esc cancels the lookup, and the **x** next to the key clears it.
+
+![The Keys tab after pressing A, listing Select All and other uses of the key, with the Tool keys list below](../assets/shortcuts/key-search.png)
+
+### Taking a key that is in use
+
+When the shortcut you press already belongs to another command, the row asks what to do and changes nothing until you
+answer.
+
+![The row of Select All after pressing Set and Ctrl+E, with a line saying Ctrl+E is used by Select Inside and the Replace, Swap and Cancel buttons](../assets/shortcuts/conflict-prompt.png)
+
+| Button | Result |
+| --- | --- |
+| **Replace** | The other command loses the key, it is unbound unless it has another one |
+| **Swap** | The other command gets the key the first one had. Greyed out when the first one had none |
+| **Cancel** | Nothing changes |
+
+A key that a tool reads itself, such as K for the knife in the Mesh tool, asks too, since that tool takes the key first
+while it is active. Press **Set anyway** to use it for the command everywhere else, or **Cancel**.
+
+The **Tool keys** tab lists the keys each tool reads while it is active, such as Enter to apply in the Clip tool. They
+are fixed, so the tab is read only, and the key lookup shows them next to the commands that use the same key.
 
 Shortcuts wait while you type in a field or a menu is open. While the pointer is over a floating window, such as the
 Shape Generator, only save, undo and redo work, so a key meant for the window never deletes or changes your map.
 
 ## Tools
 
-Press a tool's key again to go back to Select. Esc cancels a drag or stroke, otherwise it returns to Select, and in
-Select it clears the selection.
+Press a tool's key again to go back to Select. Esc steps back one thing at a time: it cancels a drag or stroke, then
+clears the selected faces, then clears the selected objects, then leaves the tool for Select. TrenchBroom clears
+first and has no tool step. Esc never changes the Blender preset's Object or Face mode.
 
 | Key | Tool |
 | --- | --- |
@@ -40,11 +69,14 @@ Select it clears the selection.
 | --- | --- |
 | Drag off the selection | Draw a brush |
 | Drag the selection | Move. Ctrl copies, Shift locks the axis, Alt moves vertically in 3D |
-| Click, double click | Select, select the whole group |
+| Click, double click | Select the object under the cursor, select its whole group. Clicking an object while faces are selected leaves face selection |
 | Click again soon at the same spot, or Alt+click (2D) | Select the next object under the cursor, such as a wall under its ceiling in the Top view |
-| Ctrl+click | Add to or remove from the selection, in the views and the Outliner |
+| Ctrl+click | Add an object to the selection or remove it, in the views and the Outliner |
+| Shift+click | Select that one face, replacing the selection. On something without faces it works like a click |
+| Ctrl+Shift+click | Add a face to the selection or remove it |
+| Click on empty space | Clear the selection |
+| Ctrl+click on empty space | Keep the selection, so a missed Ctrl+click costs nothing |
 | Shift+click in the Outliner | Select the rows from the last clicked one |
-| Shift+click, Ctrl+Shift+click | Select one face, add or remove a face |
 | Shift+drag a selected face (3D) | Push or pull it |
 | Ctrl+Shift+drag a selected face (3D) | Extrude a new brush |
 | Right drag (3D) | Look around. Hold it and use WASD to fly, Q and E to go down and up |
@@ -62,10 +94,9 @@ Select it clears the selection.
 | F2 | Rename the selected object in the Outliner |
 | Ctrl+R | Repeat the last rotate, flip, mirror linked, nudge or duplicate. In mesh editing it makes a loop cut |
 | Delete or Backspace | Delete |
-| Ctrl+A, Ctrl+Shift+A, Ctrl+I | Select all, none, inverse. In the Hammer preset Ctrl+Shift+A selects every face of the selected brushes and meshes instead, and Select None is *Edit > Select > None* |
-| Ctrl+click on a brush or mesh | While the [UV Editor](uv-editor.md) is the visible tab, select all its faces and turn the selected brushes and meshes into faces |
+| Ctrl+A, Ctrl+Shift+A, Ctrl+I | Select all objects, select none, select inverse. Ctrl+A also drops any selected faces. In the Hammer preset Ctrl+Shift+A selects every face of the selected brushes and meshes instead, see [Other presets](#other-presets) |
 | Ctrl+F | Find entities and replace a material, see [Find and Replace](find-replace.md) |
-| Ctrl+T, Ctrl+Shift+T | Use the selected brushes as a stencil and select what they touch, or what lies inside them. The stencil brushes are deleted |
+| Ctrl+T, Ctrl+E | Use the selected brushes as a stencil and select what they touch, or what lies inside them. The stencil brushes are deleted. Both need brushes selected, faces alone are refused |
 | Ctrl+G, Ctrl+Shift+G | Group, ungroup |
 | Ctrl+H, Ctrl+J, Ctrl+Shift+H | Hide the selection, isolate it by hiding everything else, show all |
 | Arrows, Page Up, Page Down | Nudge by one grid step |
@@ -111,6 +142,7 @@ A preset only changes the keys below, everything else stays as above. Your own b
 
 | Key | Hammer preset |
 | --- | --- |
+| Ctrl+Shift+A | Select Brush Faces, swap the selected brushes and meshes for all their faces. Select None has no key here, Esc clears in two presses at most |
 | Shift+S, Shift+X, Shift+V, Shift+A | Select, clip, vertex, texture tool |
 | H, Ctrl+H, U | Hide, isolate, show all |
 | Ctrl+W | Move brushes to world |
@@ -119,10 +151,13 @@ A preset only changes the keys below, everything else stays as above. Your own b
 | Ctrl+Shift+M, Ctrl+Shift+L | CSG convex merge, intersect |
 | Ctrl+F4 | Close tab |
 
+In the Hammer preset, Ctrl+A with the Texture tool active selects every face of the selected brushes instead of the
+objects, which is what you want before aligning a whole room.
+
 | Key | Blender preset |
 | --- | --- |
-| A, Alt+A | Select all, none |
-| 3 | Select every face of the selected brushes and meshes, like face select mode |
+| 1, 3 | Object mode, Face mode. Face mode turns the selected brushes and meshes into their faces, Object mode turns selected faces back into their brushes and meshes |
+| A, Alt+A | Select all in the current mode (in Face mode every face of the visible, unlocked brushes and meshes), select none |
 | X | Delete |
 | Shift+D, Alt+D | Duplicate, duplicate linked |
 | S | Scale tool |
@@ -133,3 +168,20 @@ A preset only changes the keys below, everything else stays as above. Your own b
 | F3 | Command palette |
 | F4 | Lit Preview |
 | Alt+Shift+H | Hotspot fit |
+
+The Blender preset also clicks in the current mode, which the **Object** and **Face** buttons at the end of the tool
+buttons in the toolbar show and switch. They appear only with this preset. Ctrl+click does the same as Shift+click here, and a click
+in Face mode picks the face under the cursor. The Texture tool keeps its own clicks in every preset, a click selects a
+face and Ctrl+click adds or removes one.
+
+![The Object and Face buttons after the tool buttons in the toolbar with the Blender preset, Face highlighted](../assets/shortcuts/blender-mode-switch.png)
+
+| Blender input | Result |
+| --- | --- |
+| Click (Object mode) | Select the object under the cursor |
+| Shift+click (Object mode) | Add or remove an object |
+| Click (Face mode) | Select the face under the cursor |
+| Shift+click (Face mode) | Add or remove a face |
+| Click on empty space | Clear the selection |
+| Shift+click on empty space | Keep the selection |
+| Click on something without faces (Face mode) | Nothing changes, an entity or terrain has no faces to pick |
