@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="FuncGodotFGDPointClass" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://addons/func_godot/src/fgd/func_godot_fgd_point_class.gd" id="1_class"]
+[ext_resource type="Script" path="res://tests/first_room/project/entities/info_player_start.gd" id="td_override"]
+
+[resource]
+script = ExtResource("1_class")
+classname = "info_player_start"
+description = "Player spawn point"
+class_properties = Dictionary[String, Variant]({
+
+})
+class_property_descriptions = Dictionary[String, Variant]({
+
+})
+meta_properties = Dictionary[String, Variant]({
+"color": Color(0.2, 1, 0.2, 1),
+"size": AABB(-16, -16, 0, 16, 16, 56)
+})
+node_class = "CharacterBody3D"
+script_class = ExtResource("td_override")
+metadata/trenchdot_override = true

@@ -1,7 +1,7 @@
 extends CharacterBody3D
-## First person player for a TrenchDot map. WASD walks, the mouse looks, E uses the door or button you look at,
-## Esc frees the mouse and a click captures it again. It is the script of your info_player_start, so the map builds
-## the player where the start stands, facing its way.
+## First person player for a TrenchDot map, the script of info_player_start. The build puts it where the player start
+## is and turns it the way the start faces. WASD walks, the mouse looks, E uses the door or button you look at, Esc
+## frees the mouse and a click captures it again.
 
 const SPEED := 5.0
 const USE_DISTANCE := 2.5

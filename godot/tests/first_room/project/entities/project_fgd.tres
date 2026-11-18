@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="FuncGodotFGDFile" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://addons/func_godot/src/fgd/func_godot_fgd_file.gd" id="1_fgd"]
+[ext_resource type="Resource" path="res://addons/func_godot/fgd/trenchdot_default_fgd.tres" id="2_base"]
+[ext_resource type="Resource" path="res://tests/first_room/project/entities/info_player_start.tres" id="td_info_player_start"]
+[ext_resource type="Resource" path="res://tests/first_room/project/entities/func_button.tres" id="td_func_button"]
+
+[resource]
+script = ExtResource("1_fgd")
+base_fgd_files = Array[Resource]([ExtResource("2_base")])
+entity_definitions = Array[Resource]([ExtResource("td_info_player_start"), ExtResource("td_func_button")])

@@ -660,6 +660,55 @@ pub fn plan_in(root: &Path, game: &GameConfig, classname: &str, script: Script, 
     Ok(plan)
 }
 
+/// Where the overrides Godot's first room tests build with live, from the root of the Godot project in this repository.
+pub const FIXTURE_DIR: &str = "tests/first_room/project/entities";
+
+/// The files of that fixture as (path from the Godot project root, text): the first person player and `func_button`,
+/// overridden one after the other in a fresh project that has the addon and the pack of `godot`.
+pub fn fixture(godot: &Path) -> Result<Vec<(String, String)>, String> {
+    let scratch = tempfile::tempdir().map_err(|e| e.to_string())?;
+    let root = scratch.path();
+    let copy = |res: &str| -> Result<String, String> {
+        let rel = res.trim_start_matches("res://");
+        let text = std::fs::read_to_string(godot.join(rel)).map_err(|e| format!("{res}: {e}"))?;
+        std::fs::create_dir_all(root.join(rel).parent().unwrap()).map_err(|e| e.to_string())?;
+        std::fs::write(root.join(rel), &text).map_err(|e| e.to_string())?;
+        Ok(text)
+    };
+    std::fs::write(root.join("project.godot"), "config_version=5\n").map_err(|e| e.to_string())?;
+
+    let game = GameConfig::builtin();
+    for (classname, script) in [("info_player_start", Script::Player), ("func_button", Script::Extend)] {
+        let (_, res) = source(godot, classname).map_err(|e| e.en)?;
+        if let Some(base) = base_script(&copy(&res)?) {
+            copy(&base)?;
+        }
+
+        let plan = plan_in(root, &game, classname, script, FIXTURE_DIR).map_err(|e| e.en)?;
+        for write in &plan.writes {
+            std::fs::create_dir_all(write.path.parent().unwrap()).map_err(|e| e.to_string())?;
+            std::fs::write(&write.path, &write.text).map_err(|e| e.to_string())?;
+        }
+
+        let project = root.join("project.godot");
+        let mut text = std::fs::read_to_string(&project).map_err(|e| e.to_string())?;
+        for (section, key, value) in &plan.settings {
+            text = godot_settings::with_setting(&text, section, key, value);
+        }
+
+        std::fs::write(&project, text).map_err(|e| e.to_string())?;
+    }
+
+    let mut files = Vec::new();
+    for entry in std::fs::read_dir(root.join(FIXTURE_DIR)).map_err(|e| e.to_string())?.flatten() {
+        let name = format!("{FIXTURE_DIR}/{}", entry.file_name().to_string_lossy());
+        files.push((name, std::fs::read_to_string(entry.path()).map_err(|e| e.to_string())?));
+    }
+
+    files.sort();
+    Ok(files)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
