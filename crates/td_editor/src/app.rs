@@ -721,20 +721,25 @@ fn face_chip(map: &td_doc::Map, sel: &td_doc::Selection) -> Option<String> {
     Some(trf!("{faces} on {owners}", faces = faces, owners = owners))
 }
 
-/// Help menu entries that open the manual in the browser.
-fn help_menu_links(ui: &mut Ui) {
-    let mouse = [
-        tr("3D: right drag looks, WASD flies, Q and E go down and up, middle drag pans, Alt+left drag orbits"),
-        tr("2D: right or middle drag pans, the wheel zooms, drag a selection edge to resize"),
-        tr("Click selects, double click selects the group. Drag empty space to draw a brush"),
-        tr("3D gizmo: arrows and squares move, rings rotate, boxes scale"),
-        tr("Shift+click selects faces, Shift+drag a face pushes it, Ctrl+Shift+drag extrudes"),
-        tr("Tab edits meshes Blender style: 1/2/3 modes, G/R/S, E extrude, I inset, Ctrl+R loop cut, K knife"),
+/// The mouse lines of Help > Mouse and Keys, with the click that selects faces named after the keymap preset.
+fn mouse_help(preset: &str) -> String {
+    [
+        tr("3D: right drag looks, WASD flies, Q and E go down and up, middle drag pans, Alt+left drag orbits").to_string(),
+        tr("2D: right or middle drag pans, the wheel zooms, drag a selection edge to resize").to_string(),
+        tr("Click selects, double click selects the group. Drag empty space to draw a brush").to_string(),
+        tr("3D gizmo: arrows and squares move, rings rotate, boxes scale").to_string(),
+        trf!(
+            "{click} selects faces, Shift+drag a face pushes it, Ctrl+Shift+drag extrudes",
+            click = crate::mouse_map::chord_label(preset, crate::mouse_map::ClickRule::ReplaceFace)
+        ),
+        tr("Tab edits meshes Blender style: 1/2/3 modes, G/R/S, E extrude, I inset, Ctrl+R loop cut, K knife").to_string(),
     ]
-    .join(
-        "
-",
-    );
+    .join("\n")
+}
+
+/// Help menu entries that open the manual in the browser.
+fn help_menu_links(ui: &mut Ui, preset: &str) {
+    let mouse = mouse_help(preset);
     let manual = trf!("F1 over a tool, panel tab, menu or Inspector section opens its manual page, so does {click} on a tool", click = help::MANUAL_CLICK);
     let link = |ui: &mut Ui, label: &str, tip: &str| {
         if ui.add(menu_button(None, tr(label), None)).on_hover_text(tip).clicked() {
@@ -1956,7 +1961,7 @@ impl App {
                 m.item(ui, Some(icons::KEYBOARD), en!("Keyboard Shortcuts…"), Action::ShowKeymap);
                 m.item(ui, None, en!("Entity and Code Reference"), Action::ShowReference);
                 m.item(ui, None, en!("Check for Updates…"), Action::CheckForUpdates);
-                help_menu_links(ui);
+                help_menu_links(ui, &self.state.prefs.keymap_preset);
                 ui.separator();
                 ui.label(RichText::new(tr("TrenchDot, a level editor for Godot")).weak());
             });
@@ -4240,5 +4245,20 @@ mod tests {
         harness.get_by_label("Object").click();
         harness.run();
         assert_eq!(harness.state().asked, [Action::FaceMode, Action::ObjectMode]);
+    }
+
+    #[test]
+    fn the_mouse_help_names_the_face_click_of_the_keymap_preset() {
+        let lines = |preset| mouse_help(preset).lines().map(str::to_string).collect::<Vec<_>>();
+        let tb = lines("trenchbroom");
+        let blender = lines("blender");
+        assert_eq!(tb.len(), 6);
+        assert_eq!(blender.len(), 6);
+        assert!(tb[4].starts_with("Shift+click selects faces, Shift+drag a face pushes it"), "{}", tb[4]);
+        assert!(blender[4].starts_with("Click (Face mode) selects faces, Shift+drag a face pushes it"), "{}", blender[4]);
+        assert_eq!(tb[..4], blender[..4]);
+        assert_eq!(tb[5], blender[5]);
+        let _de = crate::i18n::scope(crate::i18n::Lang::De);
+        assert!(mouse_help("trenchbroom").contains("Shift+Klick"), "{}", mouse_help("trenchbroom"));
     }
 }

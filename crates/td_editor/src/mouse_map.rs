@@ -1,5 +1,6 @@
 //! What a click in the Select tool does to the selection, decided in one place.
 
+use crate::i18n::{en, tr, trf};
 use crate::state::SelectMode;
 
 /// What lies under the cursor. A face is a brush or mesh face, every other object counts as an object.
@@ -48,6 +49,35 @@ pub fn click_rule(preset: &str, mode: SelectMode, command: bool, shift: bool, hi
                 ClickRule::ReplaceObject
             }
         }
+    }
+}
+
+/// The gesture that makes `rule` in `preset`, in the current language, for hints and the Mouse tab. Ctrl reads Cmd on a
+/// Mac. The Blender preset names the mode a gesture belongs to, the others have no modes.
+pub fn chord_label(preset: &str, rule: ClickRule) -> String {
+    let command = if cfg!(target_os = "macos") { "Cmd+" } else { "Ctrl+" };
+    let click = |mods: &str| if mods.is_empty() { tr("Click").to_string() } else { trf!("{mods}click", mods = mods) };
+    let in_mode = |click: String, mode: &str| trf!("{click} ({mode})", click = click, mode = tr(mode));
+    if preset == "blender" {
+        return match rule {
+            ClickRule::Clear => trf!("{click} on empty space", click = click("")),
+            ClickRule::Keep => trf!("{click} on empty space", click = click("Shift+")),
+            ClickRule::ReplaceObject => in_mode(click(""), en!("Object mode")),
+            ClickRule::ToggleObject => in_mode(click("Shift+"), en!("Object mode")),
+            ClickRule::ReplaceFace => in_mode(click(""), en!("Face mode")),
+            ClickRule::ToggleFace => in_mode(click("Shift+"), en!("Face mode")),
+            ClickRule::FaceModeMiss => trf!("{click} on something without faces ({mode})", click = click(""), mode = tr("Face mode")),
+        };
+    }
+
+    match rule {
+        ClickRule::Clear => trf!("{click} on empty space", click = click("")),
+        ClickRule::Keep => trf!("{click} on empty space", click = click(command)),
+        ClickRule::ReplaceObject => click(""),
+        ClickRule::ToggleObject => click(command),
+        ClickRule::ReplaceFace => click("Shift+"),
+        ClickRule::ToggleFace => click(&format!("{command}Shift+")),
+        ClickRule::FaceModeMiss => trf!("{click} on something without faces", click = click("")),
     }
 }
 
@@ -151,5 +181,56 @@ mod tests {
                 );
             }
         }
+    }
+
+    const COMMAND: &str = if cfg!(target_os = "macos") { "Cmd" } else { "Ctrl" };
+
+    #[test]
+    fn chord_labels_name_the_gesture_of_each_preset() {
+        let tb = [
+            (Clear, "Click on empty space".to_string()),
+            (Keep, format!("{COMMAND}+click on empty space")),
+            (ReplaceObject, "Click".to_string()),
+            (ToggleObject, format!("{COMMAND}+click")),
+            (ReplaceFace, "Shift+click".to_string()),
+            (ToggleFace, format!("{COMMAND}+Shift+click")),
+            (FaceModeMiss, "Click on something without faces".to_string()),
+        ];
+        for preset in ["trenchbroom", "hammer", "unknown"] {
+            for (rule, label) in &tb {
+                assert_eq!(&chord_label(preset, *rule), label, "{preset} {rule:?}");
+            }
+        }
+
+        let blender = [
+            (Clear, "Click on empty space"),
+            (Keep, "Shift+click on empty space"),
+            (ReplaceObject, "Click (Object mode)"),
+            (ToggleObject, "Shift+click (Object mode)"),
+            (ReplaceFace, "Click (Face mode)"),
+            (ToggleFace, "Shift+click (Face mode)"),
+            (FaceModeMiss, "Click on something without faces (Face mode)"),
+        ];
+        for (rule, label) in blender {
+            assert_eq!(chord_label("blender", rule), label, "blender {rule:?}");
+        }
+    }
+
+    #[test]
+    fn chord_labels_of_one_preset_are_all_different() {
+        for preset in ["trenchbroom", "blender"] {
+            let labels: std::collections::BTreeSet<String> =
+                [Clear, Keep, ReplaceObject, ToggleObject, ReplaceFace, ToggleFace, FaceModeMiss].iter().map(|r| chord_label(preset, *r)).collect();
+            assert_eq!(labels.len(), 7, "{preset}");
+        }
+    }
+
+    #[test]
+    fn chord_labels_use_the_words_of_the_language() {
+        let _de = crate::i18n::scope(crate::i18n::Lang::De);
+        assert_eq!(chord_label("trenchbroom", ReplaceFace), "Shift+Klick");
+        assert_eq!(chord_label("trenchbroom", ReplaceObject), "Klick");
+        let face = chord_label("blender", ReplaceFace);
+        assert!(face.starts_with("Klick (") && face.contains("Flächenmodus") && !face.contains("click"), "{face}");
     }
 }

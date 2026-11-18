@@ -5,6 +5,7 @@ use td_doc::{Document, format};
 
 use crate::i18n::{self, Lang, Msg, en, msg, msg_n, tr, tr_n, trf};
 use crate::mesh_tool::MeshOp;
+use crate::mouse_map::{ClickRule, chord_label};
 use crate::state::{EditorState, Prefs, SelectMode, Shade};
 use crate::tools::ToolKind;
 
@@ -1646,7 +1647,10 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             let faces = displacement_candidates(state);
             let n = state.doc.edit("Create Displacement", |m, _| td_doc::terrain::create_displacements(m, &faces, power));
             if n == 0 {
-                state.fail_status(msg!("Select quad faces (Shift+click) or brushes with a top face"));
+                let preset = state.prefs.keymap_preset.clone();
+                state.fail_status(Msg::in_both(i18n::current(), || {
+                    trf!("Select quad faces ({click}) or brushes with a top face", click = chord_label(&preset, ClickRule::ReplaceFace))
+                }));
             } else {
                 state.set_status(msg!("{n} displacement(s) with power {power}", n, power));
             }
@@ -4734,5 +4738,23 @@ mod tests {
         state.fail_status(msg!("Nothing to cut, the selected brushes overlap no other brush"));
         unsaved_in_godot(&mut state);
         assert_eq!(state.status, "Nothing to cut, the selected brushes overlap no other brush", "a failure is left as it is");
+    }
+
+    #[test]
+    fn the_displacement_refusal_names_the_face_click_of_the_keymap_preset() {
+        let ctx = egui::Context::default();
+        for (preset, click) in [("trenchbroom", "Shift+click"), ("hammer", "Shift+click"), ("blender", "Click (Face mode)")] {
+            let mut state = EditorState::new(Default::default());
+            state.prefs.keymap_preset = preset.into();
+            execute(&mut state, Action::CreateDisplacement(3), &ctx);
+            assert!(state.status_msg().en.contains(&format!("({click})")), "{preset}: {}", state.status_msg().en);
+        }
+
+        let _de = i18n::scope(Lang::De);
+        let mut state = EditorState::new(Default::default());
+        execute(&mut state, Action::CreateDisplacement(3), &ctx);
+        let status = state.status_msg();
+        assert!(status.en.contains("(Shift+click)"), "MCP reads English whatever the language: {}", status.en);
+        assert!(status.shown.contains("Shift+Klick"), "{}", status.shown);
     }
 }

@@ -148,6 +148,12 @@ fn error_text(e: SweepError) -> String {
     }
 }
 
+/// What to click to give the sweep faces, in the gestures of the keymap preset.
+fn pick_hint(preset: &str) -> String {
+    use crate::mouse_map::{ClickRule, chord_label};
+    trf!("{select} a face to sweep, {add} adds more", select = chord_label(preset, ClickRule::ReplaceFace), add = chord_label(preset, ClickRule::ToggleFace))
+}
+
 impl SweepDialog {
     pub fn show(&mut self, ctx: &egui::Context, state: &mut EditorState) {
         if !self.open {
@@ -256,7 +262,7 @@ impl SweepDialog {
             });
 
             if state.doc.selection.faces.is_empty() {
-                ui.label(RichText::new(tr("Shift+click a face to sweep, Ctrl+Shift+click adds more")).weak());
+                ui.label(RichText::new(pick_hint(&state.prefs.keymap_preset)).weak());
                 return;
             }
 
@@ -298,6 +304,7 @@ impl SweepDialog {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use egui_kittest::kittest::Queryable;
 
     fn corner(map: &mut Map, name: &str, target: &str, origin: DVec3) -> NodeId {
         let mut e = td_doc::Entity::new("path_corner");
@@ -381,5 +388,27 @@ mod tests {
         assert_eq!(frame(&mut dialog, &ctx, &mut state), (0, 1), "a straight sweep looks up no chain");
         assert!(dialog.picked.as_ref().is_some_and(|p| p.curve.is_none() && p.faces.len() == 2));
         assert_eq!(frame(&mut dialog, &ctx, &mut state), (0, 0));
+    }
+
+    fn hint_after_a_frame(preset: &str) -> egui_kittest::Harness<'static, (SweepDialog, EditorState)> {
+        let mut state = EditorState::new(Default::default());
+        state.prefs.keymap_preset = preset.into();
+        let mut harness = egui_kittest::Harness::new_ui_state(
+            |ui, (dialog, state): &mut (SweepDialog, EditorState)| dialog.show(ui.ctx(), state),
+            (SweepDialog { open: true, ..Default::default() }, state),
+        );
+        harness.run();
+        harness
+    }
+
+    #[test]
+    fn the_hint_without_faces_names_the_clicks_of_the_keymap_preset() {
+        let tb = hint_after_a_frame("trenchbroom");
+        assert!(tb.query_by_label_contains("Shift+click a face to sweep").is_some());
+        assert!(tb.query_by_label_contains("Ctrl+Shift+click adds more").is_some() || tb.query_by_label_contains("Cmd+Shift+click adds more").is_some());
+        let blender = hint_after_a_frame("blender");
+        assert!(blender.query_by_label_contains("Click (Face mode) a face to sweep").is_some());
+        assert!(blender.query_by_label_contains("Shift+click (Face mode) adds more").is_some());
+        assert!(blender.query_by_label_contains("Ctrl+Shift").is_none());
     }
 }
