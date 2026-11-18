@@ -3,8 +3,8 @@ extends Node
 ## Checks in a headless Godot editor that the live link follows scene tabs as they are opened, closed, reloaded and
 ## switched, that live sessions follow entity definitions that change or appear on disk and prefabs that are saved, that
 ## other scenes warn when they were built with other definitions, that a pack copied in is read once Godot lists it,
-## that prop_physics shows a preview the scene does not save, and that an editor build names entity scripts without
-## @tool. res://tests/live_link_tests.gd starts it with
+## that prop_physics shows a preview the scene does not save, that an editor build names entity scripts without
+## @tool, and that it builds the player start of the getting started page. res://tests/live_link_tests.gd starts it with
 ## godot --headless --editor --path godot res://tests/editor/live_link_tabs.tscn -- --td-live-link-tabs
 ## and it does nothing when the scene is opened any other way.
 
@@ -13,6 +13,7 @@ const SELF := "res://tests/editor/live_link_tabs.tscn"
 const MAP_SCENE := "res://tests/editor/live_link_map.tscn"
 const MAP_FILE := "res://tests/maps/basic.tdm"
 const NOT_TOOL := "res://tests/helpers/not_tool_entity.gd"
+const FIRST_ROOM := "res://tests/first_room_tests.gd"
 const MAP_JSON := "res://tests/maps/basic_json.tdm"
 ## The TrenchDotFGDFile the demo's FGD has as a base, which brings the installed Gameplay entities pack.
 const CORE_FGD := "res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres"
@@ -134,6 +135,7 @@ class Runner extends Node:
 		await _check_legacy_importers()
 		_check_prop_physics_preview()
 		_check_tool_scripts()
+		_check_first_room_player()
 
 		print("%d failures" % failures)
 		get_tree().quit(1 if failures > 0 else 0)
@@ -157,6 +159,23 @@ class Runner extends Node:
 		check(lines.size() == 1, "an editor build names the entity script without @tool, got %s" % [report["warnings"]])
 		var built := map.find_children("*td_tests_not_tool*", "", true, false)
 		check(built.size() == 1 and not built[0].has_meta(&"applied"), "and does not call its placeholder, got %s" % [built])
+		map.free()
+
+	## The getting started page binds a script without @tool to info_player_start, which the editor runs as a placeholder.
+	func _check_first_room_player() -> void:
+		var first_room: Script = load(FIRST_ROOM)
+		var map := FuncGodotMap.new()
+		map.map_settings = first_room.map_settings()
+		map.local_map_file = MAP_FILE
+		var start := { "id": 2, "type": "entity", "classname": "info_player_start", "origin": [-40.0, 0.0, -64.0], "angles": [0.0, 90.0, 0.0], "properties": {} }
+		var report := map.build_from_text(JSON.stringify({ "format": "trenchdot-map", "properties": {}, "layers": [{ "type": "layer", "id": 1, "children": [start] }] }))
+		var built := map.find_children("*info_player_start*", "", true, false)
+		check(built.size() == 1 and built[0].get_class() == "CharacterBody3D" and built[0].get_script() == first_room.PLAYER, "an editor build makes the start a CharacterBody3D with the player script, got %s" % [built])
+		if built.size() == 1:
+			var spot := Vector3(-40.0, 0.0, -64.0) / 32.0
+			check(built[0].position.is_equal_approx(spot) and absf(built[0].rotation.y - PI / 2.0) < 0.01, "where the start stands, facing its way, got %s %s" % [built[0].position, built[0].rotation])
+		var about := Array(report["warnings"]).filter(func(w: String) -> bool: return w.contains("info_player_start") or w.contains("player.gd"))
+		check(str(report["error"]) == "" and about.is_empty(), "with no error or warning about it, got %s %s" % [report["error"], about])
 		map.free()
 
 	func live(event: String, extra := {}) -> Dictionary:

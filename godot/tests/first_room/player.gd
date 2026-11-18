@@ -1,6 +1,7 @@
 extends CharacterBody3D
 ## First person player for a TrenchDot map. WASD walks, the mouse looks, E uses the door or button you look at,
-## Esc frees the mouse and a click captures it again. Add it next to the map node.
+## Esc frees the mouse and a click captures it again. It is the script of your info_player_start, so the map builds
+## the player where the start stands, facing its way.
 
 const SPEED := 5.0
 const USE_DISTANCE := 2.5
@@ -18,19 +19,7 @@ func _ready() -> void:
 	head.add_child(camera)
 	add_child(head)
 	add_to_group(&"player")
-	var start := find_start(get_parent())
-	if start:
-		global_transform = Transform3D(Basis(Vector3.UP, start.global_rotation.y), start.global_position + Vector3.UP * 0.1)
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-
-static func find_start(node: Node) -> Node3D:
-	if node is Node3D and String(node.name).contains("info_player_start"):
-		return node
-	for child in node.get_children():
-		var found := find_start(child)
-		if found:
-			return found
-	return null
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
