@@ -1202,10 +1202,12 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         Action::SelectAll => state.doc.select(|m, s| ops::select_all(m, s, &open_groups)),
         Action::SelectNone => state.doc.select(|_, s| s.clear()),
         Action::Cancel => {
-            if state.tool != ToolKind::Select {
-                state.tool = ToolKind::Select;
-            } else {
+            if state.doc.selection.has_faces() {
+                state.doc.select(|_, s| s.faces.clear());
+            } else if !state.doc.selection.nodes.is_empty() {
                 state.doc.select(|_, s| s.clear());
+            } else {
+                state.tool = ToolKind::Select;
             }
         }
         Action::SelectInverse => state.doc.select(|m, s| ops::select_inverse(m, s, &open_groups)),
@@ -3167,29 +3169,60 @@ mod tests {
     }
 
     #[test]
-    fn select_none_clears_and_keeps_the_tool_while_cancel_leaves_the_tool_first() {
+    fn select_none_clears_everything_and_keeps_the_tool() {
         let ctx = egui::Context::default();
         let mut state = EditorState::new(Default::default());
         let (a, b) = (brush_at(&mut state, 72.0), brush_at(&mut state, -136.0));
         state.doc.select(|_, s| {
-            s.select_node(a);
-            s.select_node(b);
+            s.select_face(b, 2);
+            s.nodes.extend([a, b]);
         });
         state.tool = ToolKind::Sculpt;
         execute(&mut state, Action::SelectNone, &ctx);
         assert_eq!((state.tool, state.doc.selection.is_empty()), (ToolKind::Sculpt, true));
+        execute(&mut state, Action::SelectNone, &ctx);
+        assert_eq!((state.tool, state.doc.selection.is_empty()), (ToolKind::Sculpt, true), "nothing selected stays so");
+    }
 
-        state.doc.select(|_, s| s.select_node(b));
+    #[test]
+    fn cancel_steps_back_faces_then_objects_then_the_tool() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        let (a, b) = (brush_at(&mut state, 72.0), brush_at(&mut state, -136.0));
+        let selection = |state: &EditorState| {
+            (state.doc.selection.nodes.iter().copied().collect::<Vec<_>>(), state.doc.selection.faces.iter().copied().collect::<Vec<_>>())
+        };
+
+        state.doc.select(|_, s| {
+            s.select_face(b, 3);
+            s.select_face(b, 1);
+            s.nodes.extend([a, b]);
+        });
+        state.tool = ToolKind::Vertex;
         execute(&mut state, Action::Cancel, &ctx);
-        assert_eq!(state.tool, ToolKind::Select, "Escape leaves the tool first");
-        assert_eq!(state.doc.selection.nodes.iter().copied().collect::<Vec<_>>(), vec![b], "and keeps the selection");
+        assert_eq!((selection(&state), state.tool), ((vec![a, b], vec![]), ToolKind::Vertex), "faces go first, objects and tool stay");
+        execute(&mut state, Action::Cancel, &ctx);
+        assert_eq!((selection(&state), state.tool), ((vec![], vec![]), ToolKind::Vertex), "then the objects, the tool stays");
+        execute(&mut state, Action::Cancel, &ctx);
+        assert_eq!(state.tool, ToolKind::Select, "then the tool");
+        execute(&mut state, Action::Cancel, &ctx);
+        assert_eq!((selection(&state), state.tool), ((vec![], vec![]), ToolKind::Select), "with nothing left it does nothing");
+    }
 
+    #[test]
+    fn cancel_from_faces_alone_in_the_texture_tool_keeps_the_tool_once() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        let a = brush_at(&mut state, 72.0);
+        let _other = brush_at(&mut state, -136.0);
+        state.doc.select(|_, s| s.select_face(a, 4));
+        state.tool = ToolKind::Texture;
+        execute(&mut state, Action::Cancel, &ctx);
+        assert_eq!((state.doc.selection.is_empty(), state.tool), (true, ToolKind::Texture));
         execute(&mut state, Action::Cancel, &ctx);
         assert_eq!(state.tool, ToolKind::Select);
-        assert!(state.doc.selection.is_empty(), "the next Escape clears it");
-
-        execute(&mut state, Action::SelectNone, &ctx);
-        assert_eq!((state.tool, state.doc.selection.is_empty()), (ToolKind::Select, true), "nothing selected stays so");
+        execute(&mut state, Action::Cancel, &ctx);
+        assert_eq!((state.doc.selection.is_empty(), state.tool), (true, ToolKind::Select));
     }
 
     #[test]

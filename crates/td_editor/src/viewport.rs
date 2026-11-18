@@ -140,6 +140,19 @@ impl Viewport {
         }
     }
 
+    /// Drops a Select tool drag (move, resize, draw) and puts back what it had changed. Camera drags and the Shape
+    /// Generator's box, which is not part of the map, are left alone.
+    pub fn cancel_drag(&mut self, state: &mut EditorState) -> bool {
+        if self.drag.is_none() || self.is_camera_drag() || matches!(self.drag, Some(Drag::ShapeBounds { .. })) {
+            return false;
+        }
+
+        self.drag = None;
+        state.drag_preview = None;
+        state.doc.cancel();
+        true
+    }
+
     fn is_camera_drag(&self) -> bool {
         matches!(self.drag, Some(Drag::Look | Drag::Pan | Drag::Orbit { .. }))
     }

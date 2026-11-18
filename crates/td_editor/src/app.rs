@@ -1072,6 +1072,12 @@ impl App {
                 return;
             }
 
+            if ctx.input(|i| i.key_pressed(egui::Key::Escape) && i.modifiers.is_none()) && self.viewports.iter_mut().any(|v| v.cancel_drag(&mut self.state)) {
+                ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+                self.state.set_status(msg!("Cancelled"));
+                return;
+            }
+
             let events = ctx.input(|i| i.events.clone());
             for e in events {
                 match e {

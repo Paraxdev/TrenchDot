@@ -313,6 +313,44 @@ fn a_drag_held_open_ends_with_a_later_release() {
 
 #[test]
 #[ignore]
+fn escape_cancels_a_move_drag_then_clears_then_leaves_the_tool() {
+    let ed = Editor::launch("escape_ladder");
+    let brush = ed.box_brush([64.0, 0.0, 32.0], [128.0, 64.0, 96.0]);
+    ed.call("select", json!({ "ids": [brush] }));
+    ed.call("set_camera", json!({ "view": "top", "center": [96, 0, 64], "zoom": 1.5 }));
+    let undo_before = ed.state()["undo"].as_array().unwrap().len();
+    let drag = json!({ "type": "drag", "world": [96, 0, 56], "to_world": [160, 0, 120], "release": false });
+    assert_eq!(ed.call("simulate_input", json!({ "target": "top", "events": [drag] }))["held"], true);
+    std::thread::sleep(Duration::from_millis(300));
+    let (min, max) = ed.selection_bounds();
+    assert!(approx(&[min[0], max[0], min[2], max[2]], &[128.0, 192.0, 96.0, 160.0]), "the held drag moved the brush {min:?} {max:?}");
+
+    ed.input("top", json!([{ "type": "key", "key": "Escape" }]));
+    let state = ed.state();
+    let (min, max) = ed.selection_bounds();
+    assert!(approx(&[min[0], max[0], min[2], max[2]], &[64.0, 128.0, 32.0, 96.0]), "Escape put the brush back {min:?} {max:?}");
+    assert_eq!(state["selection"]["nodes"], json!([brush]), "and kept the selection");
+    assert_eq!(state["undo"].as_array().unwrap().len(), undo_before, "the cancelled move leaves no undo step");
+
+    // The button is still down, a move after the cancel must not drag anything.
+    ed.input("top", json!([{ "type": "move", "world": [150, 0, 110] }]));
+    let (min, _) = ed.selection_bounds();
+    assert!(approx(&[min[0], min[2]], &[64.0, 32.0]), "the cancelled drag stays cancelled {min:?}");
+    ed.call("simulate_input", json!({ "target": "top", "events": [{ "type": "release" }] }));
+    let (min, _) = ed.selection_bounds();
+    assert!(approx(&[min[0], min[2]], &[64.0, 32.0]), "the release changes nothing {min:?}");
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), undo_before);
+
+    ed.call("run_action", json!({ "action": "set_tool", "args": { "tool": "vertex" } }));
+    ed.input("top", json!([{ "type": "key", "key": "Escape" }]));
+    let state = ed.state();
+    assert_eq!((state["selection"]["nodes"].clone(), state["editor"]["tool"].clone()), (json!([]), json!("Vertex")), "the next Escape clears the objects");
+    ed.input("top", json!([{ "type": "key", "key": "Escape" }]));
+    assert_eq!(ed.state()["editor"]["tool"], "Select", "and the one after leaves the tool");
+}
+
+#[test]
+#[ignore]
 fn a_held_drag_keeps_its_modifiers_until_the_release() {
     let ed = Editor::launch("held_alt_drag");
     let brush = ed.box_brush([-32.0, 0.0, -32.0], [32.0, 64.0, 32.0]);
