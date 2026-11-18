@@ -2358,6 +2358,7 @@
   "File > Preferences > Keymap preset changes it later": "Fichier > Préférences > Préréglage des raccourcis le change plus tard",
   "Welcome to TrenchDot": "Bienvenue dans TrenchDot",
   "The box height caps the sweep at {angle}°": "La hauteur de la boîte limite l'arche à {angle}°",
+  "The arch rises {height} u": "L'arche s'élève de {height} u",
   "At least half the span. At 180 the arch is a half ellipse and this shows half the span": "Au moins la moitié de la portée. À 180 l'arche est une demi-ellipse et ce champ affiche la moitié de la portée",
   "How much of a circle the arch sweeps. At 180 it is a half ellipse as tall as the box, below 180 the box height only caps how high it rises": "La part de cercle que couvre l'arche. À 180 c'est une demi-ellipse aussi haute que la boîte, en dessous de 180 la hauteur de la boîte limite seulement sa montée",
   "Radius of the arch circle in map units, linked to the angle": "Rayon du cercle de l'arche en unités de carte, lié à l'angle",

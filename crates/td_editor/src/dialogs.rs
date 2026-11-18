@@ -754,6 +754,11 @@ impl ShapeDialog {
             ui.label(RichText::new(trf!("The box height caps the sweep at {angle}°", angle = format!("{sweep:.1}"))).weak());
         }
 
+        if self.kind == ShapeKind::Arch && sweep < 180.0 {
+            let rise = arch_rise(span, sweep);
+            ui.label(RichText::new(trf!("The arch rises {height} u", height = format!("{rise:.1}"))).weak());
+        }
+
         ui.horizontal(|ui| {
             let (min, max) = (span * 0.5, shapes::arch_radius(span, shapes::ARCH_MIN_ANGLE));
             let mut radius = shapes::arch_radius(span, sweep).clamp(min, max.max(min));
@@ -939,6 +944,12 @@ impl ShapeDialog {
         });
         self.open = open;
     }
+}
+
+/// How high an arch under 180 degrees stands above its floor, which is less than its box.
+fn arch_rise(span: f64, sweep: f64) -> f64 {
+    let radius = shapes::arch_radius(span, sweep);
+    radius - radius * (sweep.to_radians() * 0.5).cos()
 }
 
 /// The thickest wall a tunnel in `bounds` gets, rounded down to the grid while that leaves at least 1.
@@ -1738,6 +1749,26 @@ mod tests {
         shape_frame(&ctx, &mut dialog, &mut state, &mut time, vec![]);
         dialog.open = true;
         assert!(!shows_box(&mut dialog, &mut state, &mut time), "closing the dialog forgets the boxes");
+    }
+
+    #[test]
+    fn the_dialog_shows_how_high_an_arch_under_180_rises() {
+        let source = box_of([0.0, 0.0, 0.0], [192.0, 128.0, 256.0]);
+        let (ctx, mut state, mut time) = (egui::Context::default(), EditorState::new(crate::state::Prefs::default()), 0.0);
+        let block = insert_block(&mut state, &source);
+        state.doc.selection.select_node(block);
+        let rises = |dialog: &mut ShapeDialog, state: &mut EditorState, time: &mut f64| {
+            shape_frame(&ctx, dialog, state, time, vec![]).into_iter().map(|(text, ..)| text).find(|t| t.starts_with("The arch rises"))
+        };
+        let mut dialog = ShapeDialog { open: true, kind: ShapeKind::ArchWall, angle: 90.0, ..Default::default() };
+        assert_eq!(rises(&mut dialog, &mut state, &mut time), None, "an arch wall fills its box");
+        dialog.kind = ShapeKind::Arch;
+        dialog.angle = 180.0;
+        assert_eq!(rises(&mut dialog, &mut state, &mut time), None, "a half ellipse is as tall as its box");
+        dialog.angle = 90.0;
+        assert_eq!(rises(&mut dialog, &mut state, &mut time).as_deref(), Some("The arch rises 39.8 u"));
+        click_create(&ctx, &mut dialog, &mut state, &mut time);
+        assert!((made_bounds(&state).size().y - arch_rise(192.0, 90.0)).abs() < 1e-6);
     }
 
     #[test]

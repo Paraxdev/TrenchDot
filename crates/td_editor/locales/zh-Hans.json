@@ -2358,6 +2358,7 @@
   "File > Preferences > Keymap preset changes it later": "文件 > 偏好设置 > 快捷键预设 可稍后更改",
   "Welcome to TrenchDot": "欢迎使用 TrenchDot",
   "The box height caps the sweep at {angle}°": "框的高度将拱形角度限制为 {angle}°",
+  "The arch rises {height} u": "拱形升起 {height} u",
   "At least half the span. At 180 the arch is a half ellipse and this shows half the span": "至少为跨度的一半。180 时拱形为半椭圆，此处显示跨度的一半",
   "How much of a circle the arch sweeps. At 180 it is a half ellipse as tall as the box, below 180 the box height only caps how high it rises": "拱形所占圆的角度。180 时为与框等高的半椭圆，小于 180 时框的高度只限制拱形升起的高度",
   "Radius of the arch circle in map units, linked to the angle": "拱形圆的半径（地图单位），与角度联动",
