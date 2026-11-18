@@ -427,7 +427,7 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
         egui::Area::new(egui::Id::new("outliner_drop_hint")).order(egui::Order::Tooltip).interactable(false).fixed_pos(pointer + Vec2::new(18.0, 14.0)).show(
             ui.ctx(),
             |ui| {
-                egui::Frame::popup(ui.style()).show(ui, |ui| ui.label(hint));
+                egui::Frame::popup(ui.style()).show(ui, |ui| ui.add(egui::Label::new(hint).extend()));
             },
         );
     }
