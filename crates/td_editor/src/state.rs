@@ -297,6 +297,24 @@ impl Default for ModelImportPrefs {
     }
 }
 
+/// What a click and A pick in the Blender key preset, whole objects or single faces.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SelectMode {
+    #[default]
+    Object,
+    Face,
+}
+
+impl SelectMode {
+    /// The name `get_state` reports.
+    pub fn id(self) -> &'static str {
+        match self {
+            SelectMode::Object => "object",
+            SelectMode::Face => "face",
+        }
+    }
+}
+
 /// Why the content wizard should open.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ContentRequest {
@@ -554,6 +572,7 @@ pub struct EditorState {
     pub snap: bool,
     pub uv_lock: bool,
     pub tool: ToolKind,
+    pub select_mode: SelectMode,
     pub current_material: String,
     pub current_layer: NodeId,
     pub open_groups: Vec<NodeId>,
@@ -782,6 +801,7 @@ impl EditorState {
             snap: true,
             uv_lock: true,
             tool: ToolKind::Select,
+            select_mode: SelectMode::Object,
             current_material: "dev/grey".into(),
             current_layer: layer,
             open_groups: Vec::new(),
@@ -1435,6 +1455,18 @@ impl EditorState {
             && !self.restricted()
             && self.godot_has_project()
             && self.doc.path.as_deref().is_some_and(|p| self.link_state.has_map(p))
+    }
+
+    /// Per frame, and before an MCP call: whatever wrote the selection (the Outliner, a tool, MCP) decides the mode,
+    /// objects mean Object mode, faces mean Face mode. An empty selection keeps the mode only with the Blender preset,
+    /// where the mode is a switch of its own, so a switch to Blender with no faces selected starts in Object mode.
+    pub fn sync_select_mode(&mut self) {
+        let sel = &self.doc.selection;
+        if sel.has_faces() {
+            self.select_mode = SelectMode::Face;
+        } else if !sel.nodes.is_empty() || self.prefs.keymap_preset != "blender" {
+            self.select_mode = SelectMode::Object;
+        }
     }
 
     /// Per frame: executable detection, link settings, link status messages and live edits.

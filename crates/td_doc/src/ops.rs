@@ -444,6 +444,14 @@ pub fn select_all(map: &Map, sel: &mut Selection, open_groups: &[NodeId]) {
     sel.nodes.extend(selectable_objects(map, open_groups));
 }
 
+/// Swaps the selection for every face of every visible, unlocked brush and mesh, wherever groups hold them.
+pub fn select_all_faces(map: &Map, sel: &mut Selection) {
+    let owners: Vec<NodeId> =
+        map.nodes.iter().filter(|(id, node)| matches!(node.kind, NodeKind::Brush(_) | NodeKind::Mesh(_)) && map.is_editable(**id)).map(|(id, _)| *id).collect();
+    sel.clear();
+    sel.select_faces_of(map, owners);
+}
+
 pub fn select_inverse(map: &Map, sel: &mut Selection, open_groups: &[NodeId]) {
     let current = std::mem::take(&mut sel.nodes);
     sel.faces.clear();

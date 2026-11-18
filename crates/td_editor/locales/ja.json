@@ -2371,5 +2371,12 @@
   "Select Touching needs brushes selected.": "接触を選択するには、ブラシを選択しておく必要があります。",
   "Select Inside needs brushes selected.": "内側を選択するには、ブラシを選択しておく必要があります。",
   "Selected {n} object": { "other": "{n} 個のオブジェクトを選択しました" },
-  "{faces} on {owners}": "{owners}の{faces}"
+  "{faces} on {owners}": "{owners}の{faces}",
+  "Object Mode": "オブジェクトモード",
+  "Face Mode": "面モード",
+  "Select All in Current Mode": "現在のモードですべて選択",
+  "All in Current Mode": "現在のモードですべて",
+  "Clicks and A pick whole objects, selected faces become their brushes and meshes": "クリックと A はオブジェクト全体を選び、選択中の面はそのブラシやメッシュに変わります",
+  "Clicks and A pick single faces, selected brushes and meshes become their faces": "クリックと A は面を1つずつ選び、選択中のブラシやメッシュはその面に変わります",
+  "Selects every object, in Face mode every face of the visible brushes and meshes": "全オブジェクトを選択します。面モードでは表示中のブラシとメッシュの全面です"
 }

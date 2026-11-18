@@ -820,7 +820,7 @@ mod tests {
                     ("H", Action::HideSelected),
                 ],
             ),
-            ("blender", vec![("A", Action::SelectAll), ("X", Action::Delete), ("Shift+D", Action::Duplicate), ("S", Action::SetTool(ToolKind::Scale))]),
+            ("blender", vec![("A", Action::SelectAllInMode), ("X", Action::Delete), ("Shift+D", Action::Duplicate), ("S", Action::SetTool(ToolKind::Scale))]),
         ];
         assert_eq!(lines.iter().map(|(id, _)| *id).collect::<Vec<_>>(), crate::commands::PRESETS, "a preset added later needs its line and its check");
         for (preset, chords) in &lines {

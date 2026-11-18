@@ -2371,5 +2371,12 @@
   "Select Touching needs brushes selected.": "Berührende auswählen braucht ausgewählte Brushes.",
   "Select Inside needs brushes selected.": "Innere auswählen braucht ausgewählte Brushes.",
   "Selected {n} object": { "one": "{n} Objekt ausgewählt", "other": "{n} Objekte ausgewählt" },
-  "{faces} on {owners}": "{faces} auf {owners}"
+  "{faces} on {owners}": "{faces} auf {owners}",
+  "Object Mode": "Objektmodus",
+  "Face Mode": "Flächenmodus",
+  "Select All in Current Mode": "Alles im aktuellen Modus auswählen",
+  "All in Current Mode": "Alles im aktuellen Modus",
+  "Clicks and A pick whole objects, selected faces become their brushes and meshes": "Klicks und A wählen ganze Objekte, gewählte Flächen werden zu ihren Brushes und Meshes",
+  "Clicks and A pick single faces, selected brushes and meshes become their faces": "Klicks und A wählen einzelne Flächen, gewählte Brushes und Meshes werden zu ihren Flächen",
+  "Selects every object, in Face mode every face of the visible brushes and meshes": "Wählt jedes Objekt, im Flächenmodus jede Fläche der sichtbaren Brushes und Meshes"
 }

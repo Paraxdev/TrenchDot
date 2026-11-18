@@ -776,6 +776,7 @@ impl App {
     /// Runs a tool call from a transport. Window screenshots and input scripts keep `reply` and answer in a later frame.
     pub(crate) fn call_tool(&mut self, name: &str, args: Value, ctx: &egui::Context, reply: &Sender<ToolResult>) -> Reply {
         self.content_wizard.mcp_call(name);
+        self.state.sync_select_mode();
         // The watcher only looks once a second, a call right after Godot exported the config must already see it.
         if self.state.reload_changed_game_config() {
             self.project_generation += 1;
@@ -1198,6 +1199,7 @@ impl App {
                 "tool": s.tool.label(), "grid": s.grid, "snap": s.snap, "uv_lock": s.uv_lock, "material": s.current_material,
                 "shade": s.prefs.shade.label(), "current_layer": s.current_layer.0, "open_groups": s.open_groups.iter().map(|g| g.0).collect::<Vec<_>>(),
                 "keymap": s.prefs.keymap_preset,
+                "select_mode": s.select_mode.id(),
                 "mesh_component": self.tools.mesh.component.label(),
                 "mesh_selection": self.tools.mesh.selection.iter().map(|(id, sel)| json!({
                     "id": id.0, "verts": sel.verts, "edges": sel.edges.iter().map(|(a, b)| [a, b]).collect::<Vec<_>>(), "faces": sel.faces,
@@ -1365,6 +1367,9 @@ impl App {
                 return ok(json!({ "ok": true, "selected": 0 }));
             }
             "select_brush_faces" => Action::SelectBrushFaces,
+            "object_mode" => Action::ObjectMode,
+            "face_mode" => Action::FaceMode,
+            "select_all_in_mode" => Action::SelectAllInMode,
             "select_inverse" => Action::SelectInverse,
             "select_touching" => Action::SelectTouching,
             "select_inside" => Action::SelectInside,

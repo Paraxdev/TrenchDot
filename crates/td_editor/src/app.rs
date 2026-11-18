@@ -3132,6 +3132,7 @@ impl eframe::App for App {
         }
 
         self.process_mcp(&ctx);
+        self.state.sync_select_mode();
         if let Some(at) = self.mcp_off_at {
             match at.checked_duration_since(std::time::Instant::now()) {
                 Some(wait) if !wait.is_zero() => ctx.request_repaint_after(wait),

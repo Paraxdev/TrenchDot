@@ -5,7 +5,7 @@ use td_doc::{Document, format};
 
 use crate::i18n::{self, Lang, Msg, en, msg, msg_n, tr, tr_n, trf};
 use crate::mesh_tool::MeshOp;
-use crate::state::{EditorState, Prefs, Shade};
+use crate::state::{EditorState, Prefs, SelectMode, Shade};
 use crate::tools::ToolKind;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -40,6 +40,12 @@ pub enum Action {
     Cancel,
     SelectInverse,
     SelectBrushFaces,
+    /// Blender preset: 1, turns the selected faces into their brushes and meshes and picks whole objects from now on.
+    ObjectMode,
+    /// Blender preset: 3, turns the selected brushes and meshes into their faces and picks single faces from now on.
+    FaceMode,
+    /// Blender preset: A, selects every object in Object mode and every face in Face mode.
+    SelectAllInMode,
     SelectTouching,
     SelectInside,
     SelectSiblings,
@@ -293,6 +299,9 @@ impl Action {
             Action::Cancel => en!("Cancel"),
             Action::SelectInverse => en!("Select Inverse"),
             Action::SelectBrushFaces => en!("Select Brush Faces"),
+            Action::ObjectMode => en!("Object Mode"),
+            Action::FaceMode => en!("Face Mode"),
+            Action::SelectAllInMode => en!("Select All in Current Mode"),
             Action::SelectTouching => en!("Select Touching"),
             Action::SelectInside => en!("Select Inside"),
             Action::SelectSiblings => en!("Select Siblings"),
@@ -475,6 +484,9 @@ impl Action {
             Action::SelectInside => en!("Selects everything fully inside the selected brushes, then deletes them"),
             Action::SelectSiblings => en!("Selects everything in the same group or brush entity as the selection"),
             Action::SelectBrushFaces => en!("Selects every face of the selected brushes and meshes instead of the objects"),
+            Action::ObjectMode => en!("Clicks and A pick whole objects, selected faces become their brushes and meshes"),
+            Action::FaceMode => en!("Clicks and A pick single faces, selected brushes and meshes become their faces"),
+            Action::SelectAllInMode => en!("Selects every object, in Face mode every face of the visible brushes and meshes"),
             Action::IsolateSelected => en!("Hides everything except the selection, Show All brings it back"),
             Action::DuplicateLinked => en!("Copies the selection as a linked group, editing one copy changes every copy"),
             Action::MirrorLinked { .. } => en!("Copies the selection as a linked group mirrored across a plane, edits in either half show in both"),
@@ -637,6 +649,13 @@ fn selected_faced_objects(state: &EditorState) -> Vec<NodeId> {
     state.doc.selection.geometry(map).into_iter().filter(|id| map.brush(*id).is_some() || map.mesh(*id).is_some()).collect()
 }
 
+fn report_faces(state: &mut EditorState) {
+    let n = state.doc.selection.faces.len();
+    if n > 0 {
+        state.set_status(msg_n!(n, "Selected {n} face", "Selected {n} faces"));
+    }
+}
+
 /// Selects every face of the selected brushes and meshes, or of the ones that own the selected faces.
 fn select_all_faces(state: &mut EditorState) {
     let mut objects = selected_faced_objects(state);
@@ -680,9 +699,10 @@ pub fn preset_bindings(preset: &str) -> Vec<(KeyboardShortcut, Action)> {
             (sc(CTRL_SHIFT, Key::L), Action::CsgIntersect),
         ],
         "blender" => vec![
-            (sc(NONE, Key::A), Action::SelectAll),
+            (sc(NONE, Key::A), Action::SelectAllInMode),
             (sc(ALT, Key::A), Action::SelectNone),
-            (sc(NONE, Key::Num3), Action::SelectBrushFaces),
+            (sc(NONE, Key::Num1), Action::ObjectMode),
+            (sc(NONE, Key::Num3), Action::FaceMode),
             (sc(NONE, Key::X), Action::Delete),
             (sc(SHIFT, Key::D), Action::Duplicate),
             (sc(ALT, Key::D), Action::DuplicateLinked),
@@ -1199,8 +1219,38 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         Action::UnlinkGroups => state.doc.edit("Unlink Groups", |m, s| ops::unlink_groups(m, s)),
         // Hammer's Texture tool has no use for objects, so Ctrl+A there takes the faces to texture.
         Action::SelectAll if state.prefs.keymap_preset == "hammer" && state.tool == ToolKind::Texture => select_all_faces(state),
-        Action::SelectAll => state.doc.select(|m, s| ops::select_all(m, s, &open_groups)),
+        Action::SelectAll => {
+            state.select_mode = SelectMode::Object;
+            state.doc.select(|m, s| ops::select_all(m, s, &open_groups));
+        }
         Action::SelectNone => state.doc.select(|_, s| s.clear()),
+        Action::ObjectMode => {
+            state.select_mode = SelectMode::Object;
+            if state.doc.selection.has_faces() {
+                state.doc.select(|m, s| {
+                    let owners: Vec<NodeId> = s.faces.iter().map(|(id, _)| m.click_target(*id, &open_groups)).collect();
+                    s.faces.clear();
+                    s.nodes.extend(owners);
+                });
+            }
+        }
+        Action::FaceMode => {
+            let objects = selected_faced_objects(state);
+            if objects.is_empty() && !state.doc.selection.nodes.is_empty() && !state.doc.selection.has_faces() {
+                state.fail_status(msg!("Select a brush or mesh first"));
+            } else {
+                state.select_mode = SelectMode::Face;
+                if !objects.is_empty() || !state.doc.selection.nodes.is_empty() {
+                    state.doc.select(|m, s| s.select_faces_of(m, objects));
+                    report_faces(state);
+                }
+            }
+        }
+        Action::SelectAllInMode if state.select_mode == SelectMode::Face => {
+            state.doc.select(ops::select_all_faces);
+            report_faces(state);
+        }
+        Action::SelectAllInMode => state.doc.select(|m, s| ops::select_all(m, s, &open_groups)),
         Action::Cancel => {
             if state.doc.selection.has_faces() {
                 state.doc.select(|_, s| s.faces.clear());
@@ -3169,7 +3219,16 @@ mod tests {
             assert!(has(Action::SelectInside, sc(CTRL, Key::E)), "{preset}");
             assert!(has(Action::SelectTouching, sc(CTRL, Key::T)), "{preset}");
             assert!(!bindings.iter().any(|(b, _)| *b == sc(CTRL_SHIFT, Key::T)), "{preset} still binds Ctrl+Shift+T");
-            assert_eq!(has(Action::SelectBrushFaces, sc(NONE, Key::Num3)), preset == "blender", "{preset}");
+            assert_eq!(bindings.iter().any(|(_, a)| *a == Action::SelectBrushFaces), preset == "hammer", "{preset}: only Hammer binds Brush Faces");
+            let blender = preset == "blender";
+            assert_eq!(has(Action::ObjectMode, sc(NONE, Key::Num1)), blender, "{preset}");
+            assert_eq!(has(Action::FaceMode, sc(NONE, Key::Num3)), blender, "{preset}");
+            assert_eq!(has(Action::SelectAllInMode, sc(NONE, Key::A)), blender, "{preset}");
+            assert_eq!(has(Action::SelectNone, sc(ALT, Key::A)), blender, "{preset}");
+            for key in [Key::A, Key::Num1, Key::Num3] {
+                assert_eq!(bindings.iter().filter(|(b, _)| *b == sc(NONE, key)).count(), usize::from(blender), "{preset} {key:?}");
+            }
+
             for action in [Action::CloseTab, Action::CsgMerge, Action::CsgIntersect, Action::ShowShapeDialog, Action::ShowCommandPalette] {
                 assert!(bindings.iter().any(|(_, a)| *a == action), "{preset} leaves {action:?} unbound");
             }
@@ -3231,6 +3290,207 @@ mod tests {
         assert_eq!(state.tool, ToolKind::Select);
         execute(&mut state, Action::Cancel, &ctx);
         assert_eq!((state.doc.selection.is_empty(), state.tool), (true, ToolKind::Select));
+    }
+
+    fn mode_state() -> (EditorState, NodeId, NodeId, NodeId, NodeId) {
+        let mut state = EditorState::new(Default::default());
+        state.prefs.keymap_preset = "blender".into();
+        let (a, b) = (brush_at(&mut state, 96.0), brush_at(&mut state, -160.0));
+        let (mesh, _) = mesh_at(&mut state, 224.0);
+        let parent = state.insert_parent();
+        let light = state.doc.edit("Create Light", |m, _| m.insert(parent, td_doc::NodeKind::Entity(td_doc::Entity::new("light"))));
+        (state, a, b, mesh, light)
+    }
+
+    fn selected(state: &EditorState) -> (Vec<NodeId>, FaceSet) {
+        (state.doc.selection.nodes.iter().copied().collect(), state.doc.selection.faces.clone())
+    }
+
+    #[test]
+    fn face_mode_turns_brushes_and_meshes_into_their_faces_and_object_mode_turns_them_back() {
+        use crate::state::SelectMode;
+        let ctx = egui::Context::default();
+        let (mut state, a, b, mesh, light) = mode_state();
+        assert_eq!(state.select_mode, SelectMode::Object);
+        state.doc.select(|_, s| s.nodes.extend([a, b, light]));
+        execute(&mut state, Action::FaceMode, &ctx);
+        assert_eq!(state.select_mode, SelectMode::Face);
+        assert_eq!(selected(&state), (vec![], all_faces(&[(a, 6), (b, 6)])), "the light drops out");
+
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_face(b, 4);
+            s.select_face(b, 1);
+            s.select_face(mesh, 2);
+        });
+        execute(&mut state, Action::ObjectMode, &ctx);
+        assert_eq!(state.select_mode, SelectMode::Object);
+        assert_eq!(selected(&state), (vec![b, mesh], FaceSet::new()), "each owner once, faces gone");
+
+        execute(&mut state, Action::FaceMode, &ctx);
+        let mesh_faces = state.doc.map.mesh(mesh).unwrap().faces.len();
+        assert_eq!(selected(&state), (vec![], all_faces(&[(b, 6), (mesh, mesh_faces)])));
+    }
+
+    #[test]
+    fn object_mode_selects_what_a_click_would_and_keeps_objects_picked_beside_the_faces() {
+        let ctx = egui::Context::default();
+        let (mut state, a, b, mesh, light) = mode_state();
+        let parent = state.insert_parent();
+        let plain = state.doc.edit("Group", |m, s| {
+            s.clear();
+            s.nodes.extend([a, b]);
+            ops::group_selection(m, s, "Plain", parent).unwrap()
+        });
+        let linked = state.doc.edit("Group", |m, s| {
+            s.clear();
+            s.nodes.insert(mesh);
+            ops::group_selection(m, s, "Linked", parent).unwrap()
+        });
+        state.doc.edit("Duplicate Linked", |m, s| {
+            s.clear();
+            s.nodes.insert(linked);
+            ops::duplicate_linked(m, s, DVec3::new(0.0, 96.0, 0.0), Default::default())
+        });
+        assert!(state.open_groups.is_empty());
+
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_face(b, 3);
+            s.select_face(b, 0);
+            s.select_face(mesh, 1);
+            s.nodes.insert(light);
+        });
+        execute(&mut state, Action::ObjectMode, &ctx);
+        assert_eq!(selected(&state), (vec![b, light, linked], FaceSet::new()), "the brush, not the plain group {plain:?}");
+    }
+
+    #[test]
+    fn face_mode_refuses_a_selection_without_brushes_or_meshes_and_keeps_it() {
+        use crate::state::SelectMode;
+        let ctx = egui::Context::default();
+        let (mut state, .., light) = mode_state();
+        state.doc.select(|_, s| s.select_node(light));
+        execute(&mut state, Action::FaceMode, &ctx);
+        assert_eq!((state.select_mode, selected(&state)), (SelectMode::Object, (vec![light], FaceSet::new())));
+        assert_eq!(state.status, "Select a brush or mesh first");
+    }
+
+    #[test]
+    fn face_mode_with_faces_keeps_them_and_with_nothing_selected_stays_empty() {
+        use crate::state::SelectMode;
+        let ctx = egui::Context::default();
+        let (mut state, a, ..) = mode_state();
+        let before = state.doc.is_modified();
+        execute(&mut state, Action::FaceMode, &ctx);
+        assert_eq!((state.select_mode, selected(&state)), (SelectMode::Face, (vec![], FaceSet::new())));
+        execute(&mut state, Action::ObjectMode, &ctx);
+        assert_eq!((state.select_mode, selected(&state)), (SelectMode::Object, (vec![], FaceSet::new())));
+        assert_eq!(state.doc.is_modified(), before, "switching mode is no edit");
+
+        state.doc.select(|_, s| s.select_face(a, 5));
+        execute(&mut state, Action::FaceMode, &ctx);
+        assert_eq!(selected(&state), (vec![], FaceSet::from([(a, 5)])), "the one face stays");
+        execute(&mut state, Action::ObjectMode, &ctx);
+        assert_eq!(selected(&state), (vec![a], FaceSet::new()));
+        execute(&mut state, Action::ObjectMode, &ctx);
+        assert_eq!(selected(&state), (vec![a], FaceSet::new()), "the same mode again changes nothing");
+    }
+
+    #[test]
+    fn a_selects_every_object_or_every_face_of_the_visible_unlocked_brushes_and_meshes() {
+        use crate::state::SelectMode;
+        let ctx = egui::Context::default();
+        let (mut state, a, b, mesh, light) = mode_state();
+        let (hidden, locked) = (brush_at(&mut state, 400.0), brush_at(&mut state, 640.0));
+        state.doc.edit("Hide", |m, _| ops::set_hidden(m, &[hidden], true));
+        state.doc.edit("Lock", |m, _| ops::set_locked(m, &[locked], true));
+        state.doc.select(|_, s| s.select_face(a, 2));
+
+        execute(&mut state, Action::SelectAllInMode, &ctx);
+        assert_eq!(state.select_mode, SelectMode::Object);
+        assert_eq!(selected(&state), (vec![a, b, mesh, light], FaceSet::new()), "the faces clear, hidden and locked stay out");
+
+        state.select_mode = SelectMode::Face;
+        execute(&mut state, Action::SelectAllInMode, &ctx);
+        let mesh_faces = state.doc.map.mesh(mesh).unwrap().faces.len();
+        assert_eq!(state.select_mode, SelectMode::Face);
+        assert_eq!(selected(&state), (vec![], all_faces(&[(a, 6), (b, 6), (mesh, mesh_faces)])), "no light, hidden or locked brush, no objects");
+    }
+
+    #[test]
+    fn alt_a_and_escape_keep_face_mode_and_ctrl_a_leaves_it() {
+        use crate::state::SelectMode;
+        let ctx = egui::Context::default();
+        let (mut state, a, b, ..) = mode_state();
+        state.doc.select(|_, s| s.nodes.extend([a, b]));
+        execute(&mut state, Action::FaceMode, &ctx);
+        execute(&mut state, Action::SelectNone, &ctx);
+        state.sync_select_mode();
+        assert_eq!((state.select_mode, selected(&state)), (SelectMode::Face, (vec![], FaceSet::new())), "Alt+A keeps the mode");
+
+        state.doc.select(|_, s| s.select_face(b, 3));
+        state.tool = ToolKind::Vertex;
+        for step in 0..2 {
+            execute(&mut state, Action::Cancel, &ctx);
+            state.sync_select_mode();
+            assert_eq!(state.select_mode, SelectMode::Face, "Esc step {step} never switches the mode");
+        }
+
+        assert_eq!(state.tool, ToolKind::Select);
+        execute(&mut state, Action::SelectAll, &ctx);
+        assert_eq!((state.select_mode, state.doc.selection.nodes.len()), (SelectMode::Object, 4), "Ctrl+A picks objects");
+    }
+
+    #[test]
+    fn ctrl_a_on_an_empty_map_still_goes_to_object_mode() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        state.select_mode = crate::state::SelectMode::Face;
+        execute(&mut state, Action::SelectAll, &ctx);
+        assert_eq!(state.select_mode, crate::state::SelectMode::Object);
+    }
+
+    #[test]
+    fn the_mode_follows_whatever_wrote_the_selection() {
+        use crate::state::SelectMode;
+        let (mut state, a, b, ..) = mode_state();
+        state.select_mode = SelectMode::Face;
+        state.doc.select(|_, s| s.select_node(a));
+        state.sync_select_mode();
+        assert_eq!(state.select_mode, SelectMode::Object, "an Outliner click on an object means Object mode");
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_face(b, 1);
+        });
+        state.sync_select_mode();
+        assert_eq!(state.select_mode, SelectMode::Face, "faces mean Face mode");
+        state.doc.select(|_, s| s.clear());
+        state.sync_select_mode();
+        assert_eq!(state.select_mode, SelectMode::Face, "an empty selection keeps it");
+        state.doc.select(|_, s| s.select_node(b));
+        state.sync_select_mode();
+        assert_eq!(state.select_mode, SelectMode::Object);
+    }
+
+    #[test]
+    fn outside_blender_no_faces_mean_object_mode_and_blender_then_starts_there() {
+        use crate::state::SelectMode;
+        let ctx = egui::Context::default();
+        let (mut state, a, ..) = mode_state();
+        for preset in ["trenchbroom", "hammer"] {
+            state.prefs.keymap_preset = preset.into();
+            state.doc.select(|_, s| s.select_face(a, 2));
+            state.sync_select_mode();
+            assert_eq!(state.select_mode, SelectMode::Face, "{preset}");
+            execute(&mut state, Action::Cancel, &ctx);
+            state.sync_select_mode();
+            assert_eq!((state.select_mode, state.doc.selection.has_faces()), (SelectMode::Object, false), "{preset}: Esc leaves no faces");
+        }
+
+        state.prefs.keymap_preset = "blender".into();
+        state.sync_select_mode();
+        assert_eq!(state.select_mode, SelectMode::Object, "Blender starts in Object mode with no faces selected");
     }
 
     #[test]

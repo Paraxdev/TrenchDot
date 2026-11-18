@@ -2371,5 +2371,12 @@
   "Select Touching needs brushes selected.": "选择接触的需要先选中笔刷。",
   "Select Inside needs brushes selected.": "选择内部的需要先选中笔刷。",
   "Selected {n} object": { "other": "已选择 {n} 个对象" },
-  "{faces} on {owners}": "{owners}上的{faces}"
+  "{faces} on {owners}": "{owners}上的{faces}",
+  "Object Mode": "对象模式",
+  "Face Mode": "面模式",
+  "Select All in Current Mode": "在当前模式下全选",
+  "All in Current Mode": "当前模式下全部",
+  "Clicks and A pick whole objects, selected faces become their brushes and meshes": "点击和 A 选择整个对象，已选的面变回其笔刷和网格",
+  "Clicks and A pick single faces, selected brushes and meshes become their faces": "点击和 A 选择单个面，已选的笔刷和网格变成其所有面",
+  "Selects every object, in Face mode every face of the visible brushes and meshes": "选择所有对象，面模式下选择可见笔刷和网格的所有面"
 }

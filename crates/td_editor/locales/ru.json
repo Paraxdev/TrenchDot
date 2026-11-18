@@ -2371,5 +2371,12 @@
   "Select Touching needs brushes selected.": "Для «Выделить касающиеся» нужно выбрать браши.",
   "Select Inside needs brushes selected.": "Для «Выделить внутренние» нужно выбрать браши.",
   "Selected {n} object": { "one": "Выделен {n} объект", "few": "Выделено {n} объекта", "many": "Выделено {n} объектов" },
-  "{faces} on {owners}": "{faces} на {owners}"
+  "{faces} on {owners}": "{faces} на {owners}",
+  "Object Mode": "Режим объектов",
+  "Face Mode": "Режим граней",
+  "Select All in Current Mode": "Выбрать всё в текущем режиме",
+  "All in Current Mode": "Всё в текущем режиме",
+  "Clicks and A pick whole objects, selected faces become their brushes and meshes": "Клики и A выбирают объекты целиком, выбранные грани становятся своими брашами и мешами",
+  "Clicks and A pick single faces, selected brushes and meshes become their faces": "Клики и A выбирают отдельные грани, выбранные браши и меши становятся своими гранями",
+  "Selects every object, in Face mode every face of the visible brushes and meshes": "Выбирает каждый объект, в режиме граней каждую грань видимых брашей и мешей"
 }

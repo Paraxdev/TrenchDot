@@ -2371,5 +2371,12 @@
   "Select Touching needs brushes selected.": "Sélectionner les touchants demande des brushes sélectionnés.",
   "Select Inside needs brushes selected.": "Sélectionner l'intérieur demande des brushes sélectionnés.",
   "Selected {n} object": { "one": "{n} objet sélectionné", "other": "{n} objets sélectionnés" },
-  "{faces} on {owners}": "{faces} sur {owners}"
+  "{faces} on {owners}": "{faces} sur {owners}",
+  "Object Mode": "Mode objet",
+  "Face Mode": "Mode face",
+  "Select All in Current Mode": "Tout sélectionner dans le mode actuel",
+  "All in Current Mode": "Tout dans le mode actuel",
+  "Clicks and A pick whole objects, selected faces become their brushes and meshes": "Clics et A prennent des objets entiers, les faces choisies deviennent leurs brushes et maillages",
+  "Clicks and A pick single faces, selected brushes and meshes become their faces": "Les clics et A choisissent des faces seules, les brushes et maillages choisis deviennent leurs faces",
+  "Selects every object, in Face mode every face of the visible brushes and meshes": "Sélectionne chaque objet, en mode face chaque face des brushes et maillages visibles"
 }

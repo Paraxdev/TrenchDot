@@ -3543,6 +3543,55 @@ fn ctrl_a_in_the_hammer_texture_tool_selects_faces() {
     assert_eq!(selection_of(&ed), (vec![a, wedge, c, light], vec![]), "Hammer outside the Texture tool selects objects");
 }
 
+/// The Blender preset's 1, 3, A and Alt+A, pressed in the 3D view: the keys switch between Object and Face mode and A
+/// selects everything in the current mode.
+#[test]
+#[ignore]
+fn blender_one_and_three_switch_modes_and_a_selects_in_the_mode() {
+    let ed = Editor::launch("blender_modes");
+    let a = ed.box_brush([8.0, -16.0, 0.0], [72.0, 48.0, 40.0]);
+    let wedge = ed.call("create_brush", json!({ "min": [-72, 8, 200], "max": [-8, 72, 296], "shape": "wedge" }))["ids"][0].as_u64().unwrap();
+    let c = ed.box_brush([300.0, 4.0, 12.0], [332.0, 52.0, 76.0]);
+    let light = ed.call("create_entity", json!({ "classname": "light", "origin": [250, 30, 100] }))["id"].as_u64().unwrap();
+    let key = |key: &str, modifiers: Vec<&str>| ed.input("top", json!([{ "type": "move" }, { "type": "key", "key": key, "modifiers": modifiers }]));
+    let faces_of = |id: u64, n: u64| (0..n).map(|f| (id, f)).collect::<Vec<_>>();
+    let mode = || ed.state()["editor"]["select_mode"].as_str().unwrap_or_default().to_string();
+
+    assert_eq!(mode(), "object");
+    ed.call("set_editor", json!({ "keymap": "blender" }));
+    ed.call("select", json!({ "ids": [a, wedge, light] }));
+    key("3", vec![]);
+    assert_eq!(
+        (mode(), selection_of(&ed)),
+        ("face".into(), (vec![], [faces_of(a, 6), faces_of(wedge, 5)].concat())),
+        "3: faces of the brushes, the light drops out"
+    );
+    key("1", vec![]);
+    assert_eq!((mode(), selection_of(&ed)), ("object".into(), (vec![a, wedge], vec![])), "1: back to the owners");
+
+    ed.call("run_action", json!({ "action": "select_none" }));
+    key("3", vec![]);
+    assert_eq!((mode(), selection_of(&ed)), ("face".into(), (vec![], vec![])), "3 with nothing selected");
+    key("A", vec![]);
+    assert_eq!(
+        selection_of(&ed),
+        (vec![], [faces_of(a, 6), faces_of(wedge, 5), faces_of(c, 6)].concat()),
+        "A in Face mode: every face of every brush, no light"
+    );
+    key("A", vec!["alt"]);
+    assert_eq!((mode(), selection_of(&ed)), ("face".into(), (vec![], vec![])), "Alt+A clears and keeps the mode");
+
+    key("1", vec![]);
+    key("A", vec![]);
+    assert_eq!((mode(), selection_of(&ed)), ("object".into(), (vec![a, wedge, c, light], vec![])), "A in Object mode: every object");
+
+    ed.call("select", json!({ "faces": [[c, 2]] }));
+    assert_eq!(mode(), "face", "a selection written by a tool call moves the mode");
+    ed.call("set_editor", json!({ "keymap": "trenchbroom" }));
+    key("3", vec![]);
+    assert_eq!(selection_of(&ed), (vec![], vec![(c, 2)]), "3 means nothing in the TrenchBroom preset");
+}
+
 /// The TrenchBroom click rules in the 3D view: a click replaces the selection, Ctrl+click toggles an object, Shift+click
 /// picks one face and Ctrl+Shift+click toggles a face. Shift on something without faces acts like a click.
 #[test]
