@@ -610,6 +610,9 @@ pub struct EditorState {
     pub hollow_thickness: f64,
     /// Whether faces CSG Subtract carves take the cutter's or the target's material.
     pub carve_material: td_geom::csg::CarveMaterial,
+    /// How many edits [`EditorState::report_link_conflict`] has reported, so an MCP input script can tell whether one
+    /// of its edits was put back.
+    pub link_conflicts: u64,
     /// Brushes the last CSG or clip command replaced, with their replacements, for MCP results.
     pub replaced: td_doc::ops::Replaced,
     /// What the last Apply Mirror did, for MCP results. Its `replaced` stays empty, that map is in `replaced`.
@@ -828,6 +831,7 @@ impl EditorState {
             focus_request: None,
             hollow_thickness: 16.0,
             carve_material: Default::default(),
+            link_conflicts: 0,
             replaced: Default::default(),
             applied_mirror: None,
             last_autosave: Instant::now(),
@@ -924,6 +928,18 @@ impl EditorState {
     pub fn extend_status(&mut self, sep: &str, next: Msg) {
         let current = Msg { en: self.status.clone(), shown: self.status_shown().to_string() };
         self.show_status(current.then(sep, next), false, true);
+    }
+
+    /// Shows the refusal when an edit since the last call left two copies of a linked set different, which the document
+    /// put back. Returns whether one did.
+    pub fn report_link_conflict(&mut self) -> bool {
+        let refused = self.doc.take_link_conflict();
+        if refused {
+            self.link_conflicts += 1;
+            self.fail_status(msg!("Linked copies would end up different, so nothing changed. Edit inside one copy, the others follow."));
+        }
+
+        refused
     }
 
     /// Shows why a command failed or did nothing. MCP's run_action turns it into an error.

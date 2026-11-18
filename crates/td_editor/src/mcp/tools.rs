@@ -32,6 +32,8 @@ pub struct InputScript {
     pub frames: usize,
     /// The drag still held once the script has played, see `release: false`.
     pub held: Option<HeldDrag>,
+    /// `EditorState::link_conflicts` when the script started.
+    pub link_conflicts: u64,
 }
 
 #[derive(Clone, Copy)]
@@ -738,8 +740,14 @@ impl App {
             if script.steps.is_empty() {
                 let script = self.input_script.take().unwrap();
                 self.held_drag = script.held;
-                let reply = json!({ "ok": true, "frames": script.frames, "held": script.held.is_some(), "state": self.state_summary() });
-                let _ = script.reply.send(ToolResult::Json(reply));
+                // A view drag commits after the app's own check for this frame ran.
+                self.state.report_link_conflict();
+                if self.state.link_conflicts != script.link_conflicts {
+                    let _ = script.reply.send(err("Linked copies would end up different, so nothing changed. Edit inside one copy, the others follow."));
+                } else {
+                    let reply = json!({ "ok": true, "frames": script.frames, "held": script.held.is_some(), "state": self.state_summary() });
+                    let _ = script.reply.send(ToolResult::Json(reply));
+                }
             } else {
                 ctx.request_repaint();
             }
@@ -792,7 +800,10 @@ impl App {
                 ctx.request_repaint();
                 Reply::Deferred
             }
-            "project_content" if args["install"] == "gameplay" => Reply::Now(self.run_tool("project_content", args, ctx)),
+            "project_content" if args["install"] == "gameplay" => {
+                let result = self.run_tool("project_content", args, ctx);
+                Reply::Now(if self.state.report_link_conflict() { err(self.state.status.clone()) } else { result })
+            }
             "project_content" if args.get("install").is_some() => match self.start_content(&args, ctx) {
                 Ok(()) => {
                     self.content_replies.push(reply.clone());
@@ -817,6 +828,10 @@ impl App {
             _ => {
                 let args_action = args["action"].as_str().map(str::to_string);
                 let result = self.run_tool_as_one_step(name, args, ctx);
+                if self.state.report_link_conflict() {
+                    return Reply::Now(err(self.state.status.clone()));
+                }
+
                 let ends_drag = name == "run_action" && matches!(args_action.as_deref(), Some("new_map" | "close_tab"));
                 if ends_drag && !matches!(result, ToolResult::Error(_)) {
                     self.drop_held_drag();
@@ -2837,7 +2852,7 @@ impl App {
         }
 
         steps.push_back(InputStep { events: vec![], modifiers: held.map_or(Modifiers::NONE, |h| h.modifiers) });
-        Ok(InputScript { steps, reply, frames: 0, held })
+        Ok(InputScript { steps, reply, frames: 0, held, link_conflicts: self.state.link_conflicts })
     }
 }
 

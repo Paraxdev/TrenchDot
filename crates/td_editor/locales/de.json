@@ -2498,5 +2498,6 @@
   "Add the object to the selection or remove it": "Das Objekt zur Auswahl hinzufügen oder entfernen",
   "Select the face under the cursor, replacing the selection": "Die Fläche unter dem Cursor auswählen, statt der bisherigen Auswahl",
   "Nothing changes, it has no faces to pick": "Nichts ändert sich, es hat keine Flächen zum Auswählen",
-  "{material}  ·  {size}  ·  {shown} of {n} face\nOther materials left out": { "one": "{material}  ·  {size}  ·  {shown} von {n} Fläche\nAndere Materialien ausgelassen", "other": "{material}  ·  {size}  ·  {shown} von {n} Flächen\nAndere Materialien ausgelassen" }
+  "{material}  ·  {size}  ·  {shown} of {n} face\nOther materials left out": { "one": "{material}  ·  {size}  ·  {shown} von {n} Fläche\nAndere Materialien ausgelassen", "other": "{material}  ·  {size}  ·  {shown} von {n} Flächen\nAndere Materialien ausgelassen" },
+  "Linked copies would end up different, so nothing changed. Edit inside one copy, the others follow.": "Die verknüpften Kopien wären danach verschieden, daher wurde nichts geändert. Bearbeite eine Kopie, die anderen folgen."
 }

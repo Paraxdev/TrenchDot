@@ -3173,6 +3173,12 @@ impl eframe::App for App {
 
         self.process_mcp(&ctx);
         self.state.sync_select_mode();
+
+        // View drags and panel fields edit outside commands::execute.
+        if self.state.report_link_conflict() {
+            ctx.request_repaint();
+        }
+
         if let Some(at) = self.mcp_off_at {
             match at.checked_duration_since(std::time::Instant::now()) {
                 Some(wait) if !wait.is_zero() => ctx.request_repaint_after(wait),

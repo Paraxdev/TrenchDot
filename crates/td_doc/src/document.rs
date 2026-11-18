@@ -85,6 +85,8 @@ pub struct Document {
     /// Undo steps dropped off the bottom of the history, and undo or redo calls, both for [`HistoryMark`].
     evicted: u64,
     rewinds: u64,
+    /// An edit was put back since the last [`Document::take_link_conflict`], see [`crate::linked::conflicts`].
+    link_conflict: bool,
 }
 
 impl Default for Document {
@@ -119,6 +121,7 @@ impl Document {
             uid: NEXT_DOCUMENT.fetch_add(1, Ordering::Relaxed),
             evicted: 0,
             rewinds: 0,
+            link_conflict: false,
         }
     }
 
@@ -195,6 +198,25 @@ impl Document {
         self.history.redo.clear();
     }
 
+    /// Puts back `map` and `selection` when the edit since left two copies of a linked set different, since syncing
+    /// them would quietly drop what it did to all but one.
+    fn refuse_link_conflict(&mut self, map: &Map, selection: &Selection) -> bool {
+        if crate::linked::conflicts(map, &self.map).is_empty() {
+            return false;
+        }
+
+        self.map = map.clone();
+        self.selection = selection.clone();
+        self.link_conflict = true;
+        true
+    }
+
+    /// Whether an edit was refused since the last call because it left linked copies different. Nothing of it was
+    /// recorded or kept.
+    pub fn take_link_conflict(&mut self) -> bool {
+        std::mem::take(&mut self.link_conflict)
+    }
+
     /// Runs an undoable edit. Returns whatever the closure returns.
     pub fn edit<R>(&mut self, label: &str, f: impl FnOnce(&mut Map, &mut Selection) -> R) -> R {
         self.absorb_direct_changes();
@@ -207,6 +229,10 @@ impl Document {
 
         let snap = self.snapshot(label);
         let r = f(&mut self.map, &mut self.selection);
+        if self.refuse_link_conflict(&snap.map, &snap.selection) {
+            return r;
+        }
+
         crate::linked::sync(&snap.map, &mut self.map);
         self.selection.prune(&self.map);
         self.push_undo(snap);
@@ -239,6 +265,10 @@ impl Document {
         let snap = self.snapshot(label);
         match f(&mut self.map, &mut self.selection) {
             Ok(v) => {
+                if self.refuse_link_conflict(&snap.map, &snap.selection) {
+                    return Ok(v);
+                }
+
                 crate::linked::sync(&snap.map, &mut self.map);
                 self.selection.prune(&self.map);
                 self.push_undo(snap);
@@ -262,8 +292,12 @@ impl Document {
         self.absorb_direct_changes();
         let recent = self.last_edit.as_ref().is_some_and(|(l, t)| l == label && now.duration_since(*t).as_secs_f32() < 1.0);
         if recent && self.transaction.is_none() && self.history.redo.is_empty() && !self.history.undo.is_empty() {
-            let before = self.map.clone();
+            let (before, selection) = (self.map.clone(), self.selection.clone());
             let r = f(&mut self.map, &mut self.selection);
+            if self.refuse_link_conflict(&before, &selection) {
+                return r;
+            }
+
             crate::linked::sync(&before, &mut self.map);
             self.selection.prune(&self.map);
             self.changed();
@@ -314,6 +348,12 @@ impl Document {
         self.absorb_direct_changes();
         if let Some(snap) = self.transaction.take() {
             self.last_edit = None;
+            if self.refuse_link_conflict(&snap.map, &snap.selection) {
+                self.state = snap.state;
+                self.bump();
+                return;
+            }
+
             crate::linked::sync(&snap.map, &mut self.map);
             self.selection.prune(&self.map);
             if snap.map.nodes != self.map.nodes
@@ -667,5 +707,113 @@ mod tests {
         let original = doc.map.get(group).unwrap().children[0];
         assert_eq!(doc.map.entity(original).unwrap().targetname(), Some("door"));
         assert_eq!(doc.map.entity(doc.map.get(copy).unwrap().children[0]).unwrap().targetname(), Some("door"));
+    }
+
+    #[test]
+    fn an_edit_that_leaves_linked_copies_different_is_refused_whole() {
+        use crate::ops::{self, EditOptions};
+        use td_core::DVec3;
+        let mut doc = Document::new();
+        let layer = doc.map.default_layer();
+        let half = doc.edit("add", |m, s| {
+            let id = m.insert(layer, NodeKind::Brush(crate::linked::tests::wedge()));
+            s.select_node(id);
+            id
+        });
+        let group = doc.edit("group", |m, s| ops::group_selection(m, s, "half", layer)).unwrap();
+        let copy = doc.edit("mirror", |m, s| {
+            let copy = ops::duplicate_linked(m, s, DVec3::ZERO, EditOptions::default())[0];
+            ops::transform_selection(m, s, &ops::flip_about(DVec3::new(40.0, 0.0, 0.0), 0), EditOptions::default());
+            copy
+        });
+        let other = doc.map.get(copy).unwrap().children[0];
+        doc.select(|_, s| {
+            s.clear();
+            s.select_node(half);
+            s.select_node(other);
+        });
+        let (nodes, selection, steps) = (doc.map.nodes.clone(), doc.selection.clone(), doc.history.undo_labels().count());
+        let nudge = |m: &mut Map, s: &mut Selection| ops::translate_selection(m, s, DVec3::new(5.0, -3.0, 7.0), EditOptions::default());
+        let refused = |doc: &mut Document, how: &str| {
+            assert!(doc.map.nodes == nodes, "{how}: the map is back");
+            assert_eq!(doc.selection, selection, "{how}");
+            assert_eq!(doc.history.undo_labels().count(), steps, "{how}: no undo step");
+            assert!(doc.take_link_conflict(), "{how}");
+            assert!(!doc.take_link_conflict(), "{how}: reported once");
+        };
+
+        doc.edit("Nudge", |m, s| {
+            nudge(m, s);
+            s.clear();
+        });
+        refused(&mut doc, "edit");
+        let tried = doc.try_edit("Nudge", |m, s| {
+            nudge(m, s);
+            Ok::<_, ()>(7)
+        });
+        assert_eq!(tried, Ok(7));
+        refused(&mut doc, "try_edit");
+        doc.edit_coalesced("Nudge", nudge);
+        refused(&mut doc, "edit_coalesced");
+        doc.begin("Drag");
+        nudge(&mut doc.map, &mut doc.selection);
+        doc.revision += 1;
+        let revision = doc.revision;
+        doc.commit();
+        refused(&mut doc, "commit");
+        assert!(!doc.in_transaction());
+        assert!(doc.revision > revision, "the views redraw the map put back");
+
+        doc.edit_coalesced("Retexture", |m, _| m.brush_mut(half).unwrap().faces[2].data.material = "brick".into());
+        doc.edit_coalesced("Retexture", |m, _| m.brush_mut(half).unwrap().faces[3].data.material = "brick".into());
+        assert_eq!(doc.history.undo_labels().count(), steps + 1);
+        let other = doc.map.get(copy).unwrap().children[0];
+        doc.select(|_, s| s.select_node(other));
+        let nodes = doc.map.nodes.clone();
+        doc.edit_coalesced("Retexture", nudge);
+        assert!(doc.map.nodes == nodes, "a refused coalesced edit keeps the steps before it");
+        assert_eq!(doc.history.undo_labels().count(), steps + 1);
+        assert!(doc.take_link_conflict());
+        assert_eq!(doc.map.brush(other).unwrap().faces[3].data.material, "brick", "the copy followed the earlier edits");
+
+        doc.edit("Retexture", |m, _| {
+            for id in [half, other] {
+                m.brush_mut(id).unwrap().faces[0].data.material = "glass".into();
+            }
+        });
+        assert!(!doc.take_link_conflict());
+        assert_eq!(doc.history.undo_labels().next(), Some("Retexture"));
+        assert_eq!(doc.history.undo_labels().count(), steps + 2, "an edit both copies agree on is recorded");
+        doc.edit("Move", |m, _| {
+            let mut both = Selection::default();
+            both.nodes.extend([group, copy]);
+            ops::translate_selection(m, &both, DVec3::new(-9.0, 4.0, 2.0), EditOptions::default());
+        });
+        assert!(!doc.take_link_conflict(), "both halves moved as wholes");
+        assert_eq!(doc.history.undo_labels().count(), steps + 3);
+
+        let (was, was_copy) = (doc.map.bounds(group), doc.map.bounds(copy));
+        let by = DVec3::new(16.0, 0.0, 0.0);
+        doc.edit("Move", |m, _| {
+            let mut both = Selection::default();
+            both.nodes.extend([group, copy]);
+            ops::translate_selection(m, &both, by, EditOptions { uv_lock: false, ..EditOptions::default() });
+        });
+        assert!(!doc.take_link_conflict(), "both halves moved along the mirror axis with UV lock off");
+        assert_eq!(doc.history.undo_labels().count(), steps + 4);
+        assert!((doc.map.bounds(group).min - was.min - by).length() < 1e-6 && (doc.map.bounds(group).max - was.max - by).length() < 1e-6);
+        assert!((doc.map.bounds(copy).min - was_copy.min - by).length() < 1e-6 && (doc.map.bounds(copy).max - was_copy.max - by).length() < 1e-6);
+
+        let other = doc.map.get(copy).unwrap().children[0];
+        doc.edit("Move and retexture", |m, _| {
+            let mut whole = Selection::default();
+            whole.nodes.insert(group);
+            ops::translate_selection(m, &whole, DVec3::new(0.0, 8.0, -4.0), EditOptions::default());
+            m.brush_mut(other).unwrap().faces[1].data.material = "tile".into();
+        });
+        assert!(!doc.take_link_conflict(), "one half moved, the other retextured");
+        let half = doc.map.get(group).unwrap().children[0];
+        assert_eq!(doc.map.brush(half).unwrap().faces[1].data.material, "tile", "the moved half took the edit of the other");
+        assert_eq!(doc.history.undo_labels().count(), steps + 5);
     }
 }

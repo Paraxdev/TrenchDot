@@ -995,6 +995,7 @@ fn shading_status(shade: Shade) -> Msg {
 pub fn execute(state: &mut EditorState, action: Action, ctx: &egui::Context) {
     state.validate_insert_context();
     run(state, action, ctx);
+    state.report_link_conflict();
     state.validate_insert_context();
 }
 
@@ -4265,6 +4266,38 @@ mod tests {
         assert!(!state.doc.is_modified());
         assert_eq!(state.doc.history.undo_labels().count(), steps);
         assert!(state.doc.map.nodes.values().all(|n| !matches!(n.kind, td_doc::NodeKind::Group(_))), "no stray Mirrored group is left behind");
+    }
+
+    #[test]
+    fn a_nudge_across_both_halves_fails_without_an_undo_step() {
+        let mut state = EditorState::new(Default::default());
+        let ctx = egui::Context::default();
+        let brush = slanted_brush(&mut state);
+        state.doc.select(|_, s| s.select_node(brush));
+        execute(&mut state, Action::MirrorLinked { axis: 0 }, &ctx);
+        let half = state.doc.map.get(brush).unwrap().parent.unwrap();
+        let copy = td_doc::mirror::partners(&state.doc.map, half)[0].0;
+        let other = state.doc.map.get(copy).unwrap().children[0];
+        state.doc.select(|_, s| {
+            s.clear();
+            s.nodes.extend([brush, other]);
+        });
+        let (nodes, steps) = (state.doc.map.nodes.clone(), state.doc.history.undo_labels().count());
+
+        execute(&mut state, Action::Nudge(DVec3::new(16.0, 0.0, -16.0)), &ctx);
+        assert!(state.status_failed(), "{}", state.status);
+        assert!(state.status.starts_with("Linked copies would end up different"), "{}", state.status);
+        assert!(state.doc.map.nodes == nodes, "nothing moved");
+        assert_eq!(state.doc.history.undo_labels().count(), steps, "no undo step");
+        assert_eq!(state.doc.selection.nodes.len(), 2, "the selection stays");
+
+        state.doc.select(|_, s| {
+            s.nodes.remove(&other);
+        });
+        execute(&mut state, Action::Nudge(DVec3::new(16.0, 0.0, -16.0)), &ctx);
+        assert_eq!(state.doc.history.undo_labels().count(), steps + 1, "a nudge inside one half goes through");
+        assert!(state.doc.map.nodes != nodes);
+        assert!(!state.doc.take_link_conflict(), "the refusal was reported once");
     }
 
     fn offset_box(state: &mut EditorState) -> NodeId {

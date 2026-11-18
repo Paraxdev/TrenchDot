@@ -2070,7 +2070,11 @@ impl App {
                 }
             };
             ran += 1;
-            let result = self.run_tool(&step.tool, resolved, ctx);
+            let mut result = self.run_tool(&step.tool, resolved, ctx);
+            if self.state.report_link_conflict() {
+                result = err(self.state.status.clone());
+            }
+
             rewinds.note(&self.state.doc);
 
             match result {

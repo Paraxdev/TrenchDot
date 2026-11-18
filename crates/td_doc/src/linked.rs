@@ -33,13 +33,22 @@ fn group_transform(map: &Map, id: NodeId) -> DMat4 {
 
 /// Descendants in depth-first order with their depth, leaves expressed in the link set's shared space.
 fn normalized(map: &Map, group: NodeId) -> Vec<(usize, NodeKind, Option<String>)> {
+    normalized_carried(map, group, &DMat4::IDENTITY)
+}
+
+/// [`normalized`] after the group was carried by `carry` with UV lock off, which leaves its world UVs where they were.
+fn normalized_carried(map: &Map, group: NodeId, carry: &DMat4) -> Vec<(usize, NodeKind, Option<String>)> {
     let inverse = group_transform(map, group).inverse();
+    let carried = *carry != DMat4::IDENTITY;
+    let back = (*carry * group_transform(map, group)).inverse();
     let mut out = Vec::new();
     let mut stack: Vec<(NodeId, usize)> = map.get(group).map(|n| n.children.iter().rev().map(|c| (*c, 1)).collect()).unwrap_or_default();
     while let Some((id, depth)) = stack.pop() {
         let Some(node) = map.get(id) else { continue };
         let leaf = node.children.is_empty();
         let kind = match &node.kind {
+            NodeKind::Brush(b) if carried => NodeKind::Brush(b.transformed(carry, false).transformed(&back, true)),
+            NodeKind::Mesh(m) if carried => NodeKind::Mesh(m.transformed(carry, false).transformed(&back, true)),
             NodeKind::Brush(b) => NodeKind::Brush(b.transformed(&inverse, true)),
             NodeKind::Mesh(m) => NodeKind::Mesh(m.transformed(&inverse, true)),
             NodeKind::Terrain(t) => NodeKind::Terrain(t.transformed(&inverse)),
@@ -86,18 +95,36 @@ fn values_close(a: &Value, b: &Value) -> bool {
     }
 }
 
-fn content<T: Serialize>(v: &T) -> Value {
-    serde_json::to_value(v).unwrap_or(Value::Null)
+/// With `uv` off the texture projections are left out, see [`conflicts`].
+fn content<T: Serialize>(v: &T, uv: bool) -> Value {
+    let mut value = serde_json::to_value(v).unwrap_or(Value::Null);
+    if !uv {
+        strip_uv(&mut value);
+    }
+
+    value
+}
+
+fn strip_uv(value: &mut Value) {
+    match value {
+        Value::Object(map) => {
+            map.remove("uv");
+            map.remove("uvs");
+            map.values_mut().for_each(strip_uv);
+        }
+        Value::Array(items) => items.iter_mut().for_each(strip_uv),
+        _ => {}
+    }
 }
 
 /// Whole content of two normalized nodes, so any edit (UVs, face properties, paint, entity keys) counts.
-fn kinds_match(a: &NodeKind, b: &NodeKind) -> bool {
+fn kinds_match(a: &NodeKind, b: &NodeKind, uv: bool) -> bool {
     match (a, b) {
-        (NodeKind::Brush(x), NodeKind::Brush(y)) => values_close(&content(x), &content(y)),
-        (NodeKind::Mesh(x), NodeKind::Mesh(y)) => values_close(&content(x), &content(y)),
-        (NodeKind::Entity(x), NodeKind::Entity(y)) => values_close(&content(x), &content(y)),
-        (NodeKind::Instance(x), NodeKind::Instance(y)) => values_close(&content(x), &content(y)),
-        (NodeKind::Scatter(x), NodeKind::Scatter(y)) => values_close(&content(x), &content(y)),
+        (NodeKind::Brush(x), NodeKind::Brush(y)) => values_close(&content(x, uv), &content(y, uv)),
+        (NodeKind::Mesh(x), NodeKind::Mesh(y)) => values_close(&content(x, uv), &content(y, uv)),
+        (NodeKind::Entity(x), NodeKind::Entity(y)) => values_close(&content(x, true), &content(y, true)),
+        (NodeKind::Instance(x), NodeKind::Instance(y)) => values_close(&content(x, true), &content(y, true)),
+        (NodeKind::Scatter(x), NodeKind::Scatter(y)) => values_close(&content(x, true), &content(y, true)),
         // Nested groups differ in their placement by design.
         (NodeKind::Group(x), NodeKind::Group(y)) => x.name == y.name && x.link_id == y.link_id,
         // Terrains only move and scale, which leaves everything but origin and cell size exact.
@@ -108,6 +135,50 @@ fn kinds_match(a: &NodeKind, b: &NodeKind) -> bool {
         }
         _ => a == b,
     }
+}
+
+type Content = [(usize, NodeKind, Option<String>)];
+
+fn same_content(a: &Content, b: &Content) -> bool {
+    a.len() == b.len() && a.iter().zip(b).all(|((da, ka, la), (db, kb, lb))| da == db && la == lb && kinds_match(ka, kb, true))
+}
+
+/// [`same_content`] without the texture projections, which [`sync`] settles on its own, and with the order of the
+/// entries and of brush faces left open: the pieces of a carve come out in a different order in a reflected half.
+fn same_shape(a: &Content, b: &Content) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+
+    let in_order = a.iter().zip(b).all(|((da, ka, la), (db, kb, lb))| da == db && la == lb && kinds_match(ka, kb, false));
+    if in_order {
+        return true;
+    }
+
+    let mut used = vec![false; b.len()];
+    a.iter().all(|(da, ka, la)| {
+        let found = (0..b.len()).find(|k| !used[*k] && b[*k].0 == *da && b[*k].2 == *la && alike(ka, &b[*k].1));
+        found.map(|k| used[k] = true).is_some()
+    })
+}
+
+/// [`kinds_match`] without texture projections, where brushes match when they hold the same planes in any order.
+fn alike(a: &NodeKind, b: &NodeKind) -> bool {
+    let (NodeKind::Brush(x), NodeKind::Brush(y)) = (a, b) else { return kinds_match(a, b, false) };
+    if x.faces.len() != y.faces.len() || x.vertices.len() != y.vertices.len() {
+        return false;
+    }
+
+    let mut used = vec![false; y.faces.len()];
+    x.faces.iter().all(|f| {
+        let found = y.faces.iter().enumerate().find(|(k, g)| {
+            !used[*k]
+                && close(f.plane.normal, g.plane.normal)
+                && (f.plane.dist - g.plane.dist).abs() < 1e-3
+                && values_close(&content(&f.data, false), &content(&g.data, false))
+        });
+        found.map(|(k, _)| used[k] = true).is_some()
+    })
 }
 
 fn subtree_changed(before: &Map, after: &Map, group: NodeId) -> bool {
@@ -121,6 +192,21 @@ fn subtree_changed(before: &Map, after: &Map, group: NodeId) -> bool {
         (Some(a), Some(b)) => a.kind != b.kind || a.children != b.children || a.label != b.label,
         _ => true,
     })
+}
+
+/// Whether the edit changed what `group` holds, rather than only carrying it along with its placement.
+fn content_edited(before: &Map, after: &Map, group: NodeId) -> bool {
+    if !before.contains(group) || !subtree_changed(before, after, group) {
+        return false;
+    }
+
+    let now = normalized(after, group);
+    if same_content(&now, &normalized(before, group)) {
+        return false;
+    }
+
+    let carry = group_transform(after, group) * group_transform(before, group).inverse();
+    carry == DMat4::IDENTITY || !same_content(&now, &normalized_carried(before, group, &carry))
 }
 
 fn link_of(map: &Map, id: NodeId) -> Option<u64> {
@@ -147,6 +233,29 @@ pub fn crosses_copies(map: &Map, id: NodeId, dest: NodeId) -> bool {
     map.ancestors(id).into_iter().any(|a| link_of(map, a).is_some_and(|l| dest_links.iter().any(|(g, d)| *d == l && *g != a)))
 }
 
+/// Link sets in which an edit changed the contents of two or more members that agreed before and now disagree. [`sync`]
+/// would keep one of them and drop what the edit did to the others. Texture projections do not count, a UV edit of the
+/// same face in several copies lands differently in each placement and [`sync`] recomputes the others from one. A member
+/// the edit created does not count, it is a copy rather than an edit, and neither does one only moved as a whole.
+pub fn conflicts(before: &Map, after: &Map) -> Vec<u64> {
+    link_sets(after)
+        .into_iter()
+        .filter(|(_, members)| {
+            let edited: Vec<NodeId> = members.iter().copied().filter(|g| content_edited(before, after, *g)).collect();
+            let [first, rest @ ..] = edited.as_slice() else { return false };
+            let content = normalized(after, *first);
+            if rest.iter().all(|g| same_shape(&normalized(after, *g), &content)) {
+                return false;
+            }
+
+            // Copies that disagreed already are settled by sync the way they always were, or they could never be edited again.
+            let then = normalized(before, *first);
+            rest.iter().all(|g| same_shape(&normalized(before, *g), &then))
+        })
+        .map(|(link, _)| link)
+        .collect()
+}
+
 /// Copies the contents of edited linked groups into the other members of their sets. Returns how many groups were rewritten.
 pub fn sync(before: &Map, after: &mut Map) -> usize {
     let mut updated = 0;
@@ -158,7 +267,8 @@ pub fn sync(before: &Map, after: &mut Map) -> usize {
             continue;
         }
 
-        let Some(&source) = members.iter().find(|g| subtree_changed(before, after, **g)) else { continue };
+        let edited = members.iter().find(|g| content_edited(before, after, **g));
+        let Some(&source) = edited.or_else(|| members.iter().find(|g| subtree_changed(before, after, **g))) else { continue };
         let source_content = normalized(after, source);
         let source_transform = group_transform(after, source);
         let children = after.get(source).map(|n| n.children.clone()).unwrap_or_default();
@@ -168,10 +278,7 @@ pub fn sync(before: &Map, after: &mut Map) -> usize {
                 continue;
             }
 
-            let target_content = normalized(after, target);
-            let same = target_content.len() == source_content.len()
-                && target_content.iter().zip(&source_content).all(|((da, ka, la), (db, kb, lb))| da == db && la == lb && kinds_match(ka, kb));
-            if same {
+            if same_content(&normalized(after, target), &source_content) {
                 continue;
             }
 
@@ -676,5 +783,163 @@ pub(crate) mod tests {
     #[test]
     fn nested_linked_groups_keep_their_place_in_a_mirrored_copy() {
         nested_windows_follow(mirror(), DVec3::new(56.0, 7.0, 19.0));
+    }
+
+    fn moved(map: &Map, ids: &[NodeId], by: DVec3) -> Map {
+        moved_with(map, ids, by, true)
+    }
+
+    fn moved_with(map: &Map, ids: &[NodeId], by: DVec3, uv_lock: bool) -> Map {
+        let mut map = map.clone();
+        let mut sel = Selection::default();
+        sel.nodes.extend(ids.iter().copied());
+        ops::translate_selection(&mut map, &sel, by, EditOptions { uv_lock, ..EditOptions::default() });
+        map
+    }
+
+    #[test]
+    fn conflicts_name_only_sets_whose_changed_members_disagree() {
+        let mut doc = Document::new();
+        let (group, mirrored) = mirrored_pair(&mut doc, NodeKind::Brush(wedge()));
+        let third = doc.edit("link", |m, s| {
+            s.clear();
+            s.select_node(group);
+            ops::duplicate_linked(m, s, DVec3::new(12.0, 0.0, 96.0), EditOptions::default())[0]
+        });
+        doc.select(|_, s| s.clear());
+        let (_, window, window_copy) = linked_pair(&mut doc);
+        let (half, other, third_brush) = (child(&doc, group), child(&doc, mirrored), child(&doc, third));
+        let (pane, pane_copy) = (child(&doc, window), child(&doc, window_copy));
+        let mirror_link = link_of(&doc.map, group).unwrap();
+        let window_link = link_of(&doc.map, window).unwrap();
+        assert_ne!(mirror_link, window_link);
+        let before = doc.map.clone();
+        let slant = DVec3::new(5.0, -3.0, 7.0);
+
+        assert_eq!(conflicts(&before, &before), Vec::<u64>::new(), "nothing changed");
+
+        let mut one = before.clone();
+        reshape(&mut one, half, DVec3::new(40.0, 14.0, 4.0), DVec3::new(3.0, 5.0, -2.0));
+        assert_eq!(conflicts(&before, &one), Vec::<u64>::new(), "one member changed");
+
+        let mut agree = before.clone();
+        for id in [half, other] {
+            agree.brush_mut(id).unwrap().faces[2].data.material = "brick".into();
+        }
+
+        assert_eq!(conflicts(&before, &agree), Vec::<u64>::new(), "the same face of both halves retextured");
+
+        assert_eq!(conflicts(&before, &moved(&before, &[half, other], slant)), vec![mirror_link], "a nudge of both halves reflects differently");
+        assert_eq!(conflicts(&before, &moved(&before, &[half, third_brush], slant)), Vec::<u64>::new(), "two translated copies agree");
+        assert_eq!(conflicts(&before, &moved(&before, &[other, third_brush], slant)), vec![mirror_link], "two of a set of three disagree");
+
+        let both_sets = moved(&moved(&before, &[pane, pane_copy], slant), &[half, other], slant);
+        assert_eq!(conflicts(&before, &both_sets), vec![mirror_link], "the window copies agree, the mirrored halves do not");
+
+        let wholes = moved(&moved(&before, &[group], slant), &[mirrored], DVec3::new(-9.0, 4.0, 2.0));
+        assert_eq!(conflicts(&before, &wholes), Vec::<u64>::new(), "halves moved as wholes keep their contents");
+        for (by, how) in [(slant, "slanted"), (DVec3::new(16.0, 0.0, 0.0), "along the mirror axis"), (DVec3::new(0.0, 0.0, -24.0), "along the plane")] {
+            let unlocked = moved_with(&before, &[group, mirrored, third], by, false);
+            assert_eq!(conflicts(&before, &unlocked), Vec::<u64>::new(), "all three moved {how} with UV lock off");
+        }
+
+        let mut whole_and_edit = moved(&before, &[group], slant);
+        reshape(&mut whole_and_edit, other, DVec3::new(40.0, 14.0, 4.0), DVec3::new(3.0, 5.0, -2.0));
+        assert_eq!(conflicts(&before, &whole_and_edit), Vec::<u64>::new(), "one half moved, the other reshaped");
+        let unlocked_and_nudged = moved(&moved_with(&before, &[group], slant, false), &[other], slant);
+        assert_eq!(conflicts(&before, &unlocked_and_nudged), Vec::<u64>::new(), "one half moved with UV lock off, the other nudged");
+        let both_nudged = moved(&moved_with(&before, &[group], slant, false), &[half, other], slant);
+        assert_eq!(conflicts(&before, &both_nudged), vec![mirror_link], "a whole move does not hide what moving a brush did");
+
+        assert_eq!(conflicts(&one, &moved(&one, &[half, other], slant)), Vec::<u64>::new(), "copies that disagreed already");
+        assert_eq!(conflicts(&one, &moved(&one, &[half, third_brush], slant)), Vec::<u64>::new());
+        assert_eq!(conflicts(&agree, &moved(&agree, &[half, other], slant)), vec![mirror_link], "copies that agreed on more than the original");
+
+        let mut created = before.clone();
+        reshape(&mut created, half, DVec3::new(40.0, 14.0, 4.0), DVec3::new(3.0, 5.0, -2.0));
+        let layer = created.default_layer();
+        let extra = created.insert(layer, NodeKind::Group(crate::map::Group { link_id: Some(mirror_link), ..crate::map::Group::new("half") }));
+        created.insert(extra, NodeKind::Brush(Brush::from_aabb(&Aabb::new(DVec3::splat(200.0), DVec3::splat(216.0)), "b").unwrap()));
+        assert_eq!(conflicts(&before, &created), Vec::<u64>::new(), "a member the edit created is not an edit");
+        let mut copied = before.clone();
+        let mut source = Selection::default();
+        source.nodes.insert(group);
+        let fourth = ops::duplicate_linked(&mut copied, &mut source, DVec3::new(-200.0, 8.0, 0.0), EditOptions::default())[0];
+        let mut edited = copied.clone();
+        reshape(&mut edited, half, DVec3::new(40.0, 14.0, 4.0), DVec3::new(1.0, 1.0, 1.0));
+        edited.brush_mut(child_in(&edited, fourth)).unwrap().faces[0].data.material = "glass".into();
+        assert_eq!(conflicts(&copied, &edited), vec![mirror_link], "once it exists, it counts");
+    }
+
+    fn child_in(map: &Map, group: NodeId) -> NodeId {
+        map.get(group).unwrap().children[0]
+    }
+
+    /// Applies `f` to the projection of the face looking most along +Y, with that face's corners, in the brush of each of
+    /// `groups`. A sync replaces the contents of the copies, so the brushes are looked up on every call.
+    fn retexture_tops(doc: &mut Document, groups: &[NodeId], f: impl Fn(&mut td_geom::FaceUv, &[DVec3])) {
+        let ids: Vec<NodeId> = groups.iter().map(|g| child(doc, *g)).collect();
+        doc.edit("uv", |m, _| {
+            for id in ids {
+                let b = m.brush_mut(id).unwrap();
+                let top = facing(b, DVec3::Y);
+                let points = b.face_points(top);
+                f(&mut b.faces[top].data.uv, &points);
+            }
+        });
+    }
+
+    type UvEdit = Box<dyn Fn(&mut td_geom::FaceUv, &[DVec3])>;
+
+    fn assert_uv_edits_stay(doc: &mut Document, groups: [NodeId; 2]) {
+        let tex = DVec2::splat(64.0);
+        let edits: [(&str, UvEdit); 4] = [
+            ("scale", Box::new(|uv, _| uv.scale *= 2.0)),
+            ("fields", Box::new(|uv, _| (uv.offset, uv.rotation) = (DVec2::new(5.0, 3.0), 30.0))),
+            ("justify", Box::new(move |uv, p| uv.justify(p, tex, td_geom::Justify::Fit))),
+            ("fit", Box::new(move |uv, p| uv.fit(p, tex, DVec2::new(2.0, 1.0)))),
+        ];
+        for (how, f) in edits {
+            let steps = doc.history.undo_labels().count();
+            retexture_tops(doc, &groups, f);
+            assert!(!doc.take_link_conflict(), "{how} was refused");
+            assert_eq!(doc.history.undo_labels().count(), steps + 1, "{how} was not recorded");
+        }
+    }
+
+    #[test]
+    fn uv_edits_across_translated_copies_are_not_conflicts() {
+        let mut doc = Document::new();
+        let (_, group, copy) = linked_pair(&mut doc);
+        assert_uv_edits_stay(&mut doc, [group, copy]);
+        let (x, y) = (doc.map.brush(child(&doc, group)).unwrap(), doc.map.brush(child(&doc, copy)).unwrap());
+        assert_eq!(x.faces[facing(x, DVec3::Y)].data.uv.scale, y.faces[facing(y, DVec3::Y)].data.uv.scale);
+    }
+
+    #[test]
+    fn uv_edits_across_mirrored_halves_are_not_conflicts() {
+        let mut doc = Document::new();
+        let (group, mirrored) = mirrored_pair(&mut doc, NodeKind::Brush(wedge()));
+        assert_uv_edits_stay(&mut doc, [group, mirrored]);
+    }
+
+    #[test]
+    fn a_carve_across_the_mirror_joint_is_not_a_conflict() {
+        let mut doc = Document::new();
+        let (group, mirrored) = mirrored_pair(&mut doc, NodeKind::Brush(wedge()));
+        let layer = doc.map.default_layer();
+        let cutter = doc.edit("cutter", |m, s| {
+            let id = m.insert(layer, NodeKind::Brush(Brush::from_aabb(&Aabb::new(DVec3::new(30.0, 8.0, 8.0), DVec3::new(50.0, 24.0, 16.0)), "cut").unwrap()));
+            s.clear();
+            s.select_node(id);
+            id
+        });
+        let (cut, _) = doc.edit("carve", |m, s| ops::csg_subtract(m, s, td_geom::csg::CarveMaterial::Target));
+        assert_eq!(cut, 2);
+        assert!(!doc.take_link_conflict(), "the carve was refused");
+        assert!(!doc.map.contains(cutter));
+        let (a, b) = (&doc.map.get(group).unwrap().children, &doc.map.get(mirrored).unwrap().children);
+        assert_eq!(a.len(), b.len());
+        assert!(a.len() > 1);
     }
 }

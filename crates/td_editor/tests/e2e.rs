@@ -6024,6 +6024,54 @@ fn mirror_linked_copies_follow_edits_mirrored() {
 
 #[test]
 #[ignore]
+fn edits_across_two_linked_copies_are_refused() {
+    let ed = Editor::launch("linked_conflict");
+    let source = ed.box_brush([8.0, 2.0, -4.0], [40.0, 34.0, 20.0]);
+    ed.call("select", json!({ "ids": [source] }));
+    let copy = ed.call("run_action", json!({ "action": "mirror_linked", "args": { "axis": "x", "plane": "max" } }))["copies"][0].as_u64().unwrap();
+    let brushes = ed.call("list_nodes", json!({ "type": "brush" }));
+    let parent_of = |id: u64| brushes["nodes"].as_array().unwrap().iter().find(|n| n["id"] == id).map(|n| n["parent"].as_u64().unwrap());
+    let other = brushes["nodes"].as_array().unwrap().iter().map(|n| n["id"].as_u64().unwrap()).find(|i| *i != source).unwrap();
+    let half = parent_of(source).unwrap();
+    assert_eq!(parent_of(other), Some(copy), "{brushes}");
+
+    ed.call("select", json!({ "ids": [source, other] }));
+    let undo = ed.state()["undo"].clone();
+    let shapes = (vertices_of(&ed, source), vertices_of(&ed, other));
+    let refused = |text: String, how: &str| {
+        assert!(text.contains("Linked copies would end up different, so nothing changed"), "{how}: {text}");
+        assert_eq!(ed.state()["undo"], undo, "{how}: no undo step");
+        assert_eq!((vertices_of(&ed, source), vertices_of(&ed, other)), shapes, "{how}: nothing moved");
+    };
+    refused(ed.call_err("run_action", json!({ "action": "nudge", "args": { "offset": [16, 0, -16] } })), "nudge");
+    let edges = json!([[8, 34, -4], [8, 34, 20], [72, 34, -4], [72, 34, 20]]);
+    refused(ed.call_err("run_action", json!({ "action": "move_vertices", "args": { "vertices": edges, "offset": [-4, 0, 0] } })), "move_vertices");
+    let keys = json!([{ "type": "move", "world": [24, 0, 8] }, { "type": "key", "key": "ArrowRight" }]);
+    refused(ed.call_err("simulate_input", json!({ "target": "top", "events": keys })), "simulate_input");
+
+    let nudge = json!({ "tool": "run_action", "args": { "action": "nudge", "args": { "offset": [16, 0, -16] } } });
+    let stopped: Value =
+        serde_json::from_str(&ed.call_err("run_script", json!({ "steps": [nudge, { "tool": "select", "args": { "ids": [half] } }] }))).unwrap();
+    assert_eq!((stopped["ran"].as_u64(), stopped["errors"].as_array().unwrap().len()), (Some(1), 1), "{stopped}");
+    assert_eq!(stopped["errors"][0]["step"], 0);
+    refused(stopped["errors"][0]["error"].as_str().unwrap().to_string(), "run_script step");
+    let wholes = json!({ "tool": "select", "args": { "ids": [half, copy] } });
+    let went_on = ed.call("run_script", json!({ "continue_on_error": true, "steps": [nudge, wholes, nudge] }));
+    assert_eq!((went_on["ran"].as_u64(), went_on["errors"].as_array().unwrap().len()), (Some(3), 1), "{went_on}");
+    assert!(went_on["errors"][0]["error"].as_str().unwrap().contains("Linked copies would end up different"), "{went_on}");
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), undo.as_array().unwrap().len() + 1, "the steps that applied are one undo step");
+    ed.call("run_action", json!({ "action": "undo" }));
+    ed.call("select", json!({ "ids": [source, other] }));
+    assert_eq!(ed.state()["undo"], undo);
+
+    ed.call("select", json!({ "ids": [half, copy] }));
+    ed.call("run_action", json!({ "action": "nudge", "args": { "offset": [16, 0, -16] } }));
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), undo.as_array().unwrap().len() + 1, "both halves moved as wholes agree");
+    assert_eq!(ed.state()["undo"][0], "MCP: Move");
+}
+
+#[test]
+#[ignore]
 fn apply_mirror_joins_brushes_and_welds_meshes() {
     let ed = Editor::launch("apply_mirror");
     let brush = ed.box_brush([8.0, 2.0, -4.0], [40.0, 34.0, 20.0]);
