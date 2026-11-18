@@ -2553,15 +2553,15 @@
   "Godot did not take the project settings: {error}. Nothing was written.": "Godotがプロジェクト設定を受け付けませんでした：{error}。何も書き込まれていません。",
   "Override in project": "プロジェクトで上書き",
   "Copies this definition into res://entities with a script of its own, so you can change it.": "この定義を専用のスクリプト付きで res://entities にコピーし、変更できるようにします。",
-  "First person player": "一人称プレイヤー",
-  "info_player_start is overridden in {definition}. Change it in {script}.": "info_player_start は {definition} で上書きされています。{script} で変更してください。",
-  "Turns info_player_start into a player you walk around with. Its script lands in {dir} for your own changes.": "info_player_start を歩き回れるプレイヤーにします。スクリプトは {dir} に置かれ、自由に変更できます。",
-  "Add a first person player": "一人称プレイヤーを追加",
   "Adds it to the plugins in project.godot.": "project.godot のプラグインに追加します。",
   "Godot has this project open. Enable the plugin there under Project > Project Settings > Plugins, or close Godot to replace the addon.": "Godot がこのプロジェクトを開いています。Project > Project Settings > Plugins でプラグインを有効にするか、Godot を閉じてアドオンを置き換えてください。",
   "Select it, or the outermost closed group around it": "それを選択、またはそれを囲む最も外側の閉じたグループを選択",
   "Add it or its outermost closed group to the selection or remove it": "それまたは最も外側の閉じたグループを選択に追加、または選択から外す",
   "Double click a row": "行をダブルクリック",
   "Open every closed group down to it and select it. Outside a closed group it folds or unfolds the row": "そこまでの閉じたグループをすべて開いて選択。閉じたグループの外では行を折りたたむか展開",
-  "{shift} or {command}": "{shift}または{command}"
+  "{shift} or {command}": "{shift}または{command}",
+  "Player": "プレイヤー",
+  "Makes info_player_start spawn a first person player you can walk around with. Its script goes in {dir} so you can change it.": "info_player_start から歩き回れる一人称プレイヤーがスポーンするようにします。スクリプトは {dir} に置かれ、変更できます。",
+  "Create player": "プレイヤーを作成",
+  "info_player_start spawns your player. Change it in {script}.": "info_player_start がプレイヤーをスポーンします。{script} で変更してください。"
 }

@@ -2553,15 +2553,15 @@
   "Godot did not take the project settings: {error}. Nothing was written.": "Godot не принял настройки проекта: {error}. Ничего не записано.",
   "Override in project": "Переопределить в проекте",
   "Copies this definition into res://entities with a script of its own, so you can change it.": "Копирует это определение в res://entities со своим скриптом, чтобы вы могли его менять.",
-  "First person player": "Игрок от первого лица",
-  "info_player_start is overridden in {definition}. Change it in {script}.": "info_player_start переопределён в {definition}. Меняйте его в {script}.",
-  "Turns info_player_start into a player you walk around with. Its script lands in {dir} for your own changes.": "Превращает info_player_start в игрока, которым можно ходить. Его скрипт попадает в {dir}, чтобы вы могли его менять.",
-  "Add a first person player": "Добавить игрока от первого лица",
   "Adds it to the plugins in project.godot.": "Добавляет его в плагины в project.godot.",
   "Godot has this project open. Enable the plugin there under Project > Project Settings > Plugins, or close Godot to replace the addon.": "Godot открыл этот проект. Включите плагин там: Project > Project Settings > Plugins, или закройте Godot, чтобы заменить аддон.",
   "Select it, or the outermost closed group around it": "Выделить её или самую внешнюю закрытую группу вокруг неё",
   "Add it or its outermost closed group to the selection or remove it": "Добавить её или её самую внешнюю закрытую группу к выделению или убрать",
   "Double click a row": "Двойной клик по строке",
   "Open every closed group down to it and select it. Outside a closed group it folds or unfolds the row": "Открыть все закрытые группы до неё и выделить её. Вне закрытой группы сворачивает или разворачивает строку",
-  "{shift} or {command}": "{shift} или {command}"
+  "{shift} or {command}": "{shift} или {command}",
+  "Player": "Игрок",
+  "Makes info_player_start spawn a first person player you can walk around with. Its script goes in {dir} so you can change it.": "info_player_start будет создавать игрока от первого лица, которым можно ходить. Его скрипт попадает в {dir}, чтобы вы могли его менять.",
+  "Create player": "Создать игрока",
+  "info_player_start spawns your player. Change it in {script}.": "info_player_start создаёт вашего игрока. Меняйте его в {script}."
 }

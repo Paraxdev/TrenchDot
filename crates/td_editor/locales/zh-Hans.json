@@ -2553,15 +2553,15 @@
   "Godot did not take the project settings: {error}. Nothing was written.": "Godot 未接受项目设置：{error}。未写入任何内容。",
   "Override in project": "在项目中覆盖",
   "Copies this definition into res://entities with a script of its own, so you can change it.": "将此定义连同专属脚本复制到 res://entities，方便你修改。",
-  "First person player": "第一人称玩家",
-  "info_player_start is overridden in {definition}. Change it in {script}.": "info_player_start 已在 {definition} 中被覆盖。请在 {script} 中修改它。",
-  "Turns info_player_start into a player you walk around with. Its script lands in {dir} for your own changes.": "把 info_player_start 变成可以四处走动的玩家。它的脚本放在 {dir}，方便你修改。",
-  "Add a first person player": "添加第一人称玩家",
   "Adds it to the plugins in project.godot.": "将其加入 project.godot 的插件列表。",
   "Godot has this project open. Enable the plugin there under Project > Project Settings > Plugins, or close Godot to replace the addon.": "Godot 正打开此项目。请在 Project > Project Settings > Plugins 中启用插件，或关闭 Godot 以替换插件。",
   "Select it, or the outermost closed group around it": "选择它，或包含它的最外层已关闭组",
   "Add it or its outermost closed group to the selection or remove it": "将它或其最外层已关闭组加入选择或从中移除",
   "Double click a row": "双击一行",
   "Open every closed group down to it and select it. Outside a closed group it folds or unfolds the row": "打开通向它的每个已关闭组并选择它。不在已关闭组内时折叠或展开该行",
-  "{shift} or {command}": "{shift}或{command}"
+  "{shift} or {command}": "{shift}或{command}",
+  "Player": "玩家",
+  "Makes info_player_start spawn a first person player you can walk around with. Its script goes in {dir} so you can change it.": "让 info_player_start 生成一个可以四处走动的第一人称玩家。它的脚本放在 {dir}，方便你修改。",
+  "Create player": "创建玩家",
+  "info_player_start spawns your player. Change it in {script}.": "info_player_start 会生成你的玩家。请在 {script} 中修改它。"
 }

@@ -275,16 +275,16 @@ bar says why, see [Rebuild on save](godot/live.md#rebuild-on-save).
 
 ## 7. Play it
 
-The first person player comes from the Set up this project window. It turns your `info_player_start` into a player that
-walks, looks around and opens the door you look at, so there is nothing to put together in Godot.
+The player comes from the Set up this project window. It makes your `info_player_start` spawn a first person player
+that walks, looks around and opens the door you look at, so there is nothing to put together in Godot.
 
 1. In TrenchDot, choose *Godot > Add Content to Project…* to open the Set up this project window again. Under
-    *First person player*, click **Add a first person player**.
+    *Player*, click **Create player**.
 
-    ![The First person player section of the Set up this project window after clicking Add a first person player](assets/getting-started/setup-first-person-player.png)
+    ![The Player section of the Set up this project window after clicking Create player](assets/getting-started/setup-player.png)
 
-    The note under the button says what was written. If you do not see the section, the addon is not installed in this
-    project yet, see step 3.
+    The button gives way to a green line that names the player's script, change that script to make the player your
+    own. If you do not see the section, the addon is not installed in this project yet, see step 3.
 
 2. Press Ctrl+S in TrenchDot, or **Build Map** on the map node in Godot, so the room is built again.
 3. Press F6 to play the scene.

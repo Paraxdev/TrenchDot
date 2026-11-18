@@ -2553,15 +2553,15 @@
   "Godot did not take the project settings: {error}. Nothing was written.": "Godot no aceptó los ajustes del proyecto: {error}. No se escribió nada.",
   "Override in project": "Sobrescribir en el proyecto",
   "Copies this definition into res://entities with a script of its own, so you can change it.": "Copia esta definición en res://entities con un script propio, para que puedas cambiarla.",
-  "First person player": "Jugador en primera persona",
-  "info_player_start is overridden in {definition}. Change it in {script}.": "info_player_start está sobrescrito en {definition}. Cámbialo en {script}.",
-  "Turns info_player_start into a player you walk around with. Its script lands in {dir} for your own changes.": "Convierte info_player_start en un jugador con el que caminas. Su script queda en {dir} para tus propios cambios.",
-  "Add a first person player": "Añadir un jugador en primera persona",
   "Adds it to the plugins in project.godot.": "Lo añade a los plugins en project.godot.",
   "Godot has this project open. Enable the plugin there under Project > Project Settings > Plugins, or close Godot to replace the addon.": "Godot tiene abierto este proyecto. Activa el plugin allí en Project > Project Settings > Plugins o cierra Godot para reemplazar el addon.",
   "Select it, or the outermost closed group around it": "Seleccionarla, o el grupo cerrado más externo que la contiene",
   "Add it or its outermost closed group to the selection or remove it": "Añadirla o su grupo cerrado más externo a la selección, o quitarla",
   "Double click a row": "Doble clic en una fila",
   "Open every closed group down to it and select it. Outside a closed group it folds or unfolds the row": "Abrir cada grupo cerrado hasta llegar a ella y seleccionarla. Fuera de un grupo cerrado pliega o despliega la fila",
-  "{shift} or {command}": "{shift} o {command}"
+  "{shift} or {command}": "{shift} o {command}",
+  "Player": "Jugador",
+  "Makes info_player_start spawn a first person player you can walk around with. Its script goes in {dir} so you can change it.": "Hace que info_player_start genere un jugador en primera persona con el que puedes caminar. Su script va en {dir} para que puedas cambiarlo.",
+  "Create player": "Crear jugador",
+  "info_player_start spawns your player. Change it in {script}.": "info_player_start genera tu jugador. Cámbialo en {script}."
 }

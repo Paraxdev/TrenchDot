@@ -13,7 +13,7 @@ use crate::theme;
 
 pub const TITLE: &str = en!("Set up this project");
 pub const PACK_HEADING: &str = en!("Gameplay entities");
-pub const PLAYER_HEADING: &str = en!("First person player");
+pub const PLAYER_HEADING: &str = en!("Player");
 
 /// MCP tools a person at the screen uses through the test harness: looking and clicking, which leave the wizard open.
 const WATCHING_TOOLS: [&str; 3] = ["get_state", "screenshot", "simulate_input"];
@@ -38,7 +38,7 @@ pub struct ContentWizard {
     pub content: bool,
     /// What the last install of the Gameplay entities pack did.
     pack_note: Option<String>,
-    /// What the last click on Add a first person player did.
+    /// Why the last click on Create player failed.
     player_note: Option<String>,
     pub addon: crate::addon_wizard::AddonWizard,
 }
@@ -294,20 +294,14 @@ impl ContentWizard {
         ui.separator();
         ui.label(RichText::new(tr(PLAYER_HEADING)).strong());
         let dir = format!("res://{}", crate::entity_override::DIR);
-        ui.label(trf!("Turns info_player_start into a player you walk around with. Its script lands in {dir} for your own changes.", dir));
+        ui.label(trf!("Makes info_player_start spawn a first person player you can walk around with. Its script goes in {dir} so you can change it.", dir));
         let definition = crate::entity_override::definition_res("info_player_start");
         if crate::entity_override::is_override(root, &definition) {
             let script = crate::entity_override::script_res("info_player_start");
-            ui.label(
-                RichText::new(trf!("info_player_start is overridden in {definition}. Change it in {script}.", definition, script))
-                    .color(theme::colors().success()),
-            );
-        } else if ui.button(tr("Add a first person player")).clicked() {
+            ui.label(RichText::new(trf!("info_player_start spawns your player. Change it in {script}.", script)).color(theme::colors().success()));
+        } else if ui.button(tr("Create player")).clicked() {
             use crate::entity_override::{Script, override_in_project};
-            self.player_note = Some(match override_in_project(state, "info_player_start", Script::Player, true) {
-                Ok(report) => report.message().shown,
-                Err(refusal) => refusal.shown,
-            });
+            self.player_note = override_in_project(state, "info_player_start", Script::Player, true).err().map(|refusal| refusal.shown);
         }
 
         if let Some(note) = &self.player_note {
@@ -573,14 +567,14 @@ mod tests {
         let (fixture, root) = fresh("noplayer");
         let mut hidden = harness(fixture);
         hidden.run();
-        assert!(hidden.query_by_label(PLAYER_HEADING).is_none() && hidden.query_by_label("Add a first person player").is_none());
+        assert!(hidden.query_by_label(PLAYER_HEADING).is_none() && hidden.query_by_label("Create player").is_none());
         std::fs::remove_dir_all(&root).unwrap();
 
         let (fixture, root) = with_addon("player");
         let mut harness = harness(fixture);
         harness.run();
         assert!(harness.query_by_label(PLAYER_HEADING).is_some());
-        assert!(harness.query_by_label("Add a first person player").is_some());
+        assert!(harness.query_by_label("Create player").is_some());
         assert!(!root.join("entities").exists(), "showing the button writes nothing");
         std::fs::remove_dir_all(&root).unwrap();
     }
@@ -590,7 +584,7 @@ mod tests {
         let (fixture, root) = with_addon("click");
         let mut harness = harness(fixture);
         harness.run();
-        harness.get_by_label("Add a first person player").click();
+        harness.get_by_label("Create player").click();
         harness.run();
         assert_eq!(std::fs::read_to_string(root.join("entities/info_player_start.gd")).unwrap(), crate::entity_override::PLAYER_SCRIPT);
         let definition = std::fs::read_to_string(root.join("entities/info_player_start.tres")).unwrap();
@@ -598,16 +592,26 @@ mod tests {
         assert!(definition.contains("res://entities/info_player_start.gd"), "{definition}");
         let settings = std::fs::read_to_string(root.join("project.godot")).unwrap();
         assert!(settings.contains("default_map_settings=\"res://entities/project_map_settings.tres\""), "{settings}");
-        assert!(harness.query_by_label_contains("Overrode info_player_start with res://entities/info_player_start.tres").is_some());
+        assert!(harness.query_by_label_contains("Overrode info_player_start").is_none(), "the green line says it already");
         let player = harness.state().state.game.entity("info_player_start").unwrap();
         assert_eq!((player.script.as_str(), player.node_class.as_str()), ("res://entities/info_player_start.gd", "CharacterBody3D"));
 
-        assert!(harness.query_by_label("Add a first person player").is_none());
-        assert!(
-            harness
-                .query_by_label("info_player_start is overridden in res://entities/info_player_start.tres. Change it in res://entities/info_player_start.gd.")
-                .is_some()
-        );
+        assert!(harness.query_by_label("Create player").is_none());
+        assert!(harness.query_by_label("info_player_start spawns your player. Change it in res://entities/info_player_start.gd.").is_some());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn a_refused_player_button_says_why_and_stays() {
+        let (fixture, root) = with_addon("refused");
+        std::fs::create_dir_all(root.join("entities")).unwrap();
+        std::fs::write(root.join("entities/info_player_start.gd"), "extends Node3D\n").unwrap();
+        let mut harness = harness(fixture);
+        harness.run();
+        harness.get_by_label("Create player").click();
+        harness.run();
+        assert!(harness.query_by_label_contains("res://entities/info_player_start.gd is in the way").is_some());
+        assert!(harness.query_by_label("Create player").is_some());
         std::fs::remove_dir_all(&root).unwrap();
     }
 
@@ -617,15 +621,15 @@ mod tests {
         crate::entity_override::override_in_project(&mut fixture.state, "info_player_start", crate::entity_override::Script::Extend, false).unwrap();
         let mut overridden = harness(fixture);
         overridden.run();
-        assert!(overridden.query_by_label("Add a first person player").is_none());
-        assert!(overridden.query_by_label_contains("info_player_start is overridden in res://entities/info_player_start.tres").is_some());
+        assert!(overridden.query_by_label("Create player").is_none());
+        assert!(overridden.query_by_label_contains("info_player_start spawns your player").is_some());
 
         let (fixture, other) = with_addon("other");
         std::fs::create_dir_all(other.join("entities")).unwrap();
         std::fs::write(other.join("entities/info_player_start.tres"), "[gd_resource type=\"Resource\" format=3]\n").unwrap();
         let mut own = harness(fixture);
         own.run();
-        assert!(own.query_by_label("Add a first person player").is_some(), "a file of the person's own is no override");
+        assert!(own.query_by_label("Create player").is_some(), "a file of the person's own is no override");
         std::fs::remove_dir_all(&root).unwrap();
         std::fs::remove_dir_all(&other).unwrap();
     }
@@ -635,7 +639,7 @@ mod tests {
         let (fixture, root) = with_addon("continue");
         let mut harness = harness(fixture);
         harness.run();
-        assert!(harness.query_by_label("Add a first person player").is_some());
+        assert!(harness.query_by_label("Create player").is_some());
         harness.get_by_label("Continue").click();
         harness.run();
         assert!(!harness.state().wizard.open);
