@@ -1451,7 +1451,6 @@
   "Rotate UVs": "Поворот UV",
   "Object {n} of {total} under the cursor, click again for the next": "Объект {n} из {total} под курсором, щёлкните ещё раз для следующего",
   "{n} object under the cursor, click again or Alt+click to select the next": { "one": "{n} объект под курсором, щёлкните ещё раз или Alt+щелчок для следующего", "few": "{n} объекта под курсором, щёлкните ещё раз или Alt+щелчок для следующего", "many": "{n} объектов под курсором, щёлкните ещё раз или Alt+щелчок для следующего" },
-  "Selected every face for UV work. Ctrl+click adds whole objects once the UV Editor tab is hidden": "Выбраны все грани для работы с UV. Ctrl+щелчок добавляет целые объекты, когда вкладка редактора UV скрыта",
   "Selected group {name}": "Выбрана группа {name}",
   "Edit Gizmo": "Правка гизмо",
   "Resize Brushes": "Изменение размера брашей",
@@ -1575,7 +1574,6 @@
   "Click a corner to select it, double click for a gizmo": "Клик по углу выбирает его, двойной клик показывает гизмо",
   "{n} corner": { "one": "{n} угол", "few": "{n} угла", "many": "{n} углов" },
   "Center of the selected corners in texture pixels": "Центр выбранных углов в пикселях текстуры",
-  "Select faces to edit their UVs: Shift+click a face, or Ctrl+click an object.": "Выберите грани для правки UV: Shift+клик по грани или Ctrl+клик по объекту.",
   "{material}  ·  {size}  ·  {n} face": { "one": "{material}  ·  {size}  ·  {n} грань", "few": "{material}  ·  {size}  ·  {n} грани", "many": "{material}  ·  {size}  ·  {n} граней" },
   "Controls": "Управление",
   "Lay out explicit UVs on the selected mesh faces, or every face of the selected meshes": "Задать явные UV на выбранных гранях меша или на всех гранях выбранных мешей",
@@ -2369,5 +2367,6 @@
   "Arched": "Арочный",
   "Round": "Круглый",
   "How the tunnel is cut across its length": "Форма поперечного сечения тоннеля",
-  "Keymap preset set to {preset}": "Применён набор клавиш: {preset}"
+  "Keymap preset set to {preset}": "Применён набор клавиш: {preset}",
+  "Select a brush, a mesh or a face to edit its UVs.": "Выберите браш, меш или грань, чтобы править UV."
 }

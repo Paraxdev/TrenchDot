@@ -428,20 +428,6 @@ impl Viewport {
             };
             let rule = click_rule(modifiers.command, modifiers.shift, click_hit);
             match hit {
-                // With the UV editor open, ctrl+click grabs every face of the object so all sides are edited at
-                // once. Repeating on another object adds its faces, and selected brushes and meshes turn into their
-                // faces too. A selection holding anything without faces keeps the usual add or remove.
-                Some(h)
-                    if cx.state.uv_panel_open
-                        && rule == ClickRule::ToggleObject
-                        && h.face.is_some()
-                        && cx.state.doc.selection.nodes.iter().all(|id| map.brush(*id).is_some() || map.mesh(*id).is_some()) =>
-                {
-                    let objects: Vec<NodeId> = cx.state.doc.selection.nodes.iter().copied().chain([h.node]).collect();
-                    cx.state.outliner_reveal = Some(h.node);
-                    cx.state.doc.select(|m, s| s.select_faces_of(m, objects));
-                    cx.state.set_status(msg!("Selected every face for UV work. Ctrl+click adds whole objects once the UV Editor tab is hidden"));
-                }
                 Some(h) => match rule {
                     ClickRule::ReplaceFace | ClickRule::ToggleFace => {
                         let (id, face) = (h.node, h.face.unwrap());

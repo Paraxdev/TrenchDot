@@ -680,8 +680,6 @@ pub struct EditorState {
     pub uv_clipboard: Option<crate::texture_ops::UvClipboard>,
     /// Justify selected faces against their combined extent.
     pub treat_as_one: bool,
-    /// The UV editor is the visible tab of its dock group, so a ctrl+click in a view selects all of a brush's faces.
-    pub uv_panel_open: bool,
     /// Last rotate, flip, nudge or duplicate, run again by Repeat Last.
     pub last_repeatable: Option<crate::commands::Action>,
     /// Scatter set the scatter tool paints into. A new one is created on its own layer when unset.
@@ -858,7 +856,6 @@ impl EditorState {
             repaint: None,
             uv_clipboard: None,
             treat_as_one: false,
-            uv_panel_open: false,
             last_repeatable: None,
             active_scatter: None,
             scatter_eyedropper: false,

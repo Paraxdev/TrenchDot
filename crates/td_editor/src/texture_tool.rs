@@ -52,6 +52,8 @@ impl TextureTool {
         self.hover = None;
     }
 
+    /// The face Alt+right click wraps from. Only a picked face counts, the faces of a selected brush need not border the
+    /// clicked one.
     fn primary_face(state: &EditorState) -> Option<(NodeId, usize)> {
         state.doc.selection.faces.iter().next().copied()
     }
@@ -264,5 +266,36 @@ mod tests {
         let p = texel_to_world(&info, DVec2::new(40.0, 12.0)).unwrap();
         assert!((uv.texel(p) - DVec2::new(40.0, 12.0)).length() < 1e-9);
         assert!((p.z - 16.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn alt_right_click_wraps_only_from_a_picked_face() {
+        use td_core::Aabb;
+        let mut state = EditorState::new(crate::state::Prefs::default());
+        let layer = state.doc.map.default_layer();
+        let wedge = td_geom::shapes::wedge(&Aabb::new(DVec3::new(-72.0, 8.0, 200.0), DVec3::new(-8.0, 72.0, 296.0)), "dev/grey").unwrap();
+        let block = td_geom::Brush::from_aabb(&Aabb::new(DVec3::new(40.0, -16.0, 12.0), DVec3::new(168.0, 48.0, 76.0)), "dev/grey").unwrap();
+        let [wedge, block, light] = state.doc.edit("add", |m, _| {
+            [
+                m.insert(layer, td_doc::NodeKind::Brush(wedge)),
+                m.insert(layer, td_doc::NodeKind::Brush(block)),
+                m.insert(layer, td_doc::NodeKind::Entity(td_doc::Entity::new("light"))),
+            ]
+        });
+        let mut primary = |nodes: &[NodeId], face: Option<(NodeId, usize)>| {
+            state.doc.select(|_, s| {
+                s.clear();
+                nodes.iter().for_each(|id| s.select_node(*id));
+                face.into_iter().for_each(|(id, f)| s.select_face(id, f));
+            });
+            TextureTool::primary_face(&state)
+        };
+
+        assert_eq!(primary(&[], None), None);
+        assert_eq!(primary(&[light], None), None);
+        assert_eq!(primary(&[wedge], None), None, "face 0 of a brush need not touch the clicked face");
+        assert_eq!(primary(&[block, wedge, light], None), None);
+        assert_eq!(primary(&[], Some((block, 4))), Some((block, 4)));
+        assert_eq!(primary(&[wedge, light], Some((block, 4))), Some((block, 4)));
     }
 }

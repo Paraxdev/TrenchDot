@@ -1451,7 +1451,6 @@
   "Rotate UVs": "Girar UVs",
   "Object {n} of {total} under the cursor, click again for the next": "Objeto {n} de {total} sob o cursor, clicar de novo para o próximo",
   "{n} object under the cursor, click again or Alt+click to select the next": { "one": "{n} objeto sob o cursor, clicar de novo ou Alt+clique escolhe o próximo", "other": "{n} objetos sob o cursor, clicar de novo ou Alt+clique escolhe o próximo" },
-  "Selected every face for UV work. Ctrl+click adds whole objects once the UV Editor tab is hidden": "Todas as faces escolhidas para trabalho UV. Ctrl+clique adiciona objetos inteiros quando a aba Editor UV está oculta",
   "Selected group {name}": "Grupo {name} selecionado",
   "Edit Gizmo": "Editar gizmo",
   "Resize Brushes": "Redimensionar brushes",
@@ -1575,7 +1574,6 @@
   "Click a corner to select it, double click for a gizmo": "Clique num canto para escolhê-lo, duplo clique para um gizmo",
   "{n} corner": { "one": "{n} canto", "other": "{n} cantos" },
   "Center of the selected corners in texture pixels": "Centro dos cantos escolhidos em pixels de textura",
-  "Select faces to edit their UVs: Shift+click a face, or Ctrl+click an object.": "Escolha faces para editar suas UVs: Shift+clique numa face, ou Ctrl+clique num objeto.",
   "{material}  ·  {size}  ·  {n} face": { "one": "{material}  ·  {size}  ·  {n} face", "other": "{material}  ·  {size}  ·  {n} faces" },
   "Controls": "Controles",
   "Lay out explicit UVs on the selected mesh faces, or every face of the selected meshes": "Cria UVs explícitas nas faces de malha escolhidas, ou em todas as das malhas escolhidas",
@@ -2369,5 +2367,6 @@
   "Arched": "Em arco",
   "Round": "Redondo",
   "How the tunnel is cut across its length": "O corte transversal do túnel",
-  "Keymap preset set to {preset}": "Predefinição de teclas aplicada: {preset}"
+  "Keymap preset set to {preset}": "Predefinição de teclas aplicada: {preset}",
+  "Select a brush, a mesh or a face to edit its UVs.": "Escolha um brush, uma malha ou uma face para editar suas UVs."
 }

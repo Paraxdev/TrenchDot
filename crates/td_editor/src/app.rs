@@ -3156,9 +3156,6 @@ impl eframe::App for App {
         let focus = cam.position + cam.forward() * 1200.0;
         self.scene.update_shadows(&mut self.renderer, focus, self.state.prefs.shade.is_lit());
 
-        // The viewports read this to know a ctrl+click should grab all of a brush's faces for UV work. Only
-        // the UV Editor being the visible tab counts, else a ctrl+click could never add objects to the selection.
-        self.state.uv_panel_open = tab_shown(&self.dock, &Tab::Uv);
         let start_view = [ViewKind::Top, ViewKind::Front, ViewKind::Side]
             .into_iter()
             .find(|k| self.viewports.iter().enumerate().any(|(i, v)| v.kind() == *k && tab_shown(&self.dock, &Tab::View(i))));

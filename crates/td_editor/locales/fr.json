@@ -1451,7 +1451,6 @@
   "Rotate UVs": "Pivoter les UV",
   "Object {n} of {total} under the cursor, click again for the next": "Objet {n} sur {total} sous le curseur, cliquer à nouveau pour le suivant",
   "{n} object under the cursor, click again or Alt+click to select the next": { "one": "{n} objet sous le curseur, cliquer à nouveau ou Alt+clic choisit le suivant", "other": "{n} objets sous le curseur, cliquer à nouveau ou Alt+clic choisit le suivant" },
-  "Selected every face for UV work. Ctrl+click adds whole objects once the UV Editor tab is hidden": "Toutes les faces choisies pour le travail UV. Ctrl+clic ajoute des objets entiers une fois l'onglet Éditeur UV masqué",
   "Selected group {name}": "Groupe {name} sélectionné",
   "Edit Gizmo": "Modifier le gizmo",
   "Resize Brushes": "Redimensionner les brushes",
@@ -1575,7 +1574,6 @@
   "Click a corner to select it, double click for a gizmo": "Cliquez un coin pour le choisir, double clic pour un gizmo",
   "{n} corner": { "one": "{n} coin", "other": "{n} coins" },
   "Center of the selected corners in texture pixels": "Centre des coins choisis en pixels de texture",
-  "Select faces to edit their UVs: Shift+click a face, or Ctrl+click an object.": "Choisissez des faces pour éditer leurs UV : Shift+clic sur une face, ou Ctrl+clic sur un objet.",
   "{material}  ·  {size}  ·  {n} face": { "one": "{material}  ·  {size}  ·  {n} face", "other": "{material}  ·  {size}  ·  {n} faces" },
   "Controls": "Commandes",
   "Lay out explicit UVs on the selected mesh faces, or every face of the selected meshes": "Crée des UV explicites sur les faces de maillage choisies, ou toutes celles des maillages choisis",
@@ -2369,5 +2367,6 @@
   "Arched": "Voûté",
   "Round": "Rond",
   "How the tunnel is cut across its length": "La coupe transversale du tunnel",
-  "Keymap preset set to {preset}": "Préréglage des raccourcis appliqué : {preset}"
+  "Keymap preset set to {preset}": "Préréglage des raccourcis appliqué : {preset}",
+  "Select a brush, a mesh or a face to edit its UVs.": "Choisissez un brush, un maillage ou une face pour éditer ses UV."
 }

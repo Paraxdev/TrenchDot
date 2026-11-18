@@ -1451,7 +1451,6 @@
   "Rotate UVs": "旋转 UV",
   "Object {n} of {total} under the cursor, click again for the next": "光标下第 {n} 个对象，共 {total} 个，再次点击选下一个",
   "{n} object under the cursor, click again or Alt+click to select the next": { "other": "光标下有 {n} 个对象，再次点击或 Alt+点击选下一个" },
-  "Selected every face for UV work. Ctrl+click adds whole objects once the UV Editor tab is hidden": "已选中所有面用于 UV 工作。隐藏 UV 编辑器标签页后，Ctrl+点击可添加整个对象",
   "Selected group {name}": "已选中组 {name}",
   "Edit Gizmo": "编辑控件",
   "Resize Brushes": "调整笔刷大小",
@@ -1575,7 +1574,6 @@
   "Click a corner to select it, double click for a gizmo": "点击角选择，双击显示小工具",
   "{n} corner": { "other": "{n} 个角" },
   "Center of the selected corners in texture pixels": "所选角的中心，单位为纹理像素",
-  "Select faces to edit their UVs: Shift+click a face, or Ctrl+click an object.": "选择面以编辑 UV：Shift+点击面，或 Ctrl+点击对象。",
   "{material}  ·  {size}  ·  {n} face": { "other": "{material}  ·  {size}  ·  {n} 个面" },
   "Controls": "操作",
   "Lay out explicit UVs on the selected mesh faces, or every face of the selected meshes": "为所选网格面或所选网格的全部面生成显式 UV",
@@ -2369,5 +2367,6 @@
   "Arched": "拱形",
   "Round": "圆形",
   "How the tunnel is cut across its length": "隧道的横截面形状",
-  "Keymap preset set to {preset}": "已应用快捷键预设：{preset}"
+  "Keymap preset set to {preset}": "已应用快捷键预设：{preset}",
+  "Select a brush, a mesh or a face to edit its UVs.": "选择笔刷、网格或面以编辑 UV。"
 }

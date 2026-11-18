@@ -278,3 +278,56 @@ fn toolbar_labels_follow_the_language_while_actions_keep_their_english_undo_labe
     h.run();
     assert_eq!(h.state().state.doc.history.undo_labels().next(), Some("Flip U"));
 }
+
+/// A slanted wedge and a 2x2 grid mesh off the origin, both in dev/grey, and a light.
+fn brush_mesh_light() -> (Fixture, [NodeId; 3]) {
+    let mut state = EditorState::new(Prefs::default());
+    let layer = state.doc.map.default_layer();
+    let wedge = td_geom::shapes::wedge(&Aabb::new(DVec3::new(-72.0, 8.0, 200.0), DVec3::new(-8.0, 72.0, 296.0)), "dev/grey").unwrap();
+    let grid = td_geom::mesh_shapes::grid(&Aabb::new(DVec3::new(40.0, 16.0, -24.0), DVec3::new(168.0, 16.0, 72.0)), 2, 2, "dev/grey");
+    let ids = state.doc.edit("add", |m, _| {
+        let wedge = m.insert(layer, td_doc::NodeKind::Brush(wedge));
+        let grid = m.insert(layer, td_doc::NodeKind::Mesh(grid));
+        let light = m.insert(layer, td_doc::NodeKind::Entity(td_doc::Entity::new("light")));
+        [wedge, grid, light]
+    });
+    (Fixture { state, panels: PanelState::default(), actions: Vec::new() }, ids)
+}
+
+#[test]
+fn selected_brushes_and_meshes_count_as_all_their_faces() {
+    use egui_kittest::kittest::Queryable;
+    let empty = "Select a brush, a mesh or a face to edit its UVs.";
+    let (wedge, grid, light) = (0, 1, 2);
+    let cases: [(&[usize], Option<usize>, Option<&str>); 6] = [
+        (&[], None, None),
+        (&[light], None, None),
+        (&[wedge], None, Some("5 faces")),
+        (&[grid], None, Some("4 faces")),
+        (&[wedge, grid, light], None, Some("9 faces")),
+        (&[], Some(3), Some("1 face")),
+    ];
+    for (nodes, grid_face, shown) in cases {
+        let (mut f, ids) = brush_mesh_light();
+        f.state.doc.select(|_, s| {
+            nodes.iter().for_each(|i| s.select_node(ids[*i]));
+            grid_face.into_iter().for_each(|face| s.select_face(ids[grid], face));
+        });
+        let before = f.state.doc.selection.clone();
+        let mut h = harness(f);
+        match shown {
+            Some(count) => {
+                assert!(h.query_by_label(empty).is_none(), "{nodes:?} {grid_face:?} shows the canvas");
+                assert!(h.query_by_label_contains(&format!("·  {count}")).is_some(), "{nodes:?} {grid_face:?} edits {count}");
+                assert!(h.state().panels.uv.screen_pos(DVec2::ZERO).is_some(), "the canvas was drawn");
+            }
+            None => {
+                h.get_by_label(empty);
+                assert!(h.state().panels.uv.screen_pos(DVec2::ZERO).is_none(), "no canvas for {nodes:?}");
+            }
+        }
+
+        h.run();
+        assert_eq!(h.state().state.doc.selection, before, "the editor leaves the selection alone");
+    }
+}

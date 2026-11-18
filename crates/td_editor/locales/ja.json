@@ -1451,7 +1451,6 @@
   "Rotate UVs": "UV を回転",
   "Object {n} of {total} under the cursor, click again for the next": "カーソル下の {n}/{total} 番目のオブジェクト、再クリックで次へ",
   "{n} object under the cursor, click again or Alt+click to select the next": { "other": "カーソル下に {n} 個のオブジェクト、再クリックか Alt+クリックで次を選択" },
-  "Selected every face for UV work. Ctrl+click adds whole objects once the UV Editor tab is hidden": "UV 作業のため全ての面を選択しました。UV エディタのタブを閉じると Ctrl+クリックでオブジェクト全体を追加",
   "Selected group {name}": "グループ {name} を選択",
   "Edit Gizmo": "ギズモを編集",
   "Resize Brushes": "ブラシのサイズ変更",
@@ -1575,7 +1574,6 @@
   "Click a corner to select it, double click for a gizmo": "コーナーをクリックで選択、ダブルクリックでギズモ",
   "{n} corner": { "other": "コーナー {n} 個" },
   "Center of the selected corners in texture pixels": "選択コーナーの中心（テクスチャピクセル）",
-  "Select faces to edit their UVs: Shift+click a face, or Ctrl+click an object.": "UV を編集する面を選択：面を Shift+クリック、またはオブジェクトを Ctrl+クリック。",
   "{material}  ·  {size}  ·  {n} face": { "other": "{material}  ·  {size}  ·  {n} 面" },
   "Controls": "操作",
   "Lay out explicit UVs on the selected mesh faces, or every face of the selected meshes": "選択したメッシュ面、または選択メッシュ全面に明示的な UV を配置します",
@@ -2369,5 +2367,6 @@
   "Arched": "アーチ形",
   "Round": "円形",
   "How the tunnel is cut across its length": "トンネルの断面の形です",
-  "Keymap preset set to {preset}": "キーマップのプリセットを適用しました: {preset}"
+  "Keymap preset set to {preset}": "キーマップのプリセットを適用しました: {preset}",
+  "Select a brush, a mesh or a face to edit its UVs.": "UV を編集するブラシ、メッシュ、または面を選択してください。"
 }

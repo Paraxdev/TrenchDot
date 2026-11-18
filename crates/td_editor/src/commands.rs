@@ -3183,7 +3183,7 @@ mod tests {
         assert_eq!(state.doc.selection.faces, want);
         assert!(!state.status_failed());
 
-        // A face already selected on another brush stays, like Ctrl+click with the UV Editor showing.
+        // A face already selected on another brush stays.
         state.doc.select(|_, s| {
             s.clear();
             s.select_face(c, 2);

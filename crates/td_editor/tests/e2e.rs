@@ -3397,36 +3397,67 @@ fn f1_opens_the_manual_in_the_editor_language() {
     assert_eq!(opened(0).len(), 3, "nothing else was opened");
 }
 
-/// Ctrl+click adds objects in the views. With the UV Editor tab showing it grabs all of a brush's faces instead, but
-/// only while the selection holds nothing but brushes and meshes, so a terrain or entity plus a brush still works.
+fn open_uv_editor(ed: &Editor) {
+    ed.input("window", json!([{ "type": "move", "x": 10, "y": 10 }, { "type": "key", "key": "F1" }, { "type": "text", "text": "texture: uv editor" }, { "type": "key", "key": "Enter" }]));
+}
+
+fn selection_of(ed: &Editor) -> (Vec<u64>, Vec<(u64, u64)>) {
+    let state = ed.state();
+    let mut nodes: Vec<u64> = state["selection"]["nodes"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap()).collect();
+    let mut faces: Vec<(u64, u64)> = state["selection"]["faces"].as_array().unwrap().iter().map(|p| (p[0].as_u64().unwrap(), p[1].as_u64().unwrap())).collect();
+    nodes.sort_unstable();
+    faces.sort_unstable();
+    (nodes, faces)
+}
+
+/// Ctrl+click toggles whole objects in the views whether or not the UV Editor tab is showing.
 #[test]
 #[ignore]
-fn ctrl_click_adds_to_the_selection_with_the_uv_editor_showing() {
-    let ed = Editor::launch("ctrl_click");
-    let a = ed.box_brush([0.0, 0.0, 0.0], [64.0, 64.0, 64.0]);
-    let b = ed.box_brush([128.0, 0.0, 0.0], [192.0, 64.0, 64.0]);
-    let light = ed.call("create_entity", json!({ "classname": "light", "origin": [288, 32, 32] }))["id"].as_u64().unwrap();
+fn ctrl_click_toggles_objects_with_the_uv_editor_showing() {
+    let ed = Editor::launch("ctrl_click_uv");
+    let a = ed.box_brush([8.0, -16.0, 0.0], [72.0, 48.0, 40.0]);
+    let b = ed.box_brush([136.0, 4.0, 12.0], [200.0, 52.0, 76.0]);
+    let light = ed.call("create_entity", json!({ "classname": "light", "origin": [250, 30, 100] }))["id"].as_u64().unwrap();
     ed.call("select", json!({ "ids": [] }));
-    ed.call("set_camera", json!({ "view": "top", "center": [150, 0, 32], "zoom": 1.0 }));
-    let nodes = |ed: &Editor| {
-        let mut n: Vec<u64> = ed.state()["selection"]["nodes"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap()).collect();
-        n.sort_unstable();
-        n
+    open_uv_editor(&ed);
+    let ctrl_click = |at: [f64; 3]| {
+        ed.call("set_camera", json!({ "view": "top", "center": at, "zoom": 1.0 }));
+        ed.input("top", json!([{ "type": "click", "world": at, "modifiers": ["ctrl"] }]));
     };
-    ed.input("top", json!([{ "type": "click", "world": [32, 64, 32] }]));
-    ed.input("top", json!([{ "type": "click", "world": [160, 64, 32], "modifiers": ["ctrl"] }]));
-    assert_eq!(nodes(&ed), vec![a, b]);
 
-    ed.input("window", json!([{ "type": "move", "x": 10, "y": 10 }, { "type": "key", "key": "F1" }, { "type": "text", "text": "texture: uv editor" }, { "type": "key", "key": "Enter" }]));
-    ed.input("top", json!([{ "type": "click", "world": [288, 32, 32] }]));
-    ed.input("top", json!([{ "type": "click", "world": [32, 64, 32], "modifiers": ["ctrl"] }]));
-    assert_eq!(nodes(&ed), vec![a, light], "an entity in the selection keeps Ctrl+click adding objects");
+    ctrl_click([40.0, 48.0, 20.0]);
+    assert_eq!(selection_of(&ed), (vec![a], vec![]));
+    ctrl_click([168.0, 52.0, 44.0]);
+    assert_eq!(selection_of(&ed), (vec![a, b], vec![]));
+    ctrl_click([250.0, 30.0, 100.0]);
+    assert_eq!(selection_of(&ed), (vec![a, b, light], vec![]));
+    ctrl_click([40.0, 48.0, 20.0]);
+    assert_eq!(selection_of(&ed), (vec![b, light], vec![]));
+    ctrl_click([168.0, 52.0, 44.0]);
+    assert_eq!(selection_of(&ed), (vec![light], vec![]));
+}
 
-    ed.call("select", json!({ "ids": [] }));
-    ed.input("top", json!([{ "type": "click", "world": [32, 64, 32], "modifiers": ["ctrl"] }]));
-    ed.input("top", json!([{ "type": "click", "world": [160, 64, 32], "modifiers": ["ctrl"] }]));
-    let state = ed.state();
-    assert_eq!(state["selection"]["faces"].as_array().unwrap().len(), 12, "both boxes' faces for UV work: {}", state["selection"]);
+/// Showing the UV Editor tab edits what is selected and never swaps objects for their faces.
+#[test]
+#[ignore]
+fn opening_the_uv_editor_keeps_the_selection() {
+    for (name, faces) in [("uv_keeps_objects", false), ("uv_keeps_faces", true)] {
+        let ed = Editor::launch(name);
+        let a = ed.box_brush([8.0, -16.0, 0.0], [72.0, 48.0, 40.0]);
+        let wedge = ed.call("create_brush", json!({ "min": [-72, 8, 200], "max": [-8, 72, 296], "shape": "wedge" }))["ids"][0].as_u64().unwrap();
+        let light = ed.call("create_entity", json!({ "classname": "light", "origin": [250, 30, 100] }))["id"].as_u64().unwrap();
+        let expected = if faces {
+            ed.call("select", json!({ "faces": [[a, 2], [wedge, 4]] }));
+            (vec![], vec![(a, 2), (wedge, 4)])
+        } else {
+            ed.call("select", json!({ "ids": [a, wedge, light] }));
+            (vec![a, wedge, light], vec![])
+        };
+        assert_eq!(selection_of(&ed), expected);
+        open_uv_editor(&ed);
+        ed.input("window", json!([{ "type": "move", "x": 12, "y": 12 }]));
+        assert_eq!(selection_of(&ed), expected, "{name}");
+    }
 }
 
 /// The TrenchBroom click rules in the 3D view: a click replaces the selection, Ctrl+click toggles an object, Shift+click

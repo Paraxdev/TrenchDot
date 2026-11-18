@@ -1451,7 +1451,6 @@
   "Rotate UVs": "UVs drehen",
   "Object {n} of {total} under the cursor, click again for the next": "Objekt {n} von {total} unter dem Cursor, erneut klicken für das nächste",
   "{n} object under the cursor, click again or Alt+click to select the next": { "one": "{n} Objekt unter dem Cursor, erneut klicken oder Alt+Klick wählt das nächste", "other": "{n} Objekte unter dem Cursor, erneut klicken oder Alt+Klick wählt das nächste" },
-  "Selected every face for UV work. Ctrl+click adds whole objects once the UV Editor tab is hidden": "Alle Flächen für die UV-Arbeit gewählt. Ctrl+Klick fügt ganze Objekte hinzu, sobald der UV-Editor-Tab ausgeblendet ist",
   "Selected group {name}": "Gruppe {name} gewählt",
   "Edit Gizmo": "Gizmo bearbeiten",
   "Resize Brushes": "Brush-Größe ändern",
@@ -1575,7 +1574,6 @@
   "Click a corner to select it, double click for a gizmo": "Ecke anklicken zum Wählen, Doppelklick für ein Gizmo",
   "{n} corner": { "one": "{n} Ecke", "other": "{n} Ecken" },
   "Center of the selected corners in texture pixels": "Mitte der gewählten Ecken in Texturpixeln",
-  "Select faces to edit their UVs: Shift+click a face, or Ctrl+click an object.": "Flächen wählen, um ihre UVs zu bearbeiten: Shift+Klick auf eine Fläche oder Ctrl+Klick auf ein Objekt.",
   "{material}  ·  {size}  ·  {n} face": { "one": "{material}  ·  {size}  ·  {n} Fläche", "other": "{material}  ·  {size}  ·  {n} Flächen" },
   "Controls": "Steuerung",
   "Lay out explicit UVs on the selected mesh faces, or every face of the selected meshes": "Explizite UVs auf gewählten Mesh-Flächen oder allen Flächen gewählter Meshes anlegen",
@@ -2369,5 +2367,6 @@
   "Arched": "Gewölbt",
   "Round": "Rund",
   "How the tunnel is cut across its length": "Der Querschnitt des Tunnels",
-  "Keymap preset set to {preset}": "Tastenbelegung gesetzt: {preset}"
+  "Keymap preset set to {preset}": "Tastenbelegung gesetzt: {preset}",
+  "Select a brush, a mesh or a face to edit its UVs.": "Einen Brush, ein Mesh oder eine Fläche wählen, um die UVs zu bearbeiten."
 }

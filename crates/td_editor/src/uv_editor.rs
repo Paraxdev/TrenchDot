@@ -332,7 +332,7 @@ fn footer(ui: &mut Ui, state: &mut EditorState, selection: &[UvCorner], px: DVec
 }
 
 pub fn uv_editor(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actions: &mut Vec<Action>) {
-    let selected_faces: Vec<(NodeId, usize)> = state.doc.selection.faces.iter().copied().collect();
+    let selected_faces = texture_ops::target_faces(state);
     let Some(first) = selected_faces.first().and_then(|(id, f)| texture_ops::face_info(&state.doc.map, *id, *f)) else {
         let uv_state = &mut ps.uv;
         if uv_state.drag.take().is_some() && state.doc.in_transaction() {
@@ -341,7 +341,7 @@ pub fn uv_editor(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, acti
 
         uv_state.gizmo = false;
         uv_state.hovered = false;
-        ui.label(RichText::new(tr("Select faces to edit their UVs: Shift+click a face, or Ctrl+click an object.")).weak());
+        ui.label(RichText::new(tr("Select a brush, a mesh or a face to edit its UVs.")).weak());
         return;
     };
     let material = first.material.clone();
