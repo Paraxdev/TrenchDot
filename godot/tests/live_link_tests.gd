@@ -14,6 +14,7 @@ static func run(t) -> void:
 	_test_port_taken_over(t)
 	_test_settings_apply_at_once(t)
 	_test_play(t)
+	_test_project_settings(t)
 	await _test_foreign_lines(t)
 	await _test_hot_reload_lines(t)
 	await _test_scene_tabs(t)
@@ -162,6 +163,35 @@ static func _test_play(t) -> void:
 	ProjectSettings.set_setting(MAIN, main)
 	reply = play.call()
 	t.check(reply.get("ok") == false and str(reply.get("error")).contains("Godot editor"), "outside the editor nothing is played, got %s" % reply)
+	link.free()
+
+## Override in project points these two settings at its files while Godot is open, any other change is refused whole.
+static func _test_project_settings(t) -> void:
+	const MAP_SETTINGS := "func_godot/default_map_settings"
+	const CONFIG := "trenchdot/game_config"
+	var file := FileAccess.get_file_as_bytes("res://project.godot")
+	var before := { MAP_SETTINGS: ProjectSettings.get_setting(MAP_SETTINGS), CONFIG: ProjectSettings.get_setting(CONFIG) }
+	var current := func() -> Dictionary: return { MAP_SETTINGS: ProjectSettings.get_setting(MAP_SETTINGS), CONFIG: ProjectSettings.get_setting(CONFIG) }
+	var link := TrenchDotEditorIntegration.new()
+	var refused := {
+		"an empty dictionary": {},
+		"no dictionary": "res://entities/project_map_settings.tres",
+		"another setting": { CONFIG: "res://entities/project_game_config.tres", "application/run/main_scene": "res://entities/main.tscn" },
+		"a path outside the project": { MAP_SETTINGS: "res://entities/project_map_settings.tres", CONFIG: "user://project_game_config.tres" },
+		"a uid": { CONFIG: "uid://b1x8ycdxq2v1q" },
+		"a number": { MAP_SETTINGS: 3 },
+	}
+	for what in refused:
+		var reply: Dictionary = link._handle({ "event": "project_settings", "settings": refused[what] })
+		t.check(reply.get("ok") == false and str(reply.get("error", "")) != "", "%s is refused, got %s" % [what, reply])
+		t.check(current.call() == before, "%s changes no setting, got %s" % [what, current.call()])
+	var reply: Dictionary = link._handle({ "event": "project_settings", "settings": before })
+	t.check(reply == { "ok": true }, "both settings at their current values are saved, got %s" % reply)
+	t.check(current.call() == before, "the settings keep their values, got %s" % [current.call()])
+	var after := FileAccess.get_file_as_bytes("res://project.godot")
+	t.check(after == file, "saving the same values leaves project.godot byte identical")
+	if after != file:
+		FileAccess.open("res://project.godot", FileAccess.WRITE).store_buffer(file)
 	link.free()
 
 static func _test_scene_tabs(t) -> void:

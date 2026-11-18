@@ -839,7 +839,9 @@ func test_clashes() -> void:
 	check(clashes.size() == 1 and clashes[0]["classname"] == "func_door", "the project's func_door clashes with the pack's, got %s" % [clashes])
 	if clashes.size() == 1:
 		check(clashes[0]["definitions"] == ["res://trenchdot/entities/definitions/func_door.tres", "res://tests/my_func_door.tres"], "listed in merge order, got %s" % [clashes[0]["definitions"]])
+		check(not clashes[0].has("intended"), "a definition written by hand is no intended override, got %s" % [clashes[0]])
 	check(fgd.get_entity_definitions()["func_door"].description == "my door", "the later definition is the one maps get")
+	_check_intended_clashes()
 	door.node_groups = ["doors", ""]
 	config.map_settings = FuncGodotMapSettings.new()
 	config.map_settings.entity_node_groups = ["entities", "doors"]
@@ -847,6 +849,49 @@ func test_clashes() -> void:
 	check(exported.size() == 1 and exported[0].get("node_groups") == ["entities", "doors"], "node groups are exported for @group targets, got %s" % [exported])
 	var demo: TrenchDotGameConfig = load("res://demo/demo_game_config.tres")
 	check(not demo.build_config().has("clashes"), "the demo defines each classname once")
+
+func _check_intended_clashes() -> void:
+	var override := func(classname: String, path: String, meta: Variant) -> FuncGodotFGDEntityClass:
+		var def: FuncGodotFGDEntityClass = FuncGodotFGDSolidClass.new() if classname.begins_with("func_") else FuncGodotFGDPointClass.new()
+		def.classname = classname
+		if meta != null:
+			def.set_meta("trenchdot_override", meta)
+		if path != "":
+			def.take_over_path(path)
+		return def
+	var config := TrenchDotGameConfig.new()
+	config.csharp_source_dirs = []
+	var intended := func(fgd: FuncGodotFGDFile) -> Dictionary:
+		config.fgd_file = fgd
+		var out := {}
+		for clash in config.build_config().get("clashes", []):
+			out[clash["classname"]] = clash.get("intended", false)
+		return out
+
+	var project := FuncGodotFGDFile.new()
+	project.base_fgd_files = [load("res://addons/func_godot/fgd/func_godot_fgd.tres"), load("res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres")]
+	project.entity_definitions = [
+		override.call("func_door", "res://tests/override/func_door.tres", true),
+		override.call("func_button", "res://tests/override/func_button.tres", null),
+		override.call("light", "res://tests/override/light.tres", false),
+		override.call("info_player_start", "res://tests/override/info_player_start.tres", true),
+	]
+	project.take_over_path("res://tests/override/project_fgd.tres")
+	var got: Dictionary = intended.call(project)
+	check(got == { "func_door": true, "func_button": false, "light": false, "info_player_start": true }, "only definitions marked as overrides are intended, got %s" % [got])
+
+	var later := FuncGodotFGDFile.new()
+	later.base_fgd_files = [project]
+	later.entity_definitions = [override.call("func_door", "res://tests/override/later_func_door.tres", null)]
+	got = intended.call(later)
+	check(got.get("func_door") == false and got.get("info_player_start") == true, "the mark counts on the definition maps get, not on one it hides, got %s" % [got])
+
+	var inline := FuncGodotFGDFile.new()
+	inline.base_fgd_files = project.base_fgd_files
+	inline.entity_definitions = [override.call("func_door", "", true)]
+	inline.take_over_path("res://tests/override/inline_fgd.tres")
+	got = intended.call(inline)
+	check(got == { "func_door": false }, "a definition saved inside its FGD names the FGD and stays unintended, got %s" % [got])
 
 func test_nodraw_tool_textures() -> void:
 	print("- nodraw tool textures draw nothing, like the editor shows them")
