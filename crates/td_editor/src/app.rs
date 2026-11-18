@@ -162,6 +162,8 @@ pub struct App {
     maximized: Option<DockState<Tab>>,
     /// Where the pointer is as this frame's shortcuts run, which can be further on than the views' hover state.
     pointer: Option<egui::Pos2>,
+    /// A menu, popup or window covers the pointer, so a view's rect under it does not count as hovered.
+    pointer_over_window: bool,
     /// The view last under the pointer, the one Maximize View fills the area with.
     active_view: usize,
     project_maps: crate::welcome::ProjectMaps,
@@ -1113,6 +1115,7 @@ impl App {
             last_tool: ToolKind::Select,
             maximized: None,
             pointer: None,
+            pointer_over_window: false,
             active_view: 0,
             project_maps: Default::default(),
             ui_had_focus: false,
@@ -1154,6 +1157,7 @@ impl App {
         let open = open_views(&self.dock);
         // A dialog floats over the views, so the pointer inside a view's rect only counts when no window is on top.
         let over_window = pointer.and_then(|p| ctx.layer_id_at(p)).is_some_and(|layer| layer.order != egui::Order::Background);
+        self.pointer_over_window = over_window;
         let view_hovered =
             self.viewports.iter().enumerate().any(|(i, v)| v.hovered || (!over_window && open.contains(&i) && pointer.is_some_and(|p| v.rect.contains(p))));
         let scope =
@@ -1213,6 +1217,11 @@ impl App {
             Action::ShowTrimDialog => self.trim_dialog.open = true,
             Action::ShowSweepDialog => self.sweep_dialog.open = true,
             Action::ShowArrayDialog => self.array_dialog.open = true,
+            Action::FlipHorizontal | Action::FlipVertical => {
+                let view = self.view_to_maximize();
+                let axis = self.viewports.get(view).map_or(0, |v| v.camera.flip_axis(action == Action::FlipHorizontal));
+                return Some(Action::Flip { axis });
+            }
             Action::ShowFindDialog => self.find_dialog.open = true,
             Action::ShowSplineDialog => self.spline_dialog.open = true,
             Action::ShowRandomFillDialog => self.fill_dialog.open = true,
@@ -1333,7 +1342,7 @@ impl App {
     fn view_to_maximize(&self) -> usize {
         let open = open_views(&self.dock);
         // A key pressed in the frame the pointer arrives comes before the view has seen it hover.
-        let under = |v: &crate::viewport::Viewport| v.hovered || self.pointer.is_some_and(|p| v.rect.contains(p));
+        let under = |v: &crate::viewport::Viewport| under_pointer(v.hovered, v.rect, self.pointer, self.pointer_over_window);
         let hovered = open.iter().copied().find(|i| self.viewports.get(*i).is_some_and(under));
         hovered.or(open.contains(&self.active_view).then_some(self.active_view)).unwrap_or_else(|| open.iter().copied().min().unwrap_or(0))
     }
@@ -1546,6 +1555,8 @@ impl App {
                     }
 
                     ui.separator();
+                    m.item(ui, None, en!("Flip Horizontal"), Action::FlipHorizontal);
+                    m.item(ui, None, en!("Flip Vertical"), Action::FlipVertical);
                     for axis in 0..3 {
                         m.item(ui, None, &msg!("Flip {axis}", axis = commands::axis_name(axis)), Action::Flip { axis });
                     }
@@ -3456,8 +3467,24 @@ fn stored_prefs(prefs: &Prefs, run_ports: [Option<(u16, u16)>; 2]) -> Prefs {
     stored
 }
 
+/// A menu item or palette entry is clicked over whatever view lies beneath it, so only a pointer with nothing on top
+/// of the view picks it.
+fn under_pointer(hovered: bool, rect: egui::Rect, pointer: Option<egui::Pos2>, over_window: bool) -> bool {
+    hovered || (!over_window && pointer.is_some_and(|p| rect.contains(p)))
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_menu_over_a_view_does_not_make_it_the_view_under_the_pointer() {
+        let rect = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(100.0, 100.0));
+        let inside = Some(egui::pos2(50.0, 50.0));
+        assert!(super::under_pointer(false, rect, inside, false), "a key pressed as the pointer arrives counts");
+        assert!(!super::under_pointer(false, rect, inside, true), "a Brush menu or palette entry over the view does not");
+        assert!(super::under_pointer(true, rect, inside, true));
+        assert!(!super::under_pointer(false, rect, Some(egui::pos2(150.0, 50.0)), false));
+    }
+
     use super::*;
     use egui::accesskit::Role;
     use egui_kittest::kittest::Queryable;

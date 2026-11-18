@@ -2572,5 +2572,9 @@
   "{click} in the Texture tool": "テクスチャツールでの{click}",
   "{select} to pick a face to sweep, {add} adds more": "{select}でスイープする面を選択、{add}で追加",
   "Select objects to flip": "反転するオブジェクトを選択してください",
-  "Select objects to rotate": "回転するオブジェクトを選択してください"
+  "Select objects to rotate": "回転するオブジェクトを選択してください",
+  "Flip Horizontal": "水平反転",
+  "Flip Vertical": "垂直反転",
+  "Mirrors the selection across its center left to right in the view under the pointer": "ポインターの下のビューで、選択範囲を中心を軸に左右に反転します",
+  "Mirrors the selection across its center top to bottom in the view under the pointer": "ポインターの下のビューで、選択範囲を中心を軸に上下に反転します"
 }

@@ -87,6 +87,9 @@ pub enum Action {
     Flip {
         axis: usize,
     },
+    /// Flips along the screen axis of the view the key was pressed in, the app turns it into [`Action::Flip`].
+    FlipHorizontal,
+    FlipVertical,
     /// Copies the selection as a linked group mirrored across a plane on one axis, the halves `gap` map units apart.
     MirrorLinked {
         axis: usize,
@@ -343,6 +346,8 @@ impl Action {
             Action::CsgHollow => en!("Hollow"),
             Action::Rotate { axis, degrees } => return trf!("Rotate {axis} {degrees}°", axis = axis_name(*axis), degrees),
             Action::Flip { axis } => return trf!("Flip {axis}", axis = axis_name(*axis)),
+            Action::FlipHorizontal => en!("Flip Horizontal"),
+            Action::FlipVertical => en!("Flip Vertical"),
             Action::MirrorLinked { axis, .. } => return trf!("Mirror Linked {axis}", axis = axis_name(*axis)),
             Action::SetMirrorGap { .. } => en!("Set Mirror Gap"),
             Action::MirrorAgain => en!("Mirror Again"),
@@ -502,6 +507,8 @@ impl Action {
             Action::SelectAllInMode => en!("Selects every object, in Face mode every face of the visible brushes and meshes"),
             Action::IsolateSelected => en!("Hides everything except the selection, Show All brings it back"),
             Action::DuplicateLinked => en!("Copies the selection as a linked group, editing one copy changes every copy"),
+            Action::FlipHorizontal => en!("Mirrors the selection across its center left to right in the view under the pointer"),
+            Action::FlipVertical => en!("Mirrors the selection across its center top to bottom in the view under the pointer"),
             Action::MirrorLinked { .. } => en!("Copies the selection as a linked group mirrored across a plane, edits in either half show in both"),
             Action::SetMirrorGap { .. } => en!("Moves the two mirrored halves apart or together, the mirror plane stays where it is"),
             Action::MirrorAgain => en!("Moves the partner of a half that was slid along the mirror plane back across from it"),
@@ -708,7 +715,10 @@ pub fn preset_bindings(preset: &str) -> Vec<(KeyboardShortcut, Action)> {
             (sc(NONE, Key::H), Action::HideSelected),
             (sc(CTRL, Key::H), Action::IsolateSelected),
             (sc(NONE, Key::U), Action::UnhideAll),
-            (sc(CTRL, Key::L), Action::Rotate { axis: 1, degrees: 90.0 }),
+            (sc(CTRL, Key::L), Action::FlipHorizontal),
+            (sc(CTRL, Key::I), Action::FlipVertical),
+            (sc(CTRL_SHIFT, Key::I), Action::SelectInverse),
+            (sc(CTRL_SHIFT, Key::R), Action::Rotate { axis: 1, degrees: 90.0 }),
             (sc(CTRL, Key::M), Action::ShowShapeDialog),
             (sc(SHIFT, Key::A), Action::SetTool(ToolKind::Texture)),
             (sc(CTRL, Key::F4), Action::CloseTab),
@@ -1749,6 +1759,8 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         | Action::ShowShapeDialog
         | Action::ShowSweepDialog
         | Action::ShowArrayDialog
+        | Action::FlipHorizontal
+        | Action::FlipVertical
         | Action::ShowFindDialog
         | Action::ShowSplineDialog
         | Action::ShowTrimDialog
@@ -3478,6 +3490,14 @@ mod tests {
             assert!(has(Action::SelectTouching, sc(CTRL, Key::T)), "{preset}");
             assert!(!bindings.iter().any(|(b, _)| *b == sc(CTRL_SHIFT, Key::T)), "{preset} still binds Ctrl+Shift+T");
             assert_eq!(bindings.iter().any(|(_, a)| *a == Action::SelectBrushFaces), preset == "hammer", "{preset}: only Hammer binds Brush Faces");
+            let hammer = preset == "hammer";
+            assert_eq!(has(Action::SelectInverse, sc(CTRL, Key::I)), !hammer, "{preset}");
+            assert_eq!(has(Action::SelectInverse, sc(CTRL_SHIFT, Key::I)), hammer, "{preset}");
+            assert_eq!(has(Action::CsgIntersect, sc(CTRL, Key::L)), !hammer, "{preset}");
+            assert_eq!(has(Action::FlipHorizontal, sc(CTRL, Key::L)), hammer, "{preset}");
+            assert_eq!(has(Action::FlipVertical, sc(CTRL, Key::I)), hammer, "{preset}");
+            assert_eq!(has(Action::Rotate { axis: 1, degrees: 90.0 }, sc(CTRL_SHIFT, Key::R)), hammer, "{preset}");
+            assert_eq!(bindings.iter().any(|(_, a)| matches!(a, Action::FlipHorizontal | Action::FlipVertical | Action::Rotate { .. })), hammer, "{preset}");
             let blender = preset == "blender";
             assert_eq!(has(Action::ObjectMode, sc(NONE, Key::Num1)), blender, "{preset}");
             assert_eq!(has(Action::FaceMode, sc(NONE, Key::Num3)), blender, "{preset}");

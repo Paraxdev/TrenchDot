@@ -2572,5 +2572,9 @@
   "{click} in the Texture tool": "{click} dans l'outil de texture",
   "{select} to pick a face to sweep, {add} adds more": "{select} pour choisir une face à balayer, {add} en ajoute d'autres",
   "Select objects to flip": "Sélectionnez des objets à retourner",
-  "Select objects to rotate": "Sélectionnez des objets à faire pivoter"
+  "Select objects to rotate": "Sélectionnez des objets à faire pivoter",
+  "Flip Horizontal": "Retourner horizontalement",
+  "Flip Vertical": "Retourner verticalement",
+  "Mirrors the selection across its center left to right in the view under the pointer": "Retourne la sélection autour de son centre de gauche à droite dans la vue sous le pointeur",
+  "Mirrors the selection across its center top to bottom in the view under the pointer": "Retourne la sélection autour de son centre de haut en bas dans la vue sous le pointeur"
 }

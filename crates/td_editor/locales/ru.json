@@ -2572,5 +2572,9 @@
   "{click} in the Texture tool": "{click} в инструменте текстур",
   "{select} to pick a face to sweep, {add} adds more": "{select}, чтобы выбрать грань для протяжки, {add} добавляет ещё",
   "Select objects to flip": "Выберите объекты для отражения",
-  "Select objects to rotate": "Выберите объекты для поворота"
+  "Select objects to rotate": "Выберите объекты для поворота",
+  "Flip Horizontal": "Отразить по горизонтали",
+  "Flip Vertical": "Отразить по вертикали",
+  "Mirrors the selection across its center left to right in the view under the pointer": "Отражает выделение относительно его центра слева направо в виде под указателем",
+  "Mirrors the selection across its center top to bottom in the view under the pointer": "Отражает выделение относительно его центра сверху вниз в виде под указателем"
 }

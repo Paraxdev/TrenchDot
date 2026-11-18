@@ -105,7 +105,7 @@ mode.
 | F2 | Rename the selected object in the Outliner |
 | Ctrl+R | Repeat the last rotate, flip, mirror linked, nudge or duplicate. In mesh editing it makes a loop cut |
 | Delete or Backspace | Delete |
-| Ctrl+A, Ctrl+Shift+A, Ctrl+I | Select all objects, select none, select inverse. Ctrl+A also drops any selected faces, and in the Blender preset it switches to Object mode. In the Hammer preset Ctrl+Shift+A selects every face of the selected brushes and meshes instead, see [Other presets](#other-presets) |
+| Ctrl+A, Ctrl+Shift+A, Ctrl+I | Select all objects, select none, select inverse. Ctrl+A also drops any selected faces, and in the Blender preset it switches to Object mode. In the Hammer preset Ctrl+Shift+A selects every face of the selected brushes and meshes instead, and select inverse is Ctrl+Shift+I because Ctrl+I flips, see [Other presets](#other-presets) |
 | Ctrl+F | Find entities and replace a material, see [Find and Replace](find-replace.md) |
 | Ctrl+T, Ctrl+E | Use the selected brushes as a stencil and select what they touch, or what lies inside them. The stencil brushes are deleted. Both need brushes selected, faces alone are refused |
 | Ctrl+G, Ctrl+Shift+G | Group, ungroup |
@@ -158,7 +158,8 @@ A preset only changes the keys below, everything else stays as above. Your own b
 | H, Ctrl+H, U | Hide, isolate, show all |
 | Ctrl+W | Move brushes to world |
 | Ctrl+M | Shape generator |
-| Ctrl+L | Rotate 90° around the vertical axis |
+| Ctrl+L, Ctrl+I | Flip Horizontal, Flip Vertical. They mirror the selection across its center along the screen axes of the view under the pointer, like Hammer. In 3D, horizontal is whichever of X or Z lies closer to the camera's right. In the Mesh tool Ctrl+L still selects linked |
+| Ctrl+Shift+I, Ctrl+Shift+R | Select inverse, rotate 90° around the vertical axis |
 | Ctrl+Shift+M, Ctrl+Shift+L | CSG convex merge, intersect |
 | Ctrl+F4 | Close tab |
 

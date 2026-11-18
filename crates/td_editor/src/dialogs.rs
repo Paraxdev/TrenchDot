@@ -89,6 +89,8 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
         entry(en!("Edit"), en!("Redo"), Action::Redo),
         entry(en!("Edit"), en!("Duplicate"), Action::Duplicate),
         entry(en!("Edit"), en!("Array Copies of the selection"), Action::ShowArrayDialog),
+        entry(en!("Transform"), en!("Flip Horizontal"), Action::FlipHorizontal),
+        entry(en!("Transform"), en!("Flip Vertical"), Action::FlipVertical),
         entry(en!("Edit"), en!("Rename"), Action::Rename),
         entry(en!("Edit"), en!("Delete"), Action::Delete),
         entry(en!("Edit"), en!("Copy"), Action::Copy),

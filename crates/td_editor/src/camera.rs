@@ -92,6 +92,20 @@ impl Camera {
         }
     }
 
+    /// The world axis Flip Horizontal or Flip Vertical mirrors along in this view. The 3D view flips vertically along
+    /// Y and horizontally along X or Z, whichever lies closer to the camera's right, X on a tie.
+    pub fn flip_axis(&self, horizontal: bool) -> usize {
+        match (self.kind, horizontal) {
+            (ViewKind::Perspective, false) => 1,
+            (ViewKind::Perspective, true) => {
+                let right = self.right();
+                if right.z.abs() > right.x.abs() + 1e-9 { 2 } else { 0 }
+            }
+            (_, true) => td_core::major_axis(self.right()),
+            (_, false) => td_core::major_axis(self.up()),
+        }
+    }
+
     pub fn up(&self) -> DVec3 {
         match self.kind {
             ViewKind::Perspective => self.right().cross(self.forward()).normalize(),
@@ -250,6 +264,41 @@ mod tests {
             let back = cam.project(rect, p).unwrap();
             assert!((back - pos).length() < 0.5, "{kind:?}: {back:?}");
         }
+    }
+
+    #[test]
+    fn flip_axes_follow_the_screen_of_each_view() {
+        let axes = |kind| {
+            let cam = Camera::new(kind);
+            (cam.flip_axis(true), cam.flip_axis(false))
+        };
+        assert_eq!(axes(ViewKind::Top), (0, 2));
+        assert_eq!(axes(ViewKind::Front), (0, 1));
+        assert_eq!(axes(ViewKind::Side), (2, 1));
+
+        let mut cam = Camera::new(ViewKind::Perspective);
+        for (yaw, pitch, horizontal) in [(30.0, -25.0, 0), (120.0, 40.0, 2), (-60.0, 0.0, 2), (-150.0, 80.0, 0), (0.0, -89.0, 0), (90.0, -89.0, 2)] {
+            cam.yaw = f64::to_radians(yaw);
+            cam.pitch = f64::to_radians(pitch);
+            assert_eq!((cam.flip_axis(true), cam.flip_axis(false)), (horizontal, 1), "yaw {yaw} pitch {pitch}");
+        }
+    }
+
+    #[test]
+    fn flip_axis_breaks_the_tie_of_a_diagonal_view_towards_x() {
+        let mut cam = Camera::new(ViewKind::Perspective);
+        for yaw in [45.0, 135.0, -45.0, -135.0] {
+            cam.yaw = f64::to_radians(yaw);
+            let right = cam.right();
+            assert_eq!(cam.flip_axis(true), 0, "yaw {yaw}");
+            assert!((right.x.abs() - right.z.abs()).abs() < 1e-9, "yaw {yaw} is a diagonal");
+        }
+
+        cam.yaw = f64::to_radians(45.0);
+        cam.yaw += 1e-6;
+        assert_eq!(cam.flip_axis(true), 2, "just past the diagonal the closer axis wins");
+        cam.yaw = f64::to_radians(45.0) - 1e-6;
+        assert_eq!(cam.flip_axis(true), 0);
     }
 
     #[test]

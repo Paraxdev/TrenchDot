@@ -3778,6 +3778,125 @@ fn opening_the_uv_editor_keeps_the_selection() {
 /// the selected brushes, or of the brushes that own the selected faces.
 #[test]
 #[ignore]
+fn hammer_ctrl_l_and_ctrl_i_flip_along_the_view_under_the_pointer() {
+    let ed = Editor::launch("hammer_flip");
+    let a = ed.box_brush([40.0, 8.0, -72.0], [104.0, 72.0, -20.0]);
+    let far = ed.box_brush([300.0, 0.0, 0.0], [332.0, 32.0, 32.0]);
+    ed.call("select", json!({ "ids": [a] }));
+    ed.call("transform", json!({ "shear": { "side": "+y", "along": "x", "amount": 16 } }));
+    ed.call("set_editor", json!({ "keymap": "hammer", "snap": false }));
+    let verts = || -> Vec<[i64; 3]> {
+        let node = ed.call("get_node", json!({ "id": a }));
+        let mut all: Vec<[i64; 3]> = node["vertices"].as_array().unwrap().iter().map(|v| [0, 1, 2].map(|i| v[i].as_f64().unwrap().round() as i64)).collect();
+        all.sort();
+        all
+    };
+    let mirrored = |from: &[[i64; 3]], axis: usize, sum: i64| -> Vec<[i64; 3]> {
+        let mut all: Vec<[i64; 3]> = from.iter().map(|v| std::array::from_fn(|i| if i == axis { sum - v[i] } else { v[i] })).collect();
+        all.sort();
+        all
+    };
+    let undo_len = || ed.state()["undo"].as_array().unwrap().len();
+    let press = |view: &str, key: &str, mods: &[&str]| ed.input(view, json!([{ "type": "move" }, { "type": "key", "key": key, "modifiers": mods }]));
+    let slanted = verts();
+    assert_eq!(slanted.len(), 8);
+    // The top side slid to x 56 to 120, so the bounds are 40 to 120 on X, 8 to 72 on Y and -72 to -20 on Z.
+    let (min, max) = ed.selection_bounds();
+    assert!(approx(&[min[0], max[0], min[1], max[1], min[2], max[2]], &[40.0, 120.0, 8.0, 72.0, -72.0, -20.0]), "{min:?} {max:?}");
+
+    ed.call("set_camera", json!({ "view": "front", "center": [80, 40, -46], "zoom": 1.5 }));
+    ed.call("set_camera", json!({ "view": "top", "center": [80, 0, -46], "zoom": 1.5 }));
+    ed.call("set_camera", json!({ "view": "side", "center": [0, 40, -46], "zoom": 1.5 }));
+    ed.call("set_camera", json!({ "view": "3d", "position": [300, 50, 0], "look_at": [0, 50, 0] }));
+    let before = undo_len();
+    press("front", "L", &["ctrl"]);
+    let flipped_x = mirrored(&slanted, 0, 160);
+    assert_eq!(verts(), flipped_x, "Ctrl+L in Front mirrors X across the center, one corner side swapped");
+    assert_ne!(verts(), slanted);
+    assert_eq!(undo_len(), before + 1, "one undo step");
+    let (min, max) = ed.selection_bounds();
+    assert!(approx(&[min[0], max[0], min[1], max[1], min[2], max[2]], &[40.0, 120.0, 8.0, 72.0, -72.0, -20.0]), "the bounds stay put {min:?} {max:?}");
+
+    press("front", "I", &["ctrl"]);
+    let flipped_xy = mirrored(&flipped_x, 1, 80);
+    assert_eq!(verts(), flipped_xy, "Ctrl+I in Front mirrors Y");
+    press("top", "I", &["ctrl"]);
+    let flipped_xyz = mirrored(&flipped_xy, 2, -92);
+    assert_eq!(verts(), flipped_xyz, "Ctrl+I in Top mirrors Z");
+    press("front", "R", &["ctrl"]);
+    assert_eq!(verts(), flipped_xy, "Ctrl+R repeats the last flip on the same world axis, whatever view it is pressed in");
+    assert_eq!(undo_len(), before + 4);
+
+    press("side", "L", &["ctrl"]);
+    let side_z = mirrored(&flipped_xy, 2, -92);
+    assert_eq!(verts(), side_z, "Ctrl+L in Side mirrors Z");
+    press("side", "I", &["ctrl"]);
+    assert_eq!(verts(), mirrored(&side_z, 1, 80), "Ctrl+I in Side mirrors Y");
+    press("side", "I", &["ctrl"]);
+    press("side", "L", &["ctrl"]);
+    assert_eq!(verts(), flipped_xy);
+
+    press("3d", "L", &["ctrl"]);
+    assert_eq!(verts(), mirrored(&flipped_xy, 2, -92), "Ctrl+L in 3D flips Z when the camera looks along X");
+    press("3d", "L", &["ctrl"]);
+    press("3d", "I", &["ctrl"]);
+    assert_eq!(verts(), mirrored(&flipped_xy, 1, 80), "Ctrl+I in 3D flips Y");
+    press("3d", "I", &["ctrl"]);
+    ed.call("set_camera", json!({ "view": "3d", "position": [0, 50, 300], "look_at": [0, 50, 0] }));
+    press("3d", "L", &["ctrl"]);
+    assert_eq!(verts(), mirrored(&flipped_xy, 0, 160), "Ctrl+L in 3D flips X when the camera looks along Z");
+    press("3d", "L", &["ctrl"]);
+    assert_eq!(verts(), flipped_xy);
+
+    press("top", "R", &["ctrl", "shift"]);
+    let (min, max) = ed.selection_bounds();
+    assert!(approx(&[min[0], max[0], min[2], max[2]], &[54.0, 106.0, -86.0, -6.0]), "Ctrl+Shift+R turns the selection 90 degrees about Y {min:?} {max:?}");
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(verts(), flipped_xy);
+
+    ed.call("select", json!({ "ids": [a] }));
+    press("top", "I", &["ctrl", "shift"]);
+    assert_eq!(selected(&ed), vec![far], "Ctrl+Shift+I selects the inverse");
+
+    ed.call("run_action", json!({ "action": "select_none" }));
+    let before = undo_len();
+    press("front", "L", &["ctrl"]);
+    press("front", "I", &["ctrl"]);
+    assert_eq!(undo_len(), before, "nothing selected, nothing flipped, no undo step");
+    assert_eq!(verts(), flipped_xy);
+
+    let e = ed.call_err("run_action", json!({ "action": "flip_horizontal" }));
+    assert!(e.contains("flip {axis}"), "{e}");
+    assert!(ed.call_err("run_action", json!({ "action": "flip_vertical" })).contains("flip {axis}"));
+
+    ed.call("set_editor", json!({ "keymap": "trenchbroom" }));
+    ed.call("select", json!({ "ids": [a] }));
+    press("top", "I", &["ctrl"]);
+    assert_eq!(selected(&ed), vec![far], "TrenchBroom keeps Select Inverse on Ctrl+I");
+    press("top", "L", &["ctrl"]);
+    assert_eq!(verts(), flipped_xy, "and Ctrl+L stays a CSG intersect, which leaves a lone brush alone");
+}
+
+#[test]
+#[ignore]
+fn the_mesh_tool_keeps_ctrl_l_for_select_linked_in_the_hammer_preset() {
+    let ed = Editor::launch("hammer_mesh_ctrl_l");
+    ed.call("set_editor", json!({ "keymap": "hammer" }));
+    ed.call("create_mesh", json!({ "shape": "cuboid", "min": [-32, 0, -32], "max": [32, 64, 32] }));
+    ed.call("set_editor", json!({ "tool": "mesh", "mesh_component": "face" }));
+    ed.call("set_camera", json!({ "view": "3d", "position": [-120, 200, 160], "look_at": [0, 32, 0] }));
+    ed.input("3d", json!([{ "type": "click", "world": [0, 64, 0] }]));
+    let faces = || ed.state()["editor"]["mesh_selection"][0]["faces"].as_array().unwrap().len();
+    assert_eq!(faces(), 1);
+    let labels = || ed.state()["undo"].as_array().unwrap().iter().map(|l| l.as_str().unwrap().to_string()).collect::<Vec<_>>();
+    let before = labels();
+    ed.input("3d", json!([{ "type": "move" }, { "type": "key", "key": "L", "modifiers": ["ctrl"] }]));
+    assert_eq!(faces(), 6, "Ctrl+L selected the whole linked mesh");
+    assert!(!labels().iter().any(|l| l == "Flip") && labels().len() <= before.len() + 1, "and flipped nothing {:?}", labels());
+}
+
+#[test]
+#[ignore]
 fn ctrl_a_in_the_hammer_texture_tool_selects_faces() {
     let ed = Editor::launch("hammer_ctrl_a");
     let a = ed.box_brush([8.0, -16.0, 0.0], [72.0, 48.0, 40.0]);

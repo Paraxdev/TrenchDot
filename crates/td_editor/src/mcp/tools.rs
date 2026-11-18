@@ -623,6 +623,15 @@ fn dialog_action(name: &str) -> Option<&'static str> {
     })
 }
 
+/// Actions that act along the screen axes of the view under the pointer, which an MCP call has none of, with the call to
+/// use instead.
+fn view_action(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "flip_horizontal" | "flip_vertical" => "flip {axis}",
+        _ => return None,
+    })
+}
+
 /// Pastes TrenchDot clipboard text, or TrenchBroom's, under `parent` as one undo step, moved by `offset` or centered
 /// on `origin`.
 pub(super) fn paste_text(state: &mut EditorState, text: &str, parent: NodeId, origin: Option<DVec3>, offset: Option<DVec3>) -> Result<Vec<NodeId>, String> {
@@ -1339,6 +1348,10 @@ impl App {
         let a = &args["args"];
         if let Some(instead) = dialog_action(name) {
             return err(format!("{name} opens a native file dialog, which MCP cannot answer, use {instead} instead"));
+        }
+
+        if let Some(instead) = view_action(name) {
+            return err(format!("{name} follows the view under the pointer, which MCP has none of, use {instead} instead"));
         }
 
         let started = Instant::now();
@@ -3352,6 +3365,9 @@ mod tests {
         assert!(dialog_action("save_as").is_some());
         assert!(dialog_action("export_obj").is_some_and(|use_instead| use_instead.contains("export_obj")));
         assert!(dialog_action("undo").is_none());
+        assert_eq!(view_action("flip_horizontal"), Some("flip {axis}"));
+        assert_eq!(view_action("flip_vertical"), Some("flip {axis}"));
+        assert!(view_action("flip").is_none());
 
         // Commands report failures through fail_status, which run_action turns into errors whatever the wording.
         let ctx = egui::Context::default();

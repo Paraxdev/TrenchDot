@@ -2572,5 +2572,9 @@
   "{click} in the Texture tool": "在纹理工具中{click}",
   "{select} to pick a face to sweep, {add} adds more": "{select}以选择要扫掠的面，{add}添加更多",
   "Select objects to flip": "请选择要翻转的对象",
-  "Select objects to rotate": "请选择要旋转的对象"
+  "Select objects to rotate": "请选择要旋转的对象",
+  "Flip Horizontal": "水平翻转",
+  "Flip Vertical": "垂直翻转",
+  "Mirrors the selection across its center left to right in the view under the pointer": "在指针所在的视图中，沿选区中心左右翻转选区",
+  "Mirrors the selection across its center top to bottom in the view under the pointer": "在指针所在的视图中，沿选区中心上下翻转选区"
 }
