@@ -22,8 +22,8 @@ It only offers the step your project needs next:
 | No addon | **Install the addon**, then **Enable the plugin** |
 | An older addon | **Update the addon to** the editor's version |
 | A newer addon, or one without a version | **Replace the addon with** the editor's version |
-| The addon, not enabled | **Enable the plugin**, which adds it to `[editor_plugins]` in `project.godot` and changes nothing else |
-| The addon as a git checkout or submodule | Nothing. Update it with git, the editor never replaces it |
+| The addon at any version, not enabled | **Enable the plugin**, which adds it to `[editor_plugins]` in `project.godot` and changes nothing else |
+| The addon as a git checkout or submodule | Only **Enable the plugin** while it is not enabled. Update it with git, the editor never replaces it |
 
 ![The Set up this project window saying the addon 0.0.9 is older than the editor, with the Update the addon to 0.1.0 button](../assets/project-setup/setup-update-addon.png)
 
