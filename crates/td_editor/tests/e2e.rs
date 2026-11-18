@@ -5845,3 +5845,16 @@ fn the_tool_row_puts_brush_tools_before_terrain_and_paint_tools() {
     assert_eq!(buttons.first().unwrap().0, "Select");
     assert_eq!(buttons.iter().position(|b| b.0 == "Texture").map(|i| i < 12), Some(true), "Texture sits with the brush tools");
 }
+
+/// A fresh layout opens only the panels the block out, texture, entities and play loop needs.
+#[test]
+#[ignore]
+fn a_fresh_start_opens_only_the_loop_panels() {
+    let ed = Editor::launch("fresh_panels");
+    let state = ed.state();
+    let mut panels: Vec<(String, bool)> =
+        state["ui"]["panels"].as_array().unwrap().iter().map(|p| (p["panel"].as_str().unwrap().to_string(), p["shown"].as_bool().unwrap())).collect();
+    panels.sort();
+    let expected = [("Entities", false), ("Inspector", true), ("Issues", false), ("Materials", true), ("Outliner", true)].map(|(n, s)| (n.to_string(), s));
+    assert_eq!(panels, expected);
+}

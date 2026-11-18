@@ -1197,6 +1197,7 @@ impl App {
                 "pixels_per_point": self.viewports.first().map(|v| (v.pixels_per_point as f64 * 1000.0).round() / 1000.0),
                 "shape_bounds": s.shape_bounds.map(|b| json!({ "min": arr(b.min), "max": arr(b.max) })),
                 "windows": self.open_windows.iter().map(|(title, r)| json!({ "title": title, "rect": [r.min.x, r.min.y, r.max.x, r.max.y] })).collect::<Vec<_>>(),
+                "panels": self.panel_states().into_iter().map(|(panel, shown)| json!({ "panel": panel, "shown": shown })).collect::<Vec<_>>(),
                 "tool_buttons": self.tool_buttons.iter().map(|(t, r)| json!({ "tool": t.label(), "family": t.family().name(), "rect": [r.min.x, r.min.y, r.max.x, r.max.y] })).collect::<Vec<_>>(),
                 "mcp_prefs": self.mcp_pref_rects.iter().map(|(name, r)| (name.to_string(), json!([r.min.x, r.min.y, r.max.x, r.max.y]))).collect::<serde_json::Map<_, _>>(),
                 "tool_options": [self.tool_options_rect.min.x, self.tool_options_rect.min.y, self.tool_options_rect.max.x, self.tool_options_rect.max.y],

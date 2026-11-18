@@ -293,6 +293,11 @@ fn panel_tab(panel: Panel) -> Tab {
     }
 }
 
+/// The open panel tabs by English title and whether each is the front tab of its dock, views left out.
+fn open_panels(dock: &DockState<Tab>) -> Vec<(&'static str, bool)> {
+    dock.iter_all_tabs().filter(|(_, tab)| !matches!(tab, Tab::View(_))).map(|(_, tab)| (tab_title(*tab), tab_shown(dock, tab))).collect()
+}
+
 fn tab_panel(tab: Tab) -> Option<Panel> {
     Panel::ALL.into_iter().find(|p| panel_tab(*p) == tab)
 }
@@ -431,16 +436,37 @@ fn reveal_tab(dock: &mut DockState<Tab>, tab: Tab, beside: Tab) {
     show_tab(dock, tab);
 }
 
+/// The panel a closed panel reopens beside, none for one that goes wherever the focus is.
+fn panel_home(tab: Tab) -> Option<Tab> {
+    match tab {
+        Tab::Outliner | Tab::History => Some(Tab::Issues),
+        Tab::Issues => Some(Tab::Outliner),
+        Tab::Inspector => Some(Tab::Entities),
+        Tab::Entities | Tab::Uv | Tab::Scatter => Some(Tab::Inspector),
+        Tab::Materials => Some(Tab::Models),
+        Tab::Models | Tab::Prefabs | Tab::Logic => Some(Tab::Materials),
+        Tab::Reference | Tab::View(_) => None,
+    }
+}
+
+/// Focuses a panel tab, reopening it beside its home when it was closed.
+fn open_panel(dock: &mut DockState<Tab>, tab: Tab) {
+    match panel_home(tab) {
+        Some(home) => reveal_tab(dock, tab, home),
+        None => show_tab(dock, tab),
+    }
+}
+
 /// Closes an open panel tab, or opens a closed one like View > Panels does.
 fn toggle_panel(dock: &mut DockState<Tab>, tab: Tab) {
     if let Some(path) = dock.find_tab(&tab) {
         dock.remove_tab(path);
     } else if tab == Tab::Logic {
         // The graph needs room: it opens in the wide bottom dock, grown to about half the middle.
-        reveal_tab(dock, tab, Tab::Materials);
+        open_panel(dock, tab);
         make_room(dock, tab);
     } else {
-        show_tab(dock, tab);
+        open_panel(dock, tab);
     }
 }
 
@@ -678,6 +704,9 @@ pub(crate) fn falloff_name(falloff: td_doc::blend::Falloff) -> &'static str {
 }
 
 const DOCK_KEY: &str = "dock";
+/// Layouts saved before this key existed carry 0 and get the panels added since, once.
+const DOCK_VERSION_KEY: &str = "dock_version";
+const DOCK_VERSION: u32 = 1;
 
 /// A saved layout from an older build can name views that no longer exist or list a tab twice.
 fn valid_dock(dock: &DockState<Tab>) -> bool {
@@ -767,12 +796,25 @@ fn set_views(dock: &mut DockState<Tab>, views: &[usize]) {
     }
 }
 
+/// The saved layout, or the default when there is none. Only a layout from before `DOCK_VERSION` gets Models, Scatter
+/// and Prefabs added, so a panel closed since then stays closed.
+fn restore_dock(saved: Option<DockState<Tab>>, version: u32) -> DockState<Tab> {
+    let Some(mut dock) = saved else { return default_dock() };
+    if version < DOCK_VERSION {
+        ensure_tab(&mut dock, Tab::Models, Tab::Materials);
+        ensure_tab(&mut dock, Tab::Scatter, Tab::Inspector);
+        ensure_tab(&mut dock, Tab::Prefabs, Tab::Models);
+    }
+
+    dock
+}
+
 fn default_dock() -> DockState<Tab> {
     let mut dock = DockState::new(vec![Tab::View(0)]);
     let surface = dock.main_surface_mut();
-    let [center, _right] = surface.split_right(NodeIndex::root(), 0.78, vec![Tab::Inspector, Tab::Entities, Tab::Uv, Tab::Scatter]);
-    let [center, _left] = surface.split_left(center, 0.2, vec![Tab::Outliner, Tab::History, Tab::Issues]);
-    let [views, _bottom] = surface.split_below(center, 0.72, vec![Tab::Materials, Tab::Models, Tab::Prefabs]);
+    let [center, _right] = surface.split_right(NodeIndex::root(), 0.78, vec![Tab::Inspector, Tab::Entities]);
+    let [center, _left] = surface.split_left(center, 0.2, vec![Tab::Outliner, Tab::Issues]);
+    let [views, _bottom] = surface.split_below(center, 0.72, vec![Tab::Materials]);
     let [left_col, right_col] = surface.split_right(views, 0.5, vec![Tab::View(1)]);
     surface.split_below(left_col, 0.5, vec![Tab::View(2)]);
     surface.split_below(right_col, 0.5, vec![Tab::View(3)]);
@@ -797,6 +839,11 @@ fn start_mcp_http(port: u16, tokens: &mut token::Tokens, require: bool, host: &M
 }
 
 impl App {
+    /// The open panels for get_state, see `open_panels`.
+    pub(crate) fn panel_states(&self) -> Vec<(&'static str, bool)> {
+        open_panels(&self.dock)
+    }
+
     pub fn new(cc: &eframe::CreationContext, args: CliArgs) -> Self {
         let render_state = cc.wgpu_render_state.as_ref().expect("TrenchDot requires the wgpu renderer");
         let mut prefs: Prefs = if args.default_prefs { Prefs::default() } else { cc.storage.and_then(|s| eframe::get_value(s, "prefs")).unwrap_or_default() };
@@ -906,10 +953,8 @@ impl App {
             v.camera.zoom = 0.6;
         }
 
-        let mut dock = dock.unwrap_or_else(default_dock);
-        ensure_tab(&mut dock, Tab::Models, Tab::Materials);
-        ensure_tab(&mut dock, Tab::Scatter, Tab::Inspector);
-        ensure_tab(&mut dock, Tab::Prefabs, Tab::Models);
+        let dock_version = cc.storage.and_then(|s| eframe::get_value(s, DOCK_VERSION_KEY)).unwrap_or(0);
+        let dock = restore_dock(dock, dock_version);
         Self {
             state,
             renderer: Renderer::new(render_state),
@@ -1091,10 +1136,10 @@ impl App {
                 set_views(&mut self.dock, &views);
             }
             Action::ToggleView(view) => self.toggle_view(view),
-            Action::ShowUvEditor => show_tab(&mut self.dock, Tab::Uv),
+            Action::ShowUvEditor => open_panel(&mut self.dock, Tab::Uv),
             Action::Rename => {
                 if self.state.doc.selection.nodes.len() == 1 {
-                    reveal_tab(&mut self.dock, Tab::Outliner, Tab::History);
+                    open_panel(&mut self.dock, Tab::Outliner);
                 }
 
                 return Some(action);
@@ -3105,9 +3150,8 @@ impl eframe::App for App {
         let focus = cam.position + cam.forward() * 1200.0;
         self.scene.update_shadows(&mut self.renderer, focus, self.state.prefs.shade.is_lit());
 
-        // The viewports read this to know a ctrl+click should grab all of a brush's faces for UV work. The UV
-        // Editor is docked by default, so only its being the visible tab counts, else ctrl+click could never
-        // add objects to the selection.
+        // The viewports read this to know a ctrl+click should grab all of a brush's faces for UV work. Only
+        // the UV Editor being the visible tab counts, else a ctrl+click could never add objects to the selection.
         self.state.uv_panel_open = tab_shown(&self.dock, &Tab::Uv);
         let start_view = [ViewKind::Top, ViewKind::Front, ViewKind::Side]
             .into_iter()
@@ -3277,6 +3321,7 @@ impl eframe::App for App {
             eframe::set_value(storage, "prefs", &stored_prefs(&self.state.prefs, self.run_ports));
             // A maximized view is a temporary state, the next launch starts from the layout it replaced.
             eframe::set_value(storage, DOCK_KEY, self.maximized.as_ref().unwrap_or(&self.dock));
+            eframe::set_value(storage, DOCK_VERSION_KEY, &DOCK_VERSION);
         }
     }
 }
@@ -3507,22 +3552,119 @@ mod tests {
         assert_eq!(dock.iter_all_tabs().filter(|(_, t)| **t == Tab::Models).count(), 1);
     }
 
+    fn panel_set(dock: &DockState<Tab>) -> Vec<Tab> {
+        let mut tabs: Vec<Tab> = dock.iter_all_tabs().map(|(_, t)| *t).filter(|t| !matches!(t, Tab::View(_))).collect();
+        tabs.sort_by_key(|t| tab_title(*t));
+        tabs
+    }
+
+    fn shown_tabs(dock: &DockState<Tab>) -> Vec<Tab> {
+        dock.iter_leaves().filter_map(|(_, leaf)| leaf.tabs.get(leaf.active.0).copied()).collect()
+    }
+
+    fn same_leaf(dock: &DockState<Tab>, a: Tab, b: Tab) -> bool {
+        dock.find_tab(&a).zip(dock.find_tab(&b)).is_some_and(|(a, b)| (a.surface, a.node) == (b.surface, b.node))
+    }
+
+    #[test]
+    fn the_default_layout_opens_only_the_panels_the_loop_needs() {
+        let dock = default_dock();
+        assert_eq!(panel_set(&dock), [Tab::Entities, Tab::Inspector, Tab::Issues, Tab::Materials, Tab::Outliner]);
+        assert_eq!(open_views(&dock).len(), 4);
+        assert!(same_leaf(&dock, Tab::Outliner, Tab::Issues));
+        assert!(same_leaf(&dock, Tab::Inspector, Tab::Entities));
+        let shown = shown_tabs(&dock);
+        for front in [Tab::Outliner, Tab::Inspector, Tab::Materials] {
+            assert!(shown.contains(&front), "{front:?} is the front tab of its dock");
+        }
+
+        assert!(view_grid(dock.main_surface()).is_some());
+
+        let mut reported = open_panels(&dock);
+        reported.sort_unstable();
+        assert_eq!(
+            reported,
+            [("Entities", false), ("Inspector", true), ("Issues", false), ("Materials", true), ("Outliner", true)],
+            "get_state lists each panel with whether it is the front tab"
+        );
+    }
+
+    #[test]
+    fn restoring_a_layout_migrates_only_layouts_saved_before_versions() {
+        let fresh = restore_dock(None, 0);
+        assert_eq!(panel_set(&fresh), panel_set(&default_dock()), "no saved layout gives the default, whatever the version");
+        assert_eq!(panel_set(&restore_dock(None, DOCK_VERSION)), panel_set(&default_dock()));
+
+        // A layout saved before Models, Scatter and Prefabs existed.
+        let old = || {
+            let mut dock = DockState::new(vec![Tab::View(0)]);
+            let surface = dock.main_surface_mut();
+            let [center, _] = surface.split_right(NodeIndex::root(), 0.78, vec![Tab::Inspector, Tab::Uv]);
+            surface.split_below(center, 0.72, vec![Tab::Materials]);
+            dock
+        };
+        let migrated = restore_dock(Some(old()), 0);
+        for tab in [Tab::Models, Tab::Prefabs] {
+            assert!(same_leaf(&migrated, tab, Tab::Materials), "{tab:?} joins Materials");
+        }
+
+        assert!(same_leaf(&migrated, Tab::Scatter, Tab::Inspector));
+        assert_eq!(migrated.iter_all_tabs().count(), old().iter_all_tabs().count() + 3);
+
+        let kept = restore_dock(Some(old()), DOCK_VERSION);
+        assert_eq!(panel_set(&kept), panel_set(&old()), "a layout this editor saved keeps what was closed");
+        assert!(kept.find_tab(&Tab::Models).is_none() && kept.find_tab(&Tab::Scatter).is_none() && kept.find_tab(&Tab::Prefabs).is_none());
+    }
+
+    #[test]
+    fn closed_panels_reopen_beside_their_home() {
+        for (tab, home) in [
+            (Tab::History, Tab::Outliner),
+            (Tab::Uv, Tab::Inspector),
+            (Tab::Scatter, Tab::Inspector),
+            (Tab::Models, Tab::Materials),
+            (Tab::Prefabs, Tab::Materials),
+        ] {
+            let mut dock = default_dock();
+            assert!(dock.find_tab(&tab).is_none());
+            toggle_panel(&mut dock, tab);
+            assert!(same_leaf(&dock, tab, home), "{tab:?} opens beside {home:?}");
+            assert!(shown_tabs(&dock).contains(&tab), "{tab:?} comes to the front");
+            assert_eq!(dock.iter_all_tabs().filter(|(_, t)| **t == tab).count(), 1);
+        }
+
+        let mut dock = default_dock();
+        let views_leaf = dock.find_tab(&Tab::View(1)).unwrap();
+        dock.set_focused_node_and_surface(views_leaf.node_path());
+        for tab in [Tab::Inspector, Tab::Entities] {
+            let path = dock.find_tab(&tab).unwrap();
+            dock.remove_tab(path);
+        }
+
+        toggle_panel(&mut dock, Tab::Uv);
+        assert!(same_leaf(&dock, Tab::Uv, Tab::View(1)), "with the home closed too the panel opens in the focused leaf");
+
+        let mut dock = default_dock();
+        let outliner = dock.find_tab(&Tab::Outliner).unwrap();
+        dock.remove_tab(outliner);
+        toggle_panel(&mut dock, Tab::Outliner);
+        assert!(same_leaf(&dock, Tab::Outliner, Tab::Issues), "a closed Outliner comes back beside Issues");
+    }
+
     #[test]
     fn revealing_a_tab_brings_it_to_the_front_or_back() {
-        let shown = |d: &DockState<Tab>| d.iter_leaves().filter_map(|(_, leaf)| leaf.tabs.get(leaf.active.0).copied()).collect::<Vec<_>>();
         let mut dock = default_dock();
-        let history = dock.find_tab(&Tab::History).unwrap();
-        dock.set_active_tab(history).unwrap();
-        assert!(!shown(&dock).contains(&Tab::Outliner));
-        reveal_tab(&mut dock, Tab::Outliner, Tab::History);
-        assert!(shown(&dock).contains(&Tab::Outliner), "Rename shows the Outliner hidden behind History");
+        let issues = dock.find_tab(&Tab::Issues).unwrap();
+        dock.set_active_tab(issues).unwrap();
+        assert!(!shown_tabs(&dock).contains(&Tab::Outliner));
+        reveal_tab(&mut dock, Tab::Outliner, Tab::Issues);
+        assert!(shown_tabs(&dock).contains(&Tab::Outliner), "Rename shows the Outliner hidden behind Issues");
 
         let outliner = dock.find_tab(&Tab::Outliner).unwrap();
         dock.remove_tab(outliner);
-        reveal_tab(&mut dock, Tab::Outliner, Tab::History);
-        let back = dock.find_tab(&Tab::Outliner).expect("a closed Outliner comes back");
-        assert_eq!(back.node_path(), dock.find_tab(&Tab::History).unwrap().node_path(), "next to History");
-        assert!(shown(&dock).contains(&Tab::Outliner));
+        reveal_tab(&mut dock, Tab::Outliner, Tab::Issues);
+        assert!(same_leaf(&dock, Tab::Outliner, Tab::Issues), "a closed Outliner comes back beside Issues");
+        assert!(shown_tabs(&dock).contains(&Tab::Outliner));
     }
 
     #[test]
