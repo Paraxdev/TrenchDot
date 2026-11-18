@@ -1222,7 +1222,42 @@ pub struct KeymapWindow {
     pub open: bool,
     pub tab: KeymapTab,
     filter: String,
+    tool_filter: String,
     recording: Option<String>,
+    searching: bool,
+    key_search: Option<egui::KeyboardShortcut>,
+}
+
+/// Everything that reacts to `chord`'s key, with any modifier: the bound actions in the grid's order, then the keys
+/// the tools read. Rows with exactly the pressed chord come first in each list.
+pub fn key_uses(prefs: &crate::state::Prefs, chord: &egui::KeyboardShortcut) -> (Vec<Action>, Vec<&'static ToolKeyRow>) {
+    let exact = commands::shortcut_to_text(chord);
+    let active = commands::shortcuts(prefs);
+    let mut actions: Vec<(bool, Action)> = commands::bindable_actions()
+        .into_iter()
+        .filter_map(|action| {
+            let mut uses = active.iter().filter(|(s, a)| *a == action && s.logical_key == chord.logical_key).peekable();
+            uses.peek()?;
+            Some((uses.any(|(s, _)| commands::shortcut_to_text(s) == exact), action))
+        })
+        .collect();
+    actions.sort_by_key(|(is_exact, _)| !is_exact);
+    let mut rows: Vec<&ToolKeyRow> = tool_key_rows().iter().filter(|r| r.key == chord.logical_key).collect();
+    rows.sort_by_key(|r| r.chord() != exact);
+    (actions.into_iter().map(|(_, a)| a).collect(), rows)
+}
+
+/// Takes the next key press of the frame, and whether Esc was pressed. Nothing else sees the keys that frame.
+fn capture_chord(ctx: &egui::Context) -> (Option<egui::KeyboardShortcut>, bool) {
+    ctx.input_mut(|i| {
+        let found = i.events.iter().find_map(|e| match e {
+            egui::Event::Key { key, pressed: true, modifiers, .. } if !matches!(key, Key::Escape) => Some(egui::KeyboardShortcut::new(*modifiers, *key)),
+            _ => None,
+        });
+        let escape = i.consume_key(egui::Modifiers::NONE, Key::Escape);
+        i.events.clear();
+        (found, escape)
+    })
 }
 
 impl KeymapWindow {
@@ -1232,22 +1267,22 @@ impl KeymapWindow {
         }
 
         if let Some(id) = self.recording.clone() {
-            let captured = ctx.input_mut(|i| {
-                let found = i.events.iter().find_map(|e| match e {
-                    egui::Event::Key { key, pressed: true, modifiers, .. } if !matches!(key, Key::Escape) => {
-                        Some(egui::KeyboardShortcut::new(*modifiers, *key))
-                    }
-                    _ => None,
-                });
-                let escape = i.consume_key(egui::Modifiers::NONE, Key::Escape);
-                i.events.clear();
-                (found, escape)
-            });
-            match captured {
+            match capture_chord(ctx) {
                 (_, true) => self.recording = None,
                 (Some(s), _) => {
                     state.prefs.key_overrides.insert(id, commands::shortcut_to_text(&s));
                     self.recording = None;
+                }
+                _ => {}
+            }
+        }
+
+        if self.searching {
+            match capture_chord(ctx) {
+                (_, true) => self.searching = false,
+                (Some(s), _) => {
+                    self.key_search = Some(s);
+                    self.searching = false;
                 }
                 _ => {}
             }
@@ -1275,58 +1310,111 @@ impl KeymapWindow {
                     state.prefs.key_overrides.clear();
                 }
 
-                ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text(tr("filter")).desired_width(160.0));
+                self.search_controls(ui);
             });
             if self.recording.is_some() {
                 ui.label(RichText::new(tr("Press the new shortcut (Esc cancels)")).color(crate::theme::colors().yellow));
             }
 
+            if self.searching {
+                ui.label(RichText::new(tr("Press the key to look up (Esc cancels)")).color(crate::theme::colors().yellow));
+            }
+
             ui.separator();
             let active = commands::shortcuts(&state.prefs);
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                egui::Grid::new("keymap").striped(true).num_columns(3).show(ui, |ui| {
-                    for action in commands::bindable_actions() {
-                        let label = action.title();
-                        if !self.filter.is_empty() && fuzzy_score(&self.filter, &label).or_else(|| fuzzy_score(&self.filter, &action.label())).is_none() {
-                            continue;
-                        }
+            egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| match self.key_search {
+                Some(chord) => {
+                    let (actions, tool_rows) = key_uses(&state.prefs, &chord);
+                    if actions.is_empty() && tool_rows.is_empty() {
+                        ui.label(tr("Nothing uses this key"));
+                    }
 
-                        let id = action.binding_id();
-                        let keys: Vec<String> = active.iter().filter(|(_, a)| *a == action).map(|(s, _)| commands::shortcut_to_text(s)).collect();
-                        ui.label(label);
-                        ui.label(RichText::new(if keys.is_empty() { tr("unbound").to_string() } else { keys.join(", ") }).monospace());
-                        ui.horizontal(|ui| {
-                            if ui.small_button(if self.recording.as_deref() == Some(id.as_str()) { "…" } else { tr("Set") }).clicked() {
-                                self.recording = Some(id.clone());
-                            }
-
-                            if ui.small_button(tr("Clear")).clicked() {
-                                state.prefs.key_overrides.insert(id.clone(), String::new());
-                            }
-
-                            if state.prefs.key_overrides.contains_key(&id) && ui.small_button(tr("Default")).clicked() {
-                                state.prefs.key_overrides.remove(&id);
+                    self.keys_grid(ui, state, &actions, &active);
+                    if !tool_rows.is_empty() {
+                        ui.label(RichText::new(tr("Tool keys")).strong());
+                        egui::Grid::new("key_search_tools").striped(true).num_columns(3).show(ui, |ui| {
+                            for row in tool_rows {
+                                ui.label(RichText::new(row.chord()).monospace());
+                                ui.label(tr(row.tool.label()));
+                                ui.label(describe(row));
+                                ui.end_row();
                             }
                         });
-                        ui.end_row();
                     }
-                });
+                }
+                None => {
+                    let actions: Vec<Action> = commands::bindable_actions()
+                        .into_iter()
+                        .filter(|a| self.filter.is_empty() || fuzzy_score(&self.filter, &a.title()).or_else(|| fuzzy_score(&self.filter, &a.label())).is_some())
+                        .collect();
+                    self.keys_grid(ui, state, &actions, &active);
+                }
             });
         });
         self.open = open;
     }
 
+    fn search_controls(&mut self, ui: &mut egui::Ui) {
+        match self.key_search {
+            Some(chord) => {
+                ui.label(RichText::new(commands::shortcut_to_text(&chord)).monospace());
+                if ui.small_button("x").on_hover_text(tr("Clear the key search")).clicked() {
+                    self.key_search = None;
+                }
+            }
+            None => {
+                ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text(tr("filter")).desired_width(160.0));
+            }
+        }
+
+        if ui.button(tr("Press a key")).on_hover_text(tr("List every use of the next key you press")).clicked() {
+            self.searching = true;
+            self.recording = None;
+        }
+    }
+
+    fn keys_grid(&mut self, ui: &mut egui::Ui, state: &mut EditorState, actions: &[Action], active: &[(egui::KeyboardShortcut, Action)]) {
+        egui::Grid::new("keymap").striped(true).num_columns(3).show(ui, |ui| {
+            for action in actions {
+                let id = action.binding_id();
+                let keys: Vec<String> = active.iter().filter(|(_, a)| a == action).map(|(s, _)| commands::shortcut_to_text(s)).collect();
+                let title = ui.label(action.title());
+                if let Some(help) = action.help() {
+                    title.on_hover_text(tr(help));
+                }
+
+                ui.label(RichText::new(if keys.is_empty() { tr("unbound").to_string() } else { keys.join(", ") }).monospace());
+                ui.horizontal(|ui| {
+                    if ui.small_button(if self.recording.as_deref() == Some(id.as_str()) { "…" } else { tr("Set") }).clicked() {
+                        self.recording = Some(id.clone());
+                        self.searching = false;
+                    }
+
+                    if ui.small_button(tr("Clear")).clicked() {
+                        state.prefs.key_overrides.insert(id.clone(), String::new());
+                    }
+
+                    if state.prefs.key_overrides.contains_key(&id) && ui.small_button(tr("Default")).clicked() {
+                        state.prefs.key_overrides.remove(&id);
+                    }
+                });
+                ui.end_row();
+            }
+        });
+    }
+
     fn tool_keys_tab(&mut self, ui: &mut egui::Ui) {
-        ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text(tr("filter")).desired_width(160.0));
+        ui.add(egui::TextEdit::singleline(&mut self.tool_filter).hint_text(tr("filter")).desired_width(160.0));
         ui.label(RichText::new(tr("Keys a tool reads while it is the active tool. They are fixed and cannot be rebound.")).weak());
         ui.separator();
-        egui::ScrollArea::vertical().show(ui, |ui| {
+        egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             for tool in ToolKind::all() {
                 let rows: Vec<&ToolKeyRow> = tool_key_rows()
                     .iter()
                     .filter(|r| r.tool == tool)
                     .filter(|r| {
-                        self.filter.is_empty() || [tr(tool.label()), r.what(), r.chord().as_str()].iter().any(|t| fuzzy_score(&self.filter, t).is_some())
+                        self.tool_filter.is_empty()
+                            || [tr(tool.label()), r.what(), r.chord().as_str()].iter().any(|t| fuzzy_score(&self.tool_filter, t).is_some())
                     })
                     .collect();
                 if rows.is_empty() {
@@ -2451,11 +2539,180 @@ mod tests {
         let mut h = keymap_harness();
         h.get_by_label("Tool keys").click();
         h.run();
-        h.state_mut().0.filter = "backspace".into();
+        h.state_mut().0.tool_filter = "backspace".into();
         h.run();
         assert!(h.query_by_label("Remove the last point (once a point is placed)").is_some());
         assert!(h.query_by_label("Remove the last corner (once a corner is placed)").is_some());
         assert!(h.query_by_label("Ctrl+Shift+B").is_none());
         assert!(h.query_by_label("Tab").is_none());
+    }
+
+    #[test]
+    fn each_tab_has_its_own_filter_and_the_window_keeps_its_size() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        let rect =
+            |h: &egui_kittest::Harness<'static, (KeymapWindow, EditorState)>| h.ctx.memory(|m| m.area_rect(egui::Id::new(Some("Keyboard Shortcuts")))).unwrap();
+        let full = rect(&h);
+        h.state_mut().0.filter = "Select Inside".into();
+        h.run();
+        assert!(h.query_by_label("Select Inside").is_some());
+        assert!(h.query_by_label("Undo").is_none());
+        assert_eq!(rect(&h), full, "a short list leaves the window where it was");
+
+        h.get_by_label("Tool keys").click();
+        h.run();
+        assert!(h.query_by_label("Ctrl+Shift+B").is_some(), "the Keys filter stays on its tab");
+        h.state_mut().0.tool_filter = "zzzz".into();
+        h.run();
+        assert!(h.query_by_label("Ctrl+Shift+B").is_none());
+        assert_eq!(rect(&h).min, full.min);
+
+        h.get_by_label("Keys").click();
+        h.run();
+        assert_eq!(h.state().0.filter, "Select Inside");
+        assert!(h.query_by_label("Select Inside").is_some());
+    }
+
+    fn chord(modifiers: egui::Modifiers, key: Key) -> egui::KeyboardShortcut {
+        egui::KeyboardShortcut::new(modifiers, key)
+    }
+
+    #[test]
+    fn key_uses_lists_the_exact_chord_first_in_actions_and_tool_rows() {
+        let prefs = crate::state::Prefs::default();
+        let ctrl = egui::Modifiers::COMMAND;
+        let shift = egui::Modifiers::SHIFT;
+        let uses = |m, key| {
+            let (actions, rows) = key_uses(&prefs, &chord(m, key));
+            (actions, rows.iter().map(|r| r.chord()).collect::<Vec<_>>())
+        };
+
+        let (actions, rows) = uses(egui::Modifiers::NONE, Key::R);
+        assert_eq!(actions.len(), 3);
+        assert_eq!(actions[0], Action::SetTool(ToolKind::Rotate));
+        assert!(actions.contains(&Action::RepeatLast) && actions.contains(&Action::SetTool(ToolKind::Shear)));
+        assert_eq!(rows, ["R", "Ctrl+R"]);
+
+        let (actions, rows) = uses(ctrl, Key::R);
+        assert_eq!(actions.len(), 3);
+        assert_eq!(actions[0], Action::RepeatLast);
+        assert_eq!(rows, ["Ctrl+R", "R"]);
+
+        let (actions, _) = uses(shift, Key::R);
+        assert_eq!(actions[0], Action::SetTool(ToolKind::Shear));
+        assert_eq!(actions.len(), 3);
+
+        // The browser sends ctrl and command together, the keymap only command.
+        let both = egui::Modifiers { ctrl: true, command: true, ..Default::default() };
+        assert_eq!(uses(both, Key::R).0[0], Action::RepeatLast);
+    }
+
+    #[test]
+    fn key_uses_finds_keys_only_a_tool_reads_and_keys_nothing_reads() {
+        let prefs = crate::state::Prefs::default();
+        let (actions, rows) = key_uses(&prefs, &chord(egui::Modifiers::NONE, Key::Enter));
+        assert!(actions.is_empty());
+        assert_eq!(rows.iter().map(|r| r.tool).collect::<Vec<_>>(), [ToolKind::Polygon, ToolKind::Clip, ToolKind::Mesh, ToolKind::Path]);
+
+        let (actions, rows) = key_uses(&prefs, &chord(egui::Modifiers::NONE, Key::F20));
+        assert!(actions.is_empty() && rows.is_empty());
+    }
+
+    #[test]
+    fn key_uses_follows_the_preset_and_the_overrides() {
+        let mut prefs = crate::state::Prefs::default();
+        let alt_a = chord(egui::Modifiers::ALT, Key::A);
+        assert_eq!(key_uses(&prefs, &alt_a).0[0], Action::SelectAll, "no Alt+A in TrenchBroom, so the grid order stands");
+        assert_eq!(key_uses(&prefs, &chord(egui::Modifiers::COMMAND, Key::A)).0[0], Action::SelectAll);
+        assert_eq!(key_uses(&prefs, &chord(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::A)).0[0], Action::SelectNone);
+
+        prefs.keymap_preset = "blender".into();
+        assert_eq!(key_uses(&prefs, &alt_a).0[0], Action::SelectNone);
+        assert_eq!(key_uses(&prefs, &chord(egui::Modifiers::NONE, Key::A)).0[0], Action::SelectAllInMode);
+
+        let ctrl_e = chord(egui::Modifiers::COMMAND, Key::E);
+        let mut prefs = crate::state::Prefs::default();
+        assert!(key_uses(&prefs, &ctrl_e).0.contains(&Action::SelectInside));
+        prefs.key_overrides.insert(Action::SelectInside.binding_id(), "Ctrl+Shift+Y".into());
+        assert!(!key_uses(&prefs, &ctrl_e).0.contains(&Action::SelectInside));
+        assert_eq!(key_uses(&prefs, &chord(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::Y)).0[0], Action::SelectInside);
+    }
+
+    fn press_key_search(h: &mut egui_kittest::Harness<'static, (KeymapWindow, EditorState)>, key: Key) {
+        use egui_kittest::kittest::Queryable;
+        h.get_by_label("Press a key").click();
+        h.run();
+        assert!(h.state().0.searching);
+        h.key_press(key);
+        h.run();
+    }
+
+    #[test]
+    fn pressing_a_key_lists_its_key_rows_and_tool_rows() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        press_key_search(&mut h, Key::A);
+        assert!(!h.state().0.searching);
+        assert_eq!(h.state().0.key_search.map(|c| c.logical_key), Some(Key::A));
+        assert!(h.query_by_label(Action::SelectAll.title().as_str()).is_some());
+        assert!(h.query_by_label(Action::SelectNone.title().as_str()).is_some());
+        assert!(h.query_by_label(Action::Undo.title().as_str()).is_none(), "Undo is on Z, not A");
+        assert_eq!(h.query_all_by_label("Mesh").count(), 3, "one Mesh row for A, Ctrl+A and Alt+A");
+        assert_eq!(h.query_all_by_label("Select all in the current mode").count(), 2);
+        assert!(h.query_by_label("Preset").is_some(), "the Keys tab stays");
+        assert!(h.query_by_label("Nothing uses this key").is_none());
+    }
+
+    #[test]
+    fn a_key_nothing_uses_says_so_and_the_x_brings_the_list_back() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        press_key_search(&mut h, Key::F20);
+        assert!(h.query_by_label("Nothing uses this key").is_some());
+        assert!(h.query_by_label(Action::SelectAll.title().as_str()).is_none());
+
+        h.get_by_label("x").click();
+        h.run();
+        assert_eq!(h.state().0.key_search, None);
+        assert!(h.query_by_label("Nothing uses this key").is_none());
+        assert!(h.query_by_label(Action::SelectAll.title().as_str()).is_some());
+    }
+
+    #[test]
+    fn escape_ends_the_key_search_without_filtering() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        h.get_by_label("Press a key").click();
+        h.run();
+        h.key_press(Key::Escape);
+        h.run();
+        let window = &h.state().0;
+        assert!(!window.searching);
+        assert_eq!(window.key_search, None);
+        assert!(window.filter.is_empty());
+        assert!(h.query_by_label(Action::SelectAll.title().as_str()).is_some());
+        assert!(h.query_by_label("Nothing uses this key").is_none());
+    }
+
+    #[test]
+    fn a_command_name_says_what_it_does_on_hover() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        let help = Action::SelectAllInMode.help().unwrap();
+        h.state_mut().0.filter = Action::SelectAllInMode.title();
+        h.run();
+        assert!(h.query_by_label(help).is_none());
+        h.get_by_label(&Action::SelectAllInMode.title()).hover();
+        h.run();
+        assert!(h.query_by_label(help).is_some(), "an unbound command in the TrenchBroom preset explains itself");
+    }
+
+    #[test]
+    fn a_key_pressed_outside_the_search_is_not_taken() {
+        let mut h = keymap_harness();
+        h.key_press(Key::A);
+        h.run();
+        assert_eq!(h.state().0.key_search, None);
     }
 }

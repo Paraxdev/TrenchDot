@@ -2435,5 +2435,10 @@
   "One cut fewer": "少一道切割",
   "Slide the texture one grid step": "将纹理滑动一个网格步长",
   "Slide the texture by one unit": "将纹理滑动一个单位",
-  "Finish the path": "结束路径"
+  "Finish the path": "结束路径",
+  "Press a key": "按下按键",
+  "List every use of the next key you press": "列出你接下来按下的按键的所有用途",
+  "Press the key to look up (Esc cancels)": "请按下要查找的按键 (Esc 取消)",
+  "Clear the key search": "清除按键查找",
+  "Nothing uses this key": "没有功能使用此按键"
 }

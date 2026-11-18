@@ -2435,5 +2435,10 @@
   "One cut fewer": "Um corte a menos",
   "Slide the texture one grid step": "Deslocar a textura um passo da grade",
   "Slide the texture by one unit": "Deslocar a textura uma unidade",
-  "Finish the path": "Terminar o caminho"
+  "Finish the path": "Terminar o caminho",
+  "Press a key": "Pressionar uma tecla",
+  "List every use of the next key you press": "Listar todos os usos da próxima tecla pressionada",
+  "Press the key to look up (Esc cancels)": "Pressione a tecla a procurar (Esc cancela)",
+  "Clear the key search": "Limpar a busca de tecla",
+  "Nothing uses this key": "Nada usa esta tecla"
 }

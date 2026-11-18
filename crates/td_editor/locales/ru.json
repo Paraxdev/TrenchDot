@@ -2435,5 +2435,10 @@
   "One cut fewer": "Одним разрезом меньше",
   "Slide the texture one grid step": "Сдвинуть текстуру на шаг сетки",
   "Slide the texture by one unit": "Сдвинуть текстуру на одну единицу",
-  "Finish the path": "Завершить путь"
+  "Finish the path": "Завершить путь",
+  "Press a key": "Нажать клавишу",
+  "List every use of the next key you press": "Показать все применения следующей нажатой клавиши",
+  "Press the key to look up (Esc cancels)": "Нажмите нужную клавишу (Esc отменяет)",
+  "Clear the key search": "Сбросить поиск клавиши",
+  "Nothing uses this key": "Эта клавиша нигде не используется"
 }
