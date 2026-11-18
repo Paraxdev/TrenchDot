@@ -24,13 +24,16 @@ pub enum ClickRule {
     FaceModeMiss,
 }
 
-/// The TrenchBroom rules, which the Hammer preset shares. Ctrl (Cmd on a Mac) toggles instead of replacing, Shift on a
-/// face works on the face alone, and Shift on anything without faces behaves like a plain click. The Blender preset
-/// follows its mode instead: Shift and Ctrl both toggle, objects in Object mode and faces in Face mode.
+/// The TrenchBroom rules. Ctrl (Cmd on a Mac) toggles instead of replacing, Shift on a face works on the face alone, and
+/// Shift on anything without faces behaves like a plain click. The Hammer preset ignores Shift, which it keeps for
+/// cloning, and picks faces in the Texture tool. The Blender preset follows its mode instead: Shift and Ctrl both
+/// toggle, objects in Object mode and faces in Face mode.
 pub fn click_rule(preset: &str, mode: SelectMode, command: bool, shift: bool, hit: ClickHit) -> ClickRule {
     if preset == "blender" {
         return blender_rule(mode, command || shift, hit);
     }
+
+    let shift = shift && shift_counts_on_click(preset);
 
     match hit {
         ClickHit::None if command => ClickRule::Keep,
@@ -53,7 +56,8 @@ pub fn click_rule(preset: &str, mode: SelectMode, command: bool, shift: bool, hi
 }
 
 /// The gesture that makes `rule` in `preset`, in the current language, for hints and the Mouse tab. Ctrl reads Cmd on a
-/// Mac. The Blender preset names the mode a gesture belongs to, the others have no modes.
+/// Mac. The Blender preset names the mode a gesture belongs to, the others have no modes. The Hammer preset picks faces
+/// in the Texture tool.
 pub fn chord_label(preset: &str, rule: ClickRule) -> String {
     let command = if cfg!(target_os = "macos") { "Cmd+" } else { "Ctrl+" };
     let click = |mods: &str| if mods.is_empty() { tr("Click").to_string() } else { trf!("{mods}click", mods = mods) };
@@ -71,11 +75,14 @@ pub fn chord_label(preset: &str, rule: ClickRule) -> String {
         };
     }
 
+    let in_texture_tool = |click: String| trf!("{click} in the Texture tool", click = click);
     match rule {
         ClickRule::Clear => trf!("{click} on empty space", click = click("")),
         ClickRule::Keep => trf!("{click} on empty space", click = click(command)),
         ClickRule::ReplaceObject => click(""),
         ClickRule::ToggleObject => click(command),
+        ClickRule::ReplaceFace if preset == "hammer" => in_texture_tool(click("")),
+        ClickRule::ToggleFace if preset == "hammer" => in_texture_tool(click(command)),
         ClickRule::ReplaceFace => click("Shift+"),
         ClickRule::ToggleFace => click(&format!("{command}Shift+")),
         ClickRule::FaceModeMiss => trf!("{click} on something without faces", click = click("")),
@@ -179,6 +186,12 @@ pub fn selection_drag(preset: &str, chord: Chord, hit: DragHit) -> SelectionDrag
     }
 }
 
+/// Whether Shift changes what a click does. The Hammer preset keeps Shift for cloning, so a Shift+click there is a plain
+/// click, also for stepping through stacked objects in a 2D view.
+pub fn shift_counts_on_click(preset: &str) -> bool {
+    preset != "hammer"
+}
+
 /// Whether Shift held during a move drag locks it to the main axis. In Hammer Shift is what starts a copy, so it
 /// would always be held.
 pub fn shift_locks_axis(preset: &str) -> bool {
@@ -269,7 +282,11 @@ const OUTLINER_DOUBLE_CLICK: &str = en!("Double click a row");
 /// The mouse gestures of `preset`, grouped by where they apply. The click rows come from [`chord_label`] and
 /// [`click_rule`], so they cannot drift from what a click does.
 pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
-    let mut rules = vec![ClickRule::ReplaceObject, ClickRule::ToggleObject, ClickRule::ReplaceFace, ClickRule::ToggleFace];
+    let mut rules = vec![ClickRule::ReplaceObject, ClickRule::ToggleObject];
+    if preset != "hammer" {
+        rules.extend([ClickRule::ReplaceFace, ClickRule::ToggleFace]);
+    }
+
     if preset == "blender" {
         rules.push(ClickRule::FaceModeMiss);
     }
@@ -410,13 +427,40 @@ mod tests {
             (true, true, ClickHit::Object, ToggleObject),
             (true, true, ClickHit::Face, ToggleFace),
         ];
-        for preset in ["trenchbroom", "hammer"] {
+        for preset in ["trenchbroom", "unknown"] {
             for mode in [SelectMode::Object, SelectMode::Face] {
                 for (command, shift, hit, rule) in cases {
                     assert_eq!(click_rule(preset, mode, command, shift, hit), rule, "{preset} {mode:?} command {command} shift {shift} {hit:?}");
                 }
             }
         }
+    }
+
+    #[test]
+    fn hammer_keeps_shift_for_cloning_and_picks_faces_in_the_texture_tool() {
+        let cases = [
+            // (command, shift, hit, rule)
+            (false, false, ClickHit::None, Clear),
+            (false, false, ClickHit::Object, ReplaceObject),
+            (false, false, ClickHit::Face, ReplaceObject),
+            (true, false, ClickHit::None, Keep),
+            (true, false, ClickHit::Object, ToggleObject),
+            (true, false, ClickHit::Face, ToggleObject),
+            (false, true, ClickHit::None, Clear),
+            (false, true, ClickHit::Object, ReplaceObject),
+            (false, true, ClickHit::Face, ReplaceObject),
+            (true, true, ClickHit::None, Keep),
+            (true, true, ClickHit::Object, ToggleObject),
+            (true, true, ClickHit::Face, ToggleObject),
+        ];
+        for mode in [SelectMode::Object, SelectMode::Face] {
+            for (command, shift, hit, rule) in cases {
+                assert_eq!(click_rule("hammer", mode, command, shift, hit), rule, "{mode:?} command {command} shift {shift} {hit:?}");
+            }
+        }
+
+        assert!(!shift_counts_on_click("hammer"), "a Shift+click steps through stacked objects in 2D like a click");
+        assert!(shift_counts_on_click("trenchbroom") && shift_counts_on_click("blender"));
     }
 
     #[test]
@@ -510,6 +554,8 @@ mod tests {
         }
 
         assert_eq!(mouse_rows("trenchbroom").iter().filter(|r| r.rule.is_some()).count(), 6);
+        assert_eq!(mouse_rows("hammer").iter().filter(|r| r.rule.is_some()).count(), 4, "no face rows in the Select tool");
+        assert!(mouse_rows("hammer").iter().all(|r| r.context != VIEWS || !r.gesture.starts_with("Shift+click")), "Shift is free for cloning in the views");
         assert_eq!(mouse_rows("blender").iter().filter(|r| r.rule.is_some()).count(), 7, "Face mode adds the miss");
     }
 
@@ -704,10 +750,23 @@ mod tests {
             (ToggleFace, format!("{COMMAND}+Shift+click")),
             (FaceModeMiss, "Click on something without faces".to_string()),
         ];
-        for preset in ["trenchbroom", "hammer", "unknown"] {
+        for preset in ["trenchbroom", "unknown"] {
             for (rule, label) in &tb {
                 assert_eq!(&chord_label(preset, *rule), label, "{preset} {rule:?}");
             }
+        }
+
+        let hammer = [
+            (Clear, "Click on empty space".to_string()),
+            (Keep, format!("{COMMAND}+click on empty space")),
+            (ReplaceObject, "Click".to_string()),
+            (ToggleObject, format!("{COMMAND}+click")),
+            (ReplaceFace, "Click in the Texture tool".to_string()),
+            (ToggleFace, format!("{COMMAND}+click in the Texture tool")),
+            (FaceModeMiss, "Click on something without faces".to_string()),
+        ];
+        for (rule, label) in hammer {
+            assert_eq!(chord_label("hammer", rule), label, "hammer {rule:?}");
         }
 
         let blender = [
@@ -726,7 +785,7 @@ mod tests {
 
     #[test]
     fn chord_labels_of_one_preset_are_all_different() {
-        for preset in ["trenchbroom", "blender"] {
+        for preset in ["trenchbroom", "hammer", "blender"] {
             let labels: std::collections::BTreeSet<String> =
                 [Clear, Keep, ReplaceObject, ToggleObject, ReplaceFace, ToggleFace, FaceModeMiss].iter().map(|r| chord_label(preset, *r)).collect();
             assert_eq!(labels.len(), 7, "{preset}");
@@ -737,6 +796,8 @@ mod tests {
     fn chord_labels_use_the_words_of_the_language() {
         let _de = crate::i18n::scope(crate::i18n::Lang::De);
         assert_eq!(chord_label("trenchbroom", ReplaceFace), "Shift+Klick");
+        let hammer = chord_label("hammer", ReplaceFace);
+        assert!(hammer.starts_with("Klick") && hammer.contains("Textur") && !hammer.contains("click"), "{hammer}");
         assert_eq!(chord_label("trenchbroom", ReplaceObject), "Klick");
         let face = chord_label("blender", ReplaceFace);
         assert!(face.starts_with("Klick (") && face.contains("Flächenmodus") && !face.contains("click"), "{face}");

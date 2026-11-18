@@ -151,6 +151,14 @@ fn error_text(e: SweepError) -> String {
 /// What to click to give the sweep faces, in the gestures of the keymap preset.
 fn pick_hint(preset: &str) -> String {
     use crate::mouse_map::{ClickRule, chord_label};
+    if preset == "hammer" {
+        return trf!(
+            "{select} to pick a face to sweep, {add} adds more",
+            select = chord_label(preset, ClickRule::ReplaceFace),
+            add = chord_label(preset, ClickRule::ToggleFace)
+        );
+    }
+
     trf!("{select} a face to sweep, {add} adds more", select = chord_label(preset, ClickRule::ReplaceFace), add = chord_label(preset, ClickRule::ToggleFace))
 }
 
@@ -411,5 +419,9 @@ mod tests {
         let command = if cfg!(target_os = "macos") { "Cmd" } else { "Ctrl" };
         assert!(blender.query_by_label_contains(&format!("Shift+click or {command}+click (Face mode) adds more")).is_some());
         assert!(blender.query_by_label_contains("Ctrl+Shift").is_none());
+        let hammer = hint_after_a_frame("hammer");
+        assert!(hammer.query_by_label_contains("Click in the Texture tool to pick a face to sweep").is_some());
+        assert!(hammer.query_by_label_contains(&format!("{command}+click in the Texture tool adds more")).is_some());
+        assert!(hammer.query_by_label_contains("Shift+click").is_none());
     }
 }

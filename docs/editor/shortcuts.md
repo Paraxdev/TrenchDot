@@ -83,8 +83,8 @@ mode.
 | Double click empty space | Close the innermost open group, one level per double click, and clear the selection. Esc closes one level per press, see [Tools](#tools) |
 | Click again soon at the same spot, or Alt+click (2D) | Select the next object under the cursor, such as a wall under its ceiling in the Top view |
 | Ctrl+click | Add an object to the selection or remove it, in the views and the Outliner |
-| Shift+click | Select that one face, replacing the selection. On something without faces it works like a click |
-| Ctrl+Shift+click | Add a face to the selection or remove it |
+| Shift+click | Select that one face, replacing the selection. On something without faces it works like a click. The Hammer preset picks faces in the Texture tool instead |
+| Ctrl+Shift+click | Add a face to the selection or remove it. The Hammer preset picks faces in the Texture tool instead |
 | Click on empty space | Clear the selection |
 | Ctrl+click on empty space | Keep the selection, so a missed Ctrl+click costs nothing |
 | Shift+click in the Outliner | Select the rows from the last clicked one |
@@ -171,6 +171,12 @@ is how you resize by edges or move along one axis there.
 
 | Hammer input | Result |
 | --- | --- |
+| Click | Select the object under the cursor, or the whole group around it. Shift+click does the same, because Shift stays free for cloning |
+| Ctrl+click | Add an object to the selection or remove it |
+| Click on empty space | Clear the selection |
+| Ctrl+click on empty space | Keep the selection |
+| Click in the Texture tool | Select that one face, replacing the selection. Shift+A opens the tool |
+| Ctrl+click in the Texture tool | Add a face to the selection or remove it |
 | Drag the selection | Move it, with no axis lock |
 | Shift+drag the selection, Ctrl+drag the selection | Copy it and move the copy, in every view, as one undo step. On a selected face in 3D it copies too, it does not push the face |
 

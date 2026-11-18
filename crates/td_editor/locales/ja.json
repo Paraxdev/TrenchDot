@@ -2568,5 +2568,7 @@
   "Ctrl+drag the selection": "選択範囲をCtrl+ドラッグ",
   "Move it": "移動する",
   "Copy it and move the copy": "コピーしてコピーを移動する",
-  "Shift+A opens the Texture tool, click picks a face, Ctrl+click adds one. Shift+drag copies the selection": "Shift+Aでテクスチャツールを開き、クリックで面を選び、Ctrl+クリックで追加します。Shift+ドラッグで選択範囲をコピーします"
+  "Shift+A opens the Texture tool, click picks a face, Ctrl+click adds one. Shift+drag copies the selection": "Shift+Aでテクスチャツールを開き、クリックで面を選び、Ctrl+クリックで追加します。Shift+ドラッグで選択範囲をコピーします",
+  "{click} in the Texture tool": "テクスチャツールでの{click}",
+  "{select} to pick a face to sweep, {add} adds more": "{select}でスイープする面を選択、{add}で追加"
 }

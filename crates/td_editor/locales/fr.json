@@ -2568,5 +2568,7 @@
   "Ctrl+drag the selection": "Ctrl+glisser la sélection",
   "Move it": "La déplacer",
   "Copy it and move the copy": "La copier et déplacer la copie",
-  "Shift+A opens the Texture tool, click picks a face, Ctrl+click adds one. Shift+drag copies the selection": "Shift+A ouvre l'outil de texture, un clic choisit une face, Ctrl+clic en ajoute une. Shift+glisser copie la sélection"
+  "Shift+A opens the Texture tool, click picks a face, Ctrl+click adds one. Shift+drag copies the selection": "Shift+A ouvre l'outil de texture, un clic choisit une face, Ctrl+clic en ajoute une. Shift+glisser copie la sélection",
+  "{click} in the Texture tool": "{click} dans l'outil de texture",
+  "{select} to pick a face to sweep, {add} adds more": "{select} pour choisir une face à balayer, {add} en ajoute d'autres"
 }

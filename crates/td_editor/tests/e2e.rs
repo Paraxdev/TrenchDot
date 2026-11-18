@@ -4048,6 +4048,43 @@ fn shift_click_picks_one_face_and_ctrl_shift_click_toggles_faces() {
     assert_eq!((nodes(), faces()), (vec![], vec![]), "a click on empty space clears");
 }
 
+/// The Hammer preset keeps Shift free for cloning, so Shift+click selects the object like a click and Ctrl+Shift+click
+/// toggles it. TrenchBroom picks the face for the same clicks.
+#[test]
+#[ignore]
+fn hammer_shift_click_selects_objects_and_trenchbroom_picks_faces() {
+    let ed = Editor::launch("hammer_click_rules");
+    let a = ed.box_brush([8.0, -16.0, 0.0], [72.0, 48.0, 40.0]);
+    let b = ed.box_brush([136.0, 4.0, 12.0], [200.0, 52.0, 76.0]);
+    ed.call("select", json!({ "ids": [] }));
+    let click = |at: [f64; 3], modifiers: &[&str]| {
+        ed.call("set_camera", json!({ "view": "top", "center": at, "zoom": 1.0 }));
+        ed.input("top", json!([{ "type": "click", "world": at, "modifiers": modifiers }]));
+    };
+    let top_a = [14.0, 48.0, 4.0];
+    let top_b = [192.0, 52.0, 70.0];
+    let empty = [150.0, 20.0, 250.0];
+
+    ed.call("set_editor", json!({ "keymap": "hammer" }));
+    click(top_a, &["shift"]);
+    assert_eq!(selection_of(&ed), (vec![a], vec![]), "Hammer Shift+click selects the brush, not a face");
+    click(top_b, &["ctrl", "shift"]);
+    assert_eq!(selection_of(&ed), (vec![a, b], vec![]), "Ctrl+Shift+click adds the brush");
+    click(top_a, &["ctrl", "shift"]);
+    assert_eq!(selection_of(&ed), (vec![b], vec![]), "Ctrl+Shift+click on a selected brush removes it");
+    click(top_a, &["shift"]);
+    click(empty, &["shift"]);
+    assert_eq!(selection_of(&ed), (vec![], vec![]), "Shift+click on empty space clears like a click");
+
+    ed.call("set_editor", json!({ "keymap": "trenchbroom" }));
+    click(top_a, &["shift"]);
+    let (nodes, faces) = selection_of(&ed);
+    assert_eq!((nodes, faces.len()), (vec![], 1), "TrenchBroom Shift+click picks one face of the brush");
+    assert_eq!(faces[0].0, a);
+    click(top_b, &["ctrl", "shift"]);
+    assert_eq!(selection_of(&ed).1.iter().map(|f| f.0).collect::<Vec<_>>(), vec![a, b], "Ctrl+Shift+click adds a face");
+}
+
 /// The Blender preset's clicks in the 3D view: Shift+click and Ctrl+click toggle in the current mode, an object in Object
 /// mode and a face in Face mode, and Face mode leaves an entity alone.
 #[test]

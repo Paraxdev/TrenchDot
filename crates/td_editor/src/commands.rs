@@ -5325,7 +5325,7 @@ mod tests {
     #[test]
     fn the_displacement_refusal_names_the_face_click_of_the_keymap_preset() {
         let ctx = egui::Context::default();
-        for (preset, click) in [("trenchbroom", "Shift+click"), ("hammer", "Shift+click"), ("blender", "Click (Face mode)")] {
+        for (preset, click) in [("trenchbroom", "Shift+click"), ("hammer", "Click in the Texture tool"), ("blender", "Click (Face mode)")] {
             let mut state = EditorState::new(Default::default());
             state.prefs.keymap_preset = preset.into();
             execute(&mut state, Action::CreateDisplacement(3), &ctx);

@@ -173,6 +173,17 @@ fn the_mouse_tables_name_every_drag_of_the_selection() {
 }
 
 #[test]
+fn the_hammer_mouse_table_names_its_clicks_and_leaves_shift_to_cloning() {
+    let cells = mouse_cells(&table("Hammer input").rows);
+    for rule in [ClickRule::Clear, ClickRule::Keep, ClickRule::ReplaceObject, ClickRule::ToggleObject, ClickRule::ReplaceFace, ClickRule::ToggleFace] {
+        let label = chord_label("hammer", rule).to_ascii_lowercase().replace("cmd+", "ctrl+");
+        assert!(cells.contains(&label), "the Hammer mouse table has no {label:?} row");
+    }
+
+    assert!(cells.iter().all(|c| !c.contains("shift+click")), "{cells:?}");
+}
+
+#[test]
 fn the_hammer_mouse_table_has_no_face_drags() {
     let cells = mouse_cells(&table("Hammer input").rows);
     assert!(cells.iter().all(|c| !c.contains("face")), "{cells:?}");

@@ -8,7 +8,8 @@ use crate::camera::{Camera, ViewKind};
 use crate::commands::Action;
 use crate::i18n::{en, msg, msg_n, tr, trf};
 use crate::mouse_map::{
-    Button, Chord, ClickHit, ClickRule, DoubleClick, DoubleClickHit, DragHit, SelectionDrag, click_rule, double_click, selection_drag, shift_locks_axis,
+    Button, Chord, ClickHit, ClickRule, DoubleClick, DoubleClickHit, DragHit, SelectionDrag, click_rule, double_click, selection_drag, shift_counts_on_click,
+    shift_locks_axis,
 };
 use crate::panels::DndPayload;
 use crate::picking::{self, Hit};
@@ -414,7 +415,7 @@ impl Viewport {
             && let Some(pos) = response.interact_pointer_pos()
         {
             let mut hit = self.pick(cx, pos);
-            let plain = !modifiers.command && !modifiers.shift;
+            let plain = !modifiers.command && !(modifiers.shift && shift_counts_on_click(&cx.state.prefs.keymap_preset));
             let now = ui.input(|i| i.time);
             let mut cycle_hint = None;
             if self.camera.kind.is_2d() && plain {

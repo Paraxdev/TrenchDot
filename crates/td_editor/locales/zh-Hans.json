@@ -2568,5 +2568,7 @@
   "Ctrl+drag the selection": "Ctrl+拖动选择",
   "Move it": "移动它",
   "Copy it and move the copy": "复制它并移动副本",
-  "Shift+A opens the Texture tool, click picks a face, Ctrl+click adds one. Shift+drag copies the selection": "Shift+A 打开纹理工具，单击选择一个面，Ctrl+单击添加一个。Shift+拖动复制选择"
+  "Shift+A opens the Texture tool, click picks a face, Ctrl+click adds one. Shift+drag copies the selection": "Shift+A 打开纹理工具，单击选择一个面，Ctrl+单击添加一个。Shift+拖动复制选择",
+  "{click} in the Texture tool": "在纹理工具中{click}",
+  "{select} to pick a face to sweep, {add} adds more": "{select}以选择要扫掠的面，{add}添加更多"
 }
