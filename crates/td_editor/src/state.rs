@@ -2025,7 +2025,10 @@ impl EditorState {
 
         match saved.as_slice() {
             [] => {}
-            [Ok(one)] => self.set_status(msg!("Autosaved to {path}", path = one.display())),
+            [Ok(one)] => {
+                let name = one.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                self.set_status(msg!("Autosaved to {path}", path = name));
+            }
             many => self.set_status(msg_n!(many.len(), "Autosaved {n} map", "Autosaved {n} maps")),
         }
 
@@ -2428,6 +2431,36 @@ mod tests {
         assert!(!dir.join(format!("hall.{old}.tmp")).exists());
         assert_eq!(state.doc.path.as_deref(), Some(path.as_path()));
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn the_autosave_status_names_the_file_without_its_folder() {
+        let dir = std::env::temp_dir().join(format!("td_autosave_status_{}", std::process::id())).join("some_user");
+        std::fs::create_dir_all(&dir).unwrap();
+        let dir_text = dir.to_string_lossy().into_owned();
+
+        let mut state = EditorState::new(Prefs::default());
+        state.prefs.autosave_minutes = 1e-9;
+        state.doc.path = Some(dir.join("hall.tdm"));
+        let layer = state.doc.map.default_layer();
+        state.doc.edit("add", |m, _| td_doc::ops::create_point_entity(m, layer, "light", DVec3::new(3.0, -5.0, 7.0)));
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        state.tick_autosave();
+        assert_eq!(state.status, "Autosaved to hall.tdm.autosave");
+        assert!(!state.status.contains(&dir_text) && !state.status_shown().contains(&dir_text));
+
+        let mut untitled = EditorState::new(Prefs::default());
+        untitled.prefs.autosave_minutes = 1e-9;
+        let layer = untitled.doc.map.default_layer();
+        untitled.doc.edit("add", |m, _| td_doc::ops::create_point_entity(m, layer, "light", DVec3::new(-2.0, 9.0, 4.0)));
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        untitled.tick_autosave();
+        let file = untitled.autosave.untitled.clone().unwrap();
+        assert_eq!(untitled.status, format!("Autosaved to {}", file.file_name().unwrap().to_string_lossy()));
+        assert!(!untitled.status.contains(&*std::env::temp_dir().to_string_lossy()));
+
+        let _ = std::fs::remove_file(file);
+        let _ = std::fs::remove_dir_all(dir.parent().unwrap());
     }
 
     #[test]
