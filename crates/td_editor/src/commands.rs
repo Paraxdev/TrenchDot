@@ -572,7 +572,7 @@ fn trenchbroom_bindings() -> Vec<(KeyboardShortcut, Action)> {
         (sc(CTRL, Key::I), Action::SelectInverse),
         (sc(CTRL_SHIFT, Key::A), Action::SelectNone),
         (sc(CTRL, Key::T), Action::SelectTouching),
-        (sc(CTRL_SHIFT, Key::T), Action::SelectInside),
+        (sc(CTRL, Key::E), Action::SelectInside),
         (sc(CTRL, Key::G), Action::Group),
         (sc(CTRL_SHIFT, Key::G), Action::Ungroup),
         (sc(CTRL, Key::H), Action::HideSelected),
@@ -1225,10 +1225,15 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         // Not pure selection changes: like TrenchBroom they delete the selecting brushes, so they stay undoable edits.
         Action::SelectTouching | Action::SelectInside => {
             let inside = action == Action::SelectInside;
-            let label = if inside { "Select Inside" } else { "Select Touching" };
-            edit_or(state, label, msg!("Select the brushes to select with first"), |m, s| {
-                (!s.brushes(m).is_empty()).then(|| ops::select_touching(m, s, &open_groups, inside))
-            });
+            let (label, why) = if inside {
+                ("Select Inside", msg!("Select Inside needs brushes selected."))
+            } else {
+                ("Select Touching", msg!("Select Touching needs brushes selected."))
+            };
+            if edit_or(state, label, why, |m, s| (!s.brushes(m).is_empty()).then(|| ops::select_touching(m, s, &open_groups, inside))).is_some() {
+                let n = state.doc.selection.nodes.len();
+                state.set_status(msg_n!(n, "Selected {n} object", "Selected {n} objects"));
+            }
         }
         Action::SelectSiblings => state.doc.select(ops::select_siblings),
         Action::SelectSameMaterial => {
@@ -3161,6 +3166,9 @@ mod tests {
             assert_eq!(has(Action::SelectNone, sc(CTRL_SHIFT, Key::A)), preset != "hammer", "{preset}");
             assert_eq!(has(Action::SelectBrushFaces, sc(CTRL_SHIFT, Key::A)), preset == "hammer", "{preset}");
             assert!(has(Action::SelectAll, sc(CTRL, Key::A)), "{preset}");
+            assert!(has(Action::SelectInside, sc(CTRL, Key::E)), "{preset}");
+            assert!(has(Action::SelectTouching, sc(CTRL, Key::T)), "{preset}");
+            assert!(!bindings.iter().any(|(b, _)| *b == sc(CTRL_SHIFT, Key::T)), "{preset} still binds Ctrl+Shift+T");
             assert_eq!(has(Action::SelectBrushFaces, sc(NONE, Key::Num3)), preset == "blender", "{preset}");
             for action in [Action::CloseTab, Action::CsgMerge, Action::CsgIntersect, Action::ShowShapeDialog, Action::ShowCommandPalette] {
                 assert!(bindings.iter().any(|(_, a)| *a == action), "{preset} leaves {action:?} unbound");
@@ -3422,6 +3430,112 @@ mod tests {
         assert!(state.status_failed(), "a light has no faces");
         assert_eq!(state.doc.selection.nodes, std::collections::BTreeSet::from([light]));
         assert!(state.doc.selection.faces.is_empty());
+    }
+
+    fn box_at(state: &mut EditorState, min: DVec3, size: DVec3) -> NodeId {
+        let parent = state.insert_parent();
+        let brush = td_geom::Brush::from_aabb(&Aabb::new(min, min + size), "dev/grey").unwrap();
+        state.doc.edit("Create Brush", |m, _| ops::create_brush(m, parent, brush))
+    }
+
+    #[test]
+    fn select_touching_and_inside_are_refused_without_brushes() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        let a = brush_at(&mut state, 72.0);
+        let parent = state.insert_parent();
+        let light = state.doc.edit("Create Light", |m, _| m.insert(parent, td_doc::NodeKind::Entity(td_doc::Entity::new("light"))));
+        state.doc.mark_saved();
+        let steps = state.doc.history.undo_labels().count();
+        let nodes_before = state.doc.map.nodes.len();
+        for (action, text) in
+            [(Action::SelectTouching, "Select Touching needs brushes selected."), (Action::SelectInside, "Select Inside needs brushes selected.")]
+        {
+            state.doc.select(|_, s| s.clear());
+            execute(&mut state, action.clone(), &ctx);
+            assert!(state.status_failed(), "{action:?} with nothing selected");
+            assert_eq!(state.status, text);
+
+            state.doc.select(|_, s| s.select_face(a, 3));
+            execute(&mut state, action.clone(), &ctx);
+            assert!(state.status_failed(), "{action:?} with faces only");
+            assert_eq!(state.status, text);
+            assert_eq!(state.doc.selection.faces, std::collections::BTreeSet::from([(a, 3)]));
+            assert!(state.doc.selection.nodes.is_empty());
+
+            state.doc.select(|_, s| s.select_node(light));
+            execute(&mut state, action.clone(), &ctx);
+            assert!(state.status_failed(), "{action:?} with an entity only");
+            assert_eq!(state.status, text);
+            assert_eq!(state.doc.selection.nodes, std::collections::BTreeSet::from([light]));
+
+            assert!(!state.doc.is_modified(), "{action:?} marked the map modified");
+            assert_eq!(state.doc.history.undo_labels().count(), steps, "{action:?} added an undo step");
+            assert_eq!(state.doc.map.nodes.len(), nodes_before, "{action:?} changed the map");
+        }
+
+        let empty = box_at(&mut state, DVec3::new(900.0, -40.0, 24.0), DVec3::new(64.0, 48.0, 80.0));
+        state.doc.select(|_, s| s.select_node(empty));
+        execute(&mut state, Action::SelectInside, &ctx);
+        assert_eq!((state.status_failed(), state.status.as_str()), (false, "Selected 0 objects"), "the refusal does not linger");
+        assert!(!state.doc.map.contains(empty));
+    }
+
+    #[test]
+    fn select_inside_takes_what_lies_in_one_or_two_selected_brushes() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        let big = DVec3::new(96.0, 48.0, 48.0);
+        let stencil_a = box_at(&mut state, DVec3::new(-200.0, -8.0, -8.0), big);
+        let stencil_b = box_at(&mut state, DVec3::new(300.0, -8.0, -8.0), big);
+        let in_a = brush_at(&mut state, -168.0);
+        let in_b = brush_at(&mut state, 340.0);
+        let straddling = brush_at(&mut state, -110.0);
+
+        state.doc.select(|_, s| s.select_node(stencil_a));
+        execute(&mut state, Action::SelectInside, &ctx);
+        assert!(!state.status_failed(), "{}", state.status);
+        assert_eq!(state.doc.selection.nodes, std::collections::BTreeSet::from([in_a]), "one brush");
+        assert_eq!(state.status, "Selected 1 object");
+        assert!(!state.doc.map.contains(stencil_a));
+        assert!(state.doc.map.contains(straddling));
+
+        let stencil_c = box_at(&mut state, DVec3::new(-200.0, -8.0, -8.0), big);
+        state.doc.select(|_, s| {
+            s.clear();
+            s.nodes.extend([stencil_c, stencil_b]);
+        });
+        execute(&mut state, Action::SelectInside, &ctx);
+        assert_eq!(state.doc.selection.nodes, std::collections::BTreeSet::from([in_a, in_b]), "two brushes");
+        assert_eq!(state.status, "Selected 2 objects");
+        assert!(!state.doc.map.contains(stencil_b) && !state.doc.map.contains(stencil_c));
+        assert!(state.doc.map.contains(straddling));
+    }
+
+    #[test]
+    fn select_touching_takes_what_one_or_two_selected_brushes_touch() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        let stencil_a = box_at(&mut state, DVec3::new(-200.0, -8.0, -8.0), DVec3::new(96.0, 48.0, 48.0));
+        let stencil_b = box_at(&mut state, DVec3::new(300.0, -8.0, -8.0), DVec3::new(96.0, 48.0, 48.0));
+        let inner = brush_at(&mut state, -168.0);
+        let straddling = brush_at(&mut state, -110.0);
+        let near_b = brush_at(&mut state, 380.0);
+        let far = brush_at(&mut state, 1000.0);
+
+        state.doc.select(|_, s| s.select_node(stencil_a));
+        execute(&mut state, Action::SelectTouching, &ctx);
+        assert_eq!(state.doc.selection.nodes, std::collections::BTreeSet::from([inner, straddling]), "one brush");
+        assert!(!state.doc.map.contains(stencil_a));
+
+        let stencil_c = box_at(&mut state, DVec3::new(-200.0, -8.0, -8.0), DVec3::new(96.0, 48.0, 48.0));
+        state.doc.select(|_, s| {
+            s.clear();
+            s.nodes.extend([stencil_c, stencil_b]);
+        });
+        execute(&mut state, Action::SelectTouching, &ctx);
+        assert_eq!(state.doc.selection.nodes, std::collections::BTreeSet::from([inner, straddling, near_b]), "two brushes");
+        assert!(state.doc.map.contains(far));
     }
 
     #[test]

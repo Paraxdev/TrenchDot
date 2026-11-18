@@ -797,7 +797,6 @@
   "Select one object to rename it": "名前を変えるオブジェクトを1つ選択してください",
   "Select objects or groups to duplicate linked": "リンク複製するオブジェクトかグループを選択してください",
   "Created {n} linked group(s). Edits inside one update the others": "リンクグループを{n}個作成しました。1つを編集すると他も更新されます",
-  "Select the brushes to select with first": "選択に使うブラシを先に選択してください",
   "Nothing to group": "グループ化するものがありません",
   "Grid {grid}": "グリッド {grid}",
   "UI scale {percent}%": "UIスケール {percent}%",
@@ -2368,5 +2367,8 @@
   "Round": "円形",
   "How the tunnel is cut across its length": "トンネルの断面の形です",
   "Keymap preset set to {preset}": "キーマップのプリセットを適用しました: {preset}",
-  "Select a brush, a mesh or a face to edit its UVs.": "UV を編集するブラシ、メッシュ、または面を選択してください。"
+  "Select a brush, a mesh or a face to edit its UVs.": "UV を編集するブラシ、メッシュ、または面を選択してください。",
+  "Select Touching needs brushes selected.": "接触を選択するには、ブラシを選択しておく必要があります。",
+  "Select Inside needs brushes selected.": "内側を選択するには、ブラシを選択しておく必要があります。",
+  "Selected {n} object": { "other": "{n} 個のオブジェクトを選択しました" }
 }

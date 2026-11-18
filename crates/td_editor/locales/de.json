@@ -797,7 +797,6 @@
   "Select one object to rename it": "Ein Objekt zum Umbenennen auswählen",
   "Select objects or groups to duplicate linked": "Objekte oder Gruppen zum verknüpften Duplizieren auswählen",
   "Created {n} linked group(s). Edits inside one update the others": "{n} verknüpfte Gruppe(n) erstellt. Änderungen in einer wirken auf die anderen",
-  "Select the brushes to select with first": "Zuerst die Brushes auswählen, mit denen ausgewählt wird",
   "Nothing to group": "Nichts zu gruppieren",
   "Grid {grid}": "Raster {grid}",
   "UI scale {percent}%": "UI-Skalierung {percent}%",
@@ -2368,5 +2367,8 @@
   "Round": "Rund",
   "How the tunnel is cut across its length": "Der Querschnitt des Tunnels",
   "Keymap preset set to {preset}": "Tastenbelegung gesetzt: {preset}",
-  "Select a brush, a mesh or a face to edit its UVs.": "Einen Brush, ein Mesh oder eine Fläche wählen, um die UVs zu bearbeiten."
+  "Select a brush, a mesh or a face to edit its UVs.": "Einen Brush, ein Mesh oder eine Fläche wählen, um die UVs zu bearbeiten.",
+  "Select Touching needs brushes selected.": "Berührende auswählen braucht ausgewählte Brushes.",
+  "Select Inside needs brushes selected.": "Innere auswählen braucht ausgewählte Brushes.",
+  "Selected {n} object": { "one": "{n} Objekt ausgewählt", "other": "{n} Objekte ausgewählt" }
 }

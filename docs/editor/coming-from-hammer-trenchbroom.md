@@ -68,7 +68,7 @@ TrenchBroom keys are the defaults of TrenchBroom 2026.2. An empty cell means tha
 | Select none | Ctrl+Shift+A | Ctrl+Shift+A, Esc | Esc |
 | Invert selection | Ctrl+Alt+A | Ctrl+I | Ctrl+I |
 | Select touching | Ctrl+T | Ctrl+T | Ctrl+T |
-| Select inside | Ctrl+E | Ctrl+Shift+T | Ctrl+Shift+T |
+| Select inside | Ctrl+E | Ctrl+E | Ctrl+E |
 | Hide selection | Ctrl+Alt+I | Ctrl+H | H |
 | Isolate selection | Ctrl+I | Ctrl+J | Ctrl+H |
 | Show all | Ctrl+Shift+I | Ctrl+Shift+H | U |

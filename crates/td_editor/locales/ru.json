@@ -797,7 +797,6 @@
   "Select one object to rename it": "Выберите один объект, чтобы переименовать его",
   "Select objects or groups to duplicate linked": "Выберите объекты или группы для связанного дублирования",
   "Created {n} linked group(s). Edits inside one update the others": "Создано связанных групп: {n}. Правка одной обновляет остальные",
-  "Select the brushes to select with first": "Сначала выберите браши, по которым выделять",
   "Nothing to group": "Нечего группировать",
   "Grid {grid}": "Сетка {grid}",
   "UI scale {percent}%": "Масштаб интерфейса {percent}%",
@@ -2368,5 +2367,8 @@
   "Round": "Круглый",
   "How the tunnel is cut across its length": "Форма поперечного сечения тоннеля",
   "Keymap preset set to {preset}": "Применён набор клавиш: {preset}",
-  "Select a brush, a mesh or a face to edit its UVs.": "Выберите браш, меш или грань, чтобы править UV."
+  "Select a brush, a mesh or a face to edit its UVs.": "Выберите браш, меш или грань, чтобы править UV.",
+  "Select Touching needs brushes selected.": "Для «Выделить касающиеся» нужно выбрать браши.",
+  "Select Inside needs brushes selected.": "Для «Выделить внутренние» нужно выбрать браши.",
+  "Selected {n} object": { "one": "Выделен {n} объект", "few": "Выделено {n} объекта", "many": "Выделено {n} объектов" }
 }
