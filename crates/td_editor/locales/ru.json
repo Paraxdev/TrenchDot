@@ -2360,5 +2360,12 @@
   "The box height caps the sweep at {angle}°": "Высота рамки ограничивает арку до {angle}°",
   "At least half the span. At 180 the arch is a half ellipse and this shows half the span": "Не меньше половины пролёта. При 180 арка это половина эллипса, и здесь показана половина пролёта",
   "How much of a circle the arch sweeps, 180 is a half circle": "Какую часть окружности занимает арка, 180 это полуокружность",
-  "Radius of the arch circle in map units, linked to the angle": "Радиус окружности арки в единицах карты, связан с углом"
+  "Radius of the arch circle in map units, linked to the angle": "Радиус окружности арки в единицах карты, связан с углом",
+  "Tunnel": "Тоннель",
+  "Profile": "Профиль",
+  "Open bottom": "Без пола",
+  "Closed": "Закрытый",
+  "Arched": "Арочный",
+  "Round": "Круглый",
+  "How the tunnel is cut across its length": "Форма поперечного сечения тоннеля"
 }

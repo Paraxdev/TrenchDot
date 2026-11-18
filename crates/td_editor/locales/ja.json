@@ -2360,5 +2360,12 @@
   "The box height caps the sweep at {angle}°": "ボックスの高さによりアーチの角度は {angle}° までに制限されます",
   "At least half the span. At 180 the arch is a half ellipse and this shows half the span": "最小値はスパンの半分です。180 ではアーチは半楕円になり、スパンの半分を表示します",
   "How much of a circle the arch sweeps, 180 is a half circle": "アーチが描く円の角度です。180 で半円になります",
-  "Radius of the arch circle in map units, linked to the angle": "アーチの円の半径です (マップ単位)。角度と連動します"
+  "Radius of the arch circle in map units, linked to the angle": "アーチの円の半径です (マップ単位)。角度と連動します",
+  "Tunnel": "トンネル",
+  "Profile": "断面",
+  "Open bottom": "底面なし",
+  "Closed": "閉じた形",
+  "Arched": "アーチ形",
+  "Round": "円形",
+  "How the tunnel is cut across its length": "トンネルの断面の形です"
 }

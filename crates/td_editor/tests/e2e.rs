@@ -2630,6 +2630,42 @@ fn an_arch_takes_an_angle_over_mcp() {
 
 #[test]
 #[ignore]
+fn a_tunnel_makes_its_pieces_for_every_profile() {
+    let ed = Editor::launch("tunnel");
+    let count = |args: Value| ed.call("create_brush", args)["ids"].as_array().map(Vec::len);
+    let tunnel = |x: i32, profile: Option<&str>| {
+        let mut args = json!({ "shape": "tunnel", "min": [x, 0, 0], "max": [x + 128, 128, 256], "sides": 6 });
+        if let Some(profile) = profile {
+            args["profile"] = json!(profile);
+        }
+
+        args
+    };
+    assert_eq!(count(tunnel(0, None)), Some(3), "open_bottom by default");
+    for (i, (profile, pieces)) in [("open_bottom", 3), ("closed", 4), ("arched", 8), ("round", 6)].into_iter().enumerate() {
+        assert_eq!(count(tunnel(200 * (i as i32 + 1), Some(profile))), Some(pieces), "{profile}");
+    }
+
+    assert!(ed.call_err("create_brush", tunnel(0, Some("triangle"))).contains("profile is"));
+    for sides in [0, 1] {
+        let mut flat = tunnel(0, Some("arched"));
+        flat["sides"] = json!(sides);
+        assert!(ed.call_err("create_brush", flat).contains("at least 2 sides"), "{sides}");
+    }
+
+    let mut low = tunnel(1200, Some("round"));
+    low["sides"] = json!(1);
+    assert_eq!(count(low), Some(3), "a round tunnel takes at least 3 sides");
+    let thick = |thickness: f64| ed.call("create_brush", json!({ "shape": "tunnel", "min": [0, 0, 400], "max": [192, 128, 656], "thickness": thickness }));
+    assert!(thick(16.0)["note"].is_null(), "a thickness that fits is not reported");
+    let capped = thick(200.0);
+    assert_eq!(capped["thickness"].as_f64().map(|t| (t * 100.0).round()), Some(5120.0), "40 percent of the 128 high tunnel: {capped}");
+    assert!(capped["note"].as_str().unwrap().contains("40 percent"), "{capped}");
+    assert_eq!(thick(0.25)["thickness"].as_f64(), Some(1.0));
+}
+
+#[test]
+#[ignore]
 fn sweep_faces_runs_a_corridor_round_a_bend() {
     let ed = Editor::launch("sweep");
     let floor = ed.call("create_brush", json!({ "min": [0, 0, 0], "max": [64, 16, 128], "material": "dev/floor" }))["ids"][0].as_u64().unwrap();

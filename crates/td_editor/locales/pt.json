@@ -2360,5 +2360,12 @@
   "The box height caps the sweep at {angle}°": "A altura da caixa limita o arco a {angle}°",
   "At least half the span. At 180 the arch is a half ellipse and this shows half the span": "Pelo menos metade do vão. Em 180 o arco é meia elipse e aqui aparece metade do vão",
   "How much of a circle the arch sweeps, 180 is a half circle": "Quanto de um círculo o arco percorre, 180 é meio círculo",
-  "Radius of the arch circle in map units, linked to the angle": "Raio do círculo do arco em unidades do mapa, ligado ao ângulo"
+  "Radius of the arch circle in map units, linked to the angle": "Raio do círculo do arco em unidades do mapa, ligado ao ângulo",
+  "Tunnel": "Túnel",
+  "Profile": "Perfil",
+  "Open bottom": "Base aberta",
+  "Closed": "Fechado",
+  "Arched": "Em arco",
+  "Round": "Redondo",
+  "How the tunnel is cut across its length": "O corte transversal do túnel"
 }

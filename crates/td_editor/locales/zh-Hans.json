@@ -2360,5 +2360,12 @@
   "The box height caps the sweep at {angle}°": "框的高度将拱形角度限制为 {angle}°",
   "At least half the span. At 180 the arch is a half ellipse and this shows half the span": "至少为跨度的一半。180 时拱形为半椭圆，此处显示跨度的一半",
   "How much of a circle the arch sweeps, 180 is a half circle": "拱形所占圆的角度，180 为半圆",
-  "Radius of the arch circle in map units, linked to the angle": "拱形圆的半径（地图单位），与角度联动"
+  "Radius of the arch circle in map units, linked to the angle": "拱形圆的半径（地图单位），与角度联动",
+  "Tunnel": "隧道",
+  "Profile": "截面",
+  "Open bottom": "底部开口",
+  "Closed": "封闭",
+  "Arched": "拱形",
+  "Round": "圆形",
+  "How the tunnel is cut across its length": "隧道的横截面形状"
 }

@@ -236,6 +236,85 @@ pub fn arch(bounds: &Aabb, segments: usize, thickness: f64, angle: f64, material
         .collect()
 }
 
+/// How a tunnel is cut across its length.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TunnelProfile {
+    /// Two walls and a ceiling, no floor.
+    #[default]
+    OpenBottom,
+    /// A square tube, walls, ceiling and floor.
+    Closed,
+    /// Vertical walls under a half round arch, no floor.
+    Arched,
+    /// A full round tube.
+    Round,
+}
+
+impl TunnelProfile {
+    pub const ALL: [TunnelProfile; 4] = [TunnelProfile::OpenBottom, TunnelProfile::Closed, TunnelProfile::Arched, TunnelProfile::Round];
+
+    pub fn parse(s: &str) -> Option<TunnelProfile> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "open_bottom" => Some(TunnelProfile::OpenBottom),
+            "closed" => Some(TunnelProfile::Closed),
+            "arched" => Some(TunnelProfile::Arched),
+            "round" => Some(TunnelProfile::Round),
+            _ => None,
+        }
+    }
+}
+
+/// The wall thickness a tunnel really gets, at most 40% of the smaller of its width and height so a hollow always
+/// remains.
+pub fn tunnel_thickness(bounds: &Aabb, thickness: f64) -> f64 {
+    let size = bounds.size();
+    thickness.max(1.0).min(size.x.min(size.y) * 0.4)
+}
+
+/// Tunnel with its length along Z and its cross section in the XY plane of the bounds. The side walls run the full
+/// height, the ceiling and floor sit between them. An arched tunnel stands its walls up to where the arch begins, the
+/// arch rising `min(width, height) / 2`.
+pub fn tunnel(bounds: &Aabb, profile: TunnelProfile, sides: usize, thickness: f64, material: &str) -> Vec<Brush> {
+    let (a, b) = (bounds.min, bounds.max);
+    let t = tunnel_thickness(bounds, thickness);
+    let boxed = |min: DVec3, max: DVec3| Brush::from_aabb(&Aabb::new(min, max), material).ok();
+    let left = |top: f64| boxed(a, DVec3::new(a.x + t, top, b.z));
+    let right = |top: f64| boxed(DVec3::new(b.x - t, a.y, a.z), DVec3::new(b.x, top, b.z));
+    match profile {
+        TunnelProfile::OpenBottom | TunnelProfile::Closed => {
+            let mut out = vec![left(b.y), right(b.y), boxed(DVec3::new(a.x + t, b.y - t, a.z), DVec3::new(b.x - t, b.y, b.z))];
+            if profile == TunnelProfile::Closed {
+                out.push(boxed(DVec3::new(a.x + t, a.y, a.z), DVec3::new(b.x - t, a.y + t, b.z)));
+            }
+
+            out.into_iter().flatten().collect()
+        }
+        TunnelProfile::Arched => {
+            let spring = b.y - bounds.size().x.min(bounds.size().y) * 0.5;
+            let top = Aabb::new(DVec3::new(a.x, spring, a.z), b);
+            let mut out: Vec<Brush> = [left(spring), right(spring)].into_iter().flatten().collect();
+            out.extend(arch(&top, sides, t, 180.0, material));
+            out
+        }
+        TunnelProfile::Round => {
+            let c = DVec2::new(bounds.center().x, bounds.center().y);
+            let inner_r = DVec2::new(bounds.size().x * 0.5 - t, bounds.size().y * 0.5 - t);
+            let outer = ring(c, DVec2::new(bounds.size().x * 0.5, bounds.size().y * 0.5), sides.max(3), 0.0);
+            // Each inner corner sits on the ray from the center through its outer corner, unlike pipe's, so every piece
+            // stays convex and inside its own wedge even when few sides span a narrow oval.
+            let inner: Vec<DVec2> = outer
+                .iter()
+                .map(|p| {
+                    let d = *p - c;
+                    c + d / (d / inner_r).length()
+                })
+                .collect();
+            let n = outer.len();
+            (0..n).filter_map(|i| arch_brush([outer[i], outer[(i + 1) % n], inner[i], inner[(i + 1) % n]], bounds, material)).collect()
+        }
+    }
+}
+
 pub fn torus(bounds: &Aabb, sides: usize, thickness: f64, material: &str) -> Vec<Brush> {
     pipe(bounds, sides, thickness, material)
 }
@@ -461,6 +540,92 @@ mod tests {
         assert!(arch_sweep(128.0, 20.0, 170.0) < 170.0);
         let top = arch(&flat, 8, 4.0, 170.0, "m").iter().flat_map(|b| b.vertices.clone()).map(|v| v.y).fold(f64::MIN, f64::max);
         assert!((top - 20.0).abs() < 1.0 && top <= 20.0 + 1e-6, "rises {top}");
+    }
+
+    fn tunnel_bounds() -> Aabb {
+        Aabb::new(DVec3::new(-40.0, 10.0, 200.0), DVec3::new(88.0, 110.0, 360.0))
+    }
+
+    #[test]
+    fn a_tunnel_has_its_pieces_inside_the_bounds_without_overlap() {
+        let bounds = tunnel_bounds();
+        for (profile, count) in [(TunnelProfile::OpenBottom, 3), (TunnelProfile::Closed, 4), (TunnelProfile::Arched, 2 + 6), (TunnelProfile::Round, 6)] {
+            let pieces = tunnel(&bounds, profile, 6, 16.0, "m");
+            assert_eq!(pieces.len(), count, "{profile:?}");
+            for p in &pieces {
+                p.validate().unwrap();
+                let got = p.bounds();
+                assert!(got.min.cmpge(bounds.min - 1e-6).all() && got.max.cmple(bounds.max + 1e-6).all(), "{profile:?} {got:?}");
+                assert!((got.size().z - bounds.size().z).abs() < 1e-6, "{profile:?} runs the full length");
+            }
+
+            for (i, a) in pieces.iter().enumerate() {
+                for other in &pieces[i + 1..] {
+                    assert!(!a.intersects(other), "{profile:?} overlaps");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_tunnel_interior_is_empty() {
+        let bounds = tunnel_bounds();
+        let c = bounds.center();
+        for (profile, probe) in [
+            (TunnelProfile::OpenBottom, DVec3::new(c.x, bounds.min.y + 5.0, c.z)),
+            (TunnelProfile::OpenBottom, c),
+            (TunnelProfile::Closed, c),
+            (TunnelProfile::Arched, c),
+            (TunnelProfile::Round, c),
+        ] {
+            for thickness in [16.0, 4000.0] {
+                for p in tunnel(&bounds, profile, 8, thickness, "m") {
+                    assert!(!p.contains_point(probe), "{profile:?} at {thickness} fills {probe:?}");
+                }
+            }
+        }
+
+        let open = tunnel(&bounds, TunnelProfile::OpenBottom, 8, 16.0, "m");
+        assert!(open.iter().all(|p| p.bounds().min.y <= bounds.min.y + 1e-6 || p.bounds().min.y > bounds.min.y + 16.0), "no floor");
+    }
+
+    #[test]
+    fn a_round_tunnel_with_few_sides_has_no_overlapping_pieces() {
+        for size in [DVec3::new(20.0, 200.0, 64.0), DVec3::new(64.0, 256.0, 64.0), DVec3::new(256.0, 24.0, 64.0), DVec3::new(128.0, 128.0, 64.0)] {
+            let bounds = Aabb::new(DVec3::new(-30.0, 8.0, 0.0), DVec3::new(-30.0, 8.0, 0.0) + size);
+            for sides in [0, 3, 4, 5, 6, 9] {
+                for thickness in [4.0, 16.0, 1e6] {
+                    let pieces = tunnel(&bounds, TunnelProfile::Round, sides, thickness, "m");
+                    assert_eq!(pieces.len(), sides.max(3), "{size} {sides} {thickness}");
+                    for (i, a) in pieces.iter().enumerate() {
+                        a.validate().unwrap();
+                        assert!(!a.contains_point(bounds.center()), "{size} {sides} {thickness} fills the middle");
+                        for other in &pieces[i + 1..] {
+                            assert!(!a.intersects(other), "{size} {sides} {thickness} overlaps");
+                        }
+                    }
+                }
+            }
+        }
+
+        let square = Aabb::new(DVec3::ZERO, DVec3::new(128.0, 128.0, 64.0));
+        let t = 16.0;
+        for v in tunnel(&square, TunnelProfile::Round, 8, t, "m").iter().flat_map(|p| p.vertices.clone()) {
+            let d = DVec2::new(v.x - 64.0, v.y - 64.0).length();
+            assert!((d - 64.0).abs() < 1e-6 || (d - (64.0 - t)).abs() < 1e-6, "a round box keeps a circular ring: {d}");
+        }
+    }
+
+    #[test]
+    fn the_tunnel_thickness_is_clamped() {
+        let bounds = tunnel_bounds();
+        assert_eq!(tunnel_thickness(&bounds, 16.0), 16.0);
+        assert_eq!(tunnel_thickness(&bounds, 0.0), 1.0);
+        assert!((tunnel_thickness(&bounds, 1e6) - 40.0).abs() < 1e-9, "40 percent of the 100 unit height");
+        let walls = tunnel(&bounds, TunnelProfile::Closed, 8, 1e6, "m");
+        assert!(walls.iter().all(|w| w.volume() > 0.0) && walls.len() == 4);
+        assert_eq!(TunnelProfile::parse("Open_Bottom"), Some(TunnelProfile::OpenBottom));
+        assert_eq!(TunnelProfile::parse("box"), None);
     }
 
     #[test]

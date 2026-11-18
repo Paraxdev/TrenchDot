@@ -321,8 +321,10 @@ shapes have options of their own. **Rock** fills the box with a stone:
 | Shape | Option | What it does |
 | --- | --- | --- |
 | Cylinder, Cone | **Axis** | Stands upright on **Y**. Pick **X** or **Z** to lay it down inside the same box, for pipes, logs or a beam, instead of rotating it afterwards |
-| Arch, Arch Wall | **Angle** | How much of a circle the arch sweeps, 10 to 180 degrees. 180 is the half circle. A smaller angle gives a flatter, wider arch whose ends stand on the floor of the box, and the box height only caps how high it rises. A flat arch thins its wall when it would not leave an opening |
+| Arch, Arch Wall | **Angle** | How much of a circle the arch sweeps, 10 to 180 degrees. On an Arch, 180 is a half ellipse as wide and as tall as the box. Below 180 it is a segment of a circle whose ends stand on the bottom corners of the box, so it gets flatter as the angle drops and the box height only caps how high it rises, see [Doorways and tunnel floors](#doorways-and-tunnel-floors). On an Arch Wall the angle shapes the top of the opening, 180 being a half circle. A flat arch thins its wall when it would not leave an opening |
 | | **Radius** | The radius of that circle in map units. It follows the angle, and typing a radius sets the angle, down to half the arch width |
+| Tunnel | **Profile** | The cross section. **Open bottom** is two walls and a ceiling with no floor, **Closed** a square tube with walls, ceiling and floor, **Arched** vertical walls under a half round arch with no floor, and **Round** a full round tube. **Round** fills the width and height of the box, so it is a circle only in a box as wide as it is high and an oval otherwise, and more **sides** make it smoother. The tunnel runs along the Z length of the box. **Closed** and **Round** raise their inner floor above the box bottom, see [Doorways and tunnel floors](#doorways-and-tunnel-floors) |
+| | **thickness** | The wall width, 16 u (0.5 m) by default. It is capped at 40% of the smaller of the box width and height, so a hollow always remains |
 | Rock | **Roughness** | How lumpy the stone is |
 | | **Facets** | Chips flat faces into it |
 | | **Flat base** | Cuts the underside flat so it sits on the ground |
@@ -338,6 +340,33 @@ keeps its dents and overhangs.
 ![Five orange rocks on a grey floor, three lumpy meshes in front and two faceted brush rocks behind them](../assets/brushes/shape-generator-rocks.png)
 
 ![The Shape Generator set to Arch with an Angle of 90 degrees and the Radius field showing 45.25 u](../assets/brushes/shape-generator-arch.png)
+
+![The Shape Generator set to Tunnel with the Profile menu open, listing Open bottom, Closed, Arched and Round](../assets/brushes/shape-generator-tunnel.png)
+
+### Doorways and tunnel floors
+
+An **Arch** is only the curved ring. Its two ends stand on the bottom of its box, so the box bottom is where the curve
+starts, not the ground of a doorway. Below 180 degrees the ring is also lower than its box, it rises half its width
+times tan(angle / 4). In a box 192 wide and 128 high, 180 gives a ring 128 u high, while 120 rises only about 55 u
+(1.7 m) and 90 about 40 u, too low to walk under.
+
+To build an archway you can walk through, stand the arch on jambs:
+
+1. Draw two jamb brushes, for example 16 wide and 96 high (3 m), with a 128 u gap between them.
+2. Draw a box on top of the jambs, from the outer side of one to the outer side of the other (160 wide), as high as the
+   arch may rise, and open the Shape Generator with it selected.
+3. Pick **Arch** and set **Angle**. At 120 degrees with the default 16 u thickness the ring rises about 46 u, so the
+   opening under it is about 126 u (3.9 m) high at its middle.
+
+The ring leaves open corners between its curve and the top corners of its box, so a wall around it needs brushes beside
+the jambs and over those corners. For a solid wall with an arched opening in it, use **Arch Wall** instead. It is one
+[mesh](meshes.md) with the opening already cut down to the floor of its box, and in Godot it collides as its exact
+shape, so the opening stays walkable.
+
+**Open bottom** and **Arched** tunnels have no floor, the player walks on whatever lies at the bottom of the box.
+**Closed** and **Round** tunnels have a floor of their own, one thickness above the box bottom, 16 u (0.5 m) by default.
+That is a step a 1.8 m tall character cannot walk up. When you chain profiles into one corridor, lower a **Closed** or
+**Round** box by its thickness so its inner floor lines up with the floor before it, or lead up to it with a ramp.
 
 ## Sweep Faces
 

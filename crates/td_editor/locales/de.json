@@ -2360,5 +2360,12 @@
   "The box height caps the sweep at {angle}°": "Die Höhe der Box begrenzt den Bogen auf {angle}°",
   "At least half the span. At 180 the arch is a half ellipse and this shows half the span": "Mindestens die halbe Spannweite. Bei 180 ist der Bogen eine halbe Ellipse, und hier steht die halbe Spannweite",
   "How much of a circle the arch sweeps, 180 is a half circle": "Wie viel eines Kreises der Bogen überspannt, 180 ist ein Halbkreis",
-  "Radius of the arch circle in map units, linked to the angle": "Radius des Bogenkreises in Karteneinheiten, an den Winkel gekoppelt"
+  "Radius of the arch circle in map units, linked to the angle": "Radius des Bogenkreises in Karteneinheiten, an den Winkel gekoppelt",
+  "Tunnel": "Tunnel",
+  "Profile": "Profil",
+  "Open bottom": "Unten offen",
+  "Closed": "Geschlossen",
+  "Arched": "Gewölbt",
+  "Round": "Rund",
+  "How the tunnel is cut across its length": "Der Querschnitt des Tunnels"
 }

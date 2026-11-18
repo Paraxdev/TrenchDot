@@ -422,6 +422,7 @@ pub enum ShapeKind {
     Wedge,
     Spike,
     Arch,
+    Tunnel,
     Pipe,
     Stairs,
     SpiralStairs,
@@ -435,13 +436,14 @@ pub enum ShapeKind {
 }
 
 impl ShapeKind {
-    const ALL: [ShapeKind; 16] = [
+    const ALL: [ShapeKind; 17] = [
         ShapeKind::Cylinder,
         ShapeKind::Cone,
         ShapeKind::Sphere,
         ShapeKind::Wedge,
         ShapeKind::Spike,
         ShapeKind::Arch,
+        ShapeKind::Tunnel,
         ShapeKind::Pipe,
         ShapeKind::Stairs,
         ShapeKind::SpiralStairs,
@@ -462,6 +464,7 @@ impl ShapeKind {
             ShapeKind::Wedge => en!("Wedge"),
             ShapeKind::Spike => en!("Spike"),
             ShapeKind::Arch => en!("Arch"),
+            ShapeKind::Tunnel => en!("Tunnel"),
             ShapeKind::Pipe => en!("Pipe"),
             ShapeKind::Stairs => en!("Stairs"),
             ShapeKind::SpiralStairs => en!("Spiral Stairs"),
@@ -488,6 +491,7 @@ pub struct ShapeDialog {
     thickness: f64,
     /// Degrees of a circle an arch sweeps.
     angle: f64,
+    profile: shapes::TunnelProfile,
     steps: usize,
     as_mesh: bool,
     smooth: bool,
@@ -504,7 +508,7 @@ pub struct ShapeDialog {
 const HEAVY_TRIANGLES: usize = 10_000;
 
 /// Every setting the generated shape depends on, so it is only rebuilt when one of them changes.
-type ShapeKey = (ShapeKind, usize, f64, usize, bool, bool, shapes::Axis, TextShape, Rock, Aabb, String, f64);
+type ShapeKey = (ShapeKind, usize, f64, usize, bool, bool, shapes::Axis, TextShape, Rock, Aabb, String, (Option<f64>, Option<shapes::TunnelProfile>));
 
 /// Block letter settings of the Text shape, laid out from the corner of the bounds.
 #[derive(Clone, Debug, PartialEq)]
@@ -540,6 +544,7 @@ impl Default for ShapeDialog {
             sides: 16,
             thickness: 16.0,
             angle: 180.0,
+            profile: shapes::TunnelProfile::default(),
             steps: 8,
             as_mesh: false,
             smooth: true,
@@ -549,6 +554,15 @@ impl Default for ShapeDialog {
             bounds: None,
             preview: None,
         }
+    }
+}
+
+fn profile_label(profile: shapes::TunnelProfile) -> &'static str {
+    match profile {
+        shapes::TunnelProfile::OpenBottom => en!("Open bottom"),
+        shapes::TunnelProfile::Closed => en!("Closed"),
+        shapes::TunnelProfile::Arched => en!("Arched"),
+        shapes::TunnelProfile::Round => en!("Round"),
     }
 }
 
@@ -637,7 +651,7 @@ impl ShapeDialog {
             self.rock,
             *bounds,
             material.to_string(),
-            self.angle,
+            (matches!(self.kind, ShapeKind::Arch | ShapeKind::ArchWall).then_some(self.angle), (self.kind == ShapeKind::Tunnel).then_some(self.profile)),
         )
     }
 
@@ -682,6 +696,7 @@ impl ShapeDialog {
             (ShapeKind::Wedge, _) => brushes(shapes::wedge(bounds, material).into_iter().collect()),
             (ShapeKind::Spike, _) => brushes(shapes::spike(bounds, material).into_iter().collect()),
             (ShapeKind::Arch, _) => brushes(shapes::arch(bounds, self.sides, self.thickness, self.angle, material)),
+            (ShapeKind::Tunnel, _) => brushes(shapes::tunnel(bounds, self.profile, self.sides, self.thickness, material)),
             (ShapeKind::Pipe, _) => brushes(shapes::pipe(bounds, self.sides, self.thickness, material)),
             (ShapeKind::Stairs, _) => brushes(shapes::stairs(bounds, self.steps, material)),
             (ShapeKind::SpiralStairs, _) => brushes(shapes::spiral_stairs(bounds, self.steps, self.thickness, 1.0, material)),
@@ -751,26 +766,43 @@ impl ShapeDialog {
                     ui.selectable_value(&mut self.kind, k, tr(k.label()));
                 }
             });
-            if matches!(
-                self.kind,
-                ShapeKind::Cylinder | ShapeKind::Cone | ShapeKind::Sphere | ShapeKind::Arch | ShapeKind::Pipe | ShapeKind::Torus | ShapeKind::ArchWall
-            ) {
-                ui.add(egui::Slider::new(&mut self.sides, 3..=96).text(tr(if matches!(self.kind, ShapeKind::Arch | ShapeKind::ArchWall) {
-                    en!("segments")
-                } else {
-                    en!("sides")
-                })));
+            if self.kind == ShapeKind::Tunnel {
+                egui::ComboBox::new("shape_profile", tr("Profile"))
+                    .selected_text(tr(profile_label(self.profile)))
+                    .show_ui(ui, |ui| {
+                        for p in shapes::TunnelProfile::ALL {
+                            ui.selectable_value(&mut self.profile, p, tr(profile_label(p)));
+                        }
+                    })
+                    .response
+                    .on_hover_text(tr("How the tunnel is cut across its length"));
+            }
+
+            let arched = self.kind == ShapeKind::Tunnel && self.profile == shapes::TunnelProfile::Arched;
+            let round = self.kind == ShapeKind::Tunnel && self.profile == shapes::TunnelProfile::Round;
+            if arched
+                || round
+                || matches!(
+                    self.kind,
+                    ShapeKind::Cylinder | ShapeKind::Cone | ShapeKind::Sphere | ShapeKind::Arch | ShapeKind::Pipe | ShapeKind::Torus | ShapeKind::ArchWall
+                )
+            {
+                let segments = arched || matches!(self.kind, ShapeKind::Arch | ShapeKind::ArchWall);
+                ui.add(egui::Slider::new(&mut self.sides, 3..=96).text(tr(if segments { en!("segments") } else { en!("sides") })));
             }
 
             if matches!(self.kind, ShapeKind::Arch | ShapeKind::ArchWall) {
                 self.arch_fields(ui, &bounds);
             }
 
-            if matches!(self.kind, ShapeKind::Arch | ShapeKind::Pipe | ShapeKind::Torus | ShapeKind::ArchWall | ShapeKind::GableRoof | ShapeKind::SpiralStairs)
-            {
+            if matches!(
+                self.kind,
+                ShapeKind::Arch | ShapeKind::Tunnel | ShapeKind::Pipe | ShapeKind::Torus | ShapeKind::ArchWall | ShapeKind::GableRoof | ShapeKind::SpiralStairs
+            ) {
+                let max = if self.kind == ShapeKind::Tunnel { tunnel_thickness_max(&bounds, state.effective_grid()) } else { 4096.0 };
                 ui.add(
                     egui::DragValue::new(&mut self.thickness)
-                        .range(1.0..=4096.0)
+                        .range(1.0_f64.min(max)..=max)
                         .prefix(format!("{} ", tr(if self.kind == ShapeKind::SpiralStairs { en!("inner radius") } else { en!("thickness") })))
                         .suffix(" u"),
                 );
@@ -887,6 +919,13 @@ impl ShapeDialog {
         });
         self.open = open;
     }
+}
+
+/// The thickest wall a tunnel in `bounds` gets, rounded down to the grid while that leaves at least 1.
+fn tunnel_thickness_max(bounds: &Aabb, grid: f64) -> f64 {
+    let cap = shapes::tunnel_thickness(bounds, f64::INFINITY);
+    let snapped = if grid > 0.0 { (cap / grid).floor() * grid } else { 0.0 };
+    if snapped >= 1.0 { snapped } else { cap }
 }
 
 /// Puts the shape where `sources` were, in their parent, and selects it.
@@ -1580,6 +1619,20 @@ mod tests {
     }
 
     #[test]
+    fn only_the_shapes_using_angle_or_profile_rebuild_on_them() {
+        let bounds = box_of([0.0, 0.0, 0.0], [192.0, 128.0, 256.0]);
+        let key = |kind, angle, profile| ShapeDialog { kind, angle, profile, ..Default::default() }.key(&bounds, "m");
+        let [a, b] = [shapes::TunnelProfile::ALL[0], shapes::TunnelProfile::ALL[1]];
+        assert_eq!(key(ShapeKind::Wedge, 90.0, a), key(ShapeKind::Wedge, 180.0, b));
+        assert_eq!(key(ShapeKind::Tunnel, 90.0, a), key(ShapeKind::Tunnel, 180.0, a));
+        assert_ne!(key(ShapeKind::Tunnel, 90.0, a), key(ShapeKind::Tunnel, 90.0, b));
+        for kind in [ShapeKind::Arch, ShapeKind::ArchWall] {
+            assert_eq!(key(kind, 90.0, a), key(kind, 90.0, b));
+            assert_ne!(key(kind, 90.0, a), key(kind, 180.0, a));
+        }
+    }
+
+    #[test]
     fn heavy_shapes_are_flagged_by_their_triangles() {
         let bounds = Aabb::new(DVec3::ZERO, DVec3::splat(256.0));
         assert_eq!(triangles(&[NodeKind::Brush(Brush::from_aabb(&bounds, "m").unwrap())]), 12);
@@ -2054,6 +2107,25 @@ mod tests {
     }
 
     #[test]
+    fn the_tunnel_thickness_field_shows_the_capped_wall() {
+        let source = box_of([0.0, 0.0, 0.0], [128.0, 96.0, 32.0]);
+        assert_eq!(tunnel_thickness_max(&source, 16.0), 32.0);
+        assert!((tunnel_thickness_max(&source, 0.0) - 38.4).abs() < 1e-9);
+        assert!((tunnel_thickness_max(&source, 64.0) - 38.4).abs() < 1e-9, "a grid step too big to fit keeps the cap");
+
+        let mut dialog = ShapeDialog { kind: ShapeKind::Tunnel, thickness: 100.0, ..Default::default() };
+        let texts = shape_texts(&mut dialog, &source);
+        assert_eq!(dialog.thickness, 32.0);
+        assert!(texts.iter().any(|t| t == "32"), "the field shows 32, {texts:?}");
+        let wall = |n: &NodeKind| matches!(n, NodeKind::Brush(b) if b.bounds().min.x == 0.0 && b.bounds().max.x == 32.0);
+        assert!(dialog.generate(&source, "m").iter().any(wall), "the left wall is as thick as the field says");
+
+        let mut arch = ShapeDialog { kind: ShapeKind::Arch, thickness: 100.0, ..Default::default() };
+        shape_texts(&mut arch, &source);
+        assert_eq!(arch.thickness, 100.0, "only the tunnel caps the field");
+    }
+
+    #[test]
     fn a_typed_arch_radius_stays_exact() {
         use egui_kittest::kittest::Queryable;
         let bounds = box_of([0.0, 0.0, 0.0], [128.0, 96.0, 32.0]);
@@ -2075,6 +2147,17 @@ mod tests {
             }
 
             assert!((radius(harness.state()) - typed).abs() < 1e-6, "typed {typed}, got {}", radius(harness.state()));
+        }
+    }
+
+    #[test]
+    fn shape_dialog_builds_a_tunnel_per_profile() {
+        let bounds = Aabb::new(DVec3::new(0.0, 0.0, 0.0), DVec3::new(128.0, 96.0, 256.0));
+        for (profile, count) in
+            [(shapes::TunnelProfile::OpenBottom, 3), (shapes::TunnelProfile::Closed, 4), (shapes::TunnelProfile::Arched, 10), (shapes::TunnelProfile::Round, 8)]
+        {
+            let d = ShapeDialog { kind: ShapeKind::Tunnel, profile, sides: 8, ..Default::default() };
+            assert_eq!(d.generate(&bounds, "m").len(), count, "{profile:?}");
         }
     }
 
