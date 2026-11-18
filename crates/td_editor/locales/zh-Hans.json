@@ -2548,5 +2548,9 @@
   "Close Godot first. It has this project open and its addon cannot take new project settings.": "请先关闭 Godot。它已打开此项目，其插件无法接受新的项目设置。",
   "Godot did not take the project settings: {error}. Nothing was written.": "Godot 未接受项目设置：{error}。未写入任何内容。",
   "Override in project": "在项目中覆盖",
-  "Copies this definition into res://entities with a script of its own, so you can change it.": "将此定义连同专属脚本复制到 res://entities，方便你修改。"
+  "Copies this definition into res://entities with a script of its own, so you can change it.": "将此定义连同专属脚本复制到 res://entities，方便你修改。",
+  "First person player": "第一人称玩家",
+  "info_player_start is overridden in {definition}. Change it in {script}.": "info_player_start 已在 {definition} 中被覆盖。请在 {script} 中修改它。",
+  "Turns info_player_start into a player you walk around with. Its script lands in {dir} for your own changes.": "把 info_player_start 变成可以四处走动的玩家。它的脚本放在 {dir}，方便你修改。",
+  "Add a first person player": "添加第一人称玩家"
 }

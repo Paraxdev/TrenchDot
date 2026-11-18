@@ -13,6 +13,7 @@ use crate::theme;
 
 pub const TITLE: &str = en!("Set up this project");
 pub const PACK_HEADING: &str = en!("Gameplay entities");
+pub const PLAYER_HEADING: &str = en!("First person player");
 
 /// MCP tools a person at the screen uses through the test harness: looking and clicking, which leave the wizard open.
 const WATCHING_TOOLS: [&str; 3] = ["get_state", "screenshot", "simulate_input"];
@@ -37,6 +38,8 @@ pub struct ContentWizard {
     pub content: bool,
     /// What the last install of the Gameplay entities pack did.
     pack_note: Option<String>,
+    /// What the last click on Add a first person player did.
+    player_note: Option<String>,
     pub addon: crate::addon_wizard::AddonWizard,
 }
 
@@ -49,6 +52,7 @@ impl ContentWizard {
 
         self.note = note;
         self.pack_note = None;
+        self.player_note = None;
         self.project = Some(root);
         self.automatic = automatic;
         self.content = true;
@@ -198,6 +202,7 @@ impl ContentWizard {
                 self.addon.ui(ui, state, &root);
                 ui.add_space(6.0);
                 self.pack_ui(ui, state, &root);
+                self.player_ui(ui, state, &root);
                 ui.add_space(6.0);
                 if !self.content {
                     if ui.button(tr("Close")).clicked() {
@@ -274,6 +279,38 @@ impl ContentWizard {
         }
 
         if let Some(note) = &self.pack_note {
+            ui.label(RichText::new(note).weak());
+        }
+    }
+
+    /// Turns `info_player_start` into a player to walk around with, by overriding it with the first person player.
+    fn player_ui(&mut self, ui: &mut Ui, state: &mut EditorState, root: &Path) {
+        let start = format!("{}/fgd/trenchdot/info_player_start.tres", crate::addon_install::DIR);
+        if state.game.project_root.as_deref() != Some(root) || !root.join(start).is_file() {
+            return;
+        }
+
+        ui.add_space(6.0);
+        ui.separator();
+        ui.label(RichText::new(tr(PLAYER_HEADING)).strong());
+        let dir = format!("res://{}", crate::entity_override::DIR);
+        ui.label(trf!("Turns info_player_start into a player you walk around with. Its script lands in {dir} for your own changes.", dir));
+        let definition = crate::entity_override::definition_res("info_player_start");
+        if crate::entity_override::is_override(root, &definition) {
+            let script = crate::entity_override::script_res("info_player_start");
+            ui.label(
+                RichText::new(trf!("info_player_start is overridden in {definition}. Change it in {script}.", definition, script))
+                    .color(theme::colors().success()),
+            );
+        } else if ui.button(tr("Add a first person player")).clicked() {
+            use crate::entity_override::{Script, override_in_project};
+            self.player_note = Some(match override_in_project(state, "info_player_start", Script::Player, true) {
+                Ok(report) => report.message().shown,
+                Err(refusal) => refusal.shown,
+            });
+        }
+
+        if let Some(note) = &self.player_note {
             ui.label(RichText::new(note).weak());
         }
     }
@@ -508,6 +545,106 @@ mod tests {
         let door = harness.state().state.game.entity("func_door").expect("known before Godot exports the game config");
         assert_eq!(door.script, "res://trenchdot/entities/scripts/td_door.gd");
         assert!(root.join("trenchdot/entities/scripts/td_door.gd").is_file() && !root.join("trenchdot/entities/.gdignore").exists());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    /// A project that has the addon's definitions and scripts, like one that installed it, opened in the wizard.
+    fn with_addon(name: &str) -> (Fixture, PathBuf) {
+        let dir = std::env::temp_dir().join(format!("td_wizard_{name}_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("project.godot"),
+            "config_version=5
+",
+        )
+        .unwrap();
+        let addon = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../godot/addons/func_godot");
+        copy_dir(&addon.join("fgd"), &dir.join("addons/func_godot/fgd"));
+        copy_dir(&addon.join("src/trenchdot/entities"), &dir.join("addons/func_godot/src/trenchdot/entities"));
+        let mut state = EditorState::new(Prefs::default());
+        state.load_project(&dir);
+        let root = state.game.project_root.clone().unwrap();
+        (Fixture { state, wizard: ContentWizard::default() }, root)
+    }
+
+    #[test]
+    fn the_player_section_shows_with_the_addon_installed_and_stays_hidden_without() {
+        let (fixture, root) = fresh("noplayer");
+        let mut hidden = harness(fixture);
+        hidden.run();
+        assert!(hidden.query_by_label(PLAYER_HEADING).is_none() && hidden.query_by_label("Add a first person player").is_none());
+        std::fs::remove_dir_all(&root).unwrap();
+
+        let (fixture, root) = with_addon("player");
+        let mut harness = harness(fixture);
+        harness.run();
+        assert!(harness.query_by_label(PLAYER_HEADING).is_some());
+        assert!(harness.query_by_label("Add a first person player").is_some());
+        assert!(!root.join("entities").exists(), "showing the button writes nothing");
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn the_player_button_overrides_info_player_start_and_then_gives_way_to_where_it_is() {
+        let (fixture, root) = with_addon("click");
+        let mut harness = harness(fixture);
+        harness.run();
+        harness.get_by_label("Add a first person player").click();
+        harness.run();
+        assert_eq!(std::fs::read_to_string(root.join("entities/info_player_start.gd")).unwrap(), crate::entity_override::PLAYER_SCRIPT);
+        let definition = std::fs::read_to_string(root.join("entities/info_player_start.tres")).unwrap();
+        assert!(definition.contains("node_class = \"CharacterBody3D\""), "{definition}");
+        assert!(definition.contains("res://entities/info_player_start.gd"), "{definition}");
+        let settings = std::fs::read_to_string(root.join("project.godot")).unwrap();
+        assert!(settings.contains("default_map_settings=\"res://entities/project_map_settings.tres\""), "{settings}");
+        assert!(harness.query_by_label_contains("Overrode info_player_start with res://entities/info_player_start.tres").is_some());
+        let player = harness.state().state.game.entity("info_player_start").unwrap();
+        assert_eq!((player.script.as_str(), player.node_class.as_str()), ("res://entities/info_player_start.gd", "CharacterBody3D"));
+
+        assert!(harness.query_by_label("Add a first person player").is_none());
+        assert!(
+            harness
+                .query_by_label("info_player_start is overridden in res://entities/info_player_start.tres. Change it in res://entities/info_player_start.gd.")
+                .is_some()
+        );
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn an_info_player_start_overridden_before_shows_where_it_is_and_no_button() {
+        let (mut fixture, root) = with_addon("before");
+        crate::entity_override::override_in_project(&mut fixture.state, "info_player_start", crate::entity_override::Script::Extend, false).unwrap();
+        let mut overridden = harness(fixture);
+        overridden.run();
+        assert!(overridden.query_by_label("Add a first person player").is_none());
+        assert!(overridden.query_by_label_contains("info_player_start is overridden in res://entities/info_player_start.tres").is_some());
+
+        let (fixture, other) = with_addon("other");
+        std::fs::create_dir_all(other.join("entities")).unwrap();
+        std::fs::write(other.join("entities/info_player_start.tres"), "[gd_resource type=\"Resource\" format=3]\n").unwrap();
+        let mut own = harness(fixture);
+        own.run();
+        assert!(own.query_by_label("Add a first person player").is_some(), "a file of the person's own is no override");
+        std::fs::remove_dir_all(&root).unwrap();
+        std::fs::remove_dir_all(&other).unwrap();
+    }
+
+    #[test]
+    fn continuing_without_the_player_button_writes_nothing_even_with_the_addon() {
+        let (fixture, root) = with_addon("continue");
+        let mut harness = harness(fixture);
+        harness.run();
+        assert!(harness.query_by_label("Add a first person player").is_some());
+        harness.get_by_label("Continue").click();
+        harness.run();
+        assert!(!harness.state().wizard.open);
+        assert_eq!(listing(&root), ["addons", "project.godot"]);
+        assert_eq!(
+            std::fs::read_to_string(root.join("project.godot")).unwrap(),
+            "config_version=5
+"
+        );
         std::fs::remove_dir_all(&root).unwrap();
     }
 

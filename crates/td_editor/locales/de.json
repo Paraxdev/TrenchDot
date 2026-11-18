@@ -2548,5 +2548,9 @@
   "Close Godot first. It has this project open and its addon cannot take new project settings.": "Schließe zuerst Godot. Es hat dieses Projekt geöffnet und sein Addon kann keine neuen Projekteinstellungen annehmen.",
   "Godot did not take the project settings: {error}. Nothing was written.": "Godot hat die Projekteinstellungen nicht übernommen: {error}. Es wurde nichts geschrieben.",
   "Override in project": "Im Projekt überschreiben",
-  "Copies this definition into res://entities with a script of its own, so you can change it.": "Kopiert diese Definition mit einem eigenen Skript nach res://entities, damit du sie ändern kannst."
+  "Copies this definition into res://entities with a script of its own, so you can change it.": "Kopiert diese Definition mit einem eigenen Skript nach res://entities, damit du sie ändern kannst.",
+  "First person player": "Egoperspektive-Spieler",
+  "info_player_start is overridden in {definition}. Change it in {script}.": "info_player_start ist in {definition} überschrieben. Ändere es in {script}.",
+  "Turns info_player_start into a player you walk around with. Its script lands in {dir} for your own changes.": "Macht aus info_player_start einen Spieler, mit dem du herumläufst. Sein Skript landet in {dir}, damit du es ändern kannst.",
+  "Add a first person player": "Spieler in Egoperspektive hinzufügen"
 }

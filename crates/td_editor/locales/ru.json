@@ -2548,5 +2548,9 @@
   "Close Godot first. It has this project open and its addon cannot take new project settings.": "Сначала закройте Godot. В нём открыт этот проект, а его аддон не принимает новые настройки проекта.",
   "Godot did not take the project settings: {error}. Nothing was written.": "Godot не принял настройки проекта: {error}. Ничего не записано.",
   "Override in project": "Переопределить в проекте",
-  "Copies this definition into res://entities with a script of its own, so you can change it.": "Копирует это определение в res://entities со своим скриптом, чтобы вы могли его менять."
+  "Copies this definition into res://entities with a script of its own, so you can change it.": "Копирует это определение в res://entities со своим скриптом, чтобы вы могли его менять.",
+  "First person player": "Игрок от первого лица",
+  "info_player_start is overridden in {definition}. Change it in {script}.": "info_player_start переопределён в {definition}. Меняйте его в {script}.",
+  "Turns info_player_start into a player you walk around with. Its script lands in {dir} for your own changes.": "Превращает info_player_start в игрока, которым можно ходить. Его скрипт попадает в {dir}, чтобы вы могли его менять.",
+  "Add a first person player": "Добавить игрока от первого лица"
 }
