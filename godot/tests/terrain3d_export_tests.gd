@@ -704,14 +704,25 @@ static func _test_old_cache(t) -> void:
 	t.check(TrenchDotTerrain3DCache.export(terrain, folder, null, { "textures": false }).ok, "the cache to age is written")
 	var m := {}
 	_age_manifest(folder)
+	var aged := _manifest(folder)
+	aged["ocean"] = { "enabled": true, "sea_level": 5.25, "water_color": [0.25, 0.5, 0.75, 1.0], "source": "" }
+	FileAccess.open(folder.path_join(".trenchdot/manifest.json"), FileAccess.WRITE).store_string(JSON.stringify(aged))
 	terrain.set(&"material", look[0])
 	var result := TrenchDotTerrain3DCache.export(terrain, folder, [], options)
 	m = _manifest(folder)
 	var names: Array = m.get("textures", []).map(func(e): return e["name"])
 	t.check(result.ok and names == ["Cliff", "Grass"], "a re-export that wants no textures still lists them on an old cache, got %s" % [names])
-	t.check(int(m.get("material", {}).get("world_background", -1)) == 2 and str(m.get("resources", {}).get("assets")).ends_with("old_cache/assets.tres") and str(m.get("resources", {}).get("material")).ends_with("old_cache/M_terrain.tres"), "it takes the node's material and assets, got %s %s" % [m.get("material"), m.get("resources")])
+	t.check(int(m.get("material", {}).get("world_background", -1)) == 2, "it takes the node's material, got %s" % [m.get("material")])
+	t.check(not m.has("resources") and m.get("ocean", {}).get("enabled") == true and m["ocean"]["sea_level"] == 5.25, "a node without the scene's values leaves the ocean and resources an old cache lacks, got %s %s" % [m.get("ocean"), m.get("resources")])
 
-	# Not an old cache any more, so the last look stays and no texture is listed without being asked.
+	_age_manifest(folder)
+	TrenchDotTerrain3DCache.export(terrain, folder, [], options)
+	m = _manifest(folder)
+	t.check(not m.has("ocean") and not m.has("resources"), "an old cache without an ocean is not given the bare node's, got %s %s" % [m.get("ocean"), m.get("resources")])
+
+	# A scene export upgrades the old cache, after which the last look stays and no texture is listed without being asked.
+	TrenchDotTerrain3DCache.export(terrain, folder, [], { "textures": false })
+	t.check(_manifest(folder).has("resources"), "an export that has the scene gives the cache its resources")
 	terrain.set(&"material", ClassDB.instantiate(&"Terrain3DMaterial"))
 	TrenchDotTerrain3DCache.export(terrain, folder, [], options)
 	m = _manifest(folder)
@@ -800,7 +811,7 @@ static func _test_cli(t) -> void:
 	m = _manifest(adopting)
 	var names: Array = m.get("textures", []).map(func(e): return e["name"])
 	t.check(upgraded[0] == 0 and names == ["Cliff", "Grass"], "the CLI lists the folder's textures on a cache from an older addon, got %s %s" % [upgraded, names])
-	t.check(int(m.get("material", {}).get("world_background", -1)) == 2 and str(m.get("resources", {}).get("assets")).ends_with("cli_assets/assets.tres"), "the CLI takes the folder's material and assets on a cache from an older addon, got %s %s" % [m.get("material"), m.get("resources")])
+	t.check(int(m.get("material", {}).get("world_background", -1)) == 2 and not m.has("resources") and not m.has("ocean"), "the CLI takes the folder's material on a cache from an older addon but leaves its resources and ocean to a scene export, got %s %s %s" % [m.get("material"), m.get("resources"), m.get("ocean")])
 
 	var missing := _cli(["export", WORK.path_join("nowhere")])
 	t.check(missing[0] == 1 and missing[1].get("ok") == false and str(missing[1].get("error")).contains("nowhere"), "the CLI refuses a missing folder, got %s" % [missing])
