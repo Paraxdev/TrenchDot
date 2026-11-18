@@ -139,6 +139,10 @@ pub const LIGHT: Palette = Palette {
 /// a texture, so they stay dark in every theme.
 pub const VIEW: Palette = DARK;
 
+/// The outline of the other members of a selected linked group, in linear light like every line color. A violet,
+/// the hue the selection, hover, preview, cordon and link lines and the axes leave free under color blindness.
+pub const LINKED_EDGE: [f32; 4] = [0.15, 0.1, 0.9, 1.0];
+
 static LIGHT_ACTIVE: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 /// Picks the palette [`colors`] returns, once per frame before anything is drawn.
@@ -1202,6 +1206,7 @@ mod tests {
             (PREVIEW_COLOR, "shape preview"),
             (HOVER_COLOR, "outliner hover"),
             (CORDON_COLOR, "cordon"),
+            (LINKED_EDGE, "linked outline"),
         ];
         for (ground, light) in [(DARK.view_2d, false), (LIGHT.view_2d, true)] {
             let shape_box = line_on(crate::shape_bounds::color(), ground, light);
@@ -1254,6 +1259,42 @@ mod tests {
     }
 
     #[test]
+    fn the_linked_outline_stays_distinguishable_from_other_lines() {
+        use crate::scene::{CORDON_COLOR, EDGE_COLOR_2D, INSTANCE_EDGE, IO_LINK, SELECTED_COLOR, TARGET_LINK, TERRAIN_EDGE};
+        use crate::toolset::{HOVER_COLOR, PREVIEW_COLOR};
+        const MIN: f32 = 60.0;
+        let axis = |i: usize| {
+            let [r, g, b, _] = linear(VIEW.axis()[i]);
+            [r as f32, g as f32, b as f32, 0.9]
+        };
+        let others = [
+            (SELECTED_COLOR, "selection"),
+            (HOVER_COLOR, "outliner hover"),
+            (PREVIEW_COLOR, "shape preview"),
+            (CORDON_COLOR, "cordon"),
+            (IO_LINK, "I/O link"),
+            (TARGET_LINK, "target link"),
+            (INSTANCE_EDGE, "instance edge"),
+            (EDGE_COLOR_2D, "brush edge"),
+            (TERRAIN_EDGE, "terrain edge"),
+            (axis(0), "axis x"),
+            (axis(1), "axis y"),
+            (axis(2), "axis z"),
+            (crate::shape_bounds::color(), "shape box"),
+        ];
+        for (ground, light) in [(DARK.view_2d, false), (LIGHT.view_2d, true)] {
+            let linked = line_on(LINKED_EDGE, ground, light);
+            for (c, what) in others {
+                let other = line_on(c, ground, light);
+                for kind in 0..3 {
+                    let d = distance(simulate(linked, kind), simulate(other, kind));
+                    assert!(d >= MIN, "light {light} cvd {kind}: linked outline vs {what} too close ({d:.0} < {MIN})");
+                }
+            }
+        }
+    }
+
+    #[test]
     fn link_lines_stay_distinguishable_from_other_lines() {
         use crate::scene::{EDGE_COLOR_2D, INSTANCE_EDGE, IO_LINK, SELECTED_COLOR, TARGET_LINK, TERRAIN_EDGE};
         const MIN: f32 = 60.0;
@@ -1264,6 +1305,7 @@ mod tests {
             (SELECTED_COLOR, "selection"),
             (TERRAIN_EDGE, "terrain edge"),
             (EDGE_COLOR_2D, "brush edge"),
+            (LINKED_EDGE, "linked outline"),
         ];
         for (ground, light) in [(DARK.view_2d, false), (LIGHT.view_2d, true)] {
             let link = on(IO_LINK, ground, light);

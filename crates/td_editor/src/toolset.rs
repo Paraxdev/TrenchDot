@@ -1,6 +1,8 @@
 use egui::{Align2, Color32, FontId, Key, PointerButton, Pos2, Rect, Response, Stroke, Ui, Vec2};
 use td_core::{Aabb, DMat4, DVec3, NodeId, Plane, Ray};
+use td_doc::map::Map;
 use td_doc::ops;
+use td_doc::selection::Selection;
 use td_geom::Brush;
 use td_render::LineVertex;
 
@@ -9,6 +11,7 @@ use crate::i18n::{Msg, en, msg, msg_n, tr, trf};
 use crate::picking;
 use crate::scene::v3;
 use crate::state::EditorState;
+use crate::theme::LINKED_EDGE;
 use crate::tools::ToolKind;
 use crate::widgets::corner_hint;
 
@@ -232,6 +235,7 @@ pub struct ToolSet {
     pub flying: bool,
     /// Bounds of the last brush drawn in a view, 2D views give a new brush its depth.
     pub last_brush: Option<Aabb>,
+    partners: std::cell::RefCell<PartnerCache>,
 }
 
 fn screen_dist(cam: &Camera, rect: Rect, world: DVec3, pos: Pos2) -> f32 {
@@ -265,6 +269,36 @@ fn outliner_hover_lines(state: &EditorState, id: NodeId, out: &mut Vec<LineVerte
     }
 }
 
+/// What [`ToolSet::linked_partner_lines`] drew for one document state and selection, so the walk over every node runs
+/// once per change rather than once per view per frame.
+#[derive(Default)]
+struct PartnerCache {
+    key: Option<(u64, u64, u64)>,
+    selection: Selection,
+    geometry: Vec<NodeId>,
+}
+
+fn linked_partner_geometry(map: &Map, sel: &Selection) -> Vec<NodeId> {
+    let touched = td_doc::linked::sets_touched(map, sel);
+    if touched.is_empty() {
+        return Vec::new();
+    }
+
+    let sets = td_doc::linked::link_sets(map);
+    let selected: std::collections::BTreeSet<NodeId> = sel.nodes.iter().copied().chain(sel.faces.iter().map(|(id, _)| *id)).collect();
+    let mut out = Vec::new();
+    for member in touched.iter().filter_map(|link| sets.get(link)).flatten().copied().filter(|m| !map.is_hidden(*m)) {
+        let inside: Vec<NodeId> = std::iter::once(member).chain(map.descendants(member)).collect();
+        if inside.iter().any(|n| selected.contains(n)) {
+            continue;
+        }
+
+        out.extend(inside.into_iter().filter(|n| !map.is_hidden(*n) && (map.brush(*n).is_some() || map.mesh(*n).is_some())));
+    }
+
+    out
+}
+
 pub(crate) const HOVER_COLOR: [f32; 4] = [0.39, 0.76, 0.93, 1.0];
 pub(crate) const PREVIEW_COLOR: [f32; 4] = [0.3, 1.0, 1.0, 0.9];
 
@@ -274,6 +308,35 @@ fn line(out: &mut Vec<LineVertex>, a: DVec3, b: DVec3, color: [f32; 4]) {
 }
 
 impl ToolSet {
+    /// Outline of the other members of every linked set the selection touches, so a half can be matched to its partner.
+    /// A member that holds a selected object is left out, the selection outline already marks it, and so is a hidden one.
+    fn linked_partner_lines(&self, state: &EditorState, out: &mut Vec<LineVertex>) {
+        let (map, sel) = (&state.doc.map, &state.doc.selection);
+        let (uid, content, loose) = state.doc.content_key();
+        // A drag moves nodes without changing which ones are partners, so only a node added or removed redoes the list.
+        let key = (uid, content, if state.doc.in_transaction() { map.nodes.len() as u64 } else { loose });
+        let mut cache = self.partners.borrow_mut();
+        if cache.key != Some(key) || cache.selection != *sel {
+            cache.geometry = linked_partner_geometry(map, sel);
+            cache.key = Some(key);
+            cache.selection = sel.clone();
+        }
+
+        for &n in &cache.geometry {
+            if let Some(b) = map.brush(n) {
+                for (a, c) in b.edges() {
+                    line(out, b.vertices[a as usize], b.vertices[c as usize], LINKED_EDGE);
+                }
+            }
+
+            if let Some(m) = map.mesh(n) {
+                for (a, c) in m.edges() {
+                    line(out, m.vertices[a as usize], m.vertices[c as usize], LINKED_EDGE);
+                }
+            }
+        }
+    }
+
     /// Resets per-tool state when the active tool changes.
     pub fn sync(&mut self, state: &EditorState) {
         if self.active != Some(state.tool) {
@@ -1324,6 +1387,7 @@ impl ToolSet {
         crate::shape_bounds::lines(state, &mut out);
         crate::terrain_size::lines(state, &mut out);
 
+        self.linked_partner_lines(state, &mut out);
         if let Some(id) = state.outliner_hover {
             outliner_hover_lines(state, id, &mut out);
         }
@@ -3695,5 +3759,81 @@ mod tests {
         assert_eq!(drawn[0].0[0], 280.0);
         select_only(&mut state, &[a, shifted[0]]);
         assert_eq!(plane_segments(&tools, &state, &perspective()).len(), 8, "two pairs, two planes");
+    }
+
+    fn linked_segments(tools: &ToolSet, state: &EditorState, cam: &Camera) -> Vec<Segment> {
+        segments_of(&tools.lines(cam, view_rect(), state), crate::theme::LINKED_EDGE)
+    }
+
+    /// Every brush edge under `groups`, as the lines draw them.
+    fn edges_under(state: &EditorState, groups: &[NodeId]) -> Vec<Segment> {
+        let map = &state.doc.map;
+        let mut out = Vec::new();
+        for g in groups {
+            for n in map.descendants(*g) {
+                if let Some(b) = map.brush(n) {
+                    out.extend(b.edges().into_iter().map(|(a, c)| (v3(b.vertices[a as usize]), v3(b.vertices[c as usize]))));
+                }
+            }
+        }
+
+        sorted(out)
+    }
+
+    fn brush_in(state: &EditorState, group: NodeId) -> NodeId {
+        state.doc.map.descendants(group).into_iter().find(|n| state.doc.map.brush(*n).is_some()).unwrap()
+    }
+
+    #[test]
+    fn a_selected_linked_half_outlines_only_its_partners() {
+        let tools = ToolSet::default();
+        for cam in [perspective(), view_2d(ViewKind::Top), view_2d(ViewKind::Front)] {
+            let (mut state, group, copy) = mirrored_wedge(0);
+            let (own, partner) = (edges_under(&state, &[group]), edges_under(&state, &[copy]));
+            assert_eq!(own.len(), 12);
+            assert_ne!(own, partner, "the halves are mirrored, so their edges differ");
+
+            select_only(&mut state, &[copy]);
+            assert_eq!(linked_segments(&tools, &state, &cam), own, "the pair outlines the half that is not selected");
+            select_only(&mut state, &[group]);
+            assert_eq!(linked_segments(&tools, &state, &cam), partner);
+
+            select_only(&mut state, &[group, copy]);
+            assert!(linked_segments(&tools, &state, &cam).is_empty(), "both halves are selected, so none is a partner");
+            select_only(&mut state, &[]);
+            assert!(linked_segments(&tools, &state, &cam).is_empty());
+
+            let inner = brush_in(&state, group);
+            select_only(&mut state, &[inner]);
+            assert_eq!(linked_segments(&tools, &state, &cam), partner, "a brush inside a half stands for the half");
+            state.doc.select(|_, s| {
+                s.clear();
+                s.select_face(inner, 2);
+            });
+            assert_eq!(linked_segments(&tools, &state, &cam), partner, "so does a selected face");
+
+            let third = state.doc.edit("link", |m, s| {
+                s.clear();
+                s.select_node(group);
+                ops::duplicate_linked(m, s, DVec3::new(0.0, 0.0, 400.0), Default::default())
+            })[0];
+            select_only(&mut state, &[third]);
+            assert_eq!(linked_segments(&tools, &state, &cam), edges_under(&state, &[group, copy]), "a set of three outlines the other two");
+            select_only(&mut state, &[group, third]);
+            assert_eq!(linked_segments(&tools, &state, &cam), partner, "one member left unselected");
+
+            state.doc.edit("unlink", |m, s| {
+                s.clear();
+                s.select_node(third);
+                ops::unlink_groups(m, s);
+            });
+            select_only(&mut state, &[third]);
+            assert!(linked_segments(&tools, &state, &cam).is_empty(), "an unlinked group has no partner");
+            select_only(&mut state, &[group]);
+            assert_eq!(linked_segments(&tools, &state, &cam), partner, "the other two stay linked");
+
+            state.doc.edit("hide", |m, _| ops::set_hidden(m, &[copy], true));
+            assert!(linked_segments(&tools, &state, &cam).is_empty(), "a hidden partner is not outlined");
+        }
     }
 }
