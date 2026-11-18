@@ -2935,6 +2935,8 @@ fn outliner_click_inside_a_closed_linked_half_selects_the_half() {
     harness.get_by_label(&brush(&harness, r.plain_lid)).click_modifiers(egui::Modifiers::COMMAND);
     harness.run();
     assert_eq!(selection(&harness), [r.left], "Ctrl click on the other child row toggles the whole plain group off");
+    // Waits out the double click delay, so the second click on this row is no double click.
+    harness.run_steps(20);
     harness.get_by_label(&brush(&harness, r.plain_lid)).click_modifiers(egui::Modifiers::COMMAND);
     harness.run();
     let mut both = selection(&harness);

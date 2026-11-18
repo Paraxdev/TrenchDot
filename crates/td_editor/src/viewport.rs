@@ -7,7 +7,7 @@ use td_render::{Frame, FrameParams, LineVertex, Renderer, ViewTarget};
 use crate::camera::{Camera, ViewKind};
 use crate::commands::Action;
 use crate::i18n::{en, msg, msg_n, tr, trf};
-use crate::mouse_map::{ClickHit, ClickRule, click_rule};
+use crate::mouse_map::{ClickHit, ClickRule, DoubleClick, DoubleClickHit, click_rule, double_click};
 use crate::panels::DndPayload;
 use crate::picking::{self, Hit};
 use crate::scene::{SceneCache, v3};
@@ -36,6 +36,9 @@ pub struct Viewport {
     press_modifiers: egui::Modifiers,
     /// Where and when (egui time) the last plain click in a 2D view landed, a quick click at the same spot cycles.
     last_click: Option<(Pos2, f64)>,
+    /// Whether the last click landed on the transform gizmo. A double click it starts only acts on the selection under
+    /// the gizmo. The second click is not checked, since the first one may have just put the gizmo under the pointer.
+    gizmo_click: bool,
     /// The outer edge of the selected brushes a drag would resize, highlighted before the drag starts.
     hover_edge: Option<[Pos2; 2]>,
     pub(crate) pixels_per_point: f32,
@@ -61,6 +64,7 @@ impl Viewport {
             popup_open: false,
             press_modifiers: Default::default(),
             last_click: None,
+            gizmo_click: false,
             hover_edge: None,
             pixels_per_point: 1.0,
             looked: false,
@@ -399,10 +403,13 @@ impl Viewport {
     fn handle_select_tool(&mut self, ui: &Ui, response: &Response, cx: &mut ViewCtx) {
         let rect = self.rect;
         let (modifiers, press_origin, pointer) = ui.input(|i| (i.modifiers, i.pointer.press_origin(), i.pointer.interact_pos()));
+        let double_clicked = crate::widgets::double_clicked(response);
+        let on_gizmo = response.interact_pointer_pos().is_some_and(|pos| crate::transform_gizmo::hit(cx.state, &self.camera, rect, pos).is_some());
+        let pair_on_gizmo = response.clicked() && std::mem::replace(&mut self.gizmo_click, on_gizmo);
 
         if response.clicked()
+            && !on_gizmo
             && let Some(pos) = response.interact_pointer_pos()
-            && crate::transform_gizmo::hit(cx.state, &self.camera, rect, pos).is_none()
         {
             let mut hit = self.pick(cx, pos);
             let plain = !modifiers.command && !modifiers.shift;
@@ -413,7 +420,7 @@ impl Viewport {
                 let again = self.last_click.is_some_and(|(p, t)| p.distance(pos) < 4.0 && now - t < CLICK_CYCLE_SECONDS);
                 let targets = self.click_targets(cx, pos);
                 let current = targets.iter().position(|(t, _)| cx.state.doc.selection.nodes.len() == 1 && cx.state.doc.selection.nodes.contains(t));
-                if response.double_clicked() {
+                if double_clicked {
                     // The second click of a double click keeps what the first one picked for the double click below.
                     if let Some(i) = current {
                         hit = Some(targets[i].1);
@@ -459,6 +466,11 @@ impl Viewport {
                         let target = map.click_target(h.node, &cx.state.open_groups);
                         cx.state.last_bounds = map.bounds(target);
                         cx.state.outliner_reveal = Some(target);
+                        if target != h.node && is_group(map, target) {
+                            let name = map.get(target).map(|n| n.name()).unwrap_or_default();
+                            cx.state.set_status(msg!("Selected group {name}, double click to open it", name));
+                        }
+
                         cx.state.doc.select(|_, s| {
                             if rule == ClickRule::ToggleObject {
                                 s.toggle_node(target);
@@ -477,20 +489,54 @@ impl Viewport {
             }
         }
 
-        if response.double_clicked()
-            && let Some(pos) = response.interact_pointer_pos()
-            && let Some(h) = self.double_click_hit(cx, pos)
-        {
+        if double_clicked && let Some(pos) = response.interact_pointer_pos() {
+            let hit = self.double_click_hit(cx, pos);
+            // The click above already ran and may have closed or selected groups, so this reads the groups afresh.
             let map = &cx.state.doc.map;
-            if map.click_target(h.node, &cx.state.open_groups) == h.node
-                && let Some(e) = map.owning_entity(h.node)
-            {
-                let brushes = map.get(e).map(|n| n.children.clone()).unwrap_or_default();
-                cx.state.outliner_reveal = Some(h.node);
-                cx.state.doc.select(|_, s| {
-                    s.clear();
-                    s.nodes.extend(brushes);
-                });
+            let group =
+                hit.map(|h| (h.node, map.click_target(h.node, &cx.state.open_groups))).and_then(|(node, t)| (t != node && is_group(map, t)).then_some(t));
+            let kind = match (hit, group) {
+                (None, _) => DoubleClickHit::Nothing,
+                (Some(_), Some(_)) => DoubleClickHit::ClosedGroup,
+                (Some(h), None) if map.owning_entity(h.node).is_some() => DoubleClickHit::EntityBrush,
+                (Some(_), None) => DoubleClickHit::Other,
+            };
+            let action = if pair_on_gizmo && !hit.is_some_and(|h| is_selected(cx.state, h.node)) {
+                DoubleClick::Keep
+            } else {
+                double_click(kind, cx.state.innermost_open_group().is_some())
+            };
+            match (action, hit, group) {
+                (DoubleClick::OpenGroup, Some(h), Some(group)) => {
+                    cx.state.open_groups_to(group);
+                    let map = &cx.state.doc.map;
+                    let target = map.click_target(h.node, &cx.state.open_groups);
+                    cx.state.last_bounds = map.bounds(target);
+                    cx.state.outliner_reveal = Some(target);
+                    cx.state.doc.select(|_, s| {
+                        s.clear();
+                        s.select_node(target);
+                    });
+                    let name = cx.state.doc.map.get(group).map(|n| n.name()).unwrap_or_default();
+                    cx.state.set_status(msg!("Opened group {name}, double click empty space or press Esc to close it", name));
+                }
+                (DoubleClick::CloseGroup, ..) => {
+                    if let Some(g) = cx.state.close_innermost_group() {
+                        let name = cx.state.doc.map.get(g).map(|n| n.name()).unwrap_or_default();
+                        cx.state.set_status(msg!("Closed group {name}", name));
+                    }
+                }
+                (DoubleClick::SelectEntity, Some(h), _) => {
+                    if let Some(e) = cx.state.doc.map.owning_entity(h.node) {
+                        let brushes = cx.state.doc.map.get(e).map(|n| n.children.clone()).unwrap_or_default();
+                        cx.state.outliner_reveal = Some(h.node);
+                        cx.state.doc.select(|_, s| {
+                            s.clear();
+                            s.nodes.extend(brushes);
+                        });
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -1387,6 +1433,10 @@ struct EdgeGrab {
     faces: Vec<(NodeId, usize)>,
     /// The edge on screen, highlighted while the pointer is near it.
     segment: [Pos2; 2],
+}
+
+fn is_group(map: &td_doc::Map, id: NodeId) -> bool {
+    matches!(map.get(id).map(|n| &n.kind), Some(td_doc::NodeKind::Group(_)))
 }
 
 /// Whether clicking `id` would land on something selected: the object a click picks, or a group or entity around it.

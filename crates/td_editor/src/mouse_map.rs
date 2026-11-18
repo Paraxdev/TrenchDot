@@ -81,6 +81,34 @@ pub fn chord_label(preset: &str, rule: ClickRule) -> String {
     }
 }
 
+/// What a double click in a view lands on. A closed group counts whether the cursor is on the group's own object or on
+/// a brush of an entity inside it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DoubleClickHit {
+    Nothing,
+    ClosedGroup,
+    EntityBrush,
+    Other,
+}
+
+/// What a double click in a view does, the same in every preset because TrenchBroom is the reference for it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DoubleClick {
+    OpenGroup,
+    CloseGroup,
+    SelectEntity,
+    Keep,
+}
+
+pub fn double_click(hit: DoubleClickHit, group_open: bool) -> DoubleClick {
+    match hit {
+        DoubleClickHit::ClosedGroup => DoubleClick::OpenGroup,
+        DoubleClickHit::EntityBrush => DoubleClick::SelectEntity,
+        DoubleClickHit::Nothing if group_open => DoubleClick::CloseGroup,
+        DoubleClickHit::Nothing | DoubleClickHit::Other => DoubleClick::Keep,
+    }
+}
+
 fn blender_rule(mode: SelectMode, toggle: bool, hit: ClickHit) -> ClickRule {
     match (hit, mode) {
         (ClickHit::None, _) if toggle => ClickRule::Keep,
@@ -273,6 +301,24 @@ mod tests {
     use super::*;
 
     const HITS: [ClickHit; 3] = [ClickHit::None, ClickHit::Object, ClickHit::Face];
+
+    #[test]
+    fn double_click_decides_by_what_is_under_the_cursor() {
+        use DoubleClickHit::*;
+        let cases = [
+            (Nothing, false, DoubleClick::Keep),
+            (Nothing, true, DoubleClick::CloseGroup),
+            (ClosedGroup, false, DoubleClick::OpenGroup),
+            (ClosedGroup, true, DoubleClick::OpenGroup),
+            (EntityBrush, false, DoubleClick::SelectEntity),
+            (EntityBrush, true, DoubleClick::SelectEntity),
+            (Other, false, DoubleClick::Keep),
+            (Other, true, DoubleClick::Keep),
+        ];
+        for (hit, open, expected) in cases {
+            assert_eq!(double_click(hit, open), expected, "{hit:?} with a group open: {open}");
+        }
+    }
 
     #[test]
     fn every_modifier_and_hit_has_its_rule() {

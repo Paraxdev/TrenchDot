@@ -309,7 +309,7 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
                     clicked = Some((*id, ui.input(|i| i.modifiers)));
                 }
 
-                if resp.double_clicked() {
+                if crate::widgets::double_clicked(&resp) {
                     if matches!(node.kind, NodeKind::Layer(_)) {
                         toggles.push((*id, 0));
                     } else {

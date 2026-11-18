@@ -905,6 +905,215 @@ fn alt_orbit_click_cycling_and_edge_grab() {
     assert!(z > 8.0 && z < 400.0, "moved towards the wall without passing it, z {z}");
 }
 
+/// Where to click for the group gesture tests: the top face of each brush and a spot with nothing under it.
+struct GroupSpots {
+    a: [f64; 3],
+    b: [f64; 3],
+    c: [f64; 3],
+    empty: [f64; 3],
+}
+
+fn open_groups(ed: &Editor) -> Value {
+    ed.state()["editor"]["open_groups"].clone()
+}
+
+fn selected_sorted(ed: &Editor) -> Vec<u64> {
+    let mut ids = selected(ed);
+    ids.sort();
+    ids
+}
+
+fn group_gestures_walk(ed: &Editor, view: &str, spots: GroupSpots) {
+    let GroupSpots { a, b, c, empty } = spots;
+    // A click within 0.3 s of an unpaired click at the same spot makes a double click with it.
+    let pause = || std::thread::sleep(std::time::Duration::from_secs_f64(0.7));
+    let click = |at: [f64; 3], modifiers: &[&str]| {
+        ed.input(view, json!([{ "type": "click", "world": at, "modifiers": modifiers }]));
+        pause();
+    };
+    let double_click = |at: [f64; 3]| {
+        ed.input(view, json!([{ "type": "double_click", "world": at }]));
+        pause();
+    };
+    let brush_a = ed.box_brush([40.0, 0.0, -64.0], [104.0, 32.0, 0.0]);
+    let brush_b = ed.box_brush([140.0, 0.0, 24.0], [172.0, 64.0, 88.0]);
+    let brush_c = ed.box_brush([-130.0, 0.0, 40.0], [-70.0, 48.0, 112.0]);
+    ed.call("select", json!({ "ids": [brush_a, brush_b] }));
+    ed.call("run_action", json!({ "action": "group" }));
+    let group = selected(ed)[0];
+    ed.call("hierarchy", json!({ "op": "close_group", "all": true }));
+    ed.call("select", json!({ "ids": [] }));
+
+    // A click on a brush of a closed group selects the group whole and opens nothing.
+    click(a, &[]);
+    assert_eq!(selected(ed), [group]);
+    assert_eq!(open_groups(ed), json!([]));
+    click(b, &[]);
+    assert_eq!(selected(ed), [group], "the other brush of the group gives the same group");
+    click(c, &["ctrl"]);
+    assert_eq!(selected_sorted(ed), [brush_c.min(group), brush_c.max(group)], "Ctrl+click adds the loose brush next to the group");
+    click(b, &["ctrl"]);
+    assert_eq!(selected(ed), [brush_c], "Ctrl+click on a brush of the selected group removes the whole group");
+
+    // A double click opens the group one level and selects what was clicked.
+    double_click(a);
+    assert_eq!(open_groups(ed), json!([group]));
+    assert_eq!(selected(ed), [brush_a]);
+    click(b, &[]);
+    assert_eq!(selected(ed), [brush_b], "inside the open group a click picks one brush");
+    assert_eq!(open_groups(ed), json!([group]));
+    click(c, &[]);
+    assert_eq!(selected(ed), [brush_c]);
+    assert_eq!(open_groups(ed), json!([]), "a click outside the open group closes it");
+
+    // A double click on empty space closes the innermost open group and clears the selection.
+    double_click(a);
+    assert_eq!(open_groups(ed), json!([group]));
+    double_click(empty);
+    assert_eq!(open_groups(ed), json!([]));
+    assert_eq!(selected(ed), Vec::<u64>::new());
+    double_click(empty);
+    assert_eq!(open_groups(ed), json!([]), "with no group open it changes nothing");
+
+    // A double click on a loose brush opens nothing.
+    double_click(c);
+    assert_eq!(open_groups(ed), json!([]));
+    assert_eq!(selected(ed), [brush_c]);
+
+    // Nested groups take one double click per level, and the first one selects the inner group.
+    ed.call("select", json!({ "ids": [group, brush_c] }));
+    ed.call("run_action", json!({ "action": "group" }));
+    let outer = selected(ed)[0];
+    ed.call("hierarchy", json!({ "op": "close_group", "all": true }));
+    ed.call("select", json!({ "ids": [] }));
+    click(a, &[]);
+    assert_eq!(selected(ed), [outer]);
+    double_click(a);
+    assert_eq!(open_groups(ed), json!([outer]));
+    assert_eq!(selected(ed), [group], "one level opened, the inner group is what a click reaches now");
+    double_click(a);
+    assert_eq!(open_groups(ed), json!([outer, group]));
+    assert_eq!(selected(ed), [brush_a]);
+    double_click(empty);
+    assert_eq!(open_groups(ed), json!([outer]), "empty space closes one level");
+    assert_eq!(selected(ed), Vec::<u64>::new());
+    double_click(empty);
+    assert_eq!(open_groups(ed), json!([]));
+
+    // The Blender preset selects a closed group whole on a click too.
+    ed.call("set_editor", json!({ "keymap": "blender" }));
+    click(b, &[]);
+    assert_eq!(selected(ed), [outer]);
+    assert_eq!(open_groups(ed), json!([]));
+    ed.call("set_editor", json!({ "keymap": "trenchbroom" }));
+}
+
+#[test]
+#[ignore]
+fn double_click_opens_a_group_and_empty_space_closes_it_in_top() {
+    let ed = Editor::launch("group_gestures_top");
+    ed.call("set_camera", json!({ "view": "top", "center": [0, 0, 0], "zoom": 1.0 }));
+    group_gestures_walk(&ed, "top", GroupSpots { a: [72.0, 32.0, -32.0], b: [156.0, 64.0, 56.0], c: [-100.0, 48.0, 76.0], empty: [0.0, 0.0, -110.0] });
+}
+
+#[test]
+#[ignore]
+fn double_click_opens_a_group_and_empty_space_closes_it_in_3d() {
+    let ed = Editor::launch("group_gestures_3d");
+    ed.call("set_camera", json!({ "view": "3d", "position": [20, 280, 150], "look_at": [20, 0, 20] }));
+    group_gestures_walk(&ed, "3d", GroupSpots { a: [72.0, 32.0, -32.0], b: [156.0, 64.0, 56.0], c: [-100.0, 48.0, 76.0], empty: [-200.0, 0.0, -200.0] });
+}
+
+#[test]
+#[ignore]
+fn double_click_on_the_transform_gizmo_keeps_the_open_group() {
+    let ed = Editor::launch("group_gizmo_double_click");
+    ed.call("set_camera", json!({ "view": "3d", "position": [0, 200, 250], "look_at": [0, 8, 0] }));
+    let small = ed.box_brush([-8.0, 0.0, -8.0], [8.0, 16.0, 8.0]);
+    let other = ed.box_brush([-120.0, 0.0, -40.0], [-88.0, 32.0, -8.0]);
+    ed.call("select", json!({ "ids": [small, other] }));
+    ed.call("run_action", json!({ "action": "group" }));
+    let group = selected(&ed)[0];
+    ed.call("hierarchy", json!({ "op": "close_group", "all": true }));
+    ed.call("select", json!({ "ids": [] }));
+    let pause = || std::thread::sleep(std::time::Duration::from_secs_f64(0.7));
+    ed.input("3d", json!([{ "type": "double_click", "world": [0.0, 16.0, 0.0] }]));
+    pause();
+    assert_eq!((open_groups(&ed), selected(&ed)), (json!([group]), vec![small]));
+
+    // The X arrow of the gizmo reaches past the small brush over empty space.
+    let arrow = [20.0, 8.0, 0.0];
+    ed.input("3d", json!([{ "type": "double_click", "world": arrow }]));
+    pause();
+    assert_eq!((open_groups(&ed), selected(&ed)), (json!([group]), vec![small]), "a double click on the gizmo neither closes nor opens a group");
+    let (before, _) = ed.selection_bounds();
+    ed.input("3d", json!([{ "type": "drag", "world": arrow, "to_world": [52.0, 8.0, 0.0], "steps": 10 }]));
+    let (after, _) = ed.selection_bounds();
+    assert!((after[0] - before[0] - 32.0).abs() < 2.0 && (after[2] - before[2]).abs() < 1e-3, "the spot is on the X arrow, before {before:?} after {after:?}");
+}
+
+#[test]
+#[ignore]
+fn two_quick_double_clicks_open_and_close_two_group_levels() {
+    let ed = Editor::launch("group_quick_double_clicks");
+    ed.call("set_camera", json!({ "view": "top", "center": [0, 0, 0], "zoom": 1.0 }));
+    let a = ed.box_brush([40.0, 0.0, -64.0], [104.0, 32.0, 0.0]);
+    let b = ed.box_brush([140.0, 0.0, 24.0], [172.0, 64.0, 88.0]);
+    let c = ed.box_brush([-130.0, 0.0, 40.0], [-70.0, 48.0, 112.0]);
+    ed.call("select", json!({ "ids": [a, b] }));
+    ed.call("run_action", json!({ "action": "group" }));
+    let inner = selected(&ed)[0];
+    ed.call("select", json!({ "ids": [inner, c] }));
+    ed.call("run_action", json!({ "action": "group" }));
+    let outer = selected(&ed)[0];
+    ed.call("hierarchy", json!({ "op": "close_group", "all": true }));
+    ed.call("select", json!({ "ids": [] }));
+
+    // Four clicks well inside the 0.6 s that egui counts towards a triple click.
+    let twice = |at: [f64; 3]| ed.input("top", json!([{ "type": "double_click", "world": at }, { "type": "double_click", "world": at }]));
+    twice([72.0, 32.0, -32.0]);
+    assert_eq!(open_groups(&ed), json!([outer, inner]), "the second double click opens the inner group too");
+    assert_eq!(selected(&ed), [a]);
+    std::thread::sleep(std::time::Duration::from_secs_f64(0.7));
+    twice([0.0, 0.0, -110.0]);
+    assert_eq!(open_groups(&ed), json!([]), "two double clicks on empty space close both levels");
+}
+
+#[test]
+#[ignore]
+fn double_click_on_an_entity_brush_still_selects_the_entity() {
+    let ed = Editor::launch("group_gestures_entity");
+    ed.call("set_camera", json!({ "view": "top", "center": [0, 0, 0], "zoom": 1.0 }));
+    let p = ed.box_brush([40.0, 0.0, -64.0], [104.0, 32.0, 0.0]);
+    let q = ed.box_brush([130.0, 0.0, -64.0], [170.0, 48.0, 0.0]);
+    let loose = ed.box_brush([-130.0, 0.0, 40.0], [-70.0, 48.0, 112.0]);
+    ed.call("select", json!({ "ids": [p, q] }));
+    ed.call("run_action", json!({ "action": "create_brush_entity", "args": { "classname": "func_door" } }));
+    let entity = selected(&ed)[0];
+    ed.call("select", json!({ "ids": [] }));
+    let double_click = |at: [f64; 3]| {
+        ed.input("top", json!([{ "type": "double_click", "world": at }]));
+        std::thread::sleep(std::time::Duration::from_secs_f64(0.7));
+    };
+
+    double_click([72.0, 32.0, -32.0]);
+    assert_eq!(selected_sorted(&ed), [p.min(q), p.max(q)], "a loose entity brush widens to every brush of the entity");
+    double_click([-100.0, 48.0, 76.0]);
+    assert_eq!(selected(&ed), [loose], "a plain brush stays as it is");
+
+    ed.call("select", json!({ "ids": [entity] }));
+    ed.call("run_action", json!({ "action": "group" }));
+    let group = selected(&ed)[0];
+    ed.call("hierarchy", json!({ "op": "close_group", "all": true }));
+    ed.call("select", json!({ "ids": [] }));
+    double_click([72.0, 32.0, -32.0]);
+    assert_eq!(open_groups(&ed), json!([group]), "inside a closed group the first double click opens it");
+    assert_eq!(selected(&ed), [p]);
+    double_click([72.0, 32.0, -32.0]);
+    assert_eq!(selected_sorted(&ed), [p.min(q), p.max(q)], "and the next one selects the entity");
+    assert_eq!(open_groups(&ed), json!([group]));
+}
+
 #[test]
 #[ignore]
 fn clip_vertex_rotate_tools() {

@@ -269,6 +269,33 @@ pub fn corner_hint(painter: &egui::Painter, rect: Rect, text: String, color: Col
     painter.galley(pos, galley, color);
 }
 
+/// The click that ends a pair, so a quick run of clicks at one spot gives a double click on every second one.
+#[derive(Clone, Copy, Default)]
+struct ClickPairs {
+    first: Option<(f64, Pos2)>,
+}
+
+impl ClickPairs {
+    fn click(&mut self, time: f64, pos: Pos2, max_delay: f64, max_dist: f32) -> bool {
+        let double = self.first.is_some_and(|(t, p)| time - t < max_delay && p.distance(pos) < max_dist);
+        self.first = (!double).then_some((time, pos));
+        double
+    }
+}
+
+/// Use this over `Response::double_clicked`. egui counts a third click within 0.6 s as a triple click, which swallows
+/// the second of two quick double clicks.
+pub fn double_clicked(response: &egui::Response) -> bool {
+    let Some(pos) = response.interact_pointer_pos().filter(|_| response.clicked()) else {
+        return false;
+    };
+
+    let ctx = &response.ctx;
+    let time = ctx.input(|i| i.time);
+    let (max_delay, max_dist) = ctx.options(|o| (o.input_options.max_double_click_delay, o.input_options.max_click_dist));
+    ctx.data_mut(|d| d.get_temp_mut_or_default::<ClickPairs>(Id::new("click_pairs")).click(time, pos, max_delay, max_dist))
+}
+
 /// A collapsible section on a raised header card.
 pub struct Collapsing {
     title: RichText,
@@ -362,6 +389,46 @@ mod tests {
         pass(vec![button(to, false)]);
         let moved = pass(vec![]);
         assert!((moved.center() - (rect.center() - egui::vec2(300.0, 200.0))).length() < 2.0, "{moved:?} stays where it was dragged");
+    }
+
+    #[test]
+    fn quick_clicks_at_one_spot_pair_into_double_clicks() {
+        let mut pairs = ClickPairs::default();
+        let mut click = |time: f64, x: f32| pairs.click(time, Pos2::new(x, 0.0), 0.3, 6.0);
+        let run: Vec<bool> = [0.0, 0.1, 0.2, 0.3, 0.4].into_iter().map(|t| click(t, 0.0)).collect();
+        assert_eq!(run, [false, true, false, true, false]);
+        assert!(!click(1.0, 0.0), "a click after a pause starts a new pair");
+        assert!(!click(1.1, 20.0), "and so does one at another spot");
+        assert!(click(1.2, 22.0));
+    }
+
+    #[test]
+    fn four_quick_clicks_give_two_double_clicks_where_egui_gives_one() {
+        let ctx = egui::Context::default();
+        let rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(200.0, 200.0));
+        let mut time = 0.0;
+        let mut pass = |events: Vec<egui::Event>| {
+            time += 0.04;
+            let mut seen = (false, false);
+            let input = egui::RawInput { screen_rect: Some(rect), time: Some(time), events, ..Default::default() };
+            ctx.run_ui(input, |ui| {
+                let response = ui.interact(rect, Id::new("spot"), egui::Sense::click());
+                seen = (response.double_clicked(), double_clicked(&response));
+            })
+            .drop_without_applying_deltas();
+            seen
+        };
+        let at = Pos2::new(100.0, 100.0);
+        let button = |pressed| egui::Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed, modifiers: Default::default() };
+        pass(vec![egui::Event::PointerMoved(at)]);
+        let mut seen = Vec::new();
+        for _ in 0..4 {
+            pass(vec![button(true)]);
+            seen.push(pass(vec![button(false)]));
+        }
+
+        assert_eq!(seen.iter().map(|s| s.0).collect::<Vec<_>>(), [false, true, false, false], "egui counts the last two as triple clicks");
+        assert_eq!(seen.iter().map(|s| s.1).collect::<Vec<_>>(), [false, true, false, true]);
     }
 
     /// A plain window opens at the top left corner over the menu bar, so a dialog goes through centered_window.

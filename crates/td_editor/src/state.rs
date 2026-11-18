@@ -1096,12 +1096,24 @@ impl EditorState {
 
     /// Parent for newly created objects: the innermost open group, or the current layer.
     pub fn insert_parent(&self) -> NodeId {
-        let map = &self.doc.map;
-        if let Some(g) = self.open_groups.iter().rev().find(|g| is_group(map, **g)) {
-            return *g;
+        if let Some(g) = self.innermost_open_group() {
+            return g;
         }
 
         self.valid_layer()
+    }
+
+    pub fn innermost_open_group(&self) -> Option<NodeId> {
+        let map = &self.doc.map;
+        self.open_groups.iter().rev().find(|g| is_group(map, **g)).copied()
+    }
+
+    /// Closes the innermost open group and clears the selection, the way a double click on empty space does.
+    pub fn close_innermost_group(&mut self) -> Option<NodeId> {
+        let g = self.innermost_open_group()?;
+        self.open_groups.retain(|o| *o != g);
+        self.doc.select(|_, s| s.clear());
+        Some(g)
     }
 
     /// Closes every open group that does not hold `id`, so a click elsewhere neither keeps a forgotten group open nor
@@ -3112,5 +3124,25 @@ importer=\"texture\"
 
         assert!(!state.open_groups_to(n.loose), "a loose brush has no group to open");
         assert!(state.open_groups.is_empty(), "but the groups elsewhere still close");
+    }
+
+    #[test]
+    fn closing_the_innermost_group_pops_one_level_and_clears_the_selection() {
+        let (mut state, n) = nest();
+        assert_eq!(state.close_innermost_group(), None, "nothing open, nothing closes");
+        state.doc.select(|_, s| s.select_node(n.loose));
+        assert_eq!(state.close_innermost_group(), None);
+        assert_eq!(state.doc.selection.nodes.len(), 1, "and the selection stays");
+
+        state.open_groups = vec![n.outer, n.inner, n.leg];
+        assert_eq!(state.close_innermost_group(), Some(n.inner), "a brush in the list is not a group");
+        assert_eq!(state.open_groups, [n.outer, n.leg]);
+        assert!(state.doc.selection.nodes.is_empty());
+
+        state.doc.select(|_, s| s.select_node(n.side));
+        assert_eq!(state.close_innermost_group(), Some(n.outer));
+        assert_eq!(state.open_groups, [n.leg]);
+        assert!(state.doc.selection.nodes.is_empty());
+        assert_eq!(state.close_innermost_group(), None);
     }
 }
