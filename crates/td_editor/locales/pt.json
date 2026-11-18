@@ -2497,5 +2497,6 @@
   "Select the object under the cursor": "Selecionar o objeto sob o cursor",
   "Add the object to the selection or remove it": "Adicionar o objeto à seleção ou removê-lo",
   "Select the face under the cursor, replacing the selection": "Selecionar a face sob o cursor, no lugar da seleção",
-  "Nothing changes, it has no faces to pick": "Nada muda, não tem faces para escolher"
+  "Nothing changes, it has no faces to pick": "Nada muda, não tem faces para escolher",
+  "{material}  ·  {size}  ·  {shown} of {n} face\nOther materials left out": { "one": "{material}  ·  {size}  ·  {shown} de {n} face\nOutros materiais ficam de fora", "other": "{material}  ·  {size}  ·  {shown} de {n} faces\nOutros materiais ficam de fora" }
 }

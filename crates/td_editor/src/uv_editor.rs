@@ -331,6 +331,23 @@ fn footer(ui: &mut Ui, state: &mut EditorState, selection: &[UvCorner], px: DVec
     }
 }
 
+/// The header line over the UV view, which draws only the faces of the first selected face's material and says so when
+/// that leaves selected faces out.
+fn header(material: &str, size: &str, shown: usize, selected: usize) -> String {
+    if shown == selected {
+        tr_n!(shown, "{material}  ·  {size}  ·  {n} face", "{material}  ·  {size}  ·  {n} faces", material, size)
+    } else {
+        tr_n!(
+            selected,
+            "{material}  ·  {size}  ·  {shown} of {n} face\nOther materials left out",
+            "{material}  ·  {size}  ·  {shown} of {n} faces\nOther materials left out",
+            material,
+            size,
+            shown
+        )
+    }
+}
+
 pub fn uv_editor(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actions: &mut Vec<Action>) {
     let selected_faces = texture_ops::target_faces(state);
     let Some(first) = selected_faces.first().and_then(|(id, f)| texture_ops::face_info(&state.doc.map, *id, *f)) else {
@@ -369,10 +386,14 @@ pub fn uv_editor(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, acti
     let hotspots = if uv_state.show_hotspots { crate::commands::hotspot_rects_uv(state, &material) } else { Vec::new() };
     let size = state.materials.size_label(&material).unwrap_or_else(|| format!("{} x {} px", tex.x, tex.y));
     ui.horizontal(|ui| {
-        let info = tr_n!(faces.len(), "{material}  ·  {size}  ·  {n} face", "{material}  ·  {size}  ·  {n} faces", material, size);
+        let info = header(&material, &size, faces.len(), selected_faces.len());
         let width = (ui.available_width() - CHIP - 16.0).max(40.0);
-        ui.allocate_ui_with_layout(Vec2::new(width, ui.spacing().interact_size.y), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-            ui.add(egui::Label::new(RichText::new(&info).weak()).truncate()).on_hover_text(&info);
+        // The left out note gets a line of its own, one truncated line hid it at the default panel width.
+        let layout = if info.contains('\n') { egui::Layout::top_down(egui::Align::LEFT) } else { egui::Layout::left_to_right(egui::Align::Center) };
+        ui.allocate_ui_with_layout(Vec2::new(width, ui.spacing().interact_size.y), layout, |ui| {
+            for line in info.lines() {
+                ui.add(egui::Label::new(RichText::new(line).weak()).truncate().show_tooltip_when_elided(false)).on_hover_text(&info);
+            }
         });
         icons::button(ui, icons::HELP, CHIP, tr("Controls"), tr(CONTROLS));
     });
@@ -807,6 +828,14 @@ mod tests {
     }
 
     const VIEW: (DVec3, DVec3) = (DVec3::X, DVec3::Y);
+
+    #[test]
+    fn the_header_says_when_other_materials_are_left_out() {
+        assert_eq!(header("dev/green", "128 x 128 px", 2, 2), "dev/green  ·  128 x 128 px  ·  2 faces");
+        assert_eq!(header("dev/green", "128 x 128 px", 1, 2), "dev/green  ·  128 x 128 px  ·  1 of 2 faces\nOther materials left out");
+        let _de = crate::i18n::scope(crate::i18n::Lang::De);
+        assert_eq!(header("dev/green", "128 x 128 px", 1, 2), "dev/green  ·  128 x 128 px  ·  1 von 2 Flächen\nAndere Materialien ausgelassen");
+    }
 
     #[test]
     fn adjust_points_flip_rotate_scale_align_fit_and_snap() {

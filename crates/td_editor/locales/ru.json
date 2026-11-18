@@ -2497,5 +2497,6 @@
   "Select the object under the cursor": "Выделить объект под курсором",
   "Add the object to the selection or remove it": "Добавить объект к выделению или убрать его",
   "Select the face under the cursor, replacing the selection": "Выделить грань под курсором вместо выделения",
-  "Nothing changes, it has no faces to pick": "Ничего не меняется, у него нет граней"
+  "Nothing changes, it has no faces to pick": "Ничего не меняется, у него нет граней",
+  "{material}  ·  {size}  ·  {shown} of {n} face\nOther materials left out": { "one": "{material}  ·  {size}  ·  {shown} из {n} грани\nДругие материалы не показаны", "few": "{material}  ·  {size}  ·  {shown} из {n} граней\nДругие материалы не показаны", "many": "{material}  ·  {size}  ·  {shown} из {n} граней\nДругие материалы не показаны" }
 }

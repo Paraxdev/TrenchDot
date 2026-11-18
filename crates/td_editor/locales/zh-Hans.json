@@ -2497,5 +2497,6 @@
   "Select the object under the cursor": "选择光标下的对象",
   "Add the object to the selection or remove it": "将该对象加入选择或移出",
   "Select the face under the cursor, replacing the selection": "选择光标下的面，替换当前选择",
-  "Nothing changes, it has no faces to pick": "不会变化，它没有可选的面"
+  "Nothing changes, it has no faces to pick": "不会变化，它没有可选的面",
+  "{material}  ·  {size}  ·  {shown} of {n} face\nOther materials left out": { "other": "{material}  ·  {size}  ·  {shown} / {n} 个面\n其他材质未显示" }
 }

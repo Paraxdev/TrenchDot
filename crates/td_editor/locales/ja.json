@@ -2497,5 +2497,6 @@
   "Select the object under the cursor": "カーソル下のオブジェクトを選択",
   "Add the object to the selection or remove it": "オブジェクトを選択に追加、または外す",
   "Select the face under the cursor, replacing the selection": "カーソル下の面を選択し、選択を置き換える",
-  "Nothing changes, it has no faces to pick": "何も変わらない。選べる面がない"
+  "Nothing changes, it has no faces to pick": "何も変わらない。選べる面がない",
+  "{material}  ·  {size}  ·  {shown} of {n} face\nOther materials left out": { "other": "{material}  ·  {size}  ·  {shown} / {n} 面\n他のマテリアルは除外" }
 }
