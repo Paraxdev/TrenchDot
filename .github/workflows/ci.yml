@@ -310,6 +310,14 @@ jobs:
           unzip -q butler.zip -d butler-bin && chmod +x butler-bin/butler
           butler=butler-bin/butler
           "$butler" -V
+          # A dropped connection mid upload fails butler and leaves a half build that itch reports as failed to process.
+          ship() {
+            for try in 1 2 3; do
+              "$butler" push "$@" && return 0
+              echo "butler push failed, try $try of 3"; sleep $((try * 20))
+            done
+            return 1
+          }
           # The rolling beta is the only build, so it fills the plain channels.
           version="beta-$(date -u +%Y%m%d)-${GITHUB_SHA::7}"
           # Downloaded binaries keep the platform in their name, so a folder holding several builds stays readable.
@@ -317,7 +325,7 @@ jobs:
             file="$1"; channel="$2"; out="itch/$channel"
             rm -rf "$out" && mkdir -p "$out"
             cp "$file" "$out/" && chmod +x "$out/$(basename "$file")"
-            "$butler" push "$out" "paraxdev/trenchdot:$channel" --userversion "$version"
+            ship "$out" "paraxdev/trenchdot:$channel" --userversion "$version"
           }
           push dist/trenchdot-linux-x86_64 linux
           push dist/trenchdot-windows-x86_64.exe windows
@@ -325,7 +333,7 @@ jobs:
           push dist/trenchdot-windows-x86_64-setup.exe windows-installer
           # The addon, demo project and content ship as their own zips so their folder layout (addons/func_godot, the
           # project, trenchdot/nature, demo and models) survives.
-          "$butler" push dist/func_godot-trenchdot-addon.zip "paraxdev/trenchdot:addon" --userversion "$version"
-          "$butler" push dist/trenchdot-demo-project.zip "paraxdev/trenchdot:demo-project" --userversion "$version"
-          "$butler" push dist/trenchdot-nature-pack.zip "paraxdev/trenchdot:nature-pack" --userversion "$version"
-          "$butler" push dist/trenchdot-demo-content.zip "paraxdev/trenchdot:demo-content" --userversion "$version"
+          ship dist/func_godot-trenchdot-addon.zip "paraxdev/trenchdot:addon" --userversion "$version"
+          ship dist/trenchdot-demo-project.zip "paraxdev/trenchdot:demo-project" --userversion "$version"
+          ship dist/trenchdot-nature-pack.zip "paraxdev/trenchdot:nature-pack" --userversion "$version"
+          ship dist/trenchdot-demo-content.zip "paraxdev/trenchdot:demo-content" --userversion "$version"
