@@ -2356,5 +2356,9 @@
   "A selects all, X deletes, Shift+D duplicates, S scales.": "Aで全選択、Xで削除、Shift+Dで複製、Sで拡大縮小。",
   "Skip": "スキップ",
   "File > Preferences > Keymap preset changes it later": "ファイル > 環境設定 > キーマッププリセットで後から変更できます",
-  "Welcome to TrenchDot": "TrenchDotへようこそ"
+  "Welcome to TrenchDot": "TrenchDotへようこそ",
+  "The box height caps the sweep at {angle}°": "ボックスの高さによりアーチの角度は {angle}° までに制限されます",
+  "At least half the span. At 180 the arch is a half ellipse and this shows half the span": "最小値はスパンの半分です。180 ではアーチは半楕円になり、スパンの半分を表示します",
+  "How much of a circle the arch sweeps, 180 is a half circle": "アーチが描く円の角度です。180 で半円になります",
+  "Radius of the arch circle in map units, linked to the angle": "アーチの円の半径です (マップ単位)。角度と連動します"
 }

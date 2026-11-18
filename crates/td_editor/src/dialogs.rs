@@ -486,6 +486,8 @@ pub struct ShapeDialog {
     kind: ShapeKind,
     sides: usize,
     thickness: f64,
+    /// Degrees of a circle an arch sweeps.
+    angle: f64,
     steps: usize,
     as_mesh: bool,
     smooth: bool,
@@ -502,7 +504,7 @@ pub struct ShapeDialog {
 const HEAVY_TRIANGLES: usize = 10_000;
 
 /// Every setting the generated shape depends on, so it is only rebuilt when one of them changes.
-type ShapeKey = (ShapeKind, usize, f64, usize, bool, bool, shapes::Axis, TextShape, Rock, Aabb, String);
+type ShapeKey = (ShapeKind, usize, f64, usize, bool, bool, shapes::Axis, TextShape, Rock, Aabb, String, f64);
 
 /// Block letter settings of the Text shape, laid out from the corner of the bounds.
 #[derive(Clone, Debug, PartialEq)]
@@ -537,6 +539,7 @@ impl Default for ShapeDialog {
             kind: ShapeKind::Cylinder,
             sides: 16,
             thickness: 16.0,
+            angle: 180.0,
             steps: 8,
             as_mesh: false,
             smooth: true,
@@ -622,7 +625,20 @@ fn shape_sources(state: &EditorState) -> Vec<td_doc::NodeId> {
 
 impl ShapeDialog {
     fn key(&self, bounds: &Aabb, material: &str) -> ShapeKey {
-        (self.kind, self.sides, self.thickness, self.steps, self.as_mesh, self.smooth, self.axis, self.text.clone(), self.rock, *bounds, material.to_string())
+        (
+            self.kind,
+            self.sides,
+            self.thickness,
+            self.steps,
+            self.as_mesh,
+            self.smooth,
+            self.axis,
+            self.text.clone(),
+            self.rock,
+            *bounds,
+            material.to_string(),
+            self.angle,
+        )
     }
 
     pub fn generate(&self, bounds: &Aabb, material: &str) -> Vec<NodeKind> {
@@ -653,6 +669,7 @@ impl ShapeDialog {
                 bounds,
                 (size.x - self.thickness * 2.0).max(1.0),
                 (size.y - self.thickness).max(1.0),
+                self.angle,
                 self.sides,
                 material,
             ))],
@@ -664,7 +681,7 @@ impl ShapeDialog {
             (ShapeKind::Sphere, false) => brushes(shapes::sphere(bounds, self.sides, (self.sides / 2).max(3), material)),
             (ShapeKind::Wedge, _) => brushes(shapes::wedge(bounds, material).into_iter().collect()),
             (ShapeKind::Spike, _) => brushes(shapes::spike(bounds, material).into_iter().collect()),
-            (ShapeKind::Arch, _) => brushes(shapes::arch(bounds, self.sides, self.thickness, material)),
+            (ShapeKind::Arch, _) => brushes(shapes::arch(bounds, self.sides, self.thickness, self.angle, material)),
             (ShapeKind::Pipe, _) => brushes(shapes::pipe(bounds, self.sides, self.thickness, material)),
             (ShapeKind::Stairs, _) => brushes(shapes::stairs(bounds, self.steps, material)),
             (ShapeKind::SpiralStairs, _) => brushes(shapes::spiral_stairs(bounds, self.steps, self.thickness, 1.0, material)),
@@ -688,6 +705,31 @@ impl ShapeDialog {
         state.shape_bounds = Some(bounds);
         self.bounds = Some(bounds);
         (sources, bounds)
+    }
+
+    fn arch_fields(&mut self, ui: &mut egui::Ui, bounds: &Aabb) {
+        let size = bounds.size();
+        let span = if self.kind == ShapeKind::Arch { size.x } else { (size.x - self.thickness * 2.0).max(1.0) };
+        let height = if self.kind == ShapeKind::Arch { size.y } else { (size.y - self.thickness).max(1.0) };
+        ui.horizontal(|ui| {
+            ui.label(tr("Angle")).on_hover_text(tr("How much of a circle the arch sweeps, 180 is a half circle"));
+            // Clamped on edits only, else the slider rounds an angle set from a typed radius to its one decimal.
+            ui.add(egui::Slider::new(&mut self.angle, shapes::ARCH_MIN_ANGLE..=180.0).suffix("°").max_decimals(1).clamping(egui::SliderClamping::Edits));
+        });
+        let sweep = shapes::arch_sweep(span, height, self.angle);
+        if sweep < self.angle.clamp(shapes::ARCH_MIN_ANGLE, 180.0) - 1e-6 {
+            ui.label(RichText::new(trf!("The box height caps the sweep at {angle}°", angle = format!("{sweep:.1}"))).weak());
+        }
+
+        ui.horizontal(|ui| {
+            let (min, max) = (span * 0.5, shapes::arch_radius(span, shapes::ARCH_MIN_ANGLE));
+            let mut radius = shapes::arch_radius(span, sweep).clamp(min, max.max(min));
+            ui.label(tr("Radius")).on_hover_text(tr("Radius of the arch circle in map units, linked to the angle"));
+            let field = ui.add(egui::DragValue::new(&mut radius).range(min..=max.max(min)).suffix(" u"));
+            if field.on_hover_text(tr("At least half the span. At 180 the arch is a half ellipse and this shows half the span")).changed() {
+                self.angle = shapes::arch_angle_for_radius(span, radius);
+            }
+        });
     }
 
     pub fn show(&mut self, ctx: &egui::Context, state: &mut EditorState) {
@@ -718,6 +760,10 @@ impl ShapeDialog {
                 } else {
                     en!("sides")
                 })));
+            }
+
+            if matches!(self.kind, ShapeKind::Arch | ShapeKind::ArchWall) {
+                self.arch_fields(ui, &bounds);
             }
 
             if matches!(self.kind, ShapeKind::Arch | ShapeKind::Pipe | ShapeKind::Torus | ShapeKind::ArchWall | ShapeKind::GableRoof | ShapeKind::SpiralStairs)
@@ -1959,6 +2005,76 @@ mod tests {
         for k in [ShapeKind::Torus, ShapeKind::ArchWall, ShapeKind::GableRoof, ShapeKind::Spire, ShapeKind::Grid] {
             d.kind = k;
             assert!(!d.generate(&bounds, "m").is_empty(), "{k:?}");
+        }
+    }
+
+    #[test]
+    fn shape_dialog_arch_angle_changes_the_curve() {
+        let bounds = Aabb::new(DVec3::new(-64.0, 0.0, -8.0), DVec3::new(64.0, 128.0, 8.0));
+        let top = |angle: f64, kind: ShapeKind| {
+            let d = ShapeDialog { kind, angle, sides: 12, thickness: 16.0, ..Default::default() };
+            d.generate(&bounds, "m")
+                .iter()
+                .map(|n| match n {
+                    NodeKind::Brush(b) => b.bounds().max.y,
+                    NodeKind::Mesh(m) => m.vertices.iter().map(|v| v.y).fold(f64::MIN, f64::max),
+                    _ => panic!("brush or mesh"),
+                })
+                .fold(f64::MIN, f64::max)
+        };
+        let (full, flat) = (top(180.0, ShapeKind::Arch), top(90.0, ShapeKind::Arch));
+        assert!((full - 128.0).abs() < 1e-6 && flat < 40.0, "{full} {flat}");
+        for kind in [ShapeKind::Arch, ShapeKind::ArchWall] {
+            assert!(!ShapeDialog { kind, angle: 60.0, ..Default::default() }.generate(&bounds, "m").is_empty());
+        }
+
+        let radius = shapes::arch_radius(128.0, 90.0);
+        assert!((shapes::arch_angle_for_radius(128.0, radius) - 90.0).abs() < 1e-9);
+    }
+
+    fn shape_texts(dialog: &mut ShapeDialog, source: &Aabb) -> Vec<String> {
+        let (ctx, mut state, mut time) = (egui::Context::default(), EditorState::new(crate::state::Prefs::default()), 0.0);
+        state.grid = 16.0;
+        let block = insert_block(&mut state, source);
+        state.doc.selection.select_node(block);
+        dialog.open = true;
+        (0..2).flat_map(|_| shape_frame(&ctx, dialog, &mut state, &mut time, vec![])).map(|(text, ..)| text).collect()
+    }
+
+    #[test]
+    fn the_arch_says_when_the_box_height_caps_its_sweep() {
+        let capped = |texts: &[String]| texts.iter().find(|t| t.starts_with("The box height caps the sweep at")).cloned();
+        let low = box_of([0.0, 0.0, 0.0], [256.0, 80.0, 32.0]);
+        let mut dialog = ShapeDialog { kind: ShapeKind::Arch, angle: 150.0, ..Default::default() };
+        assert_eq!(capped(&shape_texts(&mut dialog, &low)).as_deref(), Some("The box height caps the sweep at 128.0°"));
+        dialog.angle = 100.0;
+        assert_eq!(capped(&shape_texts(&mut dialog, &low)), None, "100 degrees fits");
+        dialog.angle = 180.0;
+        assert_eq!(capped(&shape_texts(&mut dialog, &low)), None, "the half ellipse takes the box height");
+    }
+
+    #[test]
+    fn a_typed_arch_radius_stays_exact() {
+        use egui_kittest::kittest::Queryable;
+        let bounds = box_of([0.0, 0.0, 0.0], [128.0, 96.0, 32.0]);
+        let dialog = ShapeDialog { kind: ShapeKind::Arch, angle: 90.0, ..Default::default() };
+        let mut harness =
+            egui_kittest::Harness::builder().with_size(egui::vec2(480.0, 160.0)).build_ui_state(|ui, d: &mut ShapeDialog| d.arch_fields(ui, &bounds), dialog);
+        harness.run();
+        let radius = |d: &ShapeDialog| shapes::arch_radius(128.0, shapes::arch_sweep(128.0, 96.0, d.angle));
+        for typed in [100.0, 200.0, 64.0] {
+            harness.get_all_by_role(egui::accesskit::Role::SpinButton).last().unwrap().click();
+            harness.run();
+            harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+            harness.run();
+            harness.get_all_by_role(egui::accesskit::Role::SpinButton).last().unwrap().type_text(&typed.to_string());
+            harness.run();
+            harness.key_press(egui::Key::Enter);
+            for _ in 0..3 {
+                harness.run();
+            }
+
+            assert!((radius(harness.state()) - typed).abs() < 1e-6, "typed {typed}, got {}", radius(harness.state()));
         }
     }
 

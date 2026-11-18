@@ -142,23 +142,97 @@ pub fn pipe(bounds: &Aabb, sides: usize, thickness: f64, material: &str) -> Vec<
     arc_segments(bounds, sides, thickness, 0.0, 360.0, material)
 }
 
-/// Arch in the XY plane: half ring spanning the bounds width, depth along Z.
-pub fn arch(bounds: &Aabb, segments: usize, thickness: f64, material: &str) -> Vec<Brush> {
+/// The smallest sweep an arch takes, in degrees.
+pub const ARCH_MIN_ANGLE: f64 = 10.0;
+
+/// The sweep an arch really gets, in degrees. A segmental arch (under 180) rises `width / 2 * tan(angle / 4)`, so a
+/// sweep that would stand taller than `height` is cut back until it fits.
+pub fn arch_sweep(width: f64, height: f64, angle: f64) -> f64 {
+    let angle = angle.clamp(ARCH_MIN_ANGLE, 180.0);
+    if angle >= 180.0 {
+        return 180.0;
+    }
+
+    angle.min(4.0 * (2.0 * height / width.max(1e-6)).atan().to_degrees()).max(0.5)
+}
+
+/// Radius of a circular arch that spans `width` and sweeps `angle` degrees.
+pub fn arch_radius(width: f64, angle: f64) -> f64 {
+    width * 0.5 / (angle.to_radians() * 0.5).sin()
+}
+
+/// The sweep in degrees of a circular arch of `radius` over `width`, the inverse of [`arch_radius`].
+pub fn arch_angle_for_radius(width: f64, radius: f64) -> f64 {
+    let half = (width * 0.5 / radius.max(1e-6)).clamp((ARCH_MIN_ANGLE * 0.5).to_radians().sin(), 1.0).asin();
+    2.0 * half.to_degrees()
+}
+
+/// The thickest wall that leaves an arch an opening. A half ellipse stays under 90% of the smaller of its half width
+/// and height, a segmental arch under 90% of how far it rises above the floor.
+pub fn arch_thickness_cap(bounds: &Aabb, angle: f64) -> f64 {
+    let size = bounds.size();
+    let sweep = arch_sweep(size.x, size.y, angle);
+    if sweep >= 180.0 {
+        return (size.x * 0.5).min(size.y) * 0.9;
+    }
+
+    let radius = arch_radius(size.x, sweep);
+    (radius - radius * (sweep.to_radians() * 0.5).cos()) * 0.9
+}
+
+/// The wall thickness an arch really gets. A segmental arch keeps it between 1 and [`arch_thickness_cap`]. A half
+/// ellipse takes any positive thickness as it always has, filling solid past its half width or height, so maps built
+/// before the angle existed come out the same.
+pub fn arch_thickness(bounds: &Aabb, angle: f64, thickness: f64) -> f64 {
+    let size = bounds.size();
+    if arch_sweep(size.x, size.y, angle) >= 180.0 {
+        return if thickness > 0.0 { thickness } else { 1.0 };
+    }
+
+    thickness.max(1.0).min(arch_thickness_cap(bounds, angle))
+}
+
+fn arch_brush(quad: [DVec2; 4], bounds: &Aabb, material: &str) -> Option<Brush> {
+    let pts: Vec<DVec3> = quad.iter().flat_map(|p| [DVec3::new(p.x, p.y, bounds.min.z), DVec3::new(p.x, p.y, bounds.max.z)]).collect();
+    hull(&pts, material)
+}
+
+/// Arch in the XY plane spanning the bounds width, depth along Z. At 180 degrees it is a half ellipse as tall as the
+/// bounds. Under 180 it is a circular segment whose ends sit on the bounds floor at the left and right edges, and the
+/// bounds height only caps how high it rises.
+pub fn arch(bounds: &Aabb, segments: usize, thickness: f64, angle: f64, material: &str) -> Vec<Brush> {
     let segments = segments.max(1);
     let size = bounds.size();
-    let rx = size.x * 0.5;
-    let ry = size.y;
-    let center = DVec2::new(bounds.center().x, bounds.min.y);
+    let sweep = arch_sweep(size.x, size.y, angle);
+    let thickness = arch_thickness(bounds, angle, thickness);
+    if sweep >= 180.0 {
+        let rx = size.x * 0.5;
+        let ry = size.y;
+        let center = DVec2::new(bounds.center().x, bounds.min.y);
+        return (0..segments)
+            .filter_map(|i| {
+                let a0 = std::f64::consts::PI * i as f64 / segments as f64;
+                let a1 = std::f64::consts::PI * (i + 1) as f64 / segments as f64;
+                let outer = |a: f64| center + DVec2::new(a.cos() * rx, a.sin() * ry);
+                let inner = |a: f64| center + DVec2::new(a.cos() * (rx - thickness).max(0.0), a.sin() * (ry - thickness).max(0.0));
+                arch_brush([outer(a0), outer(a1), inner(a0), inner(a1)], bounds, material)
+            })
+            .collect();
+    }
+
+    let half = sweep.to_radians() * 0.5;
+    let radius = arch_radius(size.x, sweep);
+    let drop = radius * half.cos();
+    let center = DVec2::new(bounds.center().x, bounds.min.y - drop);
+    let inner_radius = radius - thickness;
+    // The inner arc runs between where its circle meets the floor, so the ends are cut flat instead of radially,
+    // which would dip under the floor.
+    let inner_half = ((inner_radius * inner_radius - drop * drop).max(0.0).sqrt() / inner_radius).asin();
+    let angle_at = |i: usize, half: f64| std::f64::consts::FRAC_PI_2 + half - 2.0 * half * i as f64 / segments as f64;
+    let on = |r: f64, a: f64| center + DVec2::new(a.cos() * r, a.sin() * r);
+    let inner = |i: usize| on(inner_radius, angle_at(i, inner_half));
     (0..segments)
-        .filter_map(|i| {
-            let a0 = std::f64::consts::PI * i as f64 / segments as f64;
-            let a1 = std::f64::consts::PI * (i + 1) as f64 / segments as f64;
-            let outer = |a: f64| center + DVec2::new(a.cos() * rx, a.sin() * ry);
-            let inner = |a: f64| center + DVec2::new(a.cos() * (rx - thickness).max(0.0), a.sin() * (ry - thickness).max(0.0));
-            let quad = [outer(a0), outer(a1), inner(a0), inner(a1)];
-            let pts: Vec<DVec3> = quad.iter().flat_map(|p| [DVec3::new(p.x, p.y, bounds.min.z), DVec3::new(p.x, p.y, bounds.max.z)]).collect();
-            hull(&pts, material)
-        })
+        .filter_map(|i| arch_brush([on(radius, angle_at(i, half)), on(radius, angle_at(i + 1, half)), inner(i), inner(i + 1)], bounds, material))
         .collect()
 }
 
@@ -268,7 +342,7 @@ mod tests {
         }
 
         assert_eq!(pipe(&b(), 12, 8.0, "m").len(), 12);
-        assert_eq!(arch(&b(), 8, 8.0, "m").len(), 8);
+        assert_eq!(arch(&b(), 8, 8.0, 180.0, "m").len(), 8);
         assert_eq!(stairs(&b(), 4, "m").len(), 4);
         for seed in 0..20 {
             rock(&b(), &Rock { seed, ..Rock::default() }, "m").unwrap().validate().unwrap();
@@ -295,5 +369,121 @@ mod tests {
         let (local, _) = Axis::X.frame(&bounds);
         let tip = Axis::X.lay(cone(&local, 8, "m").unwrap(), &bounds);
         assert!(tip.vertices.iter().any(|v| (v.x - 100.0).abs() < 1e-6), "a cone along X points to +X");
+    }
+
+    fn old_arch(bounds: &Aabb, segments: usize, thickness: f64) -> Vec<Brush> {
+        let size = bounds.size();
+        let (rx, ry) = (size.x * 0.5, size.y);
+        let center = DVec2::new(bounds.center().x, bounds.min.y);
+        (0..segments)
+            .filter_map(|i| {
+                let a0 = std::f64::consts::PI * i as f64 / segments as f64;
+                let a1 = std::f64::consts::PI * (i + 1) as f64 / segments as f64;
+                let outer = |a: f64| center + DVec2::new(a.cos() * rx, a.sin() * ry);
+                let inner = |a: f64| center + DVec2::new(a.cos() * (rx - thickness).max(0.0), a.sin() * (ry - thickness).max(0.0));
+                let quad = [outer(a0), outer(a1), inner(a0), inner(a1)];
+                let pts: Vec<DVec3> = quad.iter().flat_map(|p| [DVec3::new(p.x, p.y, bounds.min.z), DVec3::new(p.x, p.y, bounds.max.z)]).collect();
+                hull(&pts, "m")
+            })
+            .collect()
+    }
+
+    fn arch_bounds() -> Aabb {
+        Aabb::new(DVec3::new(100.0, 40.0, -20.0), DVec3::new(228.0, 140.0, 20.0))
+    }
+
+    #[test]
+    fn a_half_circle_arch_is_unchanged() {
+        for bounds in [b(), arch_bounds()] {
+            for thickness in [0.5, 12.0, 70.0, 1e6] {
+                let (new, old) = (arch(&bounds, 9, thickness, 180.0, "m"), old_arch(&bounds, 9, thickness));
+                assert_eq!(new.len(), old.len(), "{thickness}");
+                for (n, o) in new.iter().zip(&old) {
+                    assert_eq!(n.vertices, o.vertices, "{thickness}");
+                }
+            }
+        }
+
+        assert_eq!(arch(&b(), 8, 8.0, 400.0, "m")[0].vertices, arch(&b(), 8, 8.0, 180.0, "m")[0].vertices, "angles clamp to 180");
+    }
+
+    #[test]
+    fn a_segmental_arch_stays_in_bounds_and_stands_on_the_floor() {
+        let bounds = arch_bounds();
+        let (width, thickness) = (bounds.size().x, 12.0);
+        for angle in [30.0, 90.0, 140.0] {
+            let brushes = arch(&bounds, 10, thickness, angle, "m");
+            assert_eq!(brushes.len(), 10);
+            let radius = arch_radius(width, angle);
+            let center = DVec2::new(bounds.center().x, bounds.min.y - radius * (angle.to_radians() * 0.5).cos());
+            let drop = radius * (angle.to_radians() * 0.5).cos();
+            let wall = thickness.min((radius - drop) * 0.9);
+            let mut ends = [f64::MAX, f64::MIN];
+            for brush in &brushes {
+                brush.validate().unwrap();
+                for v in &brush.vertices {
+                    assert!(v.x >= bounds.min.x - 1e-6 && v.x <= bounds.max.x + 1e-6, "{angle}: x {v:?}");
+                    assert!(v.y >= bounds.min.y - 1e-6 && v.y <= bounds.max.y + 1e-6, "{angle}: y {v:?}");
+                    assert!(v.z >= bounds.min.z - 1e-6 && v.z <= bounds.max.z + 1e-6);
+                    let d = DVec2::new(v.x, v.y).distance(center);
+                    assert!((d - radius).abs() < 1e-6 || (d - (radius - wall)).abs() < 1e-6, "{angle}: radius {d} against {radius}");
+                    if (v.y - bounds.min.y).abs() < 1e-6 && (d - radius).abs() < 1e-6 {
+                        ends = [ends[0].min(v.x), ends[1].max(v.x)];
+                    }
+                }
+            }
+
+            assert!((ends[0] - bounds.min.x).abs() < 1e-6 && (ends[1] - bounds.max.x).abs() < 1e-6, "{angle}: ends {ends:?}");
+            for (i, piece) in brushes.iter().enumerate() {
+                assert!(brushes[i + 1..].iter().all(|other| !piece.intersects(other)), "{angle}: pieces overlap");
+            }
+
+            let thin = brushes.iter().flat_map(|b| b.vertices.clone()).any(|v| (DVec2::new(v.x, v.y).distance(center) - (radius - thickness)).abs() < 1e-6);
+            assert_eq!(thin, wall == thickness, "{angle}: the wall is thinned only when the arch is too low for it");
+        }
+    }
+
+    #[test]
+    fn the_arch_radius_follows_the_angle() {
+        assert!((arch_radius(64.0, 180.0) - 32.0).abs() < 1e-9);
+        assert!((arch_radius(64.0, 90.0) - 32.0 * 2f64.sqrt()).abs() < 1e-9);
+        assert!((arch_radius(64.0, 60.0) - 64.0).abs() < 1e-9);
+        for angle in [10.0, 45.0, 90.0, 179.0] {
+            assert!((arch_angle_for_radius(64.0, arch_radius(64.0, angle)) - angle).abs() < 1e-6);
+        }
+
+        assert!((arch_angle_for_radius(64.0, 10.0) - 180.0).abs() < 1e-9, "a radius under half the width is the half circle");
+    }
+
+    #[test]
+    fn an_arch_never_rises_above_its_bounds() {
+        let flat = Aabb::new(DVec3::new(0.0, 0.0, 0.0), DVec3::new(128.0, 20.0, 8.0));
+        assert!(arch_sweep(128.0, 20.0, 170.0) < 170.0);
+        let top = arch(&flat, 8, 4.0, 170.0, "m").iter().flat_map(|b| b.vertices.clone()).map(|v| v.y).fold(f64::MIN, f64::max);
+        assert!((top - 20.0).abs() < 1.0 && top <= 20.0 + 1e-6, "rises {top}");
+    }
+
+    #[test]
+    fn the_arch_thickness_keeps_a_wall_and_an_opening() {
+        let bounds = arch_bounds();
+        assert!((arch_thickness_cap(&bounds, 180.0) - 57.6).abs() < 1e-9, "90 percent of the 64 unit half width");
+        let rise = arch_radius(128.0, 90.0) - 64.0;
+        assert!((arch_thickness_cap(&bounds, 90.0) - rise * 0.9).abs() < 1e-9);
+        assert!((arch_thickness(&bounds, 90.0, 1e6) - rise * 0.9).abs() < 1e-9);
+        assert_eq!(arch_thickness(&bounds, 90.0, 0.5), 1.0);
+        let probe = DVec3::new(bounds.center().x, bounds.min.y + 0.5, 0.0);
+        for thickness in [0.0, 1e6] {
+            let brushes = arch(&bounds, 8, thickness, 90.0, "m");
+            assert_eq!(brushes.len(), 8, "{thickness}");
+            assert!(brushes.iter().all(|b| b.validate().is_ok() && !b.contains_point(probe)), "{thickness}");
+        }
+
+        for thickness in [0.5, 12.0, 1e6] {
+            assert_eq!(arch_thickness(&bounds, 180.0, thickness), thickness, "a half ellipse keeps its old thickness");
+        }
+
+        assert_eq!(arch_thickness(&bounds, 180.0, 0.0), 1.0);
+        assert_eq!(arch(&bounds, 8, 0.0, 180.0, "m").len(), 8, "a zero wall still makes an arch");
+        assert!(arch(&bounds, 8, 1e6, 180.0, "m").iter().any(|b| b.contains_point(probe)), "a wall past the half width fills it, as before");
     }
 }

@@ -8,7 +8,9 @@ use td_doc::NodeKind;
 use td_geom::mesh_shapes;
 
 use super::ToolResult;
-use super::tools::{Child, editable_ids, face_list, optional_vec3, pair_list, require_id, resolve_parent, ridge_along_x, rock_params, uint, uint_list};
+use super::tools::{
+    Child, arch_angle_arg, editable_ids, face_list, optional_vec3, pair_list, require_id, resolve_parent, ridge_along_x, rock_params, round2, uint, uint_list,
+};
 use crate::app::App;
 use crate::state::EditorState;
 
@@ -115,6 +117,7 @@ impl App {
             Some(None) => return err("axis is x, y or z"),
         };
         let (upright, turn) = axis.frame(&bounds);
+        let mut note = None;
         let mut mesh = match args["shape"].as_str().unwrap_or("cuboid") {
             "cuboid" | "box" => mesh_shapes::cuboid(&bounds, &material),
             "cylinder" => mesh_shapes::cylinder(&upright, sides, &material).transformed(&turn, true),
@@ -122,13 +125,21 @@ impl App {
             "sphere" => mesh_shapes::sphere(&bounds, sides, (sides / 2).max(3), &material),
             "torus" => mesh_shapes::torus(bounds.center(), (size.x * 0.5 - thickness).max(1.0), thickness, sides, (sides / 2).max(3), &material),
             "grid" => mesh_shapes::grid(&bounds, divisions, divisions, &material),
-            "arch_wall" => mesh_shapes::arch_wall(
-                &bounds,
-                args["opening_width"].as_f64().unwrap_or(size.x * 0.5),
-                args["opening_height"].as_f64().unwrap_or(size.y * 0.75),
-                sides,
-                &material,
-            ),
+            "arch_wall" => {
+                let (width, height) = (args["opening_width"].as_f64().unwrap_or(size.x * 0.5), args["opening_height"].as_f64().unwrap_or(size.y * 0.75));
+                let angle = match arch_angle_arg(&args["angle"]) {
+                    Ok(angle) => angle,
+                    Err(e) => return err(e),
+                };
+                let sweep = td_geom::shapes::arch_sweep(width, height, angle);
+                if sweep != angle {
+                    let why =
+                        if (td_geom::shapes::ARCH_MIN_ANGLE..=180.0).contains(&angle) { "would rise above the opening height" } else { "is outside 10 to 180" };
+                    note = Some((sweep, format!("angle {angle} {why}, the arch sweeps {} degrees", round2(sweep))));
+                }
+
+                mesh_shapes::arch_wall(&bounds, width, height, angle, sides, &material)
+            }
             "gable_roof" => mesh_shapes::gable_roof(
                 &bounds,
                 match ridge_along_x(args, true) {
@@ -208,7 +219,13 @@ impl App {
             s.select_node(id);
             id
         });
-        ok(json!({ "id": id.0, "faces": faces }))
+        let mut reply = json!({ "id": id.0, "faces": faces });
+        if let Some((sweep, note)) = note {
+            reply["angle"] = json!(sweep);
+            reply["note"] = json!(note);
+        }
+
+        ok(reply)
     }
 
     pub(crate) fn tool_mesh_edit(&mut self, args: &Value) -> ToolResult {

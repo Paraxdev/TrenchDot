@@ -321,6 +321,8 @@ shapes have options of their own. **Rock** fills the box with a stone:
 | Shape | Option | What it does |
 | --- | --- | --- |
 | Cylinder, Cone | **Axis** | Stands upright on **Y**. Pick **X** or **Z** to lay it down inside the same box, for pipes, logs or a beam, instead of rotating it afterwards |
+| Arch, Arch Wall | **Angle** | How much of a circle the arch sweeps, 10 to 180 degrees. 180 is the half circle. A smaller angle gives a flatter, wider arch whose ends stand on the floor of the box, and the box height only caps how high it rises. A flat arch thins its wall when it would not leave an opening |
+| | **Radius** | The radius of that circle in map units. It follows the angle, and typing a radius sets the angle, down to half the arch width |
 | Rock | **Roughness** | How lumpy the stone is |
 | | **Facets** | Chips flat faces into it |
 | | **Flat base** | Cuts the underside flat so it sits on the ground |
@@ -334,6 +336,8 @@ keeps its dents and overhangs.
 ![The Shape Generator set to Rock as an editable mesh, with Roughness 0.5, Facets 5, Flat base 0.3, Detail 3 and Seed 1](../assets/brushes/shape-generator-rock.png)
 
 ![Five orange rocks on a grey floor, three lumpy meshes in front and two faceted brush rocks behind them](../assets/brushes/shape-generator-rocks.png)
+
+![The Shape Generator set to Arch with an Angle of 90 degrees and the Radius field showing 45.25 u](../assets/brushes/shape-generator-arch.png)
 
 ## Sweep Faces
 

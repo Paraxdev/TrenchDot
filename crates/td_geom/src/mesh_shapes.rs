@@ -10,6 +10,7 @@ use crate::brush::FaceData;
 use crate::mesh::{Mesh, MeshFace};
 use crate::polygon;
 use crate::rock::{self, Rock};
+use crate::shapes;
 use crate::uv::FaceUv;
 
 fn data(material: &str, pts: &[DVec3]) -> FaceData {
@@ -188,16 +189,23 @@ pub fn prism(footprint: &[DVec2], bottom: f64, top: f64, material: &str) -> Mesh
     extrude_polygon(&pts, DVec3::new(0.0, top - bottom, 0.0), material)
 }
 
-/// Wall with an arched opening, in the XY plane of the bounds and `bounds.size().z` thick.
-pub fn arch_wall(bounds: &Aabb, opening_width: f64, opening_height: f64, segments: usize, material: &str) -> Mesh {
+/// Wall with an arched opening, in the XY plane of the bounds and `bounds.size().z` thick. The opening's top is a
+/// circular arc sweeping `angle` degrees (180 is a half circle) and reaching `opening_height`.
+pub fn arch_wall(bounds: &Aabb, opening_width: f64, opening_height: f64, angle: f64, segments: usize, material: &str) -> Mesh {
     let segments = segments.max(2);
     let cx = bounds.center().x;
     let half = opening_width * 0.5;
-    let spring = bounds.min.y + (opening_height - half).max(0.0);
+    let sweep = shapes::arch_sweep(opening_width, opening_height, angle);
+    let reach = sweep.to_radians() * 0.5;
+    let radius = shapes::arch_radius(opening_width, sweep);
+    // Where the arc meets the jambs, kept on the floor when the arc would end below it.
+    let side_cos = if sweep >= 180.0 { 0.0 } else { reach.cos() };
+    let spring = bounds.min.y + (opening_height - radius * (1.0 - side_cos)).max(0.0);
+    let center_y = spring - radius * side_cos;
     let mut outline = vec![DVec2::new(bounds.min.x, bounds.min.y), DVec2::new(cx - half, bounds.min.y)];
     for s in 0..=segments {
-        let a = PI - PI * s as f64 / segments as f64;
-        outline.push(DVec2::new(cx + half * a.cos(), spring + half * a.sin()));
+        let a = (PI * 0.5 + reach) - 2.0 * reach * s as f64 / segments as f64;
+        outline.push(DVec2::new(cx + radius * a.cos(), center_y + radius * a.sin()));
     }
 
     outline.extend([
@@ -293,7 +301,7 @@ mod tests {
                 "prism",
                 prism(&[DVec2::new(0.0, 0.0), DVec2::new(64.0, 0.0), DVec2::new(64.0, 32.0), DVec2::new(32.0, 64.0), DVec2::new(0.0, 32.0)], 0.0, 16.0, "m"),
             ),
-            ("arch", arch_wall(&b(), 32.0, 48.0, 8, "m")),
+            ("arch", arch_wall(&b(), 32.0, 48.0, 180.0, 8, "m")),
             ("roof", gable_roof(&b(), false, 4.0, 4.0, "m")),
             ("roof z", gable_roof(&b(), true, 4.0, 4.0, "m")),
             ("spire", spire(&b(), 4, "m")),
@@ -315,10 +323,26 @@ mod tests {
 
     #[test]
     fn arch_wall_volume_excludes_opening() {
-        let m = arch_wall(&Aabb::new(DVec3::new(-64.0, 0.0, -8.0), DVec3::new(64.0, 128.0, 8.0)), 48.0, 96.0, 16, "m");
+        let m = arch_wall(&Aabb::new(DVec3::new(-64.0, 0.0, -8.0), DVec3::new(64.0, 128.0, 8.0)), 48.0, 96.0, 180.0, 16, "m");
         let full = 128.0 * 128.0 * 16.0;
         let opening = (48.0 * 72.0 + PI * 24.0 * 24.0 * 0.5) * 16.0;
         assert!((m.volume() - (full - opening)).abs() < 150.0, "volume {} vs {}", m.volume(), full - opening);
+    }
+
+    #[test]
+    fn a_segmental_arch_wall_opening_has_the_circular_segment_area() {
+        let bounds = Aabb::new(DVec3::new(-64.0, 0.0, -8.0), DVec3::new(64.0, 128.0, 8.0));
+        for angle in [60.0f64, 90.0, 150.0] {
+            let m = arch_wall(&bounds, 48.0, 96.0, angle, 64, "m");
+            m.validate().unwrap();
+            assert!(m.is_closed());
+            let radius = shapes::arch_radius(48.0, angle);
+            let rise = radius * (1.0 - (angle.to_radians() * 0.5).cos());
+            let segment = radius * radius * 0.5 * (angle.to_radians() - angle.to_radians().sin());
+            let opening = (48.0 * (96.0 - rise) + segment) * 16.0;
+            assert!((m.volume() - (128.0 * 128.0 * 16.0 - opening)).abs() < 100.0, "{angle}: volume {}", m.volume());
+            assert!((m.bounds().max.y - 128.0).abs() < 1e-9);
+        }
     }
 
     #[test]

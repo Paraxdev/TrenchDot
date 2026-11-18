@@ -2356,5 +2356,9 @@
   "A selects all, X deletes, Shift+D duplicates, S scales.": "A selecciona todo, X borra, Shift+D duplica, S escala.",
   "Skip": "Omitir",
   "File > Preferences > Keymap preset changes it later": "Archivo > Preferencias > Preajuste de atajos lo cambia después",
-  "Welcome to TrenchDot": "Te damos la bienvenida a TrenchDot"
+  "Welcome to TrenchDot": "Te damos la bienvenida a TrenchDot",
+  "The box height caps the sweep at {angle}°": "La altura de la caja limita el arco a {angle}°",
+  "At least half the span. At 180 the arch is a half ellipse and this shows half the span": "Al menos la mitad del vano. En 180 el arco es media elipse y aquí se muestra la mitad del vano",
+  "How much of a circle the arch sweeps, 180 is a half circle": "Cuánto de un círculo abarca el arco, 180 es medio círculo",
+  "Radius of the arch circle in map units, linked to the angle": "Radio del círculo del arco en unidades del mapa, ligado al ángulo"
 }

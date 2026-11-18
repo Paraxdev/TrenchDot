@@ -78,6 +78,10 @@ fn vec3(v: &Value) -> Option<DVec3> {
     Some(DVec3::new(a.first()?.as_f64()?, a.get(1)?.as_f64()?, a.get(2)?.as_f64()?))
 }
 
+pub(crate) fn round2(v: f64) -> f64 {
+    (v * 100.0).round() / 100.0
+}
+
 fn vec2(v: &Value) -> Option<DVec2> {
     let a = v.as_array()?;
     Some(DVec2::new(a.first()?.as_f64()?, a.get(1)?.as_f64()?))
@@ -285,6 +289,15 @@ fn err(msg: impl Into<String>) -> ToolResult {
 
 fn ok(v: Value) -> ToolResult {
     ToolResult::Json(v)
+}
+
+/// The `angle` of an arch in degrees, 180 when it is absent.
+pub(crate) fn arch_angle_arg(v: &Value) -> Result<f64, String> {
+    if v.is_null() {
+        return Ok(180.0);
+    }
+
+    v.as_f64().ok_or_else(|| format!("angle must be a number of degrees, got {v}"))
 }
 
 /// The `language` argument of set_editor: None when it is absent, an error naming every code when it is not one.
@@ -2267,6 +2280,7 @@ impl App {
         };
         let (upright, _) = axis.frame(&bounds);
         let mut letter_bounds: Vec<Aabb> = Vec::new();
+        let mut adjusted: Vec<(&str, f64, String)> = Vec::new();
         let brushes: Vec<Brush> = match args["shape"].as_str().unwrap_or("box") {
             "box" => Brush::from_aabb(&bounds, &material).into_iter().collect(),
             "cylinder" => shapes::cylinder(&upright, sides, &material).map(|b| axis.lay(b, &bounds)).into_iter().collect(),
@@ -2278,7 +2292,25 @@ impl App {
                 Err(e) => return err(e),
             },
             "sphere" => shapes::sphere(&bounds, sides, (sides / 2).max(3), &material),
-            "arch" => shapes::arch(&bounds, sides, thickness, &material),
+            "arch" => {
+                let angle = match arch_angle_arg(&args["angle"]) {
+                    Ok(angle) => angle,
+                    Err(e) => return err(e),
+                };
+                let sweep = shapes::arch_sweep(bounds.size().x, bounds.size().y, angle);
+                if sweep != angle {
+                    let why = if (shapes::ARCH_MIN_ANGLE..=180.0).contains(&angle) { "would rise above the bounds" } else { "is outside 10 to 180" };
+                    adjusted.push(("angle", sweep, format!("angle {angle} {why}, the arch sweeps {} degrees", round2(sweep))));
+                }
+
+                let wall = shapes::arch_thickness(&bounds, angle, thickness);
+                if wall != thickness {
+                    let why = if thickness < wall { "is under 1" } else { "is over the most this arch can take" };
+                    adjusted.push(("thickness", wall, format!("thickness {thickness} {why}, the arch is {} thick", round2(wall))));
+                }
+
+                shapes::arch(&bounds, sides, thickness, angle, &material)
+            }
             "pipe" => shapes::pipe(&bounds, sides, thickness, &material),
             "stairs" => shapes::stairs(&bounds, args["steps"].as_u64().unwrap_or(8) as usize, &material),
             "spiral_stairs" => {
@@ -2396,19 +2428,30 @@ impl App {
             (ids, entity_id)
         });
         self.state.last_bounds = bounds;
-        if letter_bounds.is_empty() {
-            return ok(json!({ "ids": ids, "entity": entity_id.map(|e| e.0) }));
+        let mut reply = json!({ "ids": ids, "entity": entity_id.map(|e| e.0) });
+        let mut notes = Vec::new();
+        for (key, value, note) in adjusted {
+            reply[key] = json!(value);
+            notes.push(note);
         }
 
-        let map = &self.state.doc.map;
-        let letters: Vec<Vec<u64>> = letter_bounds
-            .iter()
-            .map(|lb| {
-                let inside = |id: &&u64| map.brush(NodeId(**id)).is_some_and(|b| lb.expanded(1e-6).contains_point(b.bounds().center()));
-                ids.iter().filter(inside).copied().collect()
-            })
-            .collect();
-        ok(json!({ "ids": ids, "entity": entity_id.map(|e| e.0), "letters": letters }))
+        if !notes.is_empty() {
+            reply["note"] = json!(notes.join("; "));
+        }
+
+        if !letter_bounds.is_empty() {
+            let map = &self.state.doc.map;
+            let letters: Vec<Vec<u64>> = letter_bounds
+                .iter()
+                .map(|lb| {
+                    let inside = |id: &&u64| map.brush(NodeId(**id)).is_some_and(|b| lb.expanded(1e-6).contains_point(b.bounds().center()));
+                    ids.iter().filter(inside).copied().collect()
+                })
+                .collect();
+            reply["letters"] = json!(letters);
+        }
+
+        ok(reply)
     }
 
     fn tool_update_entity(&mut self, args: &Value) -> ToolResult {
@@ -3098,6 +3141,16 @@ mod tests {
         assert_eq!(ridge_along_x(&json!({ "ridge_x": true, "ridge_z": false }), false), Ok(true));
         assert!(ridge_along_x(&json!({ "ridge_x": true, "ridge_z": true }), false).is_err());
         assert!(ridge_along_x(&json!({ "ridge_x": "yes" }), false).is_err());
+    }
+
+    #[test]
+    fn an_arch_angle_must_be_a_number() {
+        assert_eq!(arch_angle_arg(&Value::Null), Ok(180.0));
+        assert_eq!(arch_angle_arg(&json!(90)), Ok(90.0));
+        assert_eq!(arch_angle_arg(&json!(400.5)), Ok(400.5), "the range is checked by the arch");
+        for bad in [json!("90"), json!(true), json!([90])] {
+            assert!(arch_angle_arg(&bad).unwrap_err().starts_with("angle must be a number"), "{bad}");
+        }
     }
 
     #[test]

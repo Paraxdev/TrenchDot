@@ -2571,6 +2571,65 @@ fn rocks_from_create_brush_and_create_mesh() {
 
 #[test]
 #[ignore]
+fn an_arch_takes_an_angle_over_mcp() {
+    let ed = Editor::launch("arch_angle");
+    let count = |args: Value| ed.call("create_brush", args)["ids"].as_array().map(Vec::len);
+    assert_eq!(count(json!({ "shape": "arch", "min": [0, 0, 0], "max": [128, 64, 16], "sides": 6 })), Some(6));
+    assert_eq!(count(json!({ "shape": "arch", "min": [0, 0, 0], "max": [128, 64, 16], "sides": 6, "angle": 90 })), Some(6));
+    let arch = |max: [i32; 3], angle: f64| ed.call("create_brush", json!({ "shape": "arch", "min": [0, 0, 0], "max": max, "angle": angle }));
+    assert!(arch([128, 64, 16], 90.0)["note"].is_null(), "an angle that fits is not reported");
+    for (asked, used) in [(0.0, 10.0), (5.0, 10.0), (200.0, 180.0)] {
+        let reply = arch([128, 64, 16], asked);
+        assert_eq!(reply["angle"].as_f64(), Some(used), "{reply}");
+        assert!(reply["note"].as_str().unwrap().contains("outside 10 to 180"), "{reply}");
+    }
+
+    let low = arch([256, 32, 16], 90.0);
+    assert!(low["angle"].as_f64().unwrap() < 60.0, "a low box caps the sweep: {low}");
+    assert!(low["note"].as_str().unwrap().contains("rise above the bounds"), "{low}");
+    let walled = |angle: f64, thickness: f64| {
+        let args = json!({ "shape": "arch", "min": [0, 0, 600], "max": [256, 192, 632], "angle": angle, "thickness": thickness });
+        ed.call("create_brush", args)
+    };
+    for angle in [90.0, 180.0] {
+        assert!(walled(angle, 16.0)["note"].is_null(), "a thickness that fits is not reported");
+        let thin = walled(angle, 0.0);
+        assert_eq!(thin["thickness"].as_f64(), Some(1.0), "{thin}");
+        assert!(thin["note"].as_str().unwrap().contains("is under 1"), "{thin}");
+    }
+
+    let thick = walled(90.0, 500.0);
+    assert!(thick["thickness"].as_f64().unwrap() < 500.0, "{thick}");
+    assert!(thick["note"].as_str().unwrap().contains("the most this arch can take"), "{thick}");
+    assert!(walled(180.0, 500.0)["note"].is_null(), "a half ellipse keeps a thick wall as it always has");
+    assert!(ed.call_err("create_brush", json!({ "shape": "arch", "min": [0, 0, 0], "max": [128, 64, 16], "angle": "90" })).contains("angle must be a number"));
+
+    let both = ed.call("create_brush", json!({ "shape": "arch", "min": [0, 0, 700], "max": [256, 192, 732], "angle": 300, "thickness": 0 }));
+    assert_eq!((both["angle"].as_f64(), both["thickness"].as_f64()), (Some(180.0), Some(1.0)), "{both}");
+
+    let wall = |angle: f64| {
+        let args = json!({ "shape": "arch_wall", "min": [1200, 0, 700], "max": [1456, 192, 732], "opening_width": 128, "opening_height": 128, "angle": angle });
+        ed.call("create_mesh", args)
+    };
+    assert!(wall(90.0)["note"].is_null(), "an angle that fits is not reported");
+    let wide = wall(300.0);
+    assert_eq!(wide["angle"].as_f64(), Some(180.0), "{wide}");
+    assert!(wide["note"].as_str().unwrap().contains("outside 10 to 180"), "{wide}");
+    let low = ed.call(
+        "create_mesh",
+        json!({ "shape": "arch_wall", "min": [1200, 0, 800], "max": [1456, 192, 832], "opening_width": 128, "opening_height": 8, "angle": 90 }),
+    );
+    assert!(low["note"].as_str().unwrap().contains("rise above"), "{low}");
+    let text = json!({ "shape": "arch_wall", "min": [1200, 0, 900], "max": [1456, 192, 932], "angle": "flat" });
+    assert!(ed.call_err("create_mesh", text).contains("angle must be a number"));
+
+    let flat = ed.call("create_mesh", json!({ "shape": "arch_wall", "min": [0, 0, 0], "max": [128, 128, 16], "angle": 90 }))["faces"].as_u64().unwrap();
+    let round = ed.call("create_mesh", json!({ "shape": "arch_wall", "min": [200, 0, 0], "max": [328, 128, 16] }))["faces"].as_u64().unwrap();
+    assert_eq!(flat, round, "the angle only moves the opening's corners");
+}
+
+#[test]
+#[ignore]
 fn sweep_faces_runs_a_corridor_round_a_bend() {
     let ed = Editor::launch("sweep");
     let floor = ed.call("create_brush", json!({ "min": [0, 0, 0], "max": [64, 16, 128], "material": "dev/floor" }))["ids"][0].as_u64().unwrap();

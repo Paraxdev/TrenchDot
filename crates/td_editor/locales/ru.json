@@ -2356,5 +2356,9 @@
   "A selects all, X deletes, Shift+D duplicates, S scales.": "A выбирает всё, X удаляет, Shift+D дублирует, S масштабирует.",
   "Skip": "Пропустить",
   "File > Preferences > Keymap preset changes it later": "Файл > Настройки > Набор сочетаний клавиш изменит это позже",
-  "Welcome to TrenchDot": "Добро пожаловать в TrenchDot"
+  "Welcome to TrenchDot": "Добро пожаловать в TrenchDot",
+  "The box height caps the sweep at {angle}°": "Высота рамки ограничивает арку до {angle}°",
+  "At least half the span. At 180 the arch is a half ellipse and this shows half the span": "Не меньше половины пролёта. При 180 арка это половина эллипса, и здесь показана половина пролёта",
+  "How much of a circle the arch sweeps, 180 is a half circle": "Какую часть окружности занимает арка, 180 это полуокружность",
+  "Radius of the arch circle in map units, linked to the angle": "Радиус окружности арки в единицах карты, связан с углом"
 }

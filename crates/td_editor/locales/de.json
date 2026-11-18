@@ -2356,5 +2356,9 @@
   "A selects all, X deletes, Shift+D duplicates, S scales.": "A wählt alles, X löscht, Shift+D dupliziert, S skaliert.",
   "Skip": "Überspringen",
   "File > Preferences > Keymap preset changes it later": "Datei > Einstellungen > Tastenbelegung ändert es später",
-  "Welcome to TrenchDot": "Willkommen bei TrenchDot"
+  "Welcome to TrenchDot": "Willkommen bei TrenchDot",
+  "The box height caps the sweep at {angle}°": "Die Höhe der Box begrenzt den Bogen auf {angle}°",
+  "At least half the span. At 180 the arch is a half ellipse and this shows half the span": "Mindestens die halbe Spannweite. Bei 180 ist der Bogen eine halbe Ellipse, und hier steht die halbe Spannweite",
+  "How much of a circle the arch sweeps, 180 is a half circle": "Wie viel eines Kreises der Bogen überspannt, 180 ist ein Halbkreis",
+  "Radius of the arch circle in map units, linked to the angle": "Radius des Bogenkreises in Karteneinheiten, an den Winkel gekoppelt"
 }
