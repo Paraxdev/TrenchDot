@@ -1552,6 +1552,11 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             }
         }
         Action::Rotate { axis, degrees } => {
+            if state.doc.selection.transformables(&state.doc.map).is_empty() {
+                state.fail_status(msg!("Select objects to rotate"));
+                return;
+            }
+
             let center = ops::selection_center(&state.doc.map, &state.doc.selection, opts.grid);
             let mut dir = DVec3::ZERO;
             dir[axis] = 1.0;
@@ -1559,6 +1564,11 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             state.doc.edit("Rotate", |map, s| ops::transform_selection(map, s, &m, opts));
         }
         Action::Flip { axis } => {
+            if state.doc.selection.transformables(&state.doc.map).is_empty() {
+                state.fail_status(msg!("Select objects to flip"));
+                return;
+            }
+
             let center = ops::selection_center(&state.doc.map, &state.doc.selection, opts.grid);
             let m = ops::flip_about(center, axis);
             state.doc.edit("Flip", |map, s| ops::transform_selection(map, s, &m, opts));
@@ -4375,6 +4385,37 @@ mod tests {
         let brush = td_geom::Brush::from_points(&points, &[], "wall").unwrap();
         let parent = state.insert_parent();
         state.doc.edit("Create Brush", |m, _| ops::create_brush(m, parent, brush))
+    }
+
+    #[test]
+    fn flip_and_rotate_refuse_without_objects_and_edit_with_one() {
+        let ctx = egui::Context::default();
+        let cases = [(Action::Flip { axis: 2 }, "Select objects to flip"), (Action::Rotate { axis: 1, degrees: 90.0 }, "Select objects to rotate")];
+        for (action, hint) in cases {
+            let mut state = EditorState::new(Default::default());
+            let brush = slanted_brush(&mut state);
+            let other = brush_at(&mut state, 200.0);
+            let before = state.doc.map.brush(brush).cloned();
+            let steps = state.doc.history.undo_labels().count();
+
+            state.doc.selection.clear();
+            execute(&mut state, action.clone(), &ctx);
+            assert_eq!(state.doc.history.undo_labels().count(), steps, "{action:?} with nothing selected made an undo step");
+            assert_eq!((state.status.as_str(), state.status_failed()), (hint, true));
+
+            state.doc.selection.select_face(brush, 1);
+            state.doc.selection.select_face(other, 3);
+            state.status.clear();
+            execute(&mut state, action.clone(), &ctx);
+            assert_eq!(state.doc.history.undo_labels().count(), steps, "{action:?} with only faces selected made an undo step");
+            assert_eq!(state.status, hint);
+            assert_eq!(state.doc.map.brush(brush).cloned(), before);
+
+            state.doc.selection.select_node(brush);
+            execute(&mut state, action.clone(), &ctx);
+            assert_eq!(state.doc.history.undo_labels().count(), steps + 1, "{action:?} with a brush selected is one step");
+            assert_ne!(state.doc.map.brush(brush).cloned(), before);
+        }
     }
 
     fn sorted(points: impl IntoIterator<Item = DVec3>) -> Vec<[i64; 3]> {

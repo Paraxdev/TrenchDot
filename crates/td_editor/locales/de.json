@@ -2570,5 +2570,7 @@
   "Copy it and move the copy": "Kopieren und die Kopie verschieben",
   "Shift+A opens the Texture tool, click picks a face, Ctrl+click adds one. Shift+drag copies the selection": "Shift+A öffnet das Textur-Werkzeug, ein Klick wählt eine Fläche, Ctrl+Klick fügt eine hinzu. Shift+Ziehen kopiert die Auswahl",
   "{click} in the Texture tool": "{click} im Textur-Werkzeug",
-  "{select} to pick a face to sweep, {add} adds more": "{select}, um eine Fläche zum Austragen zu wählen, {add} fügt weitere hinzu"
+  "{select} to pick a face to sweep, {add} adds more": "{select}, um eine Fläche zum Austragen zu wählen, {add} fügt weitere hinzu",
+  "Select objects to flip": "Objekte zum Spiegeln auswählen",
+  "Select objects to rotate": "Objekte zum Drehen auswählen"
 }

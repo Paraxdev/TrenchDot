@@ -2570,5 +2570,7 @@
   "Copy it and move the copy": "Скопировать и переместить копию",
   "Shift+A opens the Texture tool, click picks a face, Ctrl+click adds one. Shift+drag copies the selection": "Shift+A открывает инструмент текстур, щелчок выбирает грань, Ctrl+щелчок добавляет ещё одну. Shift+перетаскивание копирует выделение",
   "{click} in the Texture tool": "{click} в инструменте текстур",
-  "{select} to pick a face to sweep, {add} adds more": "{select}, чтобы выбрать грань для протяжки, {add} добавляет ещё"
+  "{select} to pick a face to sweep, {add} adds more": "{select}, чтобы выбрать грань для протяжки, {add} добавляет ещё",
+  "Select objects to flip": "Выберите объекты для отражения",
+  "Select objects to rotate": "Выберите объекты для поворота"
 }
