@@ -59,8 +59,27 @@ groups under *Edit > Groups*.
 | Input | Result |
 | --- | --- |
 | Ctrl+G, Ctrl+Shift+G | Group the selection, ungroup it |
-| Click | Select the object inside the group |
-| Double click | Select the whole group |
+| Click | Select the whole group, whichever object of it you hit |
+| Ctrl+click | Add the whole group to the selection or remove it |
+| Double click a group | Open it, so clicks reach the objects inside |
+| Double click empty space, or Esc | Close the open group |
+
+A closed group acts as one object, so a click anywhere on it selects all of it and a drag moves all of it, also when you
+start the drag on a group's row in the Outliner. A brush's own row is the exception, dragging it while it is not
+selected moves only that brush, so you can pull it out of a closed group onto another row. Inside a closed linked copy
+the row still moves the whole copy. To work on one brush inside, double click the group in a view, or double click its
+row in the Outliner. The status bar then says *Opened group* and shows **1 open group** in cyan, and a click
+inside picks single objects. A brush you draw while a group is open lands in that group.
+
+![The status bar after a double click on a group, showing Opened group Crate and 1 open group](../assets/organizing/open-group.png)
+
+Clicking something outside the open group closes it, so a new brush never ends up in a group you forgot about. With
+groups inside groups, each double click opens one level and each double click on empty space or Esc press closes one.
+Esc only does this once nothing is selected and the Select tool is active, see [Shortcuts](shortcuts.md#tools).
+*Edit > Groups > Open Group* opens the selected group, and *Close Group* closes the open one and selects it.
+Shift+click still picks a single face inside a closed group. The Blender preset differs here, Shift+click and
+Ctrl+click both add or remove the whole group in Object mode, and you pick a single face in Face mode, see
+[Other presets](shortcuts.md#other-presets).
 
 You can also group in the Outliner by dragging. A tip next to the pointer says what the drop does before you let go, and
 the target row gets an outline.
@@ -87,8 +106,8 @@ selected, the views outline its partners in violet.
 | **Select Linked Groups** | Selects every copy of the selected linked groups, so you can drag them together. Hidden and locked copies stay out. Also in the right click menu of the Outliner and the views |
 | **Separate Linked Groups** | Breaks the link when one copy has to differ. The selected groups become plain groups, and a copy left without partners becomes plain too. Searching the command palette for *Make Unique* finds it as well |
 
-A click on a linked copy in the Outliner selects the whole group, since its copies are edited as one, and a double click
-on its row opens the group. A linked copy can also be a reflection of its original, see [Mirror](brushes.md#mirror).
+Linked copies select whole like any other group, and a double click on one opens it, so you can edit it and let the other
+copies follow. A linked copy can also be a reflection of its original, see [Mirror](brushes.md#mirror).
 
 ## Array copies
 

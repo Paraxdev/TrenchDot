@@ -150,6 +150,9 @@ A simplified outline of the floors that AI agents can walk on, which Godot uses 
 ## normal map
 A texture that stores which way each pixel of a surface faces, so flat faces catch the light as if they had bumps and grooves. It adds fine detail without extra geometry.
 
+## open group
+A group you have double clicked, so clicks inside it pick single objects instead of the whole group. A closed group is selected and moved as one. New brushes go into the open group, and a double click on empty space or Esc closes it again. The status bar counts open groups.
+
 ## operand
 The number a calculation works with besides the one it receives. In a math_calc that adds 5, the operand is 5.
 

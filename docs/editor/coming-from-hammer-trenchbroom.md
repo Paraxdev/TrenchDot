@@ -97,7 +97,7 @@ follows.
 | Zoom in a 2D view | Wheel | Wheel |
 | Select | Click | Click |
 | Add to or remove from the selection | Ctrl+click | Ctrl+click |
-| Select a group | Click selects the group, double click opens it | Click selects the object inside it, double click selects the whole group |
+| Select a group | Click selects the group, double click opens it | Click selects the group, double click opens it |
 | Pick what lies behind | Ctrl+wheel | Click again at the same spot, or Alt+click, in the Top, Front and Side views |
 | Select a face | Shift+click | Shift+click |
 | Add a face | Ctrl+Shift+click | Ctrl+Shift+click |
@@ -113,8 +113,6 @@ follows.
 
 ## Where TrenchDot differs
 
-* **Double click selects the whole group.** A plain click picks the object inside a group, the other way round from
-  TrenchBroom. Linked copies are the exception, a click on one selects the whole group.
 * **Alt+left drag orbits**, where TrenchBroom uses Alt+right drag. In the Select tool a drag that starts on the
   selection or its gizmo moves it vertically instead.
 * **Hammer's Ctrl+T, Tie to Entity, has no key.** Right click the selected brushes and pick *Create Brush Entity*, or

@@ -25,6 +25,10 @@ position is the lowest corner of the selection, not its center or a pivot.
 
 ![The Inspector with a brush selected, its position and size as X, Y and Z fields above the Selection section](../assets/coming-from-unity-blender/inspector-position-size.png)
 
+A [group](organizing.md#groups) works much like a Collection that you handle as one piece. A click selects the whole
+group, a double click opens it so clicks reach the objects inside, and Esc closes one level again once nothing is
+selected.
+
 ## Keys that differ
 
 The default keys follow TrenchBroom, and three of them catch Blender users out:

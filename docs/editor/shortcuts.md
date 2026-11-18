@@ -41,7 +41,7 @@ row is the same one as on the Keys tab, so it switches the keymap of the whole e
 Blender there changes the keys at once, adds the **Object** and **Face** buttons to the toolbar and lists the clicks of
 both modes on this tab.
 
-![The Mouse tab with the TrenchBroom preset, listing Click, Ctrl+click, Shift+click and the other clicks and drags of the views with what each one does](../assets/shortcuts/mouse-tab.png)
+![The Mouse tab with the TrenchBroom preset, listing Click, Ctrl+click, Shift+click, the double clicks and the other clicks and drags of the views with what each one does](../assets/shortcuts/mouse-tab.png)
 
 Shortcuts wait while you type in a field or a menu is open. While the pointer is over a floating window, such as the
 Shape Generator, only save, undo and redo work, so a key meant for the window never deletes or changes your map.
@@ -49,8 +49,9 @@ Shape Generator, only save, undo and redo work, so a key meant for the window ne
 ## Tools
 
 Press a tool's key again to go back to Select. Esc steps back one thing at a time: it cancels a drag or stroke, then
-clears the selected faces, then clears the selected objects, then leaves the tool for Select. It works this way in
-every preset, and it never changes the Blender preset's Object or Face mode.
+clears the selected faces, then clears the selected objects, then leaves the tool for Select, then closes the open
+group, one level per press. It works this way in every preset, and it never changes the Blender preset's Object or Face
+mode.
 
 | Key | Tool |
 | --- | --- |
@@ -76,7 +77,10 @@ every preset, and it never changes the Blender preset's Object or Face mode.
 | --- | --- |
 | Drag off the selection | Draw a brush |
 | Drag the selection | Move. Ctrl copies, Shift locks the axis, Alt moves vertically in 3D |
-| Click, double click | Select the object under the cursor, select its whole group. Clicking an object while faces are selected leaves face selection |
+| Click | Select the object under the cursor, or the whole group around it. Clicking an object while faces are selected leaves face selection |
+| Double click a group | Open it, so clicks reach what is inside |
+| Double click an entity brush | Select every brush of the entity |
+| Double click empty space | Close the innermost open group, one level per double click, and clear the selection. Esc closes one level per press, see [Tools](#tools) |
 | Click again soon at the same spot, or Alt+click (2D) | Select the next object under the cursor, such as a wall under its ceiling in the Top view |
 | Ctrl+click | Add an object to the selection or remove it, in the views and the Outliner |
 | Shift+click | Select that one face, replacing the selection. On something without faces it works like a click |
@@ -188,10 +192,10 @@ selection but leaves the mode as it is.
 
 | Blender input | Result |
 | --- | --- |
-| Click (Object mode) | Select the object under the cursor |
-| Shift+click (Object mode) | Add or remove an object |
+| Click (Object mode) | Select the object under the cursor, or the whole group around it |
+| Shift+click or Ctrl+click (Object mode) | Add the object or its whole group to the selection or remove it |
 | Click (Face mode) | Select the face under the cursor |
-| Shift+click (Face mode) | Add or remove a face |
+| Shift+click or Ctrl+click (Face mode) | Add or remove a face |
 | Click on empty space | Clear the selection |
 | Shift+click on empty space | Keep the selection |
 | Click on something without faces (Face mode) | Nothing changes, an entity or terrain has no faces to pick |

@@ -3,7 +3,7 @@
 
 use std::collections::BTreeSet;
 use td_editor::commands::{Action, parse_shortcut, preset_bindings, shortcut_to_text};
-use td_editor::mouse_map::{ClickRule, chord_label};
+use td_editor::mouse_map::{Bound, ClickRule, chord_label, mouse_rows};
 
 struct Table {
     header: Vec<String>,
@@ -144,6 +144,17 @@ fn the_mouse_table_names_every_click_the_select_tool_reads() {
     let cells = mouse_cells(&table("Input").rows);
     for rule in [ClickRule::Clear, ClickRule::Keep, ClickRule::ReplaceObject, ClickRule::ToggleObject, ClickRule::ReplaceFace, ClickRule::ToggleFace] {
         let label = chord_label("trenchbroom", rule).to_ascii_lowercase().replace("cmd+", "ctrl+");
+        assert!(cells.contains(&label), "the mouse table has no {label:?} row");
+    }
+}
+
+#[test]
+fn the_mouse_table_names_every_double_click_of_the_views() {
+    let cells = mouse_cells(&table("Input").rows);
+    let rows: Vec<_> = mouse_rows("trenchbroom").into_iter().filter(|r| matches!(r.bound, Some(Bound::View(..)))).collect();
+    assert_eq!(rows.len(), 3, "open a group, select an entity, close a group");
+    for row in rows {
+        let label = row.gesture.to_ascii_lowercase();
         assert!(cells.contains(&label), "the mouse table has no {label:?} row");
     }
 }

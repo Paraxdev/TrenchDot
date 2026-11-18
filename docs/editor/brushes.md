@@ -231,8 +231,8 @@ plane honest, you decide what happens to each side. What you edit inside a half 
 > strip, and a player in Godot falls straight through it. Set **Gap** back to 0 before you close the room with
 > **Apply Mirror**.
 
-You edit inside a half as in any linked group, and the other half follows when you finish the edit, for example when
-you let go of a drag. That includes moved vertices, resized brushes and face materials, all mirrored, with the faces
+Double click a half to open it, then edit inside it as in any linked group, and the other half follows when you finish
+the edit, for example when you let go of a drag. That includes moved vertices, resized brushes and face materials, all mirrored, with the faces
 still pointing outwards and the textures mirrored too. If a single edit reaches both halves and would leave them
 different, for example nudging a vertex of each by the same amount, which the mirror turns into two different moves,
 the editor refuses it and tells you in the status bar.
