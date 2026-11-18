@@ -628,6 +628,33 @@ fn trenchbroom_bindings() -> Vec<(KeyboardShortcut, Action)> {
     out
 }
 
+/// The selected brushes and meshes, groups and brush entities expanded.
+fn selected_faced_objects(state: &EditorState) -> Vec<NodeId> {
+    let map = &state.doc.map;
+    state.doc.selection.geometry(map).into_iter().filter(|id| map.brush(*id).is_some() || map.mesh(*id).is_some()).collect()
+}
+
+/// Selects every face of the selected brushes and meshes, or of the ones that own the selected faces.
+fn select_all_faces(state: &mut EditorState) {
+    let mut objects = selected_faced_objects(state);
+    if objects.is_empty() {
+        objects = state.doc.selection.faces.iter().map(|(id, _)| *id).collect();
+        objects.dedup();
+    }
+
+    if objects.is_empty() {
+        state.fail_status(msg!("Select a brush or mesh first"));
+        return;
+    }
+
+    state.doc.select(|m, s| {
+        s.faces.clear();
+        s.select_faces_of(m, objects);
+    });
+    let n = state.doc.selection.faces.len();
+    state.set_status(msg_n!(n, "Selected {n} face", "Selected {n} faces"));
+}
+
 /// Key bindings for a preset. Hammer and Blender presets take over some TrenchBroom chords, actions keep their other
 /// bindings, and the last entries of each preset rebind actions whose only chord was taken.
 pub fn preset_bindings(preset: &str) -> Vec<(KeyboardShortcut, Action)> {
@@ -1166,6 +1193,8 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             Err(td_doc::mirror::ApplyError::Apart) => state.fail_status(msg!("The mirrored halves do not meet. Unlink Groups keeps them as plain copies")),
         },
         Action::UnlinkGroups => state.doc.edit("Unlink Groups", |m, s| ops::unlink_groups(m, s)),
+        // Hammer's Texture tool has no use for objects, so Ctrl+A there takes the faces to texture.
+        Action::SelectAll if state.prefs.keymap_preset == "hammer" && state.tool == ToolKind::Texture => select_all_faces(state),
         Action::SelectAll => state.doc.select(|m, s| ops::select_all(m, s, &open_groups)),
         Action::SelectNone => {
             if state.tool != ToolKind::Select {
@@ -1176,13 +1205,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         }
         Action::SelectInverse => state.doc.select(|m, s| ops::select_inverse(m, s, &open_groups)),
         Action::SelectBrushFaces => {
-            let objects: Vec<NodeId> = state
-                .doc
-                .selection
-                .geometry(&state.doc.map)
-                .into_iter()
-                .filter(|id| state.doc.map.brush(*id).is_some() || state.doc.map.mesh(*id).is_some())
-                .collect();
+            let objects = selected_faced_objects(state);
             if objects.is_empty() {
                 state.fail_status(msg!("Select a brush or mesh first"));
             } else {
@@ -3193,6 +3216,122 @@ mod tests {
         let want: std::collections::BTreeSet<(NodeId, usize)> = (0..6).map(|f| (a, f)).chain([(c, 2)]).collect();
         assert!(state.doc.selection.nodes.is_empty());
         assert_eq!(state.doc.selection.faces, want);
+    }
+
+    type FaceSet = std::collections::BTreeSet<(NodeId, usize)>;
+
+    fn all_faces(ids: &[(NodeId, usize)]) -> FaceSet {
+        ids.iter().flat_map(|(id, n)| (0..*n).map(move |f| (*id, f))).collect()
+    }
+
+    fn select_all_state(preset: &str, tool: ToolKind) -> EditorState {
+        let mut state = EditorState::new(Default::default());
+        state.prefs.keymap_preset = preset.into();
+        state.tool = tool;
+        state
+    }
+
+    #[test]
+    fn select_all_picks_objects_and_clears_faces_except_in_the_hammer_texture_tool() {
+        let ctx = egui::Context::default();
+        for preset in PRESETS {
+            for tool in [ToolKind::Select, ToolKind::Texture, ToolKind::Vertex] {
+                let mut state = select_all_state(preset, tool);
+                let (a, b) = (brush_at(&mut state, 96.0), brush_at(&mut state, -160.0));
+                let (m, _) = mesh_at(&mut state, 224.0);
+                state.doc.select(|_, s| s.select_face(b, 4));
+                execute(&mut state, Action::SelectAll, &ctx);
+                let what = format!("{preset} {tool:?}");
+                if preset == "hammer" && tool == ToolKind::Texture {
+                    assert!(state.doc.selection.nodes.is_empty(), "{what}");
+                    assert_eq!(state.doc.selection.faces, all_faces(&[(b, 6)]), "{what}: the faces of the brush that owns the selected face");
+                } else {
+                    assert_eq!(state.doc.selection.nodes, [a, b, m].into(), "{what}");
+                    assert!(state.doc.selection.faces.is_empty(), "{what}: faces clear");
+                    assert_eq!(state.tool, tool, "{what}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn hammer_texture_select_all_takes_every_face_of_the_selected_brushes_and_meshes() {
+        let ctx = egui::Context::default();
+        let mut state = select_all_state("hammer", ToolKind::Texture);
+        let (a, b, c) = (brush_at(&mut state, 96.0), brush_at(&mut state, -160.0), brush_at(&mut state, 400.0));
+        let (m, mesh_faces) = mesh_at(&mut state, 224.0);
+        let inner = brush_at(&mut state, 800.0);
+        state.doc.select(|_, s| s.select_node(inner));
+        execute(&mut state, Action::Group, &ctx);
+        let group = state.doc.selection.nodes.iter().copied().next().expect("the new group is selected");
+        assert_ne!(group, inner);
+
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_node(a);
+            s.select_node(b);
+        });
+        execute(&mut state, Action::SelectAll, &ctx);
+        assert!(state.doc.selection.nodes.is_empty());
+        assert_eq!(state.doc.selection.faces, all_faces(&[(a, 6), (b, 6)]));
+        assert_eq!(state.doc.selection.faces.len(), 12);
+        assert!(!state.status_failed());
+
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_node(m);
+        });
+        execute(&mut state, Action::SelectAll, &ctx);
+        assert_eq!(state.doc.selection.faces, all_faces(&[(m, mesh_faces)]), "one mesh");
+
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_node(group);
+        });
+        execute(&mut state, Action::SelectAll, &ctx);
+        assert!(state.doc.selection.faces.contains(&(inner, 0)), "a group gives the faces of its brushes");
+
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_face(c, 2);
+            s.select_face(a, 5);
+            s.select_face(a, 1);
+        });
+        execute(&mut state, Action::SelectAll, &ctx);
+        assert!(state.doc.selection.nodes.is_empty());
+        assert_eq!(state.doc.selection.faces, all_faces(&[(a, 6), (c, 6)]), "every face of the brushes that own the selected faces");
+
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_face(c, 2);
+            s.select_node(b);
+        });
+        execute(&mut state, Action::SelectAll, &ctx);
+        assert_eq!(state.doc.selection.faces, all_faces(&[(b, 6)]), "selected objects win over stale faces");
+    }
+
+    #[test]
+    fn hammer_texture_select_all_is_refused_without_a_brush_or_mesh() {
+        let ctx = egui::Context::default();
+        let mut state = select_all_state("hammer", ToolKind::Texture);
+        let a = brush_at(&mut state, 32.0);
+        let parent = state.insert_parent();
+        let light = state.doc.edit("Create Light", |m, _| m.insert(parent, td_doc::NodeKind::Entity(td_doc::Entity::new("light"))));
+        let undo = state.doc.history.undo_labels().count();
+
+        state.doc.select(|_, s| s.clear());
+        execute(&mut state, Action::SelectAll, &ctx);
+        assert!(state.status_failed(), "nothing selected");
+        assert_eq!(state.status, "Select a brush or mesh first");
+        assert!(state.doc.selection.is_empty());
+
+        state.doc.select(|_, s| s.select_node(light));
+        execute(&mut state, Action::SelectAll, &ctx);
+        assert!(state.status_failed(), "a light has no faces");
+        assert_eq!(state.doc.selection.nodes, [light].into());
+        assert!(state.doc.selection.faces.is_empty());
+        assert_eq!(state.doc.history.undo_labels().count(), undo);
+        assert!(state.doc.map.brush(a).is_some());
     }
 
     #[test]

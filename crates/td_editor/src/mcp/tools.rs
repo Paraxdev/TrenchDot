@@ -312,6 +312,18 @@ fn language_arg(v: &Value) -> Result<Option<crate::i18n::Lang>, String> {
     })
 }
 
+/// The `keymap` argument of set_editor: None when it is absent, an error naming every preset when it is not one.
+fn keymap_arg(v: &Value) -> Result<Option<&'static str>, String> {
+    if v.is_null() {
+        return Ok(None);
+    }
+
+    v.as_str()
+        .and_then(|name| crate::commands::PRESETS.into_iter().find(|p| *p == name))
+        .map(Some)
+        .ok_or_else(|| format!("unknown keymap {v}, use {}", crate::commands::PRESETS.join(", ")))
+}
+
 /// Issues as validate_map returns them, each with the bounds of its node so it can be found without the id.
 fn issues_json(map: &td_doc::Map, found: &[issues::Issue]) -> Vec<Value> {
     found
@@ -2109,6 +2121,10 @@ impl App {
             Ok(l) => l,
             Err(e) => return err(e),
         };
+        let keymap = match keymap_arg(&args["keymap"]) {
+            Ok(k) => k,
+            Err(e) => return err(e),
+        };
         let component = match args["mesh_component"].as_str() {
             Some("vertex") => Some(crate::mesh_tool::Component::Vertex),
             Some("edge") => Some(crate::mesh_tool::Component::Edge),
@@ -2190,6 +2206,10 @@ impl App {
 
         if let Some(l) = language {
             self.state.prefs.language = l.code().into();
+        }
+
+        if let Some(k) = keymap {
+            self.state.prefs.keymap_preset = k.into();
         }
 
         if let Some(scale) = args["ui_scale"].as_f64() {
@@ -2840,6 +2860,20 @@ mod tests {
 
     fn state() -> EditorState {
         EditorState::new(Default::default())
+    }
+
+    #[test]
+    fn keymap_takes_a_preset_name_and_refuses_anything_else() {
+        assert_eq!(keymap_arg(&Value::Null), Ok(None));
+        for preset in crate::commands::PRESETS {
+            assert_eq!(keymap_arg(&json!(preset)), Ok(Some(preset)), "{preset}");
+        }
+
+        for bad in [json!("maya"), json!("Hammer"), json!(""), json!(3), json!(true), json!(["hammer"])] {
+            let e = keymap_arg(&bad).unwrap_err();
+            assert!(e.contains("trenchbroom, hammer, blender"), "{bad}: {e}");
+            assert!(e.contains(&bad.to_string()), "names the bad value {bad}: {e}");
+        }
     }
 
     #[test]

@@ -3460,6 +3460,51 @@ fn opening_the_uv_editor_keeps_the_selection() {
     }
 }
 
+/// Ctrl+A selects every object in each preset and tool, except in Hammer's Texture tool, where it selects the faces of
+/// the selected brushes, or of the brushes that own the selected faces.
+#[test]
+#[ignore]
+fn ctrl_a_in_the_hammer_texture_tool_selects_faces() {
+    let ed = Editor::launch("hammer_ctrl_a");
+    let a = ed.box_brush([8.0, -16.0, 0.0], [72.0, 48.0, 40.0]);
+    let wedge = ed.call("create_brush", json!({ "min": [-72, 8, 200], "max": [-8, 72, 296], "shape": "wedge" }))["ids"][0].as_u64().unwrap();
+    let c = ed.box_brush([300.0, 4.0, 12.0], [332.0, 52.0, 76.0]);
+    let light = ed.call("create_entity", json!({ "classname": "light", "origin": [250, 30, 100] }))["id"].as_u64().unwrap();
+    let ctrl_a = || ed.input("top", json!([{ "type": "move" }, { "type": "key", "key": "A", "modifiers": ["ctrl"] }]));
+    let faces_of = |id: u64, n: u64| (0..n).map(|f| (id, f)).collect::<Vec<_>>();
+
+    assert_eq!(ed.state()["editor"]["keymap"], "trenchbroom");
+    ed.call("set_editor", json!({ "tool": "texture" }));
+    ed.call("select", json!({ "faces": [[c, 1]] }));
+    ctrl_a();
+    assert_eq!(selection_of(&ed), (vec![a, wedge, c, light], vec![]), "TrenchBroom: every object, faces clear, even in the Texture tool");
+
+    let e = ed.call_err("set_editor", json!({ "keymap": "maya", "grid": 8 }));
+    assert!(e.contains("trenchbroom, hammer, blender"), "{e}");
+    assert_eq!(ed.state()["editor"]["keymap"], "trenchbroom");
+    assert_ne!(ed.state()["editor"]["grid"], 8, "a refused call changes nothing");
+
+    assert_eq!(ed.call("set_editor", json!({ "keymap": "hammer" }))["keymap"], "hammer");
+    assert_eq!(ed.state()["editor"]["keymap"], "hammer");
+    ed.call("select", json!({ "ids": [a, wedge] }));
+    ctrl_a();
+    assert_eq!(selection_of(&ed), (vec![], [faces_of(a, 6), faces_of(wedge, 5)].concat()), "a box and a wedge, 11 faces");
+
+    ed.call("select", json!({ "faces": [[c, 1], [wedge, 3]] }));
+    ctrl_a();
+    assert_eq!(selection_of(&ed), (vec![], [faces_of(wedge, 5), faces_of(c, 6)].concat()), "the owners of the selected faces");
+
+    ed.call("select", json!({ "ids": [light] }));
+    ctrl_a();
+    assert_eq!(selection_of(&ed), (vec![light], vec![]), "an entity has no faces, nothing changes");
+    assert!(ed.state()["status"].as_str().unwrap_or_default().contains("brush or mesh"), "{}", ed.state()["status"]);
+
+    ed.call("set_editor", json!({ "tool": "select" }));
+    ed.call("select", json!({ "faces": [[c, 1]] }));
+    ctrl_a();
+    assert_eq!(selection_of(&ed), (vec![a, wedge, c, light], vec![]), "Hammer outside the Texture tool selects objects");
+}
+
 /// The TrenchBroom click rules in the 3D view: a click replaces the selection, Ctrl+click toggles an object, Shift+click
 /// picks one face and Ctrl+Shift+click toggles a face. Shift on something without faces acts like a click.
 #[test]

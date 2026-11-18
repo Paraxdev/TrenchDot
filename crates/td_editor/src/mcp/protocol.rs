@@ -426,7 +426,7 @@ pub fn tool_definitions() -> Vec<Value> {
         }),
         json!({
             "name": "set_editor",
-            "description": "Editor settings: grid size, snapping, uv lock, active tool (select, clip, vertex, rotate, scale, shear, mesh, sculpt, blend, paint, scatter, volume, path, measure, texture), current material, shading, mesh component mode, scatter palette items, brush radius, sculpt mode, sculpt and blend symmetry (get_state reports it as editor.symmetry), vertex edit symmetry (edit_symmetry, get_state reports it as editor.edit_symmetry), editor language and interface scale. mcp: false turns MCP off until a person turns it back on in Preferences.",
+            "description": "Editor settings: grid size, snapping, uv lock, active tool (select, clip, vertex, rotate, scale, shear, mesh, sculpt, blend, paint, scatter, volume, path, measure, texture), current material, shading, mesh component mode, scatter palette items, brush radius, sculpt mode, keyboard shortcut preset (keymap), sculpt and blend symmetry (get_state reports it as editor.symmetry), vertex edit symmetry (edit_symmetry, get_state reports it as editor.edit_symmetry), editor language and interface scale. mcp: false turns MCP off until a person turns it back on in Preferences.",
             "inputSchema": { "type": "object", "properties": {
                 "grid": { "type": "number", "exclusiveMinimum": 0, "description": "positive, clamped to 0.125..1024" }, "snap": { "type": "boolean" }, "uv_lock": { "type": "boolean" },
                 "tool": { "type": "string" }, "material": { "type": "string" },
@@ -439,6 +439,7 @@ pub fn tool_definitions() -> Vec<Value> {
                 "symmetry": symmetry_schema(),
                 "edit_symmetry": edit_symmetry_schema(),
                 "theme": { "type": "string", "enum": ["dark", "light", "system"], "description": "Editor colors. system follows the OS app mode and falls back to dark." },
+                "keymap": { "type": "string", "enum": ["trenchbroom", "hammer", "blender"], "description": "Keyboard shortcut preset, get_state reports it as editor.keymap. In the hammer preset Select All in the Texture tool selects the faces of the selected brushes." },
                 "language": { "type": "string", "enum": ["en", "de", "fr", "es", "pt", "ru", "zh-Hans", "ja"], "description": "Language of the menus, panels and messages. Tool names, MCP replies and errors stay English." },
                 "ui_scale": { "type": "number", "description": "Interface scale, 1 is 100%" },
                 "follow_display_scaling": { "type": "boolean" },
