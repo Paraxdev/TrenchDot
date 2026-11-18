@@ -359,8 +359,13 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
                             }
                         };
                         match &node.kind {
-                            NodeKind::Group(_) => {
+                            NodeKind::Group(g) => {
                                 item(ui, tr("Open Group"), Action::OpenGroup);
+                                if g.link_id.is_some() {
+                                    item(ui, tr("Select Linked Groups"), Action::SelectLinkedGroups);
+                                    item(ui, tr("Separate Linked Groups"), Action::UnlinkGroups);
+                                }
+
                                 item(ui, tr("Ungroup"), Action::Ungroup);
                                 ui.separator();
                             }

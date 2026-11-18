@@ -166,6 +166,7 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
         entry(en!("Godot"), en!("Add Content to Project"), Action::ShowProjectContent),
         entry(en!("Godot"), en!("Install or Update Addon"), Action::ShowAddonSetup),
         entry(en!("Group"), en!("Duplicate Linked"), Action::DuplicateLinked),
+        entry(en!("Group"), en!("Select Linked Groups"), Action::SelectLinkedGroups),
         entry(en!("Group"), en!("Separate Linked Groups"), Action::UnlinkGroups),
         entry(en!("Mesh"), en!("Edit Mesh"), Action::EditMesh),
         entry(en!("Edit"), en!("Toggle Edit Mode"), Action::ToggleEditMode),

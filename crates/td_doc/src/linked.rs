@@ -216,6 +216,16 @@ fn link_of(map: &Map, id: NodeId) -> Option<u64> {
     }
 }
 
+/// The link sets of the selected linked groups, and of the nearest linked group around each other selected object.
+pub fn sets_touched(map: &Map, sel: &Selection) -> BTreeSet<u64> {
+    let objects = sel.nodes.iter().copied().chain(sel.faces.iter().map(|(id, _)| *id));
+    objects.filter_map(|id| std::iter::once(id).chain(map.ancestors(id)).find_map(|g| link_of(map, g))).collect()
+}
+
+pub fn members(map: &Map, link: u64) -> Vec<NodeId> {
+    link_sets(map).remove(&link).unwrap_or_default()
+}
+
 /// Whether moving `id` under `dest` would put a linked group inside a copy of itself, or carry an object from one copy
 /// of a set into another. [`sync`] cannot settle either: the first nests deeper on every edit, the second loses the
 /// object in every copy.

@@ -6085,7 +6085,8 @@ fn separate_linked_groups_frees_both_halves() {
 
     for (action, selected) in [("separate_linked_groups", half), ("unlink_groups", copy)] {
         ed.call("select", json!({ "ids": [selected] }));
-        ed.call("run_action", json!({ "action": action }));
+        let reply = ed.call("run_action", json!({ "action": action }));
+        assert_eq!(reply["status"], "Made 2 linked groups plain", "{action}");
         assert_eq!(names(&ed), ["Mirrored", "Mirrored"], "{action}: the partner left alone is freed too");
         assert_eq!(ed.state()["undo"].as_array().unwrap().len(), steps + 1, "{action}");
         assert_eq!(ed.state()["undo"][0], "MCP: Separate Linked Groups", "{action}");
@@ -6095,6 +6096,58 @@ fn separate_linked_groups_frees_both_halves() {
         ed.call("run_action", json!({ "action": "undo" }));
         assert!(names(&ed).iter().all(|n| n.ends_with("(linked)")), "{action}: one undo links both again {:?}", names(&ed));
     }
+
+    let loose = ed.box_brush([200.0, -8.0, 12.0], [232.0, 24.0, 28.0]);
+    let steps = ed.state()["undo"].as_array().unwrap().len();
+    ed.call("select", json!({ "ids": [loose] }));
+    let err = ed.call_err("run_action", json!({ "action": "separate_linked_groups" }));
+    assert!(err.contains("Select a linked group first"), "{err}");
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), steps, "a refused call is no undo step");
+
+    ed.call("select", json!({ "ids": [source] }));
+    let err = ed.call_err("run_action", json!({ "action": "separate_linked_groups" }));
+    assert!(err.contains("Select a linked group first"), "a brush inside a half frees nothing: {err}");
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), steps, "and is no undo step");
+}
+
+#[test]
+#[ignore]
+fn select_linked_selects_every_copy() {
+    let ed = Editor::launch("select_linked");
+    let source = ed.box_brush([-72.0, 6.0, 30.0], [-40.0, 50.0, 46.0]);
+    let loose = ed.box_brush([200.0, -8.0, 12.0], [232.0, 24.0, 28.0]);
+    ed.call("select", json!({ "ids": [source] }));
+    ed.call("run_action", json!({ "action": "duplicate_linked" }));
+    let selected = |ed: &Editor| {
+        let mut ids: Vec<u64> = ed.state()["selection"]["nodes"].as_array().unwrap().iter().map(|n| n.as_u64().unwrap()).collect();
+        ids.sort();
+        ids
+    };
+    let copy = selected(&ed)[0];
+    let steps = ed.state()["undo"].as_array().unwrap().len();
+
+    for start in [source, copy] {
+        ed.call("select", json!({ "ids": [start] }));
+        let reply = ed.call("run_action", json!({ "action": "select_linked" }));
+        let groups = selected(&ed);
+        assert_eq!(groups.len(), 2, "{start}: {reply}");
+        assert_eq!(reply["status"], "Selected 2 linked copies", "{start}");
+        assert!(groups.contains(&copy) && !groups.contains(&loose), "{start}: {groups:?}");
+        assert_eq!(ed.state()["undo"].as_array().unwrap().len(), steps, "{start}: a selection is no undo step");
+    }
+
+    ed.call("select", json!({ "ids": [loose] }));
+    let err = ed.call_err("run_action", json!({ "action": "select_linked" }));
+    assert!(err.contains("Select a linked group first"), "{err}");
+    assert_eq!(selected(&ed), [loose], "a failed call keeps the selection");
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), steps);
+
+    ed.call("select", json!({ "ids": [copy] }));
+    ed.call("run_action", json!({ "action": "hide_selected" }));
+    ed.call("select", json!({ "ids": [source] }));
+    let reply = ed.call("run_action", json!({ "action": "select_linked" }));
+    assert_eq!(reply["status"], "Selected 1 linked copy", "{reply}");
+    assert!(!selected(&ed).contains(&copy), "a hidden copy stays out");
 }
 
 #[test]

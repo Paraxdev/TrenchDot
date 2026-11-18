@@ -1431,7 +1431,7 @@ fn context_menu(ui: &mut Ui, state: &EditorState, actions: &mut Vec<Action>) {
             }
         });
     });
-    let entries: [Option<(&str, Action)>; 16] = [
+    let mut entries: Vec<Option<(&str, Action)>> = vec![
         Some((en!("Rename"), Action::Rename)),
         Some((en!("Move Brushes to World"), Action::MoveToWorld)),
         None,
@@ -1449,6 +1449,11 @@ fn context_menu(ui: &mut Ui, state: &EditorState, actions: &mut Vec<Action>) {
         Some((en!("Hollow"), Action::CsgHollow)),
         None,
     ];
+    if !td_doc::linked::sets_touched(&state.doc.map, &state.doc.selection).is_empty() {
+        let at = entries.iter().position(|e| matches!(e, Some((_, Action::Ungroup)))).map_or(0, |i| i + 1);
+        entries.insert(at, Some((en!("Select Linked Groups"), Action::SelectLinkedGroups)));
+    }
+
     for entry in entries {
         match entry {
             Some((label, action)) => {
@@ -1577,6 +1582,22 @@ mod tests {
         harness.get_by_label("Gruppieren").click();
         harness.run();
         assert_eq!(harness.state().actions, [Action::Group]);
+        assert!(harness.query_by_label("Verknüpfte Gruppen auswählen").is_none(), "only a linked selection offers it");
+
+        let doc = &mut harness.state_mut().state.doc;
+        doc.edit("Duplicate Linked", |m, s| {
+            td_doc::ops::group_selection(m, s, "Group", parent);
+            td_doc::ops::duplicate_linked(m, s, DVec3::new(0.0, 0.0, 80.0), Default::default());
+        });
+        doc.select(|_, s| {
+            s.clear();
+            s.nodes.insert(id);
+        });
+        assert!(doc.map.get(id).unwrap().parent != Some(parent), "the brush sits inside the linked group");
+        harness.run();
+        harness.get_by_label("Verknüpfte Gruppen auswählen").click();
+        harness.run();
+        assert_eq!(harness.state().actions, [Action::Group, Action::SelectLinkedGroups]);
     }
 
     #[test]

@@ -193,6 +193,7 @@ pub enum Action {
     ToggleEditMode,
     MeshOp(MeshOp),
     DuplicateLinked,
+    SelectLinkedGroups,
     UnlinkGroups,
     SetCordonFromSelection,
     ToggleCordon,
@@ -413,6 +414,7 @@ impl Action {
             Action::ToggleEditMode => en!("Toggle Edit Mode"),
             Action::MeshOp(op) => return trf!("Mesh: {op}", op = tr(op.label())),
             Action::DuplicateLinked => en!("Duplicate Linked"),
+            Action::SelectLinkedGroups => en!("Select Linked Groups"),
             Action::UnlinkGroups => en!("Separate Linked Groups"),
             Action::SetCordonFromSelection => en!("Set Cordon from Selection"),
             Action::ToggleCordon => en!("Toggle Cordon"),
@@ -492,6 +494,7 @@ impl Action {
             Action::DuplicateLinked => en!("Copies the selection as a linked group, editing one copy changes every copy"),
             Action::MirrorLinked { .. } => en!("Copies the selection as a linked group mirrored across a plane, edits in either half show in both"),
             Action::ApplyMirror { .. } => en!("Merges the selected mirrored halves into plain geometry, joined where they meet"),
+            Action::SelectLinkedGroups => en!("Selects every linked copy of the selected groups, so you can move them together"),
             Action::UnlinkGroups => en!("Makes the selected linked groups plain groups, and frees a copy left without partners"),
             Action::OpenGroup => en!("Lets you click and edit the objects inside the selected group"),
             Action::CreatePrefab => en!("Saves the selection as a prefab map file and puts a linked instance in its place"),
@@ -847,6 +850,7 @@ pub fn bindable_actions() -> Vec<Action> {
         Action::ImportModel(ModelImport::Prop),
         Action::ConvertToBrushes,
         Action::EditMesh,
+        Action::SelectLinkedGroups,
         Action::UnlinkGroups,
         Action::SetCordonFromSelection,
         Action::ToggleCordon,
@@ -1263,7 +1267,30 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
                 state.fail_status(msg!("The mirrored halves do not meet. Separate Linked Groups keeps them as plain copies"))
             }
         },
-        Action::UnlinkGroups => state.doc.edit("Separate Linked Groups", |m, s| ops::unlink_groups(m, s)),
+        Action::UnlinkGroups => {
+            let freed = state.doc.try_edit("Separate Linked Groups", |m, s| match ops::unlink_groups(m, s) {
+                0 => Err(()),
+                n => Ok(n),
+            });
+            match freed {
+                Ok(n) => state.set_status(msg_n!(n, "Made {n} linked group plain", "Made {n} linked groups plain")),
+                Err(()) => state.fail_status(msg!("Select a linked group first")),
+            }
+        }
+        Action::SelectLinkedGroups => {
+            if td_doc::linked::sets_touched(&state.doc.map, &state.doc.selection).is_empty() {
+                state.fail_status(msg!("Select a linked group first"));
+            } else {
+                let mut n = 0;
+                state.doc.select(|m, s| n = ops::select_linked(m, s));
+                if n == 0 {
+                    state.fail_status(msg!("The linked copies are hidden or locked, so nothing was selected"));
+                } else {
+                    state.set_status(msg_n!(n, "Selected {n} linked copy", "Selected {n} linked copies"));
+                }
+            }
+        }
+
         // Hammer's Texture tool has no use for objects, so Ctrl+A there takes the faces to texture.
         Action::SelectAll if state.prefs.keymap_preset == "hammer" && state.tool == ToolKind::Texture => select_all_faces(state),
         Action::SelectAll => {

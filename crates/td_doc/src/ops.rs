@@ -1064,12 +1064,17 @@ pub fn array_copies(map: &mut Map, sel: &mut Selection, spec: &ArraySpec, parent
 }
 
 /// Turns selected linked groups back into independent groups, along with any member left alone in its set.
-pub fn unlink_groups(map: &mut Map, sel: &Selection) {
+/// Returns how many groups became plain groups, the lone partners included.
+pub fn unlink_groups(map: &mut Map, sel: &Selection) -> usize {
     let mut touched = BTreeSet::new();
+    let mut freed = 0;
     for id in selection_roots(map, sel) {
-        if let Some(NodeKind::Group(g)) = map.get_mut(id).map(|n| &mut n.kind) {
-            touched.extend(g.link_id.take());
+        if let Some(NodeKind::Group(g)) = map.get_mut(id).map(|n| &mut n.kind)
+            && let Some(link) = g.link_id.take()
+        {
+            touched.insert(link);
             g.transform = DMat4::IDENTITY;
+            freed += 1;
         }
     }
 
@@ -1086,8 +1091,30 @@ pub fn unlink_groups(map: &mut Map, sel: &Selection) {
         if let Some(NodeKind::Group(g)) = map.get_mut(lone).map(|n| &mut n.kind) {
             g.link_id = None;
             g.transform = DMat4::IDENTITY;
+            freed += 1;
         }
     }
+
+    freed
+}
+
+/// Replaces the selection with every member of each link set it touches, leaving hidden and locked members out.
+/// Returns how many groups are selected, 0 when nothing linked was selected or every member is hidden or locked, which
+/// leaves the selection as it was.
+pub fn select_linked(map: &Map, sel: &mut Selection) -> usize {
+    let links = crate::linked::sets_touched(map, sel);
+    if links.is_empty() {
+        return 0;
+    }
+
+    let found: BTreeSet<NodeId> = links.into_iter().flat_map(|link| crate::linked::members(map, link)).filter(|g| map.is_editable(*g)).collect();
+    if found.is_empty() {
+        return 0;
+    }
+
+    sel.clear();
+    sel.nodes.extend(found);
+    sel.nodes.len()
 }
 
 #[cfg(test)]
@@ -1333,11 +1360,11 @@ mod tests {
 
         select(&mut doc, &[]);
         let before = snapshot(&doc.map);
-        doc.edit("Separate Linked Groups", |m, s| unlink_groups(m, s));
+        assert_eq!(doc.edit("Separate Linked Groups", |m, s| unlink_groups(m, s)), 0);
         assert_eq!(snapshot(&doc.map), before, "nothing selected leaves the map as it was");
 
         select(&mut doc, &[half]);
-        doc.edit("Separate Linked Groups", |m, s| unlink_groups(m, s));
+        assert_eq!(doc.edit("Separate Linked Groups", |m, s| unlink_groups(m, s)), 2, "the half and its lone partner");
         for g in [half, copy] {
             assert_eq!(link(&doc.map, g), (None, DMat4::IDENTITY), "{g}");
             assert_eq!(doc.map.get(g).unwrap().name(), "half");
@@ -1379,9 +1406,59 @@ mod tests {
         assert!(kept[1].1 != DMat4::IDENTITY && kept[0].0 == kept[1].0 && kept[0].0.is_some(), "{kept:?}");
 
         select(&mut doc, &[second]);
-        doc.edit("Separate Linked Groups", |m, s| unlink_groups(m, s));
+        assert_eq!(doc.edit("Separate Linked Groups", |m, s| unlink_groups(m, s)), 1);
         assert_eq!(link(&doc.map, second), (None, DMat4::IDENTITY));
         assert_eq!([first, third].map(|g| link(&doc.map, g)), kept, "a set of three keeps its other two linked");
+    }
+
+    #[test]
+    fn select_linked_picks_every_member_of_the_touched_sets() {
+        let mut m = Map::new();
+        let layer = m.default_layer();
+        let mut s = Selection::default();
+        let frame = create_brush(&mut m, layer, Brush::from_aabb(&Aabb::new(DVec3::new(14.0, 10.0, 20.0), DVec3::new(22.0, 18.0, 23.0)), "frame").unwrap());
+        s.select_node(frame);
+        let window = group_selection(&mut m, &mut s, "window", layer).unwrap();
+        let twin = duplicate_linked(&mut m, &mut s, DVec3::new(10.0, 0.0, -2.0), EditOptions::default())[0];
+        s.clear();
+        let wall = create_brush(&mut m, layer, crate::linked::tests::wedge());
+        s.nodes.extend([wall, window, twin]);
+        let half = group_selection(&mut m, &mut s, "half", layer).unwrap();
+        let copy = duplicate_linked(&mut m, &mut s, DVec3::new(-96.0, 8.0, 40.0), EditOptions::default())[0];
+        let windows: BTreeSet<NodeId> =
+            [half, copy].iter().flat_map(|g| m.get(*g).unwrap().children.clone()).filter(|c| matches!(m.get(*c).unwrap().kind, NodeKind::Group(_))).collect();
+        assert_eq!(windows.len(), 4);
+
+        s.clear();
+        let post = create_brush(&mut m, layer, Brush::from_aabb(&Aabb::new(DVec3::new(-70.0, 5.0, 12.0), DVec3::new(-52.0, 41.0, 30.0)), "post").unwrap());
+        s.select_node(post);
+        let post_group = group_selection(&mut m, &mut s, "post", layer).unwrap();
+        let post_twin = duplicate_linked(&mut m, &mut s, DVec3::new(0.0, 0.0, 64.0), EditOptions::default())[0];
+        let loose = create_brush(&mut m, layer, Brush::from_aabb(&Aabb::new(DVec3::new(200.0, -3.0, 7.0), DVec3::new(230.0, 9.0, 50.0)), "loose").unwrap());
+
+        let run = |m: &Map, nodes: &[NodeId], faces: &[(NodeId, usize)]| {
+            let mut s = Selection::default();
+            s.nodes.extend(nodes);
+            s.faces.extend(faces);
+            let n = select_linked(m, &mut s);
+            (n, s.nodes, s.faces.len())
+        };
+        let set = |ids: &[NodeId]| ids.iter().copied().collect::<BTreeSet<NodeId>>();
+
+        assert_eq!(run(&m, &[], &[]), (0, set(&[]), 0), "nothing selected");
+        assert_eq!(run(&m, &[loose], &[]), (0, set(&[loose]), 0), "nothing linked keeps the selection");
+        assert_eq!(run(&m, &[half], &[]), (2, set(&[half, copy]), 0), "one member picks its partner");
+        assert_eq!(run(&m, &[wall], &[]), (2, set(&[half, copy]), 0), "a brush inside a half picks the half's set");
+        assert_eq!(run(&m, &[], &[(wall, 1)]), (2, set(&[half, copy]), 0), "a face counts as its brush");
+        assert_eq!(run(&m, &[frame], &[]), (4, windows.clone(), 0), "a nested window picks the window set");
+        assert_eq!(run(&m, &[half, post_group, loose], &[]), (4, set(&[half, copy, post_group, post_twin]), 0), "two sets at once, the plain brush drops out");
+
+        set_hidden(&mut m, &[copy], true);
+        set_locked(&mut m, &[post_twin], true);
+        assert_eq!(run(&m, &[half, post_group], &[]), (2, set(&[half, post_group]), 0), "hidden and locked members are left out");
+
+        set_hidden(&mut m, &[half], true);
+        assert_eq!(run(&m, &[wall], &[]), (0, set(&[wall]), 0), "every member hidden keeps the selection");
     }
 
     #[test]

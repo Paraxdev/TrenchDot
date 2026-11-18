@@ -2862,3 +2862,27 @@ fn outliner_double_click_opens_the_group_and_reaches_the_row() {
     double(&mut harness, r.plain);
     assert_eq!(harness.state().state.open_groups, [r.left, r.right, r.plain], "a plain group opens too");
 }
+
+#[test]
+fn outliner_menu_of_a_linked_group_row_selects_its_linked_groups() {
+    let (f, r) = linked_rows_fixture();
+    let mut harness = outliner_harness(f);
+    harness.run();
+    reveal_rows(&mut harness, &[r.left_brushes[0], r.plain_child]);
+
+    harness.get_all_by_label(&row_label(&harness, r.plain)).next().unwrap().click_secondary();
+    harness.run();
+    harness.get_by_label("Open Group");
+    assert!(harness.query_by_label("Select Linked Groups").is_none(), "a plain group has no linked copies");
+    assert!(harness.query_by_label("Separate Linked Groups").is_none());
+    harness.key_press(egui::Key::Escape);
+    harness.run();
+
+    harness.get_all_by_label(&row_label(&harness, r.left)).next().unwrap().click_secondary();
+    harness.run();
+    assert_eq!(selection(&harness), [r.left]);
+    harness.get_by_label("Separate Linked Groups");
+    harness.get_by_label("Select Linked Groups").click();
+    harness.run();
+    assert_eq!(harness.state().actions, [Action::SelectLinkedGroups]);
+}
