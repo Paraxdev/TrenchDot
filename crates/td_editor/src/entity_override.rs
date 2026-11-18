@@ -2,7 +2,12 @@
 //! entity definition with the same classname, whose Script Class is a script of the project that extends the original.
 //! The copy is made as text, so everything the definition holds (scene file, collision, base classes) stays as it was.
 
-use crate::entity_pack;
+use std::path::{Path, PathBuf};
+
+use td_formats::GameConfig;
+
+use crate::i18n::Msg;
+use crate::{code_refs, entity_pack, godot_settings, msg};
 
 /// Where the files go, relative to the project and as `res://`.
 pub const DIR: &str = "entities";
@@ -31,11 +36,19 @@ pub enum Script {
 }
 
 pub fn definition_res(classname: &str) -> String {
-    format!("{RES_DIR}/{classname}.tres")
+    definition_res_in(RES_DIR, classname)
+}
+
+pub fn definition_res_in(res_dir: &str, classname: &str) -> String {
+    format!("{res_dir}/{classname}.tres")
 }
 
 pub fn script_res(classname: &str) -> String {
-    format!("{RES_DIR}/{classname}.gd")
+    script_res_in(RES_DIR, classname)
+}
+
+pub fn script_res_in(res_dir: &str, classname: &str) -> String {
+    format!("{res_dir}/{classname}.gd")
 }
 
 pub fn fgd_res() -> String {
@@ -136,6 +149,11 @@ pub fn node_class(source: &str) -> String {
 /// Class pointing at `res://entities/<classname>.gd`, the override marker in its metadata and for the player the node
 /// class `CharacterBody3D`. Every other byte stays, so the Scene File, collision and base classes carry over.
 pub fn definition_copy(source: &str, classname: &str, script: Script) -> Result<String, String> {
+    definition_copy_in(RES_DIR, source, classname, script)
+}
+
+/// [`definition_copy`] for a project folder other than `res://entities`.
+pub fn definition_copy_in(res_dir: &str, source: &str, classname: &str, script: Script) -> Result<String, String> {
     let (mut lines, _) = split(source);
     let Some(res) = lines.iter().position(|l| l.trim_end() == "[resource]") else {
         return Err("the definition has no [resource] section".into());
@@ -149,7 +167,7 @@ pub fn definition_copy(source: &str, classname: &str, script: Script) -> Result<
         return Err(format!("the definition is not for {classname}"));
     }
 
-    let new_ext = format!("[ext_resource type=\"Script\" path=\"{}\" id=\"{SCRIPT_ID}\"]", script_res(classname));
+    let new_ext = format!("[ext_resource type=\"Script\" path=\"{}\" id=\"{SCRIPT_ID}\"]", script_res_in(res_dir, classname));
     let new_ref = format!("script_class = {}", ext_ref(SCRIPT_ID));
     let mut delta = 1;
     let ext_at = lines.iter().take(res).rposition(|l| is_ext(l)).map_or(1, |i| i + 1);
@@ -229,6 +247,11 @@ pub fn script_for(classname: &str, source: &str, base_text: Option<&str>, script
 
 /// A project FGD that builds on the addon's default FGD and holds the override of `classname`.
 pub fn new_fgd(classname: &str) -> String {
+    new_fgd_in(RES_DIR, classname)
+}
+
+/// [`new_fgd`] for a project folder other than `res://entities`.
+pub fn new_fgd_in(res_dir: &str, classname: &str) -> String {
     format!(
         "[gd_resource type=\"Resource\" script_class=\"FuncGodotFGDFile\" load_steps=4 format=3]\n\n\
          [ext_resource type=\"Script\" path=\"{FGD_FILE_SCRIPT}\" id=\"1_fgd\"]\n\
@@ -239,7 +262,7 @@ pub fn new_fgd(classname: &str) -> String {
          base_fgd_files = Array[Resource]([ExtResource(\"2_base\")])\n\
          entity_definitions = Array[Resource]([{}])\n",
         entity_pack::DEFAULT_FGD,
-        definition_res(classname),
+        definition_res_in(res_dir, classname),
         entity_id(classname, &[]),
         ext_ref(&entity_id(classname, &[])),
     )
@@ -288,6 +311,11 @@ fn entity_id(classname: &str, taken: &[&str]) -> String {
 /// The project FGD at `fgd` with the override of `classname` added to its Entity Definitions. Only the plain form
 /// Godot writes is edited, anything else is an error and the caller tells the person to add the definition by hand.
 pub fn add_to_fgd(fgd: &str, classname: &str) -> Result<String, String> {
+    add_to_fgd_in(RES_DIR, fgd, classname)
+}
+
+/// [`add_to_fgd`] for a project folder other than `res://entities`.
+pub fn add_to_fgd_in(res_dir: &str, fgd: &str, classname: &str) -> Result<String, String> {
     let crlf = fgd.contains("\r\n");
     let text = fgd.replace("\r\n", "\n");
     let (mut lines, ends) = split(&text);
@@ -298,7 +326,7 @@ pub fn add_to_fgd(fgd: &str, classname: &str) -> Result<String, String> {
         return Err("the FGD has no resource header".into());
     }
 
-    let path = definition_res(classname);
+    let path = definition_res_in(res_dir, classname);
     if lines.iter().take(res).any(|l| is_ext(l) && attr(l, "path") == Some(&path)) {
         return Err(format!("the FGD lists {path} already"));
     }
@@ -337,6 +365,299 @@ pub fn add_to_fgd(fgd: &str, classname: &str) -> Result<String, String> {
     lines[0] = with_steps(&lines[0], 1);
     let out = join(&lines, ends);
     Ok(if crlf { out.replace('\n', "\r\n") } else { out })
+}
+
+/// What `plan` found in the project: the files to write, the project settings to set and where the FGD is.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Plan {
+    pub classname: String,
+    /// `res://` paths of the override's definition, script and the FGD that lists it.
+    pub definition: String,
+    pub script: String,
+    pub fgd: String,
+    /// In the order they are written. A new file never replaces one, an edit does.
+    pub writes: Vec<Write>,
+    /// `project.godot` settings as (section, key, value), only the ones that change.
+    pub settings: Vec<(&'static str, &'static str, String)>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Write {
+    pub path: PathBuf,
+    pub text: String,
+    pub replace: bool,
+}
+
+const ADDON_RES: &str = "res://addons/";
+const MAP_SETTINGS_KEY: (&str, &str) = ("func_godot", "default_map_settings");
+const GAME_CONFIG_KEY: (&str, &str) = ("trenchdot", "game_config");
+const LEGACY_GAME_CONFIG_KEY: (&str, &str) = ("godottrench", "game_config");
+/// Definitions FuncGodot ships itself, next to the TrenchDot ones in the addon's `fgd` folder.
+const FUNC_GODOT_ENTITIES: [&str; 5] = ["worldspawn", "func_geo", "func_detail", "func_detail_illusionary", "func_illusionary"];
+
+/// The text of `path` with LF line ends, `shown` is how a refusal names it.
+fn read(path: &Path, shown: &str) -> Result<String, Msg> {
+    std::fs::read_to_string(path).map(|t| t.replace("\r\n", "\n")).map_err(|e| msg!("{path} cannot be read: {error}", path = shown, error = e))
+}
+
+fn not_a_file(path: &str) -> Msg {
+    msg!("The project names {path}, which is not a file inside it", path)
+}
+
+fn project_path(root: &Path, res: &str) -> Result<PathBuf, Msg> {
+    let rel = res.strip_prefix("res://").filter(|r| !r.is_empty() && !r.split(['/', '\\']).any(|p| p == "..")).ok_or_else(|| not_a_file(res))?;
+    Ok(root.join(rel))
+}
+
+/// The definition `classname` is copied from: the installed pack's, then the addon's own, then FuncGodot's.
+pub fn source(root: &Path, classname: &str) -> Result<(PathBuf, String), Msg> {
+    let pack = format!("{}/definitions/{classname}.tres", entity_pack::DIR);
+    let found = if entity_pack::in_pack(classname) && root.join(&pack).is_file() {
+        Some(pack)
+    } else if code_refs::CORE_ENTITIES.contains(&classname) {
+        Some(format!("{}/fgd/trenchdot/{classname}.tres", crate::addon_install::DIR))
+    } else if FUNC_GODOT_ENTITIES.contains(&classname) {
+        Some(format!("{}/fgd/{classname}.tres", crate::addon_install::DIR))
+    } else {
+        None
+    };
+    match found {
+        Some(rel) if root.join(&rel).is_file() => Ok((root.join(&rel), format!("res://{rel}"))),
+        Some(rel) => Err(msg!("The addon in this project has no definition at {path}, update the addon", path = format!("res://{rel}"))),
+        None if entity_pack::in_pack(classname) && entity_pack::installed(root) => Err(msg!(
+            "The Gameplay entities pack in this project has no {path}, so there is no definition of {classname} to copy",
+            path = format!("{}/definitions/{classname}.tres", entity_pack::RES_DIR),
+            classname
+        )),
+        None if entity_pack::in_pack(classname) => {
+            Err(msg!("{classname} comes with the Gameplay entities pack. Install it with Gameplay > Install Gameplay Entities, then override it", classname))
+        }
+        None => Err(msg!("Override in project has no definition to copy for {classname}, it copies core, FuncGodot and Gameplay entities", classname)),
+    }
+}
+
+/// The FGD a game config or map settings resource of the project builds with, None for the addon's default. `prop` is
+/// the property that holds it, `fgd_file` or `entity_fgd`.
+fn fgd_property(text: &str, prop: &str) -> Result<Option<String>, String> {
+    let (lines, _) = split(text);
+    let start = lines.iter().position(|l| l.trim_end() == "[resource]").ok_or("it has no [resource] section")?;
+    let Some(value) = lines[start..].iter().find_map(|l| value_of(l, prop)) else {
+        return Ok(None);
+    };
+    if value == "null" {
+        return Ok(None);
+    }
+
+    let id = value.strip_prefix("ExtResource(\"").and_then(|r| r.strip_suffix("\")")).ok_or("its FGD is not a file of the project")?;
+    lines[..start]
+        .iter()
+        .filter(|l| is_ext(l))
+        .find(|l| attr(l, "id") == Some(id))
+        .and_then(|l| attr(l, "path"))
+        .map(|p| Some(p.to_string()))
+        .ok_or_else(|| format!("its FGD {id} has no path"))
+}
+
+/// The resource a project setting names when it is the project's own: None for an unset setting and for the addon's
+/// defaults. A uid that no `.tres` of the project carries refuses, it may well be the project's own binary resource.
+fn own_setting(root: &Path, project: &str, keys: &[(&str, &str)]) -> Result<Option<String>, Msg> {
+    let found = keys.iter().find_map(|(section, key)| {
+        godot_settings::get(project, section, key).filter(|v| !v.trim().is_empty()).map(|v| (format!("{section}/{key}"), v.trim().to_string()))
+    });
+    let Some((setting, value)) = found else {
+        return Ok(None);
+    };
+    match godot_settings::resolve(root, &value).map_err(|_| not_a_file(&value))? {
+        Some(res) => Ok(Some(res).filter(|r| !r.starts_with(ADDON_RES))),
+        None => Err(msg!("Cannot find {uid} of {setting} in the project. Set {setting} to its res:// path, then try again", uid = value, setting)),
+    }
+}
+
+/// The project FGD that the project's own resource `res` holds in `prop`. Err when it builds with the addon's FGD,
+/// `addon` is the refusal for that.
+fn own_fgd_of(root: &Path, res: &str, prop: &str, addon: fn(&str) -> Msg) -> Result<String, Msg> {
+    let text = read(&project_path(root, res)?, res)?;
+    match fgd_property(&text, prop) {
+        Ok(Some(fgd)) if !fgd.starts_with(ADDON_RES) => Ok(fgd),
+        Ok(_) => Err(addon(res)),
+        Err(e) => Err(msg!("{path} cannot be read: {error}", path = res, error = e)),
+    }
+}
+
+fn game_config_has_addon_fgd(path: &str) -> Msg {
+    msg!("Your game config {path} builds with the addon's FGD. Point its FGD File at an FGD of your own, then try again", path)
+}
+
+fn map_settings_have_addon_fgd(path: &str) -> Msg {
+    msg!("Your map settings {path} build with the addon's FGD. Point their Entity Fgd at an FGD of your own, then try again", path)
+}
+
+fn defined_by(classname: &str, path: &str) -> Msg {
+    msg!("{classname} is defined by {path} in this project already, edit that definition instead", classname, path)
+}
+
+/// The definition at `res` is an override TrenchDot wrote.
+pub fn is_override(root: &Path, res: &str) -> bool {
+    let meta = format!("metadata/{META} = true");
+    project_path(root, res).ok().and_then(|p| std::fs::read_to_string(p).ok()).is_some_and(|t| t.lines().any(|l| l.trim_end() == meta))
+}
+
+fn has_scene_file(source: &str) -> bool {
+    source.lines().skip_while(|l| l.trim_end() != "[resource]").any(|l| value_of(l, "scene_file").is_some_and(|v| v != "null"))
+}
+
+/// The project's own definition of `classname` that the project FGD `fgd` lists, which no clash reports when the FGD
+/// does not build on the addon's.
+fn own_definition(root: &Path, fgd: &str, classname: &str) -> Option<String> {
+    let named = format!("classname = \"{classname}\"");
+    let pack = format!("{}/", entity_pack::RES_DIR);
+    fgd.lines()
+        .filter(|l| is_ext(l))
+        .filter_map(|l| attr(l, "path"))
+        .filter(|p| p.ends_with(".tres") && !p.starts_with(ADDON_RES) && !p.starts_with(&pack))
+        .find(|p| project_path(root, p).ok().and_then(|p| std::fs::read_to_string(p).ok()).is_some_and(|t| t.lines().any(|l| l.trim_end() == named)))
+        .map(str::to_string)
+}
+
+/// The project's own resources, None where a setting is unset or the addon's default.
+struct Wiring {
+    config: Option<String>,
+    settings: Option<String>,
+    fgd: Option<String>,
+}
+
+/// The own game config, map settings and FGD of the project, read from `project.godot`. Refuses when the two name
+/// different FGDs or when one of them builds with the addon's FGD, which the person has to change in the resource.
+fn own_wiring(root: &Path, project: &str) -> Result<Wiring, Msg> {
+    let config = own_setting(root, project, &[GAME_CONFIG_KEY, LEGACY_GAME_CONFIG_KEY])?;
+    let settings = own_setting(root, project, &[MAP_SETTINGS_KEY])?;
+    let config_fgd = config.as_deref().map(|r| own_fgd_of(root, r, "fgd_file", game_config_has_addon_fgd)).transpose()?;
+    let settings_fgd = settings.as_deref().map(|r| own_fgd_of(root, r, "entity_fgd", map_settings_have_addon_fgd)).transpose()?;
+    let fgd = match (config_fgd, settings_fgd) {
+        (Some(a), Some(b)) if a != b => {
+            return Err(msg!("Your game config and your map settings use two FGDs, {a} and {b}. Point both at one of them, then try again", a, b));
+        }
+        (a, b) => a.or(b),
+    };
+    Ok(Wiring { config, settings, fgd })
+}
+
+/// The project FGD `project.godot` leads to, None when the project has none yet.
+pub fn own_fgd(root: &Path) -> Result<Option<String>, Msg> {
+    let project = read(&root.join("project.godot"), "project.godot")?;
+    own_wiring(root, &project).map(|w| w.fgd)
+}
+
+/// Everything Override in project would do for `classname`, or why it will not. Reads the project and writes nothing.
+pub fn plan(root: &Path, game: &GameConfig, classname: &str, script: Script) -> Result<Plan, Msg> {
+    plan_in(root, game, classname, script, DIR)
+}
+
+/// [`plan`] with the override's files in the project folder `dir` instead of `entities`.
+pub fn plan_in(root: &Path, game: &GameConfig, classname: &str, script: Script, dir: &str) -> Result<Plan, Msg> {
+    let dir = dir.trim_matches('/');
+    let res_dir = format!("res://{dir}");
+    project_path(root, &res_dir)?;
+    if format!("{res_dir}/").starts_with(ADDON_RES) {
+        return Err(msg!("Overrides are never written inside the addons folder, and {path} is in it", path = res_dir));
+    }
+
+    let valid = !classname.is_empty() && classname.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+    if !valid {
+        return Err(msg!("{classname} is not a classname Override in project can use", classname));
+    }
+
+    if script == Script::Player && classname != "info_player_start" {
+        return Err(msg!("The first person player is the script of info_player_start only"));
+    }
+
+    let definition = definition_res_in(&res_dir, classname);
+    let script_path = script_res_in(&res_dir, classname);
+    if is_override(root, &definition) {
+        return Err(msg!("{classname} is overridden already. Change it in {definition} and {script}", classname, definition, script = script_path));
+    }
+
+    let (source_path, source_res) = source(root, classname)?;
+    if let Some(clash) = game.clashes.iter().find(|c| c.classname == classname) {
+        let winner = clash.winner();
+        if !winner.starts_with(ADDON_RES) && !winner.starts_with(&format!("{}/", entity_pack::RES_DIR)) {
+            return Err(defined_by(classname, winner));
+        }
+    }
+
+    let source_text = read(&source_path, &source_res)?;
+    let base = base_script(&source_text);
+    if base.as_deref().is_some_and(|b| !b.ends_with(".gd")) || (base.is_none() && has_scene_file(&source_text)) {
+        return Err(msg!(
+            "TrenchDot cannot copy {classname}, its script is not GDScript or it builds a scene without a script. Copy its definition by hand",
+            classname
+        ));
+    }
+
+    let fail = |e: String| msg!("{classname} could not be copied: {error}", classname, error = e);
+    let base_text = base.filter(|_| script == Script::Extend).and_then(|base| project_path(root, &base).ok()).and_then(|p| read(&p, "").ok());
+    let copy = definition_copy_in(&res_dir, &source_text, classname, script).map_err(fail)?;
+    let script_text = script_for(classname, &source_text, base_text.as_deref(), script).map_err(fail)?;
+
+    let project = read(&root.join("project.godot"), "project.godot")?;
+    let Wiring { config, settings, fgd: own } = own_wiring(root, &project)?;
+
+    let mut plan = Plan {
+        classname: classname.to_string(),
+        definition: definition.clone(),
+        script: script_path.clone(),
+        fgd: String::new(),
+        writes: Vec::new(),
+        settings: Vec::new(),
+    };
+    let add_new = |res: &str, text: String, plan: &mut Plan| -> Result<(), Msg> {
+        let path = project_path(root, res)?;
+        if path.exists() {
+            return Err(msg!("{path} is in the way, it exists already. Rename or move it, then try again", path = res));
+        }
+
+        plan.writes.push(Write { path, text, replace: false });
+        Ok(())
+    };
+    add_new(&definition, copy, &mut plan)?;
+    add_new(&script_path, script_text, &mut plan)?;
+
+    match own {
+        Some(fgd) => {
+            let path = project_path(root, &fgd)?;
+            let text = read(&path, &fgd)?;
+            if let Some(own) = own_definition(root, &text, classname) {
+                return Err(defined_by(classname, &own));
+            }
+
+            let text = add_to_fgd_in(&res_dir, &text, classname).map_err(|e| {
+                msg!("{path} could not be extended: {error}. Add {classname} to its Entity Definitions yourself", path = fgd, error = e, classname)
+            })?;
+            plan.writes.push(Write { path, text, replace: true });
+            plan.fgd = fgd;
+        }
+        None => {
+            plan.fgd = format!("{res_dir}/{FGD}");
+            add_new(&plan.fgd.clone(), new_fgd_in(&res_dir, classname), &mut plan)?;
+        }
+    }
+
+    let settings_res = match settings {
+        Some(res) => res,
+        None => {
+            let res = format!("{res_dir}/{MAP_SETTINGS}");
+            add_new(&res, new_map_settings(&plan.fgd), &mut plan)?;
+            plan.settings.push((MAP_SETTINGS_KEY.0, MAP_SETTINGS_KEY.1, res.clone()));
+            res
+        }
+    };
+    if config.is_none() {
+        let res = format!("{res_dir}/{GAME_CONFIG}");
+        add_new(&res, new_game_config(&plan.fgd, &settings_res), &mut plan)?;
+        plan.settings.push((GAME_CONFIG_KEY.0, GAME_CONFIG_KEY.1, res));
+    }
+
+    Ok(plan)
 }
 
 #[cfg(test)]
@@ -667,5 +988,518 @@ map_settings = ExtResource(\"3_ms\")
         assert_eq!(out.replace("\r\n", "\n"), add_to_fgd(&new_fgd("func_door"), "light").unwrap());
         let no_end = new_fgd("func_door").trim_end().to_string();
         assert!(!add_to_fgd(&no_end, "light").unwrap().ends_with('\n'));
+    }
+}
+
+#[cfg(test)]
+mod plan_tests {
+    use super::*;
+    use td_formats::Clash;
+
+    const GODOT: &str = "config_version=5\n\n[application]\n\nconfig/name=\"Room\"\n";
+    const MAP_SETTINGS_WITHOUT_FGD: &str = "[gd_resource type=\"Resource\" format=3]\n\n[resource]\n";
+
+    fn addon() -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../godot/addons/func_godot")
+    }
+
+    fn copy_dir(from: &Path, to: &Path) {
+        std::fs::create_dir_all(to).unwrap();
+        for entry in std::fs::read_dir(from).unwrap().map(Result::unwrap) {
+            let target = to.join(entry.file_name());
+            if entry.file_type().unwrap().is_dir() {
+                copy_dir(&entry.path(), &target);
+            } else {
+                std::fs::copy(entry.path(), target).unwrap();
+            }
+        }
+    }
+
+    fn put(root: &Path, rel: &str, text: &str) {
+        let path = root.join(rel);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    }
+
+    /// A project with the addon's definitions and the pack installed, as Install Gameplay Entities leaves it.
+    fn project(godot: &str) -> tempfile::TempDir {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        copy_dir(&addon().join("fgd"), &root.join("addons/func_godot/fgd"));
+        copy_dir(&addon().join("gameplay_pack/definitions"), &root.join("trenchdot/entities/definitions"));
+        copy_dir(&addon().join("gameplay_pack/scripts"), &root.join("trenchdot/entities/scripts"));
+        copy_dir(&addon().join("src/trenchdot/entities"), &root.join("addons/func_godot/src/trenchdot/entities"));
+        put(root, "project.godot", godot);
+        dir
+    }
+
+    fn settings_text(lines: &[(&str, &str, &str)]) -> String {
+        lines.iter().fold(GODOT.to_string(), |text, (section, key, value)| godot_settings::with_setting(&text, section, key, value))
+    }
+
+    fn own_settings() -> String {
+        settings_text(&[("func_godot", "default_map_settings", "res://mine/ms.tres"), ("trenchdot", "game_config", "res://mine/gc.tres")])
+    }
+
+    fn game() -> GameConfig {
+        GameConfig::builtin()
+    }
+
+    fn refusal(plan: Result<Plan, Msg>) -> String {
+        plan.unwrap_err().en
+    }
+
+    fn plan_of(root: &Path, classname: &str) -> Plan {
+        plan(root, &game(), classname, Script::Extend).unwrap()
+    }
+
+    fn refused(root: &Path, classname: &str) -> String {
+        refusal(plan(root, &game(), classname, Script::Extend))
+    }
+
+    /// What applying a plan leaves in the project, without the editor.
+    fn apply(root: &Path, plan: &Plan) {
+        for write in &plan.writes {
+            assert_eq!(write.path.exists(), write.replace, "{}", write.path.display());
+            std::fs::create_dir_all(write.path.parent().unwrap()).unwrap();
+            std::fs::write(&write.path, &write.text).unwrap();
+        }
+
+        let mut text = std::fs::read_to_string(root.join("project.godot")).unwrap();
+        for (section, key, value) in &plan.settings {
+            text = godot_settings::with_setting(&text, section, key, value);
+        }
+
+        std::fs::write(root.join("project.godot"), text).unwrap();
+    }
+
+    fn rels(root: &Path, plan: &Plan) -> Vec<String> {
+        plan.writes.iter().map(|w| w.path.strip_prefix(root).unwrap().to_string_lossy().replace('\\', "/")).collect()
+    }
+
+    fn own_resources(root: &Path) {
+        put(root, "mine/fgd.tres", &new_fgd_in("res://mine", "my_thing"));
+        put(root, "mine/ms.tres", &new_map_settings("res://mine/fgd.tres"));
+        put(root, "mine/gc.tres", &new_game_config("res://mine/fgd.tres", "res://mine/ms.tres"));
+    }
+
+    fn tres_with_uid(uid: &str) -> String {
+        format!("[gd_resource type=\"Resource\" format=3 uid=\"{uid}\"]\n\n[resource]\n")
+    }
+
+    fn text_of(root: &Path, rel: &str) -> String {
+        std::fs::read_to_string(root.join(rel)).unwrap().replace("\r\n", "\n")
+    }
+
+    #[test]
+    fn a_fresh_project_gets_the_override_the_three_resources_and_both_settings() {
+        let dir = project(GODOT);
+        let root = dir.path();
+        let plan = plan_of(root, "func_button");
+        assert_eq!(
+            rels(root, &plan),
+            [
+                "entities/func_button.tres",
+                "entities/func_button.gd",
+                "entities/project_fgd.tres",
+                "entities/project_map_settings.tres",
+                "entities/project_game_config.tres"
+            ]
+        );
+        let source = text_of(root, "trenchdot/entities/definitions/func_button.tres");
+        let base = text_of(root, "trenchdot/entities/scripts/td_button.gd");
+        assert_eq!(plan.writes[0].text, definition_copy(&source, "func_button", Script::Extend).unwrap());
+        assert_eq!(plan.writes[1].text, script_for("func_button", &source, Some(&base), Script::Extend).unwrap());
+        assert_eq!(plan.writes[2].text, new_fgd("func_button"));
+        assert_eq!(plan.writes[3].text, new_map_settings("res://entities/project_fgd.tres"));
+        assert_eq!(plan.writes[4].text, new_game_config("res://entities/project_fgd.tres", "res://entities/project_map_settings.tres"));
+        assert!(plan.writes.iter().all(|w| !w.replace));
+        assert_eq!(
+            plan.settings,
+            [
+                ("func_godot", "default_map_settings", "res://entities/project_map_settings.tres".to_string()),
+                ("trenchdot", "game_config", "res://entities/project_game_config.tres".to_string())
+            ]
+        );
+        assert_eq!(plan.definition, "res://entities/func_button.tres");
+        assert_eq!(plan.script, "res://entities/func_button.gd");
+        assert_eq!(plan.fgd, "res://entities/project_fgd.tres");
+        assert!(!root.join("entities").exists(), "a plan writes nothing");
+        assert_eq!(text_of(root, "project.godot"), GODOT);
+    }
+
+    #[test]
+    fn a_second_override_only_adds_to_the_fgd() {
+        let dir = project(GODOT);
+        let root = dir.path();
+        apply(root, &plan_of(root, "func_button"));
+        let second = plan_of(root, "light");
+        assert_eq!(rels(root, &second), ["entities/light.tres", "entities/light.gd", "entities/project_fgd.tres"]);
+        assert!(second.settings.is_empty());
+        assert!(second.writes[2].replace);
+        assert_eq!(second.writes[2].text, add_to_fgd(&new_fgd("func_button"), "light").unwrap());
+        apply(root, &second);
+        let third = plan_of(root, "func_door");
+        assert_eq!(third.writes[2].text, add_to_fgd(&add_to_fgd(&new_fgd("func_button"), "light").unwrap(), "func_door").unwrap());
+        assert_eq!(third.fgd, "res://entities/project_fgd.tres");
+    }
+
+    #[test]
+    fn own_resources_sharing_an_fgd_get_only_that_fgd_edited() {
+        let dir = project(&own_settings());
+        let root = dir.path();
+        own_resources(root);
+        let plan = plan_of(root, "func_door");
+        assert_eq!(rels(root, &plan), ["entities/func_door.tres", "entities/func_door.gd", "mine/fgd.tres"]);
+        assert_eq!(plan.writes[2].text, add_to_fgd(&new_fgd_in("res://mine", "my_thing"), "func_door").unwrap());
+        assert!(plan.settings.is_empty());
+        assert_eq!(plan.fgd, "res://mine/fgd.tres");
+        assert_eq!(own_fgd(root).unwrap().as_deref(), Some("res://mine/fgd.tres"));
+    }
+
+    #[test]
+    fn a_missing_piece_is_created_and_pointed_at_the_own_fgd() {
+        let config_only = project(&settings_text(&[("trenchdot", "game_config", "res://mine/gc.tres")]));
+        let root = config_only.path();
+        own_resources(root);
+        let first = plan_of(root, "func_door");
+        assert_eq!(rels(root, &first)[2..], ["mine/fgd.tres", "entities/project_map_settings.tres"]);
+        assert_eq!(first.writes[3].text, new_map_settings("res://mine/fgd.tres"));
+        assert_eq!(first.settings, [("func_godot", "default_map_settings", "res://entities/project_map_settings.tres".to_string())]);
+
+        let settings_only = project(&settings_text(&[("func_godot", "default_map_settings", "res://mine/ms.tres")]));
+        let root = settings_only.path();
+        own_resources(root);
+        let second = plan_of(root, "func_door");
+        assert_eq!(rels(root, &second)[2..], ["mine/fgd.tres", "entities/project_game_config.tres"]);
+        assert_eq!(second.writes[3].text, new_game_config("res://mine/fgd.tres", "res://mine/ms.tres"));
+        assert_eq!(second.settings, [("trenchdot", "game_config", "res://entities/project_game_config.tres".to_string())]);
+    }
+
+    #[test]
+    fn the_legacy_game_config_setting_counts_until_the_new_one_is_set() {
+        let legacy = project(&settings_text(&[("godottrench", "game_config", "res://mine/gc.tres")]));
+        own_resources(legacy.path());
+        let plan = plan_of(legacy.path(), "func_door");
+        assert_eq!(plan.fgd, "res://mine/fgd.tres");
+        assert!(plan.settings.iter().all(|(_, key, _)| *key != "game_config"), "an own legacy game config is kept");
+
+        let both = project(&settings_text(&[("godottrench", "game_config", "res://mine/gone.tres"), ("trenchdot", "game_config", "res://mine/gc.tres")]));
+        own_resources(both.path());
+        assert_eq!(plan_of(both.path(), "func_door").fgd, "res://mine/fgd.tres", "the new setting wins over the legacy one");
+    }
+
+    #[test]
+    fn settings_that_name_the_addon_or_nothing_count_as_unset() {
+        let addon_names = settings_text(&[
+            ("func_godot", "default_map_settings", "res://addons/func_godot/func_godot_default_map_settings.tres"),
+            ("trenchdot", "game_config", "res://addons/func_godot/game_config/trenchdot/trenchdot_game_config.tres"),
+        ]);
+        let dir = project(&addon_names);
+        let plan = plan_of(dir.path(), "func_door");
+        assert_eq!(plan.writes.len(), 5);
+        assert_eq!(plan.settings.len(), 2);
+
+        let empty = project(&settings_text(&[("func_godot", "default_map_settings", ""), ("trenchdot", "game_config", "")]));
+        assert_eq!(plan_of(empty.path(), "func_door").settings.len(), 2);
+    }
+
+    #[test]
+    fn uid_settings_resolve_to_the_project_and_addon_files_and_an_unknown_uid_refuses() {
+        let dir = project(&settings_text(&[("func_godot", "default_map_settings", "uid://mine_ms"), ("trenchdot", "game_config", "uid://mine_gc")]));
+        let root = dir.path();
+        own_resources(root);
+        put(root, "mine/ms.tres", &new_map_settings("res://mine/fgd.tres").replacen("format=3", "format=3 uid=\"uid://mine_ms\"", 1));
+        put(root, "mine/gc.tres", &new_game_config("res://mine/fgd.tres", "res://mine/ms.tres").replacen("format=3", "format=3 uid=\"uid://mine_gc\"", 1));
+        let plan = plan_of(root, "func_door");
+        assert_eq!(plan.fgd, "res://mine/fgd.tres");
+        assert!(plan.settings.is_empty());
+
+        let addon_uid = project(&settings_text(&[("func_godot", "default_map_settings", "uid://addon_ms")]));
+        put(addon_uid.path(), "addons/func_godot/func_godot_default_map_settings.tres", &tres_with_uid("uid://addon_ms"));
+        let plan = plan_of(addon_uid.path(), "func_door");
+        assert_eq!(plan.settings.len(), 2);
+
+        for (section, key) in [("func_godot", "default_map_settings"), ("trenchdot", "game_config"), ("godottrench", "game_config")] {
+            let unknown = project(&settings_text(&[(section, key, "uid://binary_res")]));
+            put(unknown.path(), "mine/settings.res", "RSRC binary");
+            let text = refused(unknown.path(), "func_door");
+            assert_eq!(text, format!("Cannot find uid://binary_res of {section}/{key} in the project. Set {section}/{key} to its res:// path, then try again"));
+            assert!(!unknown.path().join("entities").exists());
+        }
+    }
+
+    #[test]
+    fn an_empty_game_config_setting_leaves_the_legacy_one_in_charge() {
+        let dir = project(&settings_text(&[("trenchdot", "game_config", ""), ("godottrench", "game_config", "res://mine/gc.tres")]));
+        own_resources(dir.path());
+        let plan = plan_of(dir.path(), "func_door");
+        assert_eq!(plan.fgd, "res://mine/fgd.tres");
+        assert!(plan.settings.iter().all(|(_, key, _)| *key != "game_config"), "{:?}", plan.settings);
+    }
+
+    #[test]
+    fn a_crlf_project_file_and_resources_still_plan() {
+        let dir = project(&own_settings().replace('\n', "\r\n"));
+        let root = dir.path();
+        own_resources(root);
+        for name in ["fgd", "ms", "gc"] {
+            let path = root.join(format!("mine/{name}.tres"));
+            std::fs::write(&path, std::fs::read_to_string(&path).unwrap().replace('\n', "\r\n")).unwrap();
+        }
+
+        let plan = plan_of(root, "func_door");
+        assert_eq!(plan.fgd, "res://mine/fgd.tres");
+        assert!(!plan.writes[2].text.contains('\r'));
+    }
+
+    #[test]
+    fn resources_that_build_with_the_addon_fgd_refuse() {
+        let ms = project(&settings_text(&[("func_godot", "default_map_settings", "res://mine/ms.tres")]));
+        put(ms.path(), "mine/ms.tres", &new_map_settings(entity_pack::DEFAULT_FGD));
+        assert!(refused(ms.path(), "func_door").starts_with("Your map settings res://mine/ms.tres build with the addon's FGD"));
+        put(ms.path(), "mine/ms.tres", MAP_SETTINGS_WITHOUT_FGD);
+        assert!(refused(ms.path(), "func_door").starts_with("Your map settings res://mine/ms.tres"), "no Entity Fgd line is the default");
+
+        let gc = project(&settings_text(&[("trenchdot", "game_config", "res://mine/gc.tres")]));
+        put(gc.path(), "mine/gc.tres", &new_game_config(entity_pack::DEFAULT_FGD, "res://mine/ms.tres"));
+        assert!(refused(gc.path(), "func_door").starts_with("Your game config res://mine/gc.tres builds with the addon's FGD"));
+
+        let mixed = project(&own_settings());
+        put(mixed.path(), "mine/ms.tres", &new_map_settings("res://mine/fgd.tres"));
+        put(mixed.path(), "mine/gc.tres", &new_game_config(entity_pack::DEFAULT_FGD, "res://mine/ms.tres"));
+        assert!(refused(mixed.path(), "func_door").starts_with("Your game config res://mine/gc.tres"), "one own FGD does not excuse the other");
+        assert!(!mixed.path().join("entities").exists());
+    }
+
+    #[test]
+    fn two_own_fgds_refuse_and_the_same_one_does_not() {
+        let dir = project(&own_settings());
+        let root = dir.path();
+        own_resources(root);
+        put(root, "mine/other.tres", &new_fgd_in("res://mine", "other_thing"));
+        put(root, "mine/gc.tres", &new_game_config("res://mine/other.tres", "res://mine/ms.tres"));
+        let text = refused(root, "func_door");
+        assert!(text.contains("use two FGDs, res://mine/other.tres and res://mine/fgd.tres"), "{text}");
+        assert!(own_fgd(root).is_err());
+        put(root, "mine/gc.tres", &new_game_config("res://mine/fgd.tres", "res://mine/ms.tres"));
+        assert!(plan(root, &game(), "func_door", Script::Extend).is_ok());
+    }
+
+    #[test]
+    fn a_setting_for_a_file_that_is_not_there_refuses() {
+        let missing = project(&settings_text(&[("trenchdot", "game_config", "res://mine/nothing.tres")]));
+        assert!(refused(missing.path(), "func_door").contains("res://mine/nothing.tres cannot be read"));
+        let odd = project(&settings_text(&[("func_godot", "default_map_settings", "C:/maps/ms.tres")]));
+        assert!(refused(odd.path(), "func_door").contains("C:/maps/ms.tres, which is not a file"));
+        let up = project(&settings_text(&[("func_godot", "default_map_settings", "res://../ms.tres")]));
+        assert!(refused(up.path(), "func_door").contains("res://../ms.tres, which is not a file"));
+        let no_project = project(GODOT);
+        std::fs::remove_file(no_project.path().join("project.godot")).unwrap();
+        assert!(refused(no_project.path(), "func_door").contains("project.godot cannot be read"));
+    }
+
+    #[test]
+    fn an_existing_file_refuses_and_nothing_is_planned() {
+        for rel in [
+            "entities/func_door.tres",
+            "entities/func_door.gd",
+            "entities/project_fgd.tres",
+            "entities/project_map_settings.tres",
+            "entities/project_game_config.tres",
+        ] {
+            let dir = project(GODOT);
+            put(dir.path(), rel, "mine");
+            let text = refused(dir.path(), "func_door");
+            assert!(text.starts_with(&format!("res://{rel} is in the way")), "{rel}: {text}");
+            assert_eq!(text_of(dir.path(), rel), "mine");
+        }
+
+        let other = project(GODOT);
+        put(other.path(), "entities/light.tres", "mine");
+        assert!(plan(other.path(), &game(), "func_door", Script::Extend).is_ok(), "another classname is no obstacle");
+    }
+
+    #[test]
+    fn a_class_the_project_defines_itself_refuses() {
+        let dir = project(GODOT);
+        let mut game = game();
+        let clash = |winner: &str, intended: bool| Clash {
+            classname: "func_door".into(),
+            definitions: vec!["res://trenchdot/entities/definitions/func_door.tres".into(), winner.into()],
+            intended,
+        };
+        game.clashes = vec![clash("res://mine/door.tres", false)];
+        let text = refusal(plan(dir.path(), &game, "func_door", Script::Extend));
+        assert!(text.starts_with("func_door is defined by res://mine/door.tres"), "{text}");
+        game.clashes = vec![clash("res://mine/door.tres", true)];
+        assert!(plan(dir.path(), &game, "func_door", Script::Extend).is_err(), "an intended winner outside the addon is still the project's own");
+
+        game.clashes = vec![clash("res://trenchdot/entities/definitions/func_door.tres", false)];
+        assert!(plan(dir.path(), &game, "func_door", Script::Extend).is_ok());
+        game.clashes = vec![clash("res://mine/door.tres", true)];
+        assert!(plan(dir.path(), &game, "light", Script::Extend).is_ok(), "a clash of another class is no obstacle");
+    }
+
+    #[test]
+    fn a_class_the_own_fgd_lists_without_a_clash_refuses() {
+        let dir = project(&own_settings());
+        let root = dir.path();
+        own_resources(root);
+        put(root, "mine/fgd.tres", &new_fgd_in("res://mine", "func_door").replace("[ExtResource(\"2_base\")]", "[]"));
+        put(root, "mine/func_door.tres", "[gd_resource type=\"Resource\" format=3]\n\n[resource]\nclassname = \"func_door\"\n");
+        assert_eq!(refused(root, "func_door"), "func_door is defined by res://mine/func_door.tres in this project already, edit that definition instead");
+        assert!(plan(root, &game(), "func_button", Script::Extend).is_ok(), "the own FGD defines no func_button");
+
+        put(root, "mine/func_door.tres", "[gd_resource type=\"Resource\" format=3]\n\n[resource]\nclassname = \"func_doorway\"\n");
+        assert!(plan(root, &game(), "func_door", Script::Extend).is_ok(), "a classname that only starts the same is another class");
+
+        let pack = project(&own_settings());
+        own_resources(pack.path());
+        let fgd = new_fgd_in("res://mine", "func_door").replace("res://mine/func_door.tres", "res://trenchdot/entities/definitions/func_door.tres");
+        put(pack.path(), "mine/fgd.tres", &fgd);
+        assert!(plan(pack.path(), &game(), "func_door", Script::Extend).is_ok(), "the pack definition is what gets overridden");
+    }
+
+    #[test]
+    fn a_definition_with_a_csharp_script_or_a_scene_without_a_script_refuses() {
+        let cannot = "TrenchDot cannot copy light, its script is not GDScript or it builds a scene without a script. Copy its definition by hand";
+        let dir = project(GODOT);
+        let root = dir.path();
+        let light = text_of(root, "addons/func_godot/fgd/trenchdot/light.tres");
+        put(root, "addons/func_godot/fgd/trenchdot/light.tres", &light.replace("td_light.gd", "TdLight.cs"));
+        assert_eq!(refused(root, "light"), cannot);
+
+        let without_script: String = light.lines().filter(|l| !l.starts_with("script_class = ")).map(|l| format!("{l}\n")).collect();
+        put(root, "addons/func_godot/fgd/trenchdot/light.tres", &format!("{without_script}scene_file = ExtResource(\"9_scene\")\n"));
+        assert_eq!(refused(root, "light"), cannot);
+        put(root, "addons/func_godot/fgd/trenchdot/light.tres", &format!("{without_script}scene_file = null\n"));
+        assert!(plan(root, &game(), "light", Script::Extend).is_ok(), "no scene and no script gets the template");
+        put(root, "addons/func_godot/fgd/trenchdot/light.tres", &format!("{light}scene_file = ExtResource(\"9_scene\")\n"));
+        assert!(plan(root, &game(), "light", Script::Extend).is_ok(), "a scene with a GDScript is extended");
+        assert!(!root.join("entities").exists());
+    }
+
+    #[test]
+    fn an_override_is_reported_as_one_and_another_file_is_in_the_way() {
+        let dir = project(GODOT);
+        let root = dir.path();
+        let first = plan_of(root, "func_door");
+        apply(root, &first);
+        assert_eq!(refused(root, "func_door"), "func_door is overridden already. Change it in res://entities/func_door.tres and res://entities/func_door.gd");
+        assert!(is_override(root, "res://entities/func_door.tres"));
+        assert!(!is_override(root, "res://entities/func_door.gd") && !is_override(root, "res://entities/light.tres"));
+
+        put(root, "entities/light.tres", "[gd_resource type=\"Resource\" format=3]\n\n[resource]\nmetadata/trenchdot_override = false\n");
+        assert!(refused(root, "light").starts_with("res://entities/light.tres is in the way"));
+    }
+
+    #[test]
+    fn an_installed_pack_without_the_definition_says_so() {
+        let dir = project(GODOT);
+        let root = dir.path();
+        std::fs::remove_file(root.join("trenchdot/entities/definitions/func_door.tres")).unwrap();
+        std::fs::copy(addon().join("gameplay_pack/pack.json"), root.join("trenchdot/entities/pack.json")).unwrap();
+        assert_eq!(
+            refused(root, "func_door"),
+            "The Gameplay entities pack in this project has no res://trenchdot/entities/definitions/func_door.tres, so there is no definition of func_door to copy"
+        );
+        assert!(plan(root, &game(), "func_button", Script::Extend).is_ok());
+    }
+
+    #[test]
+    fn the_source_is_the_installed_pack_then_the_addon() {
+        let dir = project(GODOT);
+        let root = dir.path();
+        let pack = root.join("trenchdot/entities/definitions/func_button.tres");
+        assert_eq!(source(root, "func_button").unwrap(), (pack, "res://trenchdot/entities/definitions/func_button.tres".to_string()));
+        put(root, "trenchdot/entities/definitions/func_button.tres", &(text_of(root, "trenchdot/entities/definitions/func_button.tres") + "# edited\n"));
+        assert!(plan_of(root, "func_button").writes[0].text.contains("# edited"), "the installed pack copy is the source, edits included");
+
+        assert_eq!(source(root, "light").unwrap().1, "res://addons/func_godot/fgd/trenchdot/light.tres");
+        assert_eq!(source(root, "func_detail").unwrap().1, "res://addons/func_godot/fgd/func_detail.tres");
+        assert_eq!(source(root, "worldspawn").unwrap().1, "res://addons/func_godot/fgd/worldspawn.tres");
+    }
+
+    #[test]
+    fn classnames_without_a_source_refuse() {
+        let dir = project(GODOT);
+        let root = dir.path();
+        assert!(refused(root, "my_thing").starts_with("Override in project has no definition to copy for my_thing"));
+
+        std::fs::remove_file(root.join("addons/func_godot/fgd/trenchdot/light.tres")).unwrap();
+        assert!(refused(root, "light").contains("no definition at res://addons/func_godot/fgd/trenchdot/light.tres"));
+
+        std::fs::remove_file(root.join("trenchdot/entities/definitions/func_door.tres")).unwrap();
+        let text = refused(root, "func_door");
+        assert!(text.starts_with("func_door comes with the Gameplay entities pack") && text.contains("Install Gameplay Entities"), "{text}");
+        assert!(!root.join("entities").exists());
+    }
+
+    #[test]
+    fn a_missing_base_script_refuses() {
+        let dir = project(GODOT);
+        std::fs::remove_file(dir.path().join("trenchdot/entities/scripts/td_button.gd")).unwrap();
+        let text = refused(dir.path(), "func_button");
+        assert!(text.starts_with("func_button could not be copied") && text.contains("td_button.gd is missing"), "{text}");
+    }
+
+    #[test]
+    fn bad_classnames_and_a_misplaced_player_refuse() {
+        let dir = project(GODOT);
+        for name in ["", "../light", "light/x", "a b", "light\"", "func_door.tres"] {
+            assert!(refused(dir.path(), name).contains("is not a classname"), "{name:?}");
+        }
+
+        assert!(refusal(plan(dir.path(), &game(), "light", Script::Player)).contains("info_player_start only"));
+        let player = plan(dir.path(), &game(), "info_player_start", Script::Player).unwrap();
+        assert_eq!(player.writes[1].text, PLAYER_SCRIPT);
+        assert!(player.writes[0].text.contains("node_class = \"CharacterBody3D\""));
+    }
+
+    #[test]
+    fn nothing_is_ever_planned_inside_addons() {
+        let own = project(&own_settings());
+        own_resources(own.path());
+        let fresh = project(GODOT);
+        for root in [own.path(), fresh.path()] {
+            for class in ["info_player_start", "light", "light_spot", "func_detail", "worldspawn", "func_door", "func_button", "func_platform"] {
+                for write in &plan_of(root, class).writes {
+                    assert!(!write.path.strip_prefix(root).unwrap().starts_with("addons"), "{class}: {}", write.path.display());
+                }
+            }
+        }
+
+        for dir in ["addons", "addons/func_godot/entities", "/addons/x/"] {
+            let text = refusal(plan_in(fresh.path(), &game(), "light", Script::Extend, dir));
+            assert!(text.starts_with("Overrides are never written inside the addons folder"), "{dir}: {text}");
+        }
+
+        assert!(plan_in(fresh.path(), &game(), "light", Script::Extend, "addons_mine").is_ok());
+        assert!(refusal(plan_in(fresh.path(), &game(), "light", Script::Extend, "../out")).contains("not a file inside it"));
+    }
+
+    #[test]
+    fn another_folder_puts_every_path_in_it() {
+        let dir = project(GODOT);
+        let root = dir.path();
+        let plan = plan_in(root, &game(), "light", Script::Extend, "tests/first_room/project/entities").unwrap();
+        let res = "res://tests/first_room/project/entities";
+        assert_eq!(rels(root, &plan)[0], "tests/first_room/project/entities/light.tres");
+        assert_eq!(plan.fgd, format!("{res}/project_fgd.tres"));
+        assert!(plan.writes[0].text.contains(&format!("path=\"{res}/light.gd\"")));
+        assert!(plan.writes[2].text.contains(&format!("path=\"{res}/light.tres\"")));
+        assert!(plan.writes[3].text.contains("project_fgd.tres"));
+        assert_eq!(plan.settings[1].2, format!("{res}/project_game_config.tres"));
+    }
+
+    #[test]
+    fn a_second_project_does_not_inherit_the_first() {
+        let first = project(GODOT);
+        apply(first.path(), &plan_of(first.path(), "func_door"));
+        let second = project(GODOT);
+        let plan = plan_of(second.path(), "light");
+        assert_eq!(plan.writes.len(), 5);
+        assert_eq!(plan.writes[2].text, new_fgd("light"));
     }
 }
