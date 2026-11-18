@@ -690,8 +690,13 @@ fn push_rows(map: &td_doc::Map, id: NodeId, depth: usize, expanded: &HashSet<Nod
 
 pub fn inspector(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actions: &mut Vec<Action>) {
     ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        if state.doc.selection.has_faces() {
-            face_inspector(ui, state, actions);
+        let faces = if state.tool == crate::tools::ToolKind::Texture {
+            crate::texture_ops::target_faces(state)
+        } else {
+            state.doc.selection.faces.iter().copied().collect()
+        };
+        if !faces.is_empty() {
+            face_inspector(ui, state, &faces, actions);
             return;
         }
 
@@ -1744,8 +1749,7 @@ fn edit_planar(state: &mut EditorState, faces: &[(NodeId, usize)], label: &str, 
     }
 }
 
-fn face_inspector(ui: &mut Ui, state: &mut EditorState, actions: &mut Vec<Action>) {
-    let faces: Vec<(NodeId, usize)> = state.doc.selection.faces.iter().copied().collect();
+fn face_inspector(ui: &mut Ui, state: &mut EditorState, faces: &[(NodeId, usize)], actions: &mut Vec<Action>) {
     let Some((bid, fi)) = faces.first().copied() else { return };
     let Some(info) = crate::texture_ops::face_info(&state.doc.map, bid, fi) else { return };
     let is_mesh = state.doc.map.mesh(bid).is_some();
@@ -1788,7 +1792,7 @@ fn face_inspector(ui: &mut Ui, state: &mut EditorState, actions: &mut Vec<Action
             });
             if changed {
                 let (offset, scale, rotation_delta) = (uv.offset, uv.scale, uv.rotation - info.uv.rotation);
-                edit_planar(state, &faces, en!("Set UV"), true, |uv, _, _, _| {
+                edit_planar(state, faces, en!("Set UV"), true, |uv, _, _, _| {
                     uv.offset = offset;
                     uv.scale = scale;
                     if rotation_delta.abs() > 1e-9 {
@@ -1833,23 +1837,23 @@ fn face_inspector(ui: &mut Ui, state: &mut EditorState, actions: &mut Vec<Action
             }
 
             if ui.button("⟲ 90").clicked() {
-                crate::texture_ops::rotate(state, &faces, -90.0);
+                crate::texture_ops::rotate(state, faces, -90.0);
             }
 
             if ui.button("⟳ 90").clicked() {
-                crate::texture_ops::rotate(state, &faces, 90.0);
+                crate::texture_ops::rotate(state, faces, 90.0);
             }
 
             if ui.button("× 2").on_hover_text(tr("Double the texture size")).clicked() {
-                crate::texture_ops::scale(state, &faces, DVec2::splat(2.0));
+                crate::texture_ops::scale(state, faces, DVec2::splat(2.0));
             }
 
             if ui.button("÷ 2").on_hover_text(tr("Halve the texture size")).clicked() {
-                crate::texture_ops::scale(state, &faces, DVec2::splat(0.5));
+                crate::texture_ops::scale(state, faces, DVec2::splat(0.5));
             }
 
             if let Some((label, f)) = op {
-                edit_planar(state, &faces, label, false, f);
+                edit_planar(state, faces, label, false, f);
             }
         });
     });
@@ -1935,7 +1939,7 @@ fn face_inspector(ui: &mut Ui, state: &mut EditorState, actions: &mut Vec<Action
         });
         if prop_changed {
             state.doc.edit_coalesced("Set Face Properties", |m, _| {
-                for (id, f) in &faces {
+                for (id, f) in faces {
                     if let Some(face) = m.brush_mut(*id).and_then(|b| b.faces.get_mut(*f)) {
                         face.data.props = props.clone();
                     }

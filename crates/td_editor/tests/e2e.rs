@@ -7013,6 +7013,21 @@ fn a_fresh_start_opens_only_the_loop_panels() {
     assert_eq!(panels, expected);
 }
 
+/// Entering the Texture tool brings the Inspector tab to the front, whatever tool or panel was in front before.
+#[test]
+#[ignore]
+fn the_texture_tool_brings_the_inspector_to_the_front() {
+    let ed = Editor::launch("texture_inspector");
+    let shown = |name: &str| ed.state()["ui"]["panels"].as_array().unwrap().iter().any(|p| p["panel"] == name && p["shown"] == true);
+    ed.box_brush([8.0, -16.0, 0.0], [72.0, 48.0, 40.0]);
+    ed.call("set_editor", json!({ "tool": "scatter" }));
+    ed.call("get_state", json!({}));
+    assert!(shown("Scatter") && !shown("Inspector"), "the Scatter tool puts its panel in front of the Inspector");
+    ed.call("set_editor", json!({ "tool": "texture" }));
+    ed.call("get_state", json!({}));
+    assert!(shown("Inspector") && !shown("Scatter"));
+}
+
 fn rect_of(value: &Value) -> Vec<f64> {
     value.as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect()
 }

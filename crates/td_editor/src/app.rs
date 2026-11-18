@@ -439,6 +439,15 @@ fn reveal_tab(dock: &mut DockState<Tab>, tab: Tab, beside: Tab) {
     show_tab(dock, tab);
 }
 
+/// Brings the panel a tool works through to the front when the tool becomes active.
+fn reveal_for_tool(dock: &mut DockState<Tab>, tool: ToolKind) {
+    match tool {
+        ToolKind::Scatter => reveal_tab(dock, Tab::Scatter, Tab::Inspector),
+        ToolKind::Texture => open_panel(dock, Tab::Inspector),
+        _ => {}
+    }
+}
+
 /// The panel a closed panel reopens beside, none for one that goes wherever the focus is.
 fn panel_home(tab: Tab) -> Option<Tab> {
     match tab {
@@ -3376,9 +3385,8 @@ impl eframe::App for App {
 
         self.sync_active_scatter();
         if self.state.tool != self.last_tool {
-            if self.state.tool == ToolKind::Scatter {
-                reveal_tab(&mut self.dock, Tab::Scatter, Tab::Inspector);
-            } else {
+            reveal_for_tool(&mut self.dock, self.state.tool);
+            if self.state.tool != ToolKind::Scatter {
                 self.state.scatter_eyedropper = false;
             }
 
@@ -3782,6 +3790,23 @@ mod tests {
         assert!(dock.find_tab(&Tab::Inspector).is_none());
         toggle_panel(&mut dock, Tab::Inspector);
         assert!(dock.find_tab(&Tab::Inspector).is_some());
+    }
+
+    #[test]
+    fn entering_the_texture_tool_brings_the_inspector_to_the_front() {
+        let mut dock = default_dock();
+        show_tab(&mut dock, Tab::Entities);
+        assert!(shown_tabs(&dock).contains(&Tab::Entities) && !shown_tabs(&dock).contains(&Tab::Inspector));
+        reveal_for_tool(&mut dock, ToolKind::Clip);
+        assert!(!shown_tabs(&dock).contains(&Tab::Inspector), "a tool with no panel leaves the tabs alone");
+        reveal_for_tool(&mut dock, ToolKind::Texture);
+        assert!(shown_tabs(&dock).contains(&Tab::Inspector) && !shown_tabs(&dock).contains(&Tab::Entities));
+
+        let path = dock.find_tab(&Tab::Inspector).unwrap();
+        dock.remove_tab(path);
+        reveal_for_tool(&mut dock, ToolKind::Texture);
+        assert!(shown_tabs(&dock).contains(&Tab::Inspector), "a closed Inspector reopens");
+        assert_eq!(dock.iter_all_tabs().filter(|(_, t)| **t == Tab::Inspector).count(), 1);
     }
 
     #[test]

@@ -302,6 +302,81 @@ fn face_inspector_reset_is_undoable() {
     assert_eq!(harness.state().state.doc.history.undo_labels().next(), Some("Reset UV"));
 }
 
+/// Two brushes and one mesh off the origin, so the face counts differ from a single cube.
+fn texture_tool_fixture() -> (Fixture, [NodeId; 3]) {
+    let mut f = Fixture::new();
+    let layer = f.state.doc.map.default_layer();
+    let a = Brush::from_aabb(&Aabb::new(DVec3::new(10.0, -20.0, 5.0), DVec3::new(74.0, 44.0, 69.0)), "dev/grey").unwrap();
+    let b = Brush::from_aabb(&Aabb::new(DVec3::new(200.0, 0.0, 0.0), DVec3::new(232.0, 96.0, 160.0)), "dev/grey").unwrap();
+    let mesh = td_geom::mesh_shapes::cylinder(&Aabb::new(DVec3::new(400.0, 3.0, 9.0), DVec3::new(460.0, 70.0, 80.0)), 8, "dev/grey");
+    let ids = f.state.doc.edit("add", |m, _| [m.insert(layer, NodeKind::Brush(a)), m.insert(layer, NodeKind::Brush(b)), m.insert(layer, NodeKind::Mesh(mesh))]);
+    (f, ids)
+}
+
+fn inspector_harness(f: Fixture) -> Harness<'static, Fixture> {
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(460.0, 900.0))
+        .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+    harness.run();
+    harness
+}
+
+#[test]
+fn the_texture_tool_shows_the_face_panel_for_the_faces_it_acts_on() {
+    let (mut f, [a, b, _]) = texture_tool_fixture();
+    f.state.doc.select(|_, s| {
+        s.clear();
+        s.select_node(a);
+        s.select_node(b);
+    });
+    f.state.tool = ToolKind::Select;
+    let mut harness = inspector_harness(f);
+    assert!(harness.query_by_label("12 faces").is_none(), "the Select tool keeps the selection summary");
+
+    harness.state_mut().state.tool = ToolKind::Texture;
+    harness.run();
+    harness.get_by_label("12 faces");
+    assert_eq!(harness.state().state.doc.selection.nodes.len(), 2, "showing the panel does not convert the selection");
+    assert!(!harness.state().state.doc.selection.has_faces());
+
+    harness.state_mut().state.doc.select(|_, s| {
+        s.clear();
+        s.select_node(a);
+    });
+    harness.run();
+    harness.get_by_label("6 faces");
+
+    harness.state_mut().state.doc.select(|_, s| {
+        s.clear();
+        s.select_face(b, 3);
+    });
+    harness.run();
+    harness.get_by_label("1 face");
+
+    harness.state_mut().state.tool = ToolKind::Clip;
+    harness.run();
+    assert!(harness.query_by_label("1 face").is_some(), "selected faces show in any tool, as before");
+}
+
+#[test]
+fn the_texture_tool_counts_mesh_faces_and_shows_map_settings_without_a_selection() {
+    let (mut f, [_, _, mesh]) = texture_tool_fixture();
+    let sides = f.state.doc.map.mesh(mesh).unwrap().faces.len();
+    f.state.tool = ToolKind::Texture;
+    f.state.doc.select(|_, s| {
+        s.clear();
+        s.select_node(mesh);
+    });
+    let mut harness = inspector_harness(f);
+    harness.get_by_label(&format!("{sides} mesh faces"));
+
+    harness.state_mut().state.doc.select(|_, s| s.clear());
+    harness.run();
+    assert!(harness.query_by_label(&format!("{sides} mesh faces")).is_none());
+    assert!(harness.query_by_label("Texture Settings").is_none(), "no face panel without faces to act on");
+    harness.get_by_label("Map (worldspawn)");
+}
+
 #[test]
 fn face_inspector_texture_settings_apply_to_the_whole_texture() {
     let mut f = Fixture::new();
