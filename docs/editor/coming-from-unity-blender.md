@@ -14,7 +14,7 @@ keys. This page maps them, and [Build your first room](../getting-started.md) wa
 | ProBuilder shapes, Add menu | Drag in any view to draw a box [brush](brushes.md), Ctrl+Shift+B for arches, stairs and cylinders |
 | Boolean modifier | *Brush > CSG*: subtract (Ctrl+K), merge, intersect and hollow. They change the brushes right away, there is no modifier stack |
 | Edit mode | The **Vertex** tool for brushes, the **Mesh** tool for [meshes](meshes.md), both on Tab |
-| Mirror modifier | **Mirror Linked** in the Inspector's Transform section or *Brush > Transform* keeps a reflected [linked copy](brushes.md#mirror) of the selection, and **Apply Mirror** bakes it into one welded mesh or brush, like Apply on the modifier |
+| Mirror modifier | **Mirror Linked** in *Edit > Groups* or the Inspector's Transform section keeps a reflected [linked copy](brushes.md#mirror) of the selection, and **Apply Mirror** bakes it into one welded mesh or brush, like Apply on the modifier |
 | X mirror in edit mode | The **symmetry** menu in the options bar of the Vertex tool and the [Mesh tool](meshes.md#symmetry) moves the matching vertex on the other side of the plane too |
 | Prefabs | [Prefabs](organizing.md#prefabs), saved as their own map and updated in every instance |
 | Linked duplicate (Alt+D) | Duplicate linked, Ctrl+Shift+D, so the copies share their geometry |

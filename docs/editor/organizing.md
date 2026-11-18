@@ -78,9 +78,17 @@ the target row gets an outline.
 When you drag a selected row, the whole selection moves with it.
 
 **Duplicate Linked** (Ctrl+Shift+D) makes a copy that stays in sync with its original, so fixing one window frame fixes
-all of them. Linked copies show *(linked)* in the Outliner, and a click on one selects the whole group, since its copies
-are edited as one. *Edit > Groups > Unlink Groups* breaks the link when one copy has to differ. A linked copy can also be a reflection of its original, see
-[Mirror](brushes.md#mirror).
+all of them. Linked copies show *(linked)* in the Outliner. Each copy moves on its own, so dragging one leaves the others
+where they are, and what you edit inside one shows up in the others when you finish the edit. While a linked copy is
+selected, the views outline its partners in violet.
+
+| Command in *Edit > Groups* | What it does |
+| --- | --- |
+| **Select Linked Groups** | Selects every copy of the selected linked groups, so you can drag them together. Hidden and locked copies stay out. Also in the right click menu of the Outliner and the views |
+| **Separate Linked Groups** | Breaks the link when one copy has to differ. The selected groups become plain groups, and a copy left without partners becomes plain too. Searching the command palette for *Make Unique* finds it as well |
+
+A click on a linked copy in the Outliner selects the whole group, since its copies are edited as one, and a double click
+on its row opens the group. A linked copy can also be a reflection of its original, see [Mirror](brushes.md#mirror).
 
 ## Array copies
 

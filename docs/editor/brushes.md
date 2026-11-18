@@ -173,17 +173,22 @@ plane, so a change in either half shows up in both.
 
 1. Select what you built. A selected group is mirrored as it is, and anything else you selected is wrapped in a group
     named *Mirrored* first.
-2. Open the **Transform** section of the Inspector and look at **Mirror Plane**. It decides where the plane sits, see
-    the table below. The default is **max side**, which puts the plane on the selection's edge so the halves meet.
+2. Open *Edit > Groups*. Under **Mirror Plane** you decide where the plane sits, see the table below. The default is
+    **max side**, which puts the plane on the selection's edge so the halves meet.
 3. Click **Mirror Linked X**, **Mirror Linked Y** or **Mirror Linked Z**, the axis the plane stands across. The mirrored
     copy is selected afterwards, and the status bar says where the plane went.
 
+![The Edit menu with Groups open, Mirror Linked X, Y and Z, Apply Mirror and the Mirror Plane submenu below the group commands](../assets/brushes/mirror-menu.png)
+
+The **Transform** section of the Inspector has the same three buttons and a **Mirror Plane** menu. While a half of a
+mirrored pair is selected, the Inspector also shows a **Mirror** section below it, already open, with the plane, the gap
+and the buttons for the pair.
+
+![The Mirror section of the Inspector, reading Mirror plane X = 200 with a Gap field set to 16 units and Apply Mirror greyed out](../assets/brushes/mirror-row.png)
+
+The **Mirror Plane** menu in the Inspector holds the same choices as the submenu.
+
 ![The Transform section of the Inspector with the Mirror Plane menu open](../assets/brushes/mirror-inspector.png)
-
-You can also use *Brush > Transform*, where the three **Mirror Linked** items sit below the **Flip** ones and the
-**Mirror Plane** submenu holds the same choices as radio buttons.
-
-![The Brush menu with Transform open, showing Mirror Linked X, Y and Z, Apply Mirror and the Mirror Plane submenu](../assets/brushes/mirror-menu.png)
 
 | Mirror Plane | Where the plane goes |
 | --- | --- |
@@ -196,18 +201,47 @@ You can also use *Brush > Transform*, where the three **Mirror Linked** items si
 The setting is shared by every map tab and is not saved, it starts at **max side** again when you launch the editor.
 
 While a half of a mirrored pair is selected, the views draw the plane as an outline in the color of its axis, red for
-X, green for Y and blue for Z, and the Inspector says *Mirror plane X at 128 u*. Move one half and the outline moves
-with it, it stays halfway between the halves as in the picture below. Rotate it so it is no longer a plain mirror, and
-the outline goes away.
+X, green for Y and blue for Z, and the other half gets a violet outline so you can see which one belongs to your
+selection. The Mirror section in the Inspector reads *Mirror plane X = 200*, the position along that axis. Move one half
+towards the other or away from it and the outline moves too, it stays halfway between the halves as in the picture
+below. Slide a half along the plane, or rotate it so it is no longer a plain mirror, and the outline goes away.
 
 ![The 3D view with the halves of a mirrored wedge pair pulled apart, a red outline marks the plane halfway between them](../assets/brushes/mirror-plane.png)
 
-You edit as in any linked group, and the other half follows when you finish the edit, for example when you let go of a
-drag. That includes moved vertices, resized brushes and face materials, all mirrored, with the faces still pointing
-outwards and the textures mirrored too.
+### Moving the halves
 
-When the design is done, select either half and click **Apply Mirror** (below the Mirror Linked buttons in the
-Inspector, and in *Brush > Transform*, where it is greyed out until a mirrored pair is selected). It turns the pair into plain geometry in one undo step, with the link gone.
+Each half moves on its own. Drag one and the other stays where it is, the same as for any linked copy. That keeps the
+plane honest, you decide what happens to each side. What you edit inside a half is still mirrored, see below.
+
+* **To move both together**, select one half and run *Edit > Groups > Select Linked Groups*, then drag. The same
+  command is in the right click menu of the Outliner and the views.
+* **To space the halves apart**, type a number into **Gap** in the Mirror section. It is the distance between the two
+  halves in map units, and both move by the same amount, so the plane stays where it is. Dragging the field is one undo
+  step. The gap goes up to 65536 units, 2048 m. A negative gap pulls them into each other, down to minus the width of the
+  narrower half, below that it stops. Gap counts brushes and meshes, not decals or entities. If the pair has more linked copies, the Gap moves every copy
+  on each side along with its half.
+* **To put the halves back across from each other** after you slid one along the plane, click **Mirror Again** in
+  the Mirror section. The partner moves to the mirror image of the selected half in one undo step, and the status bar says how
+  far it moved. The button only shows while the pair is off the plane, and the section says by how much.
+* **To free one half**, run *Edit > Groups > Separate Linked Groups* on it. The two become plain groups you can change
+  however you like, and the plane no longer applies. Searching the command palette for *Make Unique* finds it too.
+
+> [!WARNING]
+> The gap is empty space, nothing fills it. On a mirrored room the floor, walls and ceiling are all open along that
+> strip, and a player in Godot falls straight through it. Set **Gap** back to 0 before you close the room with
+> **Apply Mirror**.
+
+You edit inside a half as in any linked group, and the other half follows when you finish the edit, for example when
+you let go of a drag. That includes moved vertices, resized brushes and face materials, all mirrored, with the faces
+still pointing outwards and the textures mirrored too. If a single edit reaches both halves and would leave them
+different, for example nudging a vertex of each by the same amount, which the mirror turns into two different moves,
+the editor refuses it and tells you in the status bar.
+
+When the design is done, select either half and click **Apply Mirror** (in the Mirror section of the Inspector, and in
+*Edit > Groups*, where it is greyed out until a mirrored pair is selected). It turns the pair into plain geometry in
+one undo step, with the link gone. The halves have to meet, so while **Gap** is above half a unit the button in the
+Inspector is greyed out, set it to 0 first. The menu entry stays clickable and the status bar says the halves do not
+meet. A negative gap, with the halves pushed into each other, is fine.
 
 * Brushes whose two halves form one convex shape are joined into a single brush.
 * Meshes are joined and their seam is welded, so a closed shape stays closed. Vertices within half a unit of the plane
@@ -216,8 +250,8 @@ Inspector, and in *Brush > Transform*, where it is greyed out until a mirrored p
 * Everything else, such as a brush pair that would not be convex together, stays as separate plain brushes in one group.
 
 The result stays in the group of the first half, *Mirrored* when the editor made it, and *Edit > Groups > Ungroup*
-takes it out. The halves have to meet. If they do not, the status bar tells you so and nothing changes, and
-*Edit > Groups > Unlink Groups* is the way to keep both halves as separate plain copies instead.
+takes it out. If the halves do not meet, the status bar tells you so and nothing changes, and
+*Edit > Groups > Separate Linked Groups* is the way to keep both halves as separate plain copies instead.
 
 > [!NOTE]
 > Mirror Linked flips everything the way **Flip** does. A terrain mirrors across X and Z, and across Y it stays upright
@@ -225,9 +259,11 @@ takes it out. The halves have to meet. If they do not, the status bar tells you 
 
 <div class="td-mcp" markdown>
 
-The MCP action `mirror_linked` takes `axis`, `plane` (center, max, min, world or custom) and `at`, and `apply_mirror`
-takes `distance`, the weld tolerance in units. `get_state` lists the planes of the selection as `mirror_planes`, and
-`set_editor` takes `edit_symmetry` for the Vertex tool.
+The MCP action `mirror_linked` takes `axis`, `plane` (center, max, min, world or custom), `at` and `gap`, and
+`set_mirror_gap` takes `gap` and an optional `axis`. `mirror_again` puts the partner back across from the selected half,
+`select_linked` selects every copy of the linked groups in the selection and `separate_linked_groups` frees them.
+`apply_mirror` takes `distance`, the weld tolerance in units. `get_state` lists the planes of the selection as
+`mirror_planes`, each with its `gap`, and `set_editor` takes `edit_symmetry` for the Vertex tool.
 
 </div>
 
