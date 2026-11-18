@@ -2563,5 +2563,10 @@
   "Player": "Spieler",
   "Makes info_player_start spawn a first person player you can walk around with. Its script goes in {dir} so you can change it.": "Lässt info_player_start einen Spieler in Egoperspektive spawnen, mit dem du herumlaufen kannst. Sein Skript kommt nach {dir}, damit du es ändern kannst.",
   "Create player": "Spieler erstellen",
-  "info_player_start spawns your player. Change it in {script}.": "info_player_start spawnt deinen Spieler. Ändere ihn in {script}."
+  "info_player_start spawns your player. Change it in {script}.": "info_player_start spawnt deinen Spieler. Ändere ihn in {script}.",
+  "Shift+drag the selection": "Shift+Ziehen der Auswahl",
+  "Ctrl+drag the selection": "Ctrl+Ziehen der Auswahl",
+  "Move it": "Verschieben",
+  "Copy it and move the copy": "Kopieren und die Kopie verschieben",
+  "Shift+A opens the Texture tool, click picks a face, Ctrl+click adds one. Shift+drag copies the selection": "Shift+A öffnet das Textur-Werkzeug, ein Klick wählt eine Fläche, Ctrl+Klick fügt eine hinzu. Shift+Ziehen kopiert die Auswahl"
 }

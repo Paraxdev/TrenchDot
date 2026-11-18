@@ -751,10 +751,14 @@ fn mouse_help(preset: &str) -> String {
         tr("2D: right or middle drag pans, the wheel zooms, drag a selection edge to resize").to_string(),
         tr("Click selects an object or a whole group, double click opens a group. Drag empty space to draw a brush").to_string(),
         tr("3D gizmo: arrows and squares move, rings rotate, boxes scale").to_string(),
-        trf!(
-            "{click} selects faces, Shift+drag a face pushes it, Ctrl+Shift+drag extrudes",
-            click = crate::mouse_map::chord_label(preset, crate::mouse_map::ClickRule::ReplaceFace)
-        ),
+        if preset == "hammer" {
+            tr("Shift+A opens the Texture tool, click picks a face, Ctrl+click adds one. Shift+drag copies the selection").to_string()
+        } else {
+            trf!(
+                "{click} selects faces, Shift+drag a face pushes it, Ctrl+Shift+drag extrudes",
+                click = crate::mouse_map::chord_label(preset, crate::mouse_map::ClickRule::ReplaceFace)
+            )
+        },
         tr("Tab edits meshes Blender style: 1/2/3 modes, G/R/S, E extrude, I inset, Ctrl+R loop cut, K knife").to_string(),
     ]
     .join("\n")
@@ -4290,6 +4294,12 @@ mod tests {
         let lines = |preset| mouse_help(preset).lines().map(str::to_string).collect::<Vec<_>>();
         let tb = lines("trenchbroom");
         let blender = lines("blender");
+        let hammer = lines("hammer");
+        assert_eq!(hammer.len(), 6);
+        assert_eq!(hammer[..4], tb[..4]);
+        assert_eq!(hammer[5], tb[5]);
+        assert!(hammer[4].contains("Shift+drag copies the selection") && hammer[4].contains("Texture tool"), "{}", hammer[4]);
+        assert!(!hammer[4].contains("pushes"), "{}", hammer[4]);
         assert_eq!(tb.len(), 6);
         assert_eq!(blender.len(), 6);
         assert!(tb[4].starts_with("Shift+click selects faces, Shift+drag a face pushes it"), "{}", tb[4]);

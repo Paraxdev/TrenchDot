@@ -76,7 +76,7 @@ mode.
 | Input | Result |
 | --- | --- |
 | Drag off the selection | Draw a brush |
-| Drag the selection | Move. Ctrl copies, Shift locks the axis, Alt moves vertically in 3D |
+| Drag the selection | Move. Ctrl copies, Shift locks the axis, Alt moves vertically in 3D. The Hammer preset copies with Shift too and has no axis lock, see [Other presets](#other-presets) |
 | Click | Select the object under the cursor, or the whole group around it. Clicking an object while faces are selected leaves face selection |
 | Double click a group | Open it, so clicks reach what is inside |
 | Double click an entity brush | Select every brush of the entity |
@@ -88,8 +88,8 @@ mode.
 | Click on empty space | Clear the selection |
 | Ctrl+click on empty space | Keep the selection, so a missed Ctrl+click costs nothing |
 | Shift+click in the Outliner | Select the rows from the last clicked one |
-| Shift+drag a selected face (3D) | Push or pull it |
-| Ctrl+Shift+drag a selected face (3D) | Extrude a new brush |
+| Shift+drag a selected face (3D) | Push or pull it. The Hammer preset copies the selection instead |
+| Ctrl+Shift+drag a selected face (3D) | Extrude a new brush. The Hammer preset copies the selection instead |
 | Right drag (3D) | Look around. Hold it and use WASD to fly, Q and E to go down and up |
 | Middle drag | Pan |
 | Alt+left drag (3D) | Orbit. In the Select tool a drag that starts on the selection or its gizmo moves it vertically instead |
@@ -164,6 +164,15 @@ A preset only changes the keys below, everything else stays as above. Your own b
 
 In the Hammer preset, Ctrl+A with the Texture tool active selects every face of the selected brushes instead of the
 objects, which is what you want before aligning a whole room.
+
+Shift is for cloning in the Hammer preset. Hold it when you press the button, so a Shift pressed later during a plain
+drag does nothing. The 2D edge drag that resizes a selection and the transform gizmo work as in every preset, which
+is how you resize by edges or move along one axis there.
+
+| Hammer input | Result |
+| --- | --- |
+| Drag the selection | Move it, with no axis lock |
+| Shift+drag the selection, Ctrl+drag the selection | Copy it and move the copy, in every view, as one undo step. On a selected face in 3D it copies too, it does not push the face |
 
 | Key | Blender preset |
 | --- | --- |

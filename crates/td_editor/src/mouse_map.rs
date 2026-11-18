@@ -145,6 +145,46 @@ impl Chord {
     }
 }
 
+/// What a drag that starts on the selection grabbed.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DragHit {
+    /// A face of a selected brush in the 3D view.
+    SelectedFace3d,
+    /// Anything else selected, in any view.
+    Selected,
+}
+
+/// What a drag that starts on the selection does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SelectionDrag {
+    Move,
+    Copy,
+    PushFace,
+    ExtrudeFace,
+}
+
+/// What dragging the selection does with the modifiers held when the button went down. Alt only changes the plane of
+/// a move, so it does not appear here. An unknown preset id drags like TrenchBroom.
+pub fn selection_drag(preset: &str, chord: Chord, hit: DragHit) -> SelectionDrag {
+    let Chord { command, shift, .. } = chord;
+    if preset == "hammer" {
+        return if command || shift { SelectionDrag::Copy } else { SelectionDrag::Move };
+    }
+
+    match hit {
+        DragHit::SelectedFace3d if shift && command => SelectionDrag::ExtrudeFace,
+        DragHit::SelectedFace3d if shift => SelectionDrag::PushFace,
+        _ if command => SelectionDrag::Copy,
+        _ => SelectionDrag::Move,
+    }
+}
+
+/// Whether Shift held during a move drag locks it to the main axis. In Hammer Shift is what starts a copy, so it
+/// would always be held.
+pub fn shift_locks_axis(preset: &str) -> bool {
+    preset != "hammer"
+}
+
 /// What a mouse gesture on a face does in the Texture tool.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TextureGesture {
@@ -197,13 +237,14 @@ pub fn row_click(command: bool, shift: bool) -> RowClick {
     }
 }
 
-/// The handler decision a fixed Mouse tab row stands for, checked against [`texture_gesture`], [`row_click`] and
-/// [`double_click`].
+/// The handler decision a fixed Mouse tab row stands for, checked against [`texture_gesture`], [`selection_drag`], [`row_click`]
+/// and [`double_click`].
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Bound {
     /// A double click in a view on this hit, with a group open or not.
     View(DoubleClickHit, bool, DoubleClick),
     Texture(Chord, TextureGesture),
+    Drag(Chord, DragHit, SelectionDrag),
     Outliner(Chord, RowClick),
 }
 
@@ -246,6 +287,10 @@ pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
         bound: Some(Bound::Texture(chord(button, mods), g)),
         ..fixed(TEXTURE_TOOL, gesture, what)
     };
+    let drag = |mods: &str, gesture: &'static str, what: &'static str, hit, d| MouseRow {
+        bound: Some(Bound::Drag(chord(Button::Drag, mods), hit, d)),
+        ..fixed(VIEWS, gesture, what)
+    };
     let view = |gesture: &'static str, what: &'static str, hit, open, d| MouseRow { bound: Some(Bound::View(hit, open, d)), ..fixed(VIEWS, gesture, what) };
     let outliner = |mods: &str, gesture: &'static str, what: &'static str, g| MouseRow {
         bound: Some(Bound::Outliner(chord(Button::Click, mods), g)),
@@ -267,9 +312,22 @@ pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
         ),
         fixed(VIEWS, en!("Click again soon at the same spot, or Alt+click (2D)"), en!("Select the next object under the cursor")),
         fixed(VIEWS, en!("Drag off the selection"), en!("Draw a brush")),
-        fixed(VIEWS, en!("Drag the selection"), en!("Move it. Ctrl copies, Shift locks the axis")),
-        fixed(VIEWS, en!("Shift+drag a selected face (3D)"), en!("Push or pull the face")),
-        fixed(VIEWS, en!("Ctrl+Shift+drag a selected face (3D)"), en!("Extrude a new brush")),
+    ]);
+    if preset == "hammer" {
+        rows.extend([
+            drag("", en!("Drag the selection"), en!("Move it"), DragHit::Selected, SelectionDrag::Move),
+            drag("s", en!("Shift+drag the selection"), en!("Copy it and move the copy"), DragHit::Selected, SelectionDrag::Copy),
+            drag("c", en!("Ctrl+drag the selection"), en!("Copy it and move the copy"), DragHit::Selected, SelectionDrag::Copy),
+        ]);
+    } else {
+        rows.extend([
+            drag("", en!("Drag the selection"), en!("Move it. Ctrl copies, Shift locks the axis"), DragHit::Selected, SelectionDrag::Move),
+            drag("s", en!("Shift+drag a selected face (3D)"), en!("Push or pull the face"), DragHit::SelectedFace3d, SelectionDrag::PushFace),
+            drag("cs", en!("Ctrl+Shift+drag a selected face (3D)"), en!("Extrude a new brush"), DragHit::SelectedFace3d, SelectionDrag::ExtrudeFace),
+        ]);
+    }
+
+    rows.extend([
         fixed(VIEWS, en!("Right drag (3D)"), en!("Look around, WASD flies, Q and E go down and up")),
         fixed(VIEWS, en!("Middle drag"), en!("Pan")),
         fixed(VIEWS, en!("Alt+left drag (3D)"), en!("Orbit")),
@@ -490,6 +548,10 @@ mod tests {
                     assert!(row.gesture.starts_with("Double click "), "{}", row.gesture);
                     double.push(d);
                 }
+                Some(Bound::Drag(chord, hit, d)) => {
+                    assert_eq!(selection_drag("trenchbroom", chord, hit), d, "{}", row.gesture);
+                    assert!(row.gesture.starts_with(&chord_prefix(chord)), "{} is not {:?}", row.gesture, chord);
+                }
                 Some(Bound::Outliner(chord, click)) => {
                     assert_eq!(row_click(chord.command, chord.shift), click, "{}", row.gesture);
                     assert!(row.gesture.starts_with(&chord_prefix(chord)), "{} is not {:?}", row.gesture, chord);
@@ -523,9 +585,92 @@ mod tests {
         }
 
         for preset in ["hammer", "blender"] {
-            let other: Vec<_> = mouse_rows(preset).into_iter().filter(|r| r.bound.is_some()).collect();
-            assert_eq!(other, rows.iter().filter(|r| r.bound.is_some()).cloned().collect::<Vec<_>>(), "{preset}");
+            let fixed = |r: &&MouseRow| r.bound.is_some() && !matches!(r.bound, Some(Bound::Drag(..)));
+            let other: Vec<_> = mouse_rows(preset).iter().filter(fixed).cloned().collect();
+            assert_eq!(other, rows.iter().filter(fixed).cloned().collect::<Vec<_>>(), "{preset}");
         }
+    }
+
+    const MODS: [(bool, bool, bool); 8] = [
+        (false, false, false),
+        (true, false, false),
+        (false, true, false),
+        (true, true, false),
+        (false, false, true),
+        (true, false, true),
+        (false, true, true),
+        (true, true, true),
+    ];
+
+    fn drag(command: bool, shift: bool, alt: bool) -> Chord {
+        Chord { button: Button::Drag, command, shift, alt }
+    }
+
+    #[test]
+    fn trenchbroom_drags_push_extrude_copy_or_move() {
+        use SelectionDrag::*;
+        for preset in ["trenchbroom", "blender", "unknown"] {
+            for (command, shift, alt) in MODS {
+                let on = |hit| selection_drag(preset, drag(command, shift, alt), hit);
+                let face = match (command, shift) {
+                    (false, false) => Move,
+                    (true, false) => Copy,
+                    (false, true) => PushFace,
+                    (true, true) => ExtrudeFace,
+                };
+                assert_eq!(on(DragHit::SelectedFace3d), face, "{preset} {command} {shift} {alt}");
+                let other = if command { Copy } else { Move };
+                assert_eq!(on(DragHit::Selected), other, "{preset} {command} {shift} {alt}");
+            }
+        }
+    }
+
+    #[test]
+    fn hammer_copies_with_shift_or_ctrl_and_never_resizes_a_face() {
+        use SelectionDrag::*;
+        for (command, shift, alt) in MODS {
+            for hit in [DragHit::SelectedFace3d, DragHit::Selected] {
+                let want = if command || shift { Copy } else { Move };
+                assert_eq!(selection_drag("hammer", drag(command, shift, alt), hit), want, "{command} {shift} {alt} {hit:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn only_hammer_has_no_shift_axis_lock() {
+        for preset in ["trenchbroom", "blender", "unknown", ""] {
+            assert!(shift_locks_axis(preset), "{preset}");
+        }
+
+        assert!(!shift_locks_axis("hammer"));
+    }
+
+    #[test]
+    fn the_drag_rows_of_each_preset_match_what_the_drag_does() {
+        for preset in ["trenchbroom", "hammer", "blender"] {
+            let rows = mouse_rows(preset);
+            let drags: Vec<_> = rows.iter().filter_map(|r| if let Some(Bound::Drag(c, h, d)) = r.bound { Some((r, c, h, d)) } else { None }).collect();
+            for (row, chord, hit, d) in &drags {
+                assert_eq!(selection_drag(preset, *chord, *hit), *d, "{preset}: {}", row.gesture);
+                assert!(row.gesture.starts_with(&chord_prefix(*chord)), "{preset}: {} is not {chord:?}", row.gesture);
+            }
+
+            for (i, (row, ..)) in drags.iter().enumerate() {
+                assert!(!drags[..i].iter().any(|(r, ..)| r.gesture == row.gesture), "{preset}: {:?} twice", row.gesture);
+            }
+
+            let has = |d| drags.iter().any(|(.., x)| *x == d);
+            assert!(has(SelectionDrag::Move), "{preset}");
+            assert_eq!(has(SelectionDrag::Copy), preset == "hammer", "{preset}");
+            assert_eq!(has(SelectionDrag::PushFace), preset != "hammer", "{preset}");
+            assert_eq!(has(SelectionDrag::ExtrudeFace), preset != "hammer", "{preset}");
+        }
+
+        let copies = |preset| {
+            mouse_rows(preset).iter().filter(|r| matches!(r.bound, Some(Bound::Drag(_, _, SelectionDrag::Copy)))).map(|r| r.gesture.clone()).collect::<Vec<_>>()
+        };
+        assert_eq!(copies("hammer"), ["Shift+drag the selection", "Ctrl+drag the selection"]);
+        assert!(copies("trenchbroom").is_empty(), "the TrenchBroom copy is in the text of the move row");
     }
 
     #[test]

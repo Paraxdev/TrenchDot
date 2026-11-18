@@ -3819,6 +3819,88 @@ fn ctrl_a_in_the_hammer_texture_tool_selects_faces() {
     assert_eq!(selection_of(&ed), (vec![a, wedge, c, light], vec![]), "Hammer outside the Texture tool selects objects");
 }
 
+/// The Hammer preset clones on Shift+drag, Ctrl+drag too, and has no Shift axis lock. TrenchBroom keeps Shift as the
+/// axis lock and as the face push in 3D.
+#[test]
+#[ignore]
+fn hammer_shift_drag_clones_the_selection_and_trenchbroom_locks_the_axis() {
+    let ed = Editor::launch("hammer_shift_drag");
+    let a = ed.box_brush([40.0, 8.0, -72.0], [104.0, 72.0, -20.0]);
+    ed.call("set_editor", json!({ "grid": 8, "snap": true }));
+    ed.call("set_camera", json!({ "view": "top", "center": [72, 0, -46], "zoom": 1.5 }));
+    let bounds = || -> Vec<[[i64; 3]; 2]> {
+        let nodes = ed.call("list_nodes", json!({ "type": "brush" }));
+        let mut all: Vec<_> = nodes["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|n| ["min", "max"].map(|end| [0, 1, 2].map(|i| n["bounds"][end][i].as_f64().unwrap().round() as i64)))
+            .collect();
+        all.sort();
+        all
+    };
+    let undo_len = || ed.state()["undo"].as_array().unwrap().len();
+    let drag = |mods: Vec<&str>| {
+        ed.call("select", json!({ "ids": [a] }));
+        ed.input("top", json!([{ "type": "drag", "world": [60, 0, -50], "to_world": [97, 0, -29], "modifiers": mods }]));
+    };
+    let home = [[40, 8, -72], [104, 72, -20]];
+    let moved = [[80, 8, -48], [144, 72, 4]];
+
+    ed.call("set_editor", json!({ "keymap": "hammer" }));
+    let before = undo_len();
+    drag(vec!["shift"]);
+    assert_eq!(bounds(), vec![home, moved], "Hammer Shift+drag leaves the brush and moves the copy on both axes");
+    assert_eq!(undo_len(), before + 1, "one undo step");
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(bounds(), vec![home]);
+
+    drag(vec!["ctrl"]);
+    assert_eq!(bounds(), vec![home, moved], "Hammer Ctrl+drag copies too");
+    ed.call("run_action", json!({ "action": "undo" }));
+
+    drag(vec![]);
+    assert_eq!(bounds(), vec![moved], "a plain Hammer drag moves it on both axes");
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(bounds(), vec![home]);
+
+    ed.call("set_editor", json!({ "keymap": "trenchbroom" }));
+    drag(vec!["shift"]);
+    assert_eq!(bounds(), vec![[[80, 8, -72], [144, 72, -20]]], "TrenchBroom Shift+drag moves, locked to the main axis, and copies nothing");
+    ed.call("run_action", json!({ "action": "undo" }));
+
+    drag(vec!["ctrl"]);
+    assert_eq!(bounds(), vec![home, moved], "Ctrl+drag copies in TrenchBroom");
+    ed.call("run_action", json!({ "action": "undo" }));
+
+    // A light far from the brush drags the gizmo's center away, so the drag starts on a face and not on a handle.
+    ed.call("select", json!({ "ids": [a] }));
+    ed.input("top", json!([{ "type": "move" }, { "type": "key", "key": "Delete" }]));
+    let big = ed.box_brush([240.0, 0.0, -300.0], [560.0, 64.0, -60.0]);
+    let home = [[240, 0, -300], [560, 64, -60]];
+    ed.call("set_camera", json!({ "view": "3d", "position": [160, 260, 260], "look_at": [400, 30, -180] }));
+    let light = ed.call("create_entity", json!({ "classname": "light", "origin": [1000, 200, -600] }))["id"].as_u64().unwrap();
+    let face_drag = || {
+        ed.call("select", json!({ "ids": [big, light] }));
+        ed.input("3d", json!([{ "type": "drag", "world": [270, 64, -90], "to_world": [270, 120, -90], "modifiers": ["shift"], "steps": 12 }]));
+    };
+    ed.call("set_editor", json!({ "keymap": "trenchbroom" }));
+    face_drag();
+    let tb = bounds();
+    assert_eq!(tb.len(), 1, "TrenchBroom Shift+drag on a selected face resizes, it does not copy {tb:?}");
+    assert!(tb[0][1][1] > 64 && tb[0][0] == home[0], "{tb:?}");
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(bounds(), vec![home]);
+
+    ed.call("set_editor", json!({ "keymap": "hammer" }));
+    face_drag();
+    let hammer = bounds();
+    assert_eq!(hammer.len(), 2, "Hammer Shift+drag on a selected face copies {hammer:?}");
+    assert!(hammer.contains(&home), "the brush keeps its size {hammer:?}");
+    let copy = hammer.iter().find(|b| **b != home).unwrap();
+    assert_eq!([0, 1, 2].map(|i| copy[1][i] - copy[0][i]), [320, 64, 240], "the copy keeps its size {copy:?}");
+}
+
 /// The Blender preset's 1, 3, A and Alt+A, pressed in the 3D view: the keys switch between Object and Face mode and A
 /// selects everything in the current mode.
 #[test]

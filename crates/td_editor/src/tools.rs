@@ -129,6 +129,8 @@ pub enum Drag {
         plane: Plane,
         axis: Option<DVec3>,
         duplicate: bool,
+        /// Shift held during the drag locks it to the main axis, which the preset may not want.
+        lock: bool,
     },
     CreateBrush {
         start: DVec3,

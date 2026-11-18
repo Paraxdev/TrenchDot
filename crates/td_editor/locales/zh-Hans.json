@@ -2563,5 +2563,10 @@
   "Player": "玩家",
   "Makes info_player_start spawn a first person player you can walk around with. Its script goes in {dir} so you can change it.": "让 info_player_start 生成一个可以四处走动的第一人称玩家。它的脚本放在 {dir}，方便你修改。",
   "Create player": "创建玩家",
-  "info_player_start spawns your player. Change it in {script}.": "info_player_start 会生成你的玩家。请在 {script} 中修改它。"
+  "info_player_start spawns your player. Change it in {script}.": "info_player_start 会生成你的玩家。请在 {script} 中修改它。",
+  "Shift+drag the selection": "Shift+拖动选择",
+  "Ctrl+drag the selection": "Ctrl+拖动选择",
+  "Move it": "移动它",
+  "Copy it and move the copy": "复制它并移动副本",
+  "Shift+A opens the Texture tool, click picks a face, Ctrl+click adds one. Shift+drag copies the selection": "Shift+A 打开纹理工具，单击选择一个面，Ctrl+单击添加一个。Shift+拖动复制选择"
 }

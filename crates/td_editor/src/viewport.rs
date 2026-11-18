@@ -7,7 +7,9 @@ use td_render::{Frame, FrameParams, LineVertex, Renderer, ViewTarget};
 use crate::camera::{Camera, ViewKind};
 use crate::commands::Action;
 use crate::i18n::{en, msg, msg_n, tr, trf};
-use crate::mouse_map::{ClickHit, ClickRule, DoubleClick, DoubleClickHit, click_rule, double_click};
+use crate::mouse_map::{
+    Button, Chord, ClickHit, ClickRule, DoubleClick, DoubleClickHit, DragHit, SelectionDrag, click_rule, double_click, selection_drag, shift_locks_axis,
+};
 use crate::panels::DndPayload;
 use crate::picking::{self, Hit};
 use crate::scene::{SceneCache, v3};
@@ -619,6 +621,7 @@ impl Viewport {
             return Some(Drag::TerrainEdge { id, origin: self.camera.screen_to_plane(self.rect, origin), normal });
         }
 
+        let preset = cx.state.prefs.keymap_preset.clone();
         let state = &mut *cx.state;
         let map = &state.doc.map;
         let ray = self.camera.ray(self.rect, origin);
@@ -632,18 +635,16 @@ impl Viewport {
         };
 
         if let Some(h) = hit {
-            if self.camera.kind == ViewKind::Perspective
-                && modifiers.shift
-                && selected(h.node)
-                && let (Some(face), Some(brush)) = (h.face, map.brush(h.node))
-            {
+            let face = if self.camera.kind == ViewKind::Perspective && selected(h.node) { h.face.zip(map.brush(h.node)) } else { None };
+            let grabbed = if face.is_some() { DragHit::SelectedFace3d } else { DragHit::Selected };
+            let action = selection_drag(&preset, Chord::new(Button::Drag, modifiers), grabbed);
+            if let (SelectionDrag::PushFace | SelectionDrag::ExtrudeFace, Some((face, brush))) = (action, face) {
                 let plane = brush.faces[face].plane;
                 let faces = coplanar_selected_faces(state, &plane);
-                state.doc.begin(if modifiers.command { en!("Extrude") } else { en!("Resize Brushes") });
+                state.doc.begin(if action == SelectionDrag::ExtrudeFace { en!("Extrude") } else { en!("Resize Brushes") });
                 return Some(Drag::FaceResize { faces, origin: h.point, normal: plane.normal });
             }
 
-            // Shift on a selected brush face in 3D resizes (above), anywhere else it moves locked to the main axis.
             if selected(h.node) {
                 let plane = match self.camera.kind {
                     ViewKind::Perspective => {
@@ -657,8 +658,9 @@ impl Viewport {
                     k => Plane::from_point_normal(h.point, -k.axes().2),
                 };
                 let axis = (self.camera.kind == ViewKind::Perspective && modifiers.alt).then_some(DVec3::Y);
-                state.doc.begin(if modifiers.command { en!("Duplicate Objects") } else { en!("Move Objects") });
-                return Some(Drag::Move { start: h.point, plane, axis, duplicate: modifiers.command });
+                let duplicate = action == SelectionDrag::Copy;
+                state.doc.begin(if duplicate { en!("Duplicate Objects") } else { en!("Move Objects") });
+                return Some(Drag::Move { start: h.point, plane, axis, duplicate, lock: shift_locks_axis(&preset) });
             }
         }
 
@@ -716,14 +718,14 @@ impl Viewport {
                     state.set_status(status);
                 }
             }
-            Drag::Move { start, plane, axis, duplicate } => {
+            Drag::Move { start, plane, axis, duplicate, lock } => {
                 let Some(t) = ray.intersect_plane(plane) else { return };
                 let mut delta = ray.at(t) - *start;
                 if let Some(a) = axis {
                     delta = *a * delta.dot(*a);
                 }
 
-                if modifiers.shift {
+                if *lock && modifiers.shift {
                     let i = td_core::major_axis(delta);
                     let keep = delta[i];
                     delta = DVec3::ZERO;

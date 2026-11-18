@@ -160,6 +160,25 @@ fn the_mouse_table_names_every_double_click_of_the_views() {
 }
 
 #[test]
+fn the_mouse_tables_name_every_drag_of_the_selection() {
+    for (preset, column) in [("trenchbroom", "Input"), ("hammer", "Hammer input")] {
+        let cells = mouse_cells(&table(column).rows);
+        let rows: Vec<_> = mouse_rows(preset).into_iter().filter(|r| matches!(r.bound, Some(Bound::Drag(..)))).collect();
+        assert!(rows.len() >= 3, "{preset}: move, copy or push, extrude");
+        for row in rows {
+            let label = row.gesture.to_ascii_lowercase();
+            assert!(cells.contains(&label), "the {column} table has no {label:?} row");
+        }
+    }
+}
+
+#[test]
+fn the_hammer_mouse_table_has_no_face_drags() {
+    let cells = mouse_cells(&table("Hammer input").rows);
+    assert!(cells.iter().all(|c| !c.contains("face")), "{cells:?}");
+}
+
+#[test]
 fn the_blender_mouse_table_names_every_click_of_its_modes() {
     let cells = mouse_cells(&table("Blender input").rows);
     for rule in [

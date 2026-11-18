@@ -2563,5 +2563,10 @@
   "Player": "プレイヤー",
   "Makes info_player_start spawn a first person player you can walk around with. Its script goes in {dir} so you can change it.": "info_player_start から歩き回れる一人称プレイヤーがスポーンするようにします。スクリプトは {dir} に置かれ、変更できます。",
   "Create player": "プレイヤーを作成",
-  "info_player_start spawns your player. Change it in {script}.": "info_player_start がプレイヤーをスポーンします。{script} で変更してください。"
+  "info_player_start spawns your player. Change it in {script}.": "info_player_start がプレイヤーをスポーンします。{script} で変更してください。",
+  "Shift+drag the selection": "選択範囲をShift+ドラッグ",
+  "Ctrl+drag the selection": "選択範囲をCtrl+ドラッグ",
+  "Move it": "移動する",
+  "Copy it and move the copy": "コピーしてコピーを移動する",
+  "Shift+A opens the Texture tool, click picks a face, Ctrl+click adds one. Shift+drag copies the selection": "Shift+Aでテクスチャツールを開き、クリックで面を選び、Ctrl+クリックで追加します。Shift+ドラッグで選択範囲をコピーします"
 }
