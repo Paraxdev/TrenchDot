@@ -3603,25 +3603,70 @@ fn shift_click_picks_one_face_and_ctrl_shift_click_toggles_faces() {
     assert_eq!((nodes(), faces()), (vec![], vec![]), "a click on empty space clears");
 }
 
-/// Ctrl+Shift+A turns the selected brushes into their faces, and is not swallowed by Ctrl+A (select all).
+/// Ctrl+Shift+A is Select None as in TrenchBroom, the Hammer preset keeps it for Select Brush Faces, and the MCP action
+/// does the same as that menu item in every preset.
 #[test]
 #[ignore]
-fn ctrl_shift_a_selects_the_faces_of_the_selected_brushes() {
-    let ed = Editor::launch("select_brush_faces");
+fn ctrl_shift_a_selects_none_and_hammer_keeps_it_for_brush_faces() {
+    let ed = Editor::launch("ctrl_shift_a");
     let a = ed.box_brush([8.0, -16.0, 0.0], [72.0, 48.0, 40.0]);
     let b = ed.box_brush([136.0, 4.0, 12.0], [200.0, 52.0, 76.0]);
-    ed.box_brush([300.0, 0.0, 0.0], [332.0, 32.0, 32.0]);
-    ed.call("select", json!({ "ids": [] }));
-    ed.input("top", json!([{ "type": "move" }, { "type": "key", "key": "A", "modifiers": ["ctrl", "shift"] }]));
-    let state = ed.state();
-    assert_eq!(state["selection"]["faces"].as_array().unwrap().len(), 0, "nothing selected changes nothing: {}", state["selection"]);
+    let c = ed.box_brush([300.0, 0.0, 0.0], [332.0, 32.0, 32.0]);
+    let light = ed.call("create_entity", json!({ "classname": "light", "origin": [32, 64, 0] }))["id"].as_u64().unwrap();
+    let chord = || ed.input("top", json!([{ "type": "move" }, { "type": "key", "key": "A", "modifiers": ["ctrl", "shift"] }]));
+    let selection = || {
+        let state = ed.state();
+        let mut nodes: Vec<u64> = state["selection"]["nodes"].as_array().unwrap().iter().map(|n| n.as_u64().unwrap()).collect();
+        nodes.sort();
+        (nodes, state["selection"]["faces"].as_array().unwrap().len())
+    };
 
+    assert_eq!(ed.state()["editor"]["keymap"], "trenchbroom");
     ed.call("select", json!({ "ids": [a, b] }));
-    ed.input("top", json!([{ "type": "move" }, { "type": "key", "key": "A", "modifiers": ["ctrl", "shift"] }]));
-    let state = ed.state();
-    assert_eq!(state["selection"]["nodes"].as_array().unwrap().len(), 0, "{}", state["selection"]);
-    let faces = state["selection"]["faces"].as_array().unwrap();
-    assert_eq!(faces.len(), 12, "{}", state["selection"]);
+    chord();
+    assert_eq!(selection(), (vec![], 0), "TrenchBroom: the objects are deselected, no faces appear");
+
+    ed.call("select", json!({ "ids": [c] }));
+    ed.call("run_action", json!({ "action": "select_brush_faces" }));
+    assert_eq!(selection(), (vec![], 6), "the menu action still selects the faces");
+    chord();
+    assert_eq!(selection(), (vec![], 0), "Ctrl+Shift+A clears faces too");
+    chord();
+    assert_eq!(selection(), (vec![], 0), "nothing selected stays so");
+
+    ed.call("select", json!({ "ids": [a] }));
+    ed.call("run_action", json!({ "action": "set_tool", "args": { "tool": "sculpt" } }));
+    chord();
+    assert_eq!(selection(), (vec![], 0), "Select None clears with another tool active");
+    assert_eq!(ed.state()["editor"]["tool"], "Sculpt", "and does not leave it");
+    ed.input("top", json!([{ "type": "move" }, { "type": "key", "key": "Escape" }]));
+    assert_eq!(ed.state()["editor"]["tool"], "Select", "Escape is Cancel, it leaves the tool");
+
+    ed.call("set_editor", json!({ "keymap": "hammer" }));
+    ed.call("select", json!({ "ids": [] }));
+    chord();
+    assert_eq!(selection(), (vec![], 0), "nothing selected changes nothing");
+    ed.call("select", json!({ "ids": [a, b] }));
+    chord();
+    assert_eq!(selection(), (vec![], 12), "Hammer: Ctrl+Shift+A turns the selected brushes into their faces");
+
+    for keymap in ["trenchbroom", "hammer", "blender"] {
+        ed.call("set_editor", json!({ "keymap": keymap }));
+        ed.call("select", json!({ "ids": [] }));
+        let e = ed.call_err("run_action", json!({ "action": "select_brush_faces" }));
+        assert!(e.contains("Select a brush or mesh first"), "{keymap}: {e}");
+        ed.call("select", json!({ "ids": [light] }));
+        ed.call_err("run_action", json!({ "action": "select_brush_faces" }));
+        assert_eq!(selection(), (vec![light], 0), "{keymap}: an entity alone is refused and stays selected");
+        ed.call("select", json!({ "ids": [b] }));
+        ed.call("run_action", json!({ "action": "select_brush_faces" }));
+        assert_eq!(selection(), (vec![], 6), "{keymap}: one brush");
+        ed.call("select", json!({ "ids": [a, b, c] }));
+        ed.call("run_action", json!({ "action": "select_brush_faces" }));
+        assert_eq!(selection(), (vec![], 18), "{keymap}: three brushes");
+        ed.call("run_action", json!({ "action": "select_none" }));
+        assert_eq!(selection(), (vec![], 0), "{keymap}: select_none over MCP clears faces too");
+    }
 }
 
 /// Script ergonomics found building the night maps: ids that follow CSG, joined id lists, carve materials, full mesh

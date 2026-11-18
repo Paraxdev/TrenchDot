@@ -62,8 +62,7 @@ Select it clears the selection.
 | F2 | Rename the selected object in the Outliner |
 | Ctrl+R | Repeat the last rotate, flip, mirror linked, nudge or duplicate. In mesh editing it makes a loop cut |
 | Delete or Backspace | Delete |
-| Ctrl+A, Esc, Ctrl+I | Select all, none, inverse |
-| Ctrl+Shift+A | Select every face of the selected brushes and meshes, for the Texture tool and the Inspector, like face select mode in Blender |
+| Ctrl+A, Ctrl+Shift+A, Ctrl+I | Select all, none, inverse. In the Hammer preset Ctrl+Shift+A selects every face of the selected brushes and meshes instead, and Select None is *Edit > Select > None* |
 | Ctrl+click on a brush or mesh | While the [UV Editor](uv-editor.md) is the visible tab, select all its faces and turn the selected brushes and meshes into faces |
 | Ctrl+F | Find entities and replace a material, see [Find and Replace](find-replace.md) |
 | Ctrl+T, Ctrl+Shift+T | Use the selected brushes as a stencil and select what they touch, or what lies inside them. The stencil brushes are deleted |

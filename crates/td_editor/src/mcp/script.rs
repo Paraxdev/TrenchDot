@@ -60,6 +60,7 @@ const ACTIONS: &[&str] = &[
     "duplicate",
     "select_all",
     "select_none",
+    "select_brush_faces",
     "select_inverse",
     "select_touching",
     "select_inside",

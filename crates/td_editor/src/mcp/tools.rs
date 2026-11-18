@@ -1360,11 +1360,11 @@ impl App {
             "delete" => Action::Delete,
             "duplicate" => Action::Duplicate,
             "select_all" => Action::SelectAll,
-            // Escape's Select None first leaves a tool, over MCP it always means an empty selection.
             "select_none" => {
                 self.state.doc.select(|_, s| s.clear());
                 return ok(json!({ "ok": true, "selected": 0 }));
             }
+            "select_brush_faces" => Action::SelectBrushFaces,
             "select_inverse" => Action::SelectInverse,
             "select_touching" => Action::SelectTouching,
             "select_inside" => Action::SelectInside,

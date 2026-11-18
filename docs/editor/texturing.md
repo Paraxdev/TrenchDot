@@ -84,7 +84,7 @@ scroll straight away. Several selected faces or brushes change together.
 
 To work on faces one by one, for example to leave a few out:
 
-1. Select the brushes and press **Ctrl+Shift+A**, or choose *Edit > Select > Brush Faces*
+1. Select the brushes and choose *Edit > Select > Brush Faces* (**Ctrl+Shift+A** in the Hammer preset)
 
     ![The Edit menu with the Select submenu open, listing All, None, Inverse, Brush Faces and more](../assets/texturing/menu-brush-faces.png)
 

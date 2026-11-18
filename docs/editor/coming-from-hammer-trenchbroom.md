@@ -65,7 +65,7 @@ TrenchBroom keys are the defaults of TrenchBroom 2026.2. An empty cell means tha
 | Duplicate, duplicate linked | Ctrl+D, Ctrl+Shift+D | Ctrl+D, Ctrl+Shift+D | Ctrl+D, Ctrl+Shift+D |
 | Group, ungroup | Ctrl+G, Ctrl+Shift+G | Ctrl+G, Ctrl+Shift+G | Ctrl+G, Ctrl+Shift+G |
 | Select all | Ctrl+A | Ctrl+A | Ctrl+A |
-| Select none | Ctrl+Shift+A | Esc | Esc |
+| Select none | Ctrl+Shift+A | Ctrl+Shift+A, Esc | Esc |
 | Invert selection | Ctrl+Alt+A | Ctrl+I | Ctrl+I |
 | Select touching | Ctrl+T | Ctrl+T | Ctrl+T |
 | Select inside | Ctrl+E | Ctrl+Shift+T | Ctrl+Shift+T |
@@ -101,7 +101,7 @@ follows.
 | Pick what lies behind | Ctrl+wheel | Click again at the same spot, or Alt+click, in the Top, Front and Side views |
 | Select a face | Shift+click | Shift+click |
 | Add a face | Ctrl+Shift+click | Ctrl+Shift+click |
-| Select every face of a brush | Shift+double click | Ctrl+Shift+A with the brush selected |
+| Select every face of a brush | Shift+double click | *Edit > Select > Brush Faces*, Ctrl+Shift+A in the Hammer preset |
 | Move on the grid | Drag the selection | Drag the selection |
 | Move vertically in 3D | Alt+drag | Alt+drag |
 | Lock the move to one axis | Shift while dragging | Shift while dragging |
@@ -121,7 +121,7 @@ follows.
   double click a card in the **Entities** panel. Ctrl+T selects what the selection touches, as in TrenchBroom.
 * **There is no Transform dialog.** Type a position or size into the Inspector, drag the gizmo, use the Rotate tool
   (R) or *Brush > Transform* for flips, mirrors and alignment.
-* **Ctrl+Shift+A selects the faces of the selected brushes**, to texture them one by one. It does not deselect, use Esc.
+* **Ctrl+Shift+A is Select None**, as in TrenchBroom. The Hammer preset gives it to Select Brush Faces, which picks every face of the selected brushes to texture them one by one, and Esc clears the selection there.
 * **The Hammer preset only moves keys.** Mouse gestures stay as above, and the tools Hammer has no key for keep the
   TrenchBroom ones.
 * **There is no compile.** Textures, entities and lighting come from your Godot project, see

@@ -36,6 +36,8 @@ pub enum Action {
     Rename,
     SelectAll,
     SelectNone,
+    /// Escape: leaves the active tool, or clears the selection when the Select tool is active.
+    Cancel,
     SelectInverse,
     SelectBrushFaces,
     SelectTouching,
@@ -288,6 +290,7 @@ impl Action {
             Action::Rename => en!("Rename"),
             Action::SelectAll => en!("Select All"),
             Action::SelectNone => en!("Select None"),
+            Action::Cancel => en!("Cancel"),
             Action::SelectInverse => en!("Select Inverse"),
             Action::SelectBrushFaces => en!("Select Brush Faces"),
             Action::SelectTouching => en!("Select Touching"),
@@ -565,9 +568,9 @@ fn trenchbroom_bindings() -> Vec<(KeyboardShortcut, Action)> {
         (sc(CTRL_SHIFT, Key::D), Action::DuplicateLinked),
         (sc(CTRL, Key::A), Action::SelectAll),
         (sc(CTRL, Key::F), Action::ShowFindDialog),
-        (sc(NONE, Key::Escape), Action::SelectNone),
+        (sc(NONE, Key::Escape), Action::Cancel),
         (sc(CTRL, Key::I), Action::SelectInverse),
-        (sc(CTRL_SHIFT, Key::A), Action::SelectBrushFaces),
+        (sc(CTRL_SHIFT, Key::A), Action::SelectNone),
         (sc(CTRL, Key::T), Action::SelectTouching),
         (sc(CTRL_SHIFT, Key::T), Action::SelectInside),
         (sc(CTRL, Key::G), Action::Group),
@@ -661,6 +664,7 @@ pub fn preset_bindings(preset: &str) -> Vec<(KeyboardShortcut, Action)> {
     let mut base = trenchbroom_bindings();
     let replace: Vec<(KeyboardShortcut, Action)> = match preset {
         "hammer" => vec![
+            (sc(CTRL_SHIFT, Key::A), Action::SelectBrushFaces),
             (sc(SHIFT, Key::S), Action::SetTool(ToolKind::Select)),
             (sc(SHIFT, Key::X), Action::SetTool(ToolKind::Clip)),
             (sc(SHIFT, Key::V), Action::SetTool(ToolKind::Vertex)),
@@ -1196,7 +1200,8 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         // Hammer's Texture tool has no use for objects, so Ctrl+A there takes the faces to texture.
         Action::SelectAll if state.prefs.keymap_preset == "hammer" && state.tool == ToolKind::Texture => select_all_faces(state),
         Action::SelectAll => state.doc.select(|m, s| ops::select_all(m, s, &open_groups)),
-        Action::SelectNone => {
+        Action::SelectNone => state.doc.select(|_, s| s.clear()),
+        Action::Cancel => {
             if state.tool != ToolKind::Select {
                 state.tool = ToolKind::Select;
             } else {
@@ -3136,6 +3141,11 @@ mod tests {
         for preset in PRESETS {
             let bindings = preset_bindings(preset);
             for (_, action) in trenchbroom_bindings() {
+                // Hammer gives Ctrl+Shift+A to Brush Faces, so Select None there is the menu, the palette and Cancel.
+                if preset == "hammer" && action == Action::SelectNone {
+                    continue;
+                }
+
                 assert!(bindings.iter().any(|(_, a)| *a == action), "{preset} leaves {action:?} unbound");
             }
 
@@ -3143,15 +3153,43 @@ mod tests {
             assert!(chords.iter().enumerate().all(|(i, c)| !chords[..i].contains(c)), "{preset} binds a chord twice");
             let has = |action: Action, s: KeyboardShortcut| bindings.iter().any(|(b, a)| *a == action && *b == s);
             assert!(has(Action::Delete, sc(NONE, Key::Delete)), "{preset}");
-            assert!(has(Action::SelectNone, sc(NONE, Key::Escape)), "{preset}");
+            assert!(has(Action::Cancel, sc(NONE, Key::Escape)), "{preset}");
+            assert_eq!(bindings.iter().filter(|(b, _)| *b == sc(NONE, Key::Escape)).count(), 1, "{preset}");
             assert!(has(Action::ShowCommandPalette, sc(CTRL_SHIFT, Key::P)), "{preset}");
-            assert!(has(Action::SelectBrushFaces, sc(CTRL_SHIFT, Key::A)), "{preset}");
+            assert_eq!(has(Action::SelectNone, sc(CTRL_SHIFT, Key::A)), preset != "hammer", "{preset}");
+            assert_eq!(has(Action::SelectBrushFaces, sc(CTRL_SHIFT, Key::A)), preset == "hammer", "{preset}");
             assert!(has(Action::SelectAll, sc(CTRL, Key::A)), "{preset}");
             assert_eq!(has(Action::SelectBrushFaces, sc(NONE, Key::Num3)), preset == "blender", "{preset}");
             for action in [Action::CloseTab, Action::CsgMerge, Action::CsgIntersect, Action::ShowShapeDialog, Action::ShowCommandPalette] {
                 assert!(bindings.iter().any(|(_, a)| *a == action), "{preset} leaves {action:?} unbound");
             }
         }
+    }
+
+    #[test]
+    fn select_none_clears_and_keeps_the_tool_while_cancel_leaves_the_tool_first() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        let (a, b) = (brush_at(&mut state, 72.0), brush_at(&mut state, -136.0));
+        state.doc.select(|_, s| {
+            s.select_node(a);
+            s.select_node(b);
+        });
+        state.tool = ToolKind::Sculpt;
+        execute(&mut state, Action::SelectNone, &ctx);
+        assert_eq!((state.tool, state.doc.selection.is_empty()), (ToolKind::Sculpt, true));
+
+        state.doc.select(|_, s| s.select_node(b));
+        execute(&mut state, Action::Cancel, &ctx);
+        assert_eq!(state.tool, ToolKind::Select, "Escape leaves the tool first");
+        assert_eq!(state.doc.selection.nodes.iter().copied().collect::<Vec<_>>(), vec![b], "and keeps the selection");
+
+        execute(&mut state, Action::Cancel, &ctx);
+        assert_eq!(state.tool, ToolKind::Select);
+        assert!(state.doc.selection.is_empty(), "the next Escape clears it");
+
+        execute(&mut state, Action::SelectNone, &ctx);
+        assert_eq!((state.tool, state.doc.selection.is_empty()), (ToolKind::Select, true), "nothing selected stays so");
     }
 
     #[test]
