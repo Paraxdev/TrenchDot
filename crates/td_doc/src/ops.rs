@@ -1063,10 +1063,27 @@ pub fn array_copies(map: &mut Map, sel: &mut Selection, spec: &ArraySpec, parent
     all
 }
 
-/// Turns selected linked groups back into independent groups.
+/// Turns selected linked groups back into independent groups, along with any member left alone in its set.
 pub fn unlink_groups(map: &mut Map, sel: &Selection) {
+    let mut touched = BTreeSet::new();
     for id in selection_roots(map, sel) {
         if let Some(NodeKind::Group(g)) = map.get_mut(id).map(|n| &mut n.kind) {
+            touched.extend(g.link_id.take());
+            g.transform = DMat4::IDENTITY;
+        }
+    }
+
+    let mut members: BTreeMap<u64, Vec<NodeId>> = BTreeMap::new();
+    for (id, node) in map.nodes.iter() {
+        if let NodeKind::Group(g) = &node.kind
+            && let Some(link) = g.link_id.filter(|l| touched.contains(l))
+        {
+            members.entry(link).or_default().push(*id);
+        }
+    }
+
+    for lone in members.into_values().filter(|m| m.len() == 1).flatten() {
+        if let Some(NodeKind::Group(g)) = map.get_mut(lone).map(|n| &mut n.kind) {
             g.link_id = None;
             g.transform = DMat4::IDENTITY;
         }
@@ -1262,6 +1279,109 @@ mod tests {
             let expected = Aabb::from_points(points.iter().map(|p| matrix.transform_point3(*p)));
             assert!(got.min.distance(expected.min) < 1e-3 && got.max.distance(expected.max) < 1e-3, "{got:?} vs {expected:?}");
         }
+    }
+
+    #[test]
+    fn separating_one_half_frees_the_lone_partner_too() {
+        use crate::Document;
+        use crate::mirror::mirror_linked;
+        use crate::symmetry::{PlaneAt, PlaneChoice};
+
+        let link = |map: &Map, id: NodeId| match &map.get(id).unwrap().kind {
+            NodeKind::Group(g) => (g.link_id, g.transform),
+            _ => panic!("{id} is no group"),
+        };
+        let snapshot = |map: &Map| map.nodes.iter().map(|(id, n)| (*id, n.kind.clone(), n.children.clone())).collect::<Vec<_>>();
+        let select = |doc: &mut Document, ids: &[NodeId]| {
+            doc.select(|_, s| {
+                s.clear();
+                s.nodes.extend(ids);
+            })
+        };
+
+        let mut doc = Document::new();
+        let layer = doc.map.default_layer();
+        let frame = Brush::from_aabb(&Aabb::new(DVec3::new(14.0, 10.0, 20.0), DVec3::new(22.0, 18.0, 23.0)), "frame").unwrap();
+        let (half, windows) = doc.edit("house", |m, s| {
+            s.clear();
+            s.select_node(m.insert(layer, NodeKind::Brush(frame)));
+            let window = group_selection(m, s, "window", layer).unwrap();
+            let twin = duplicate_linked(m, s, DVec3::new(10.0, 0.0, -2.0), EditOptions::default())[0];
+            s.clear();
+            s.select_node(m.insert(layer, NodeKind::Brush(crate::linked::tests::wedge())));
+            s.nodes.extend([window, twin]);
+            (group_selection(m, s, "half", layer).unwrap(), [window, twin])
+        });
+        select(&mut doc, &[half]);
+        let copy = doc.edit("Mirror Linked", |m, s| mirror_linked(m, s, 0, &PlaneChoice { at: PlaneAt::Max, custom: 0.0 })).unwrap().0[0];
+        let pair = link(&doc.map, copy);
+        assert!(pair.0.is_some() && pair.1 != DMat4::IDENTITY, "{pair:?}");
+        let copied_windows: Vec<NodeId> = doc
+            .map
+            .get(copy)
+            .unwrap()
+            .children
+            .iter()
+            .copied()
+            .filter(|c| matches!(&doc.map.get(*c).unwrap().kind, NodeKind::Group(g) if g.link_id.is_some()))
+            .collect();
+        assert_eq!(copied_windows.len(), 2);
+        let window_links: Vec<_> = windows.iter().chain(&copied_windows).map(|w| link(&doc.map, *w)).collect();
+        let brushes = |map: &Map| map.brushes().map(|(id, b)| (id, b.clone())).collect::<Vec<_>>();
+        let placed = brushes(&doc.map);
+        assert_eq!(doc.map.get(copy).unwrap().name(), "half (linked)");
+
+        select(&mut doc, &[]);
+        let before = snapshot(&doc.map);
+        doc.edit("Separate Linked Groups", |m, s| unlink_groups(m, s));
+        assert_eq!(snapshot(&doc.map), before, "nothing selected leaves the map as it was");
+
+        select(&mut doc, &[half]);
+        doc.edit("Separate Linked Groups", |m, s| unlink_groups(m, s));
+        for g in [half, copy] {
+            assert_eq!(link(&doc.map, g), (None, DMat4::IDENTITY), "{g}");
+            assert_eq!(doc.map.get(g).unwrap().name(), "half");
+        }
+
+        assert_eq!(brushes(&doc.map), placed, "no brush moves");
+        let windows_after: Vec<_> = windows.iter().chain(&copied_windows).map(|w| link(&doc.map, *w)).collect();
+        assert_eq!(windows_after, window_links, "the nested windows stay one linked set of four");
+
+        doc.undo();
+        assert_eq!(link(&doc.map, half).0, pair.0);
+        assert_eq!(link(&doc.map, copy), pair, "one undo step links both halves again");
+
+        let post = Brush::from_points(
+            &[
+                DVec3::new(-70.0, 5.0, 12.0),
+                DVec3::new(-52.0, 5.0, 12.0),
+                DVec3::new(-70.0, 5.0, 30.0),
+                DVec3::new(-52.0, 5.0, 30.0),
+                DVec3::new(-70.0, 41.0, 12.0),
+                DVec3::new(-52.0, 29.0, 30.0),
+            ],
+            &[],
+            "post",
+        )
+        .unwrap();
+        let first = doc.edit("post", |m, s| {
+            s.clear();
+            s.select_node(m.insert(layer, NodeKind::Brush(post)));
+            group_selection(m, s, "post", layer).unwrap()
+        });
+        select(&mut doc, &[first]);
+        let second = doc.edit("link", |m, s| duplicate_linked(m, s, DVec3::new(48.0, 0.0, 16.0), EditOptions::default()))[0];
+        select(&mut doc, &[first]);
+        let third = doc.edit("link", |m, s| duplicate_linked(m, s, DVec3::new(-32.0, 8.0, 0.0), EditOptions::default()))[0];
+        select(&mut doc, &[third]);
+        doc.edit("turn", |m, s| transform_selection(m, s, &rotation_about(DVec3::new(-90.0, 0.0, 20.0), DVec3::Y, 30.0), EditOptions::default()));
+        let kept = [first, third].map(|g| link(&doc.map, g));
+        assert!(kept[1].1 != DMat4::IDENTITY && kept[0].0 == kept[1].0 && kept[0].0.is_some(), "{kept:?}");
+
+        select(&mut doc, &[second]);
+        doc.edit("Separate Linked Groups", |m, s| unlink_groups(m, s));
+        assert_eq!(link(&doc.map, second), (None, DMat4::IDENTITY));
+        assert_eq!([first, third].map(|g| link(&doc.map, g)), kept, "a set of three keeps its other two linked");
     }
 
     #[test]
