@@ -21,6 +21,7 @@ pub mod find_dialog;
 pub mod fonts;
 pub mod gizmos;
 pub mod godot;
+pub mod godot_settings;
 pub mod help;
 pub mod hotspot_editor;
 pub mod i18n;

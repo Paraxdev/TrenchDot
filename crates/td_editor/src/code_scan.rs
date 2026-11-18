@@ -784,7 +784,7 @@ fn entries(text: &str) -> Vec<Entry<'_>> {
 }
 
 /// Where the entry starting at `start` ends: the first line break outside strings, comments and brackets.
-fn entry_end(text: &str, start: usize) -> usize {
+pub(crate) fn entry_end(text: &str, start: usize) -> usize {
     let mut depth = 0i64;
     for (i, c) in outside_strings(&text[start..]) {
         match c {
@@ -800,7 +800,7 @@ fn entry_end(text: &str, start: usize) -> usize {
 
 /// The bytes of `text` outside strings and comments, with their offsets. A quote in a comment opens no string, the
 /// way Godot reads it, so nothing after it hides from the scan.
-fn outside_strings(text: &str) -> impl Iterator<Item = (usize, u8)> + '_ {
+pub(crate) fn outside_strings(text: &str) -> impl Iterator<Item = (usize, u8)> + '_ {
     let (mut quoted, mut escaped, mut comment) = (false, false, false);
     text.bytes().enumerate().filter(move |&(_, c)| {
         if comment {
