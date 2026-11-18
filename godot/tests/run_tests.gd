@@ -145,6 +145,7 @@ func _initialize() -> void:
 	await load("res://tests/definition_tests.gd").new().run(self)
 	await load("res://tests/live_session_tests.gd").new().run(self)
 	await load("res://tests/legacy_tests.gd").new().run(self)
+	await load("res://tests/first_room_tests.gd").run(self)
 	OS.remove_logger(script_errors)
 	for line in script_errors.lines:
 		check(false, "script error: " + line)
