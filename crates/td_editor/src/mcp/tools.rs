@@ -1344,6 +1344,7 @@ impl App {
         self.state.replaced.clear();
         self.state.applied_mirror = None;
         let mut mirrored_across = None;
+        let mut mirror_gap_axis = None;
         let action = match name {
             "new_map" => Action::NewMap,
             "save" => {
@@ -1484,6 +1485,31 @@ impl App {
 
                 mirrored_across = Some((axis, std::mem::replace(&mut self.state.mirror_plane, choice)));
                 Action::MirrorLinked { axis, gap }
+            }
+            "set_mirror_gap" => {
+                let axis = match &a["axis"] {
+                    Value::Null => None,
+                    v => match axis_index(v) {
+                        Some(i) => Some(i),
+                        None => return err(format!("set_mirror_gap axis must be x, y or z, got {v}")),
+                    },
+                };
+                let Some(gap) = a["gap"].as_f64() else { return err(format!("set_mirror_gap needs args.gap, a number in map units, got {}", a["gap"])) };
+                if gap > td_doc::mirror::MAX_GAP {
+                    return err(format!("set_mirror_gap gap must be at most {} units, got {gap}", td_doc::mirror::MAX_GAP));
+                }
+
+                let planes = td_doc::mirror::selection_planes(&self.state.doc.map, &self.state.doc.selection);
+                if planes.is_empty() {
+                    return err("select one half of a mirrored pair first");
+                }
+
+                if let Some(axis) = axis.filter(|a| planes.iter().all(|m| m.plane.axis != *a)) {
+                    return err(format!("the selected halves have no mirror plane on {}", axis_letter(axis)));
+                }
+
+                mirror_gap_axis = Some(axis);
+                Action::SetMirrorGap { axis, gap }
             }
             "apply_mirror" => {
                 let distance = match &a["distance"] {
@@ -1819,6 +1845,14 @@ impl App {
             result["copies"] = json!(selected.iter().map(|i| i.0).collect::<Vec<_>>());
             if let Some(m) = planes.iter().find(|m| m.plane.axis == axis && selected.contains(&m.group)) {
                 result["plane"] = json!({ "axis": axis_letter(axis), "at": m.plane.at });
+                result["gap"] = json!(td_doc::mirror::gap(&self.state.doc.map, m));
+            }
+        }
+
+        if let Some(axis) = mirror_gap_axis {
+            let planes = td_doc::mirror::selection_planes(&self.state.doc.map, &self.state.doc.selection);
+            if let Some(m) = planes.iter().find(|m| axis.is_none_or(|a| m.plane.axis == a)) {
+                result["plane"] = json!({ "axis": axis_letter(m.plane.axis), "at": m.plane.at });
                 result["gap"] = json!(td_doc::mirror::gap(&self.state.doc.map, m));
             }
         }

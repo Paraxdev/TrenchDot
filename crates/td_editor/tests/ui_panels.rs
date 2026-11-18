@@ -1853,7 +1853,7 @@ fn the_inspector_names_the_mirror_plane_of_a_selected_half() {
     harness.run();
     harness.get_by_label("Transform").click();
     harness.run();
-    harness.get_by_label("Mirror plane Z at 100.5 u");
+    harness.get_by_label("Mirror plane Z = 100.5");
     assert!(harness.query_by_label_contains("Mirror plane X").is_none());
 
     let select = |harness: &mut Harness<'_, Fixture>, ids: &[NodeId]| {
@@ -1864,9 +1864,76 @@ fn the_inspector_names_the_mirror_plane_of_a_selected_half() {
         harness.run();
     };
     select(&mut harness, &[group]);
-    harness.get_by_label("Mirror plane Z at 100.5 u");
+    harness.get_by_label("Mirror plane Z = 100.5");
     select(&mut harness, &[copy, group]);
-    assert_eq!(harness.query_all_by_label("Mirror plane Z at 100.5 u").count(), 1, "a pair names its plane once");
+    assert_eq!(harness.query_all_by_label("Mirror plane Z = 100.5").count(), 1, "a pair names its plane once");
+}
+
+fn gap_harness(mut f: Fixture, selected: NodeId) -> Harness<'static, Fixture> {
+    f.state.doc.select(|_, s| s.select_node(selected));
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(520.0, 900.0))
+        .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+    harness.run();
+    harness.get_by_label("Transform").click();
+    harness.run();
+    harness
+}
+
+fn first_plane(harness: &Harness<'_, Fixture>) -> td_doc::mirror::MirrorPlane {
+    let s = &harness.state().state.doc;
+    td_doc::mirror::selection_planes(&s.map, &s.selection).remove(0)
+}
+
+#[test]
+fn the_inspector_gap_moves_both_halves_and_keeps_the_plane() {
+    let (f, rows) = linked_rows_fixture();
+    let mut harness = gap_harness(f, rows.left);
+    harness.get_by_label("Mirror plane X = -40");
+    harness.get_by_label("Gap");
+    let gap_field = number_fields(&harness) - 1;
+    assert_eq!(harness.get_all_by_role(egui::accesskit::Role::SpinButton).nth(gap_field).unwrap().value().as_deref(), Some("144"));
+
+    let steps = undo_steps(&harness);
+    type_number(&mut harness, gap_field, "24");
+    let plane = first_plane(&harness);
+    assert_eq!(td_doc::mirror::gap(&harness.state().state.doc.map, &plane), 24.0);
+    assert_eq!(plane.plane.at, -40.0, "the plane stays where it was");
+    let map = &harness.state().state.doc.map;
+    assert_eq!((map.solid_bounds(rows.left).min.x, map.solid_bounds(rows.right).max.x), (-28.0, -52.0), "each half moved half of the change");
+    assert_eq!(undo_steps(&harness), steps + 1);
+
+    type_number(&mut harness, gap_field, "30");
+    assert_eq!(td_doc::mirror::gap(&harness.state().state.doc.map, &first_plane(&harness)), 30.0);
+    assert_eq!(undo_steps(&harness), steps + 1, "two typed values in a row are one undo step");
+    assert_eq!(harness.state().state.doc.history.undo_labels().next(), Some("Set Mirror Gap"));
+
+    type_number(&mut harness, gap_field, "-1000");
+    let map = &harness.state().state.doc.map;
+    let narrower =
+        (map.solid_bounds(rows.left).max.x - map.solid_bounds(rows.left).min.x).min(map.solid_bounds(rows.right).max.x - map.solid_bounds(rows.right).min.x);
+    assert_eq!(td_doc::mirror::gap(map, &first_plane(&harness)), -narrower, "below minus the narrower width it clamps");
+    assert_eq!(first_plane(&harness).plane.at, -40.0);
+}
+
+#[test]
+fn apply_mirror_greys_out_while_the_halves_are_apart() {
+    let (f, rows) = linked_rows_fixture();
+    let mut harness = gap_harness(f, rows.left);
+    assert!(is_disabled(&harness, "Apply Mirror"), "a gap of 144 keeps it off");
+    for (gap, disabled) in [(0.6, true), (0.5, false), (0.0, false), (-8.0, false), (0.75, true)] {
+        let plane = first_plane(&harness);
+        harness.state_mut().state.doc.edit("gap", |m, _| td_doc::mirror::set_gap(m, &plane, gap));
+        harness.run();
+        assert_eq!(is_disabled(&harness, "Apply Mirror"), disabled, "gap {gap}");
+    }
+
+    let plane = first_plane(&harness);
+    harness.state_mut().state.doc.edit("gap", |m, _| td_doc::mirror::set_gap(m, &plane, 0.0));
+    harness.run();
+    harness.get_by_label("Apply Mirror").click();
+    harness.run();
+    assert_eq!(harness.state().actions, [Action::ApplyMirror { distance: td_doc::symmetry::MIRROR_TOLERANCE }]);
 }
 
 #[test]

@@ -6043,6 +6043,62 @@ fn mirror_linked_copies_follow_edits_mirrored() {
 
 #[test]
 #[ignore]
+fn set_mirror_gap_moves_both_halves() {
+    let ed = Editor::launch("mirror_gap");
+    let source = ed.box_brush([8.0, 2.0, -4.0], [40.0, 34.0, 20.0]);
+    ed.call("select", json!({ "ids": [source] }));
+    ed.call("run_action", json!({ "action": "mirror_linked", "args": { "axis": "x", "plane": "max" } }));
+    let undo_before = ed.state()["undo"].as_array().unwrap().len();
+
+    let reply = ed.call("run_action", json!({ "action": "set_mirror_gap", "args": { "gap": 24 } }));
+    assert_eq!(reply["plane"], json!({ "axis": "x", "at": 40.0 }), "the plane stays {reply}");
+    assert_eq!(reply["gap"], json!(24.0), "{reply}");
+    let (min, max) = ed.selection_bounds();
+    assert!(approx(&[min[0], max[0]], &[52.0, 84.0]), "the copy moved half of the change {min:?} {max:?}");
+    let xs: Vec<i64> = vertices_of(&ed, source).iter().map(|v| v[0]).collect();
+    assert_eq!((xs.iter().min(), xs.iter().max()), (Some(&-4000), Some(&28000)), "the original moved the other half {xs:?}");
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), undo_before + 1);
+    assert_eq!(ed.state()["undo"][0], "MCP: Set Mirror Gap");
+
+    let on_axis = ed.call("run_action", json!({ "action": "set_mirror_gap", "args": { "gap": -500, "axis": "x" } }));
+    assert_eq!(on_axis["gap"], json!(-32.0), "a gap below minus the width stops there {on_axis}");
+    assert_eq!(on_axis["plane"], json!({ "axis": "x", "at": 40.0 }), "{on_axis}");
+    ed.call("run_action", json!({ "action": "set_mirror_gap", "args": { "gap": 0 } }));
+    let xs: Vec<i64> = vertices_of(&ed, source).iter().map(|v| v[0]).collect();
+    assert_eq!((xs.iter().min(), xs.iter().max()), (Some(&8000), Some(&40000)), "the original comes back on its own side {xs:?}");
+    ed.call("run_action", json!({ "action": "undo", "args": { "steps": 3 } }));
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), undo_before, "each call is one undo step");
+    assert_eq!(ed.state()["mirror_planes"][0]["at"], json!(40.0));
+
+    let before = ed.state()["undo"].as_array().unwrap().len();
+    let refuse = |args: Value, words: &str| {
+        let text = ed.call_err("run_action", json!({ "action": "set_mirror_gap", "args": args }));
+        assert!(text.contains(words), "{args}: {text}");
+    };
+    refuse(json!({}), "set_mirror_gap needs args.gap");
+    refuse(json!({ "gap": "far" }), "set_mirror_gap needs args.gap");
+    refuse(json!({ "gap": 4, "axis": "w" }), "set_mirror_gap axis must be x, y or z");
+    refuse(json!({ "gap": 4, "axis": "z" }), "no mirror plane on z");
+    refuse(json!({ "gap": 1e300 }), "set_mirror_gap gap must be at most 65536 units");
+    ed.call("select", json!({ "ids": [source] }));
+    ed.call("run_action", json!({ "action": "select_none" }));
+    refuse(json!({ "gap": 4 }), "select one half of a mirrored pair first");
+    let plain = ed.box_brush([200.0, 0.0, 0.0], [216.0, 16.0, 16.0]);
+    ed.call("select", json!({ "ids": [plain] }));
+    refuse(json!({ "gap": 4 }), "select one half of a mirrored pair first");
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), before + 1, "a refused call leaves no undo step, only the box brush");
+
+    let script = json!([
+        { "tool": "select", "args": { "ids": [source] } },
+        { "tool": "run_action", "args": { "action": "set_mirror_gap", "args": { "gap": 8 } } }
+    ]);
+    let ran = ed.call("run_script", json!({ "steps": script }));
+    assert_eq!(ran["steps"], 2, "run_script accepts set_mirror_gap {ran}");
+    assert_eq!(ed.state()["mirror_planes"][0]["at"], json!(40.0));
+}
+
+#[test]
+#[ignore]
 fn edits_across_two_linked_copies_are_refused() {
     let ed = Editor::launch("linked_conflict");
     let source = ed.box_brush([8.0, 2.0, -4.0], [40.0, 34.0, 20.0]);

@@ -92,6 +92,11 @@ pub enum Action {
         axis: usize,
         gap: f64,
     },
+    /// Moves the halves of the selected mirrored pairs, on `axis` or every axis, to `gap` map units apart.
+    SetMirrorGap {
+        axis: Option<usize>,
+        gap: f64,
+    },
     /// Bakes the selected mirrored halves into plain geometry, joining halves that meet within `distance` map units.
     ApplyMirror {
         distance: f64,
@@ -337,6 +342,7 @@ impl Action {
             Action::Rotate { axis, degrees } => return trf!("Rotate {axis} {degrees}°", axis = axis_name(*axis), degrees),
             Action::Flip { axis } => return trf!("Flip {axis}", axis = axis_name(*axis)),
             Action::MirrorLinked { axis, .. } => return trf!("Mirror Linked {axis}", axis = axis_name(*axis)),
+            Action::SetMirrorGap { .. } => en!("Set Mirror Gap"),
             Action::ApplyMirror { .. } => en!("Apply Mirror"),
             Action::Align { axis, to } => {
                 let axis = axis_name(*axis);
@@ -494,6 +500,7 @@ impl Action {
             Action::IsolateSelected => en!("Hides everything except the selection, Show All brings it back"),
             Action::DuplicateLinked => en!("Copies the selection as a linked group, editing one copy changes every copy"),
             Action::MirrorLinked { .. } => en!("Copies the selection as a linked group mirrored across a plane, edits in either half show in both"),
+            Action::SetMirrorGap { .. } => en!("Moves the two mirrored halves apart or together, the mirror plane stays where it is"),
             Action::ApplyMirror { .. } => en!("Merges the selected mirrored halves into plain geometry, joined where they meet"),
             Action::SelectLinkedGroups => en!("Selects every linked copy of the selected groups, so you can move them together"),
             Action::UnlinkGroups => en!("Makes the selected linked groups plain groups, and frees a copy left without partners"),
@@ -1246,6 +1253,25 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
                     axis = axis_name(axis),
                     at = crate::gizmos::fmt_num(plane.at)
                 ));
+            }
+        }
+        Action::SetMirrorGap { axis, gap } => {
+            let (map, sel) = (&state.doc.map, &state.doc.selection);
+            let planes: Vec<_> = td_doc::mirror::selection_planes(map, sel).into_iter().filter(|p| axis.is_none_or(|a| p.plane.axis == a)).collect();
+            let targets: Vec<(f64, bool)> = planes.iter().map(|p| td_doc::mirror::gap_target(map, p, gap)).collect();
+            match targets.first() {
+                Some(&(first, _)) => {
+                    if targets.iter().any(|(_, moves)| *moves) {
+                        state.doc.edit("Set Mirror Gap", |m, _| {
+                            for p in &planes {
+                                td_doc::mirror::set_gap(m, p, gap);
+                            }
+                        });
+                    }
+
+                    state.set_status(msg!("Set the gap between the mirrored halves to {gap} u", gap = crate::gizmos::fmt_num(first)));
+                }
+                None => state.fail_status(msg!("Select one half of a mirrored pair to set the gap")),
             }
         }
         Action::ApplyMirror { distance } => match state.doc.try_edit("Apply Mirror", |m, s| td_doc::mirror::apply_mirror(m, s, distance)) {
@@ -4121,6 +4147,7 @@ mod tests {
             Action::SelectInside,
             Action::DuplicateLinked,
             Action::MirrorLinked { axis: 0, gap: 0.0 },
+            Action::SetMirrorGap { axis: None, gap: 8.0 },
             Action::Paste("not a map".into()),
         ] {
             execute(&mut state, action.clone(), &ctx);
@@ -4433,6 +4460,55 @@ mod tests {
                 assert!(state.doc.map.nodes == before, "{case}");
             }
         }
+    }
+
+    #[test]
+    fn set_mirror_gap_moves_both_halves_and_keeps_the_plane() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        let brush = slanted_brush(&mut state);
+        state.doc.select(|_, s| s.select_node(brush));
+        execute(&mut state, Action::MirrorLinked { axis: 0, gap: 0.0 }, &ctx);
+        let steps = state.doc.history.undo_labels().count();
+        let plane = |state: &EditorState| td_doc::mirror::selection_planes(&state.doc.map, &state.doc.selection).remove(0);
+        for (gap, expected) in [(24.0, 24.0), (0.0, 0.0), (-10.0, -10.0), (-32.0, -32.0), (-500.0, -32.0)] {
+            execute(&mut state, Action::SetMirrorGap { axis: Some(0), gap }, &ctx);
+            assert!(!state.status_failed(), "gap {gap}: {}", state.status);
+            let m = plane(&state);
+            assert_eq!((td_doc::mirror::gap(&state.doc.map, &m), m.plane.at), (expected, 40.0), "gap {gap}");
+            assert!(state.status.contains(&format!("to {} u", crate::gizmos::fmt_num(expected))), "gap {gap}: {}", state.status);
+        }
+
+        assert_eq!(state.doc.history.undo_labels().count(), steps + 4, "-500 clamps to the -32 already set and moves nothing");
+        assert_eq!(state.doc.history.undo_labels().next(), Some("Set Mirror Gap"));
+        let nodes = state.doc.map.nodes.clone();
+        execute(&mut state, Action::SetMirrorGap { axis: None, gap: -32.0 }, &ctx);
+        assert!(!state.status_failed() && state.status.contains(&format!("to {} u", crate::gizmos::fmt_num(-32.0))), "{}", state.status);
+        assert!(state.doc.map.nodes == nodes && state.doc.history.undo_labels().count() == steps + 4, "the same gap again adds no undo step");
+    }
+
+    #[test]
+    fn set_mirror_gap_without_a_mirrored_half_fails_without_an_undo_step() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        let brush = slanted_brush(&mut state);
+        state.doc.select(|_, s| s.select_node(brush));
+        execute(&mut state, Action::MirrorLinked { axis: 0, gap: 0.0 }, &ctx);
+        let steps = state.doc.history.undo_labels().count();
+        let nodes = state.doc.map.nodes.clone();
+        execute(&mut state, Action::SetMirrorGap { axis: Some(2), gap: 9.0 }, &ctx);
+        assert!(state.status_failed(), "the pair has a plane on X only");
+        assert!(state.doc.map.nodes == nodes && state.doc.history.undo_labels().count() == steps);
+        let plain = slanted_brush(&mut state);
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_node(plain);
+        });
+        let before_plain = (state.doc.history.undo_labels().count(), state.doc.map.nodes.clone());
+        execute(&mut state, Action::SetMirrorGap { axis: None, gap: 9.0 }, &ctx);
+        assert!(state.status_failed(), "a brush with no partner has no plane");
+        assert_eq!((state.doc.history.undo_labels().count(), state.doc.map.nodes.clone()), before_plain);
+        assert_eq!(before_plain.0, steps + 1, "only the brush insert was added since");
     }
 
     #[test]

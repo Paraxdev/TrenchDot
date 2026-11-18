@@ -1149,14 +1149,29 @@ fn selection_summary(ui: &mut Ui, state: &mut EditorState, actions: &mut Vec<Act
             }
         });
         let planes = td_doc::mirror::selection_planes(&state.doc.map, &state.doc.selection);
+        let mut meets = false;
         for m in &planes {
             let (axis, at) = (crate::commands::axis_name(m.plane.axis), crate::gizmos::fmt_num(m.plane.at));
-            ui.label(RichText::new(trf!("Mirror plane {axis} at {at} u", axis, at)).weak());
+            let mut gap = td_doc::mirror::gap(&state.doc.map, m);
+            meets |= gap <= td_doc::symmetry::MIRROR_TOLERANCE;
+            ui.horizontal_wrapped(|ui| {
+                ui.label(RichText::new(trf!("Mirror plane {axis} = {at}", axis, at)).weak());
+                ui.label(tr("Gap")).on_hover_text(tr("Space between the two halves, in map units. Both move, the plane stays"));
+                if widgets::drag_field(ui, &mut gap, 64.0, 1.0, false) {
+                    state.doc.edit_coalesced("Set Mirror Gap", |map, _| td_doc::mirror::set_gap(map, m, gap));
+                }
+            });
         }
 
         if !planes.is_empty() {
             let action = Action::ApplyMirror { distance: td_doc::symmetry::MIRROR_TOLERANCE };
-            if ui.small_button(action.title()).on_hover_text(action.help().map(|t| tr(t).to_string()).unwrap_or_default()).clicked() {
+            let button = ui.add_enabled(meets, egui::Button::new(action.title()).small());
+            let button = if meets {
+                button.on_hover_text(action.help().map(|t| tr(t).to_string()).unwrap_or_default())
+            } else {
+                button.on_disabled_hover_text(tr("Set Gap to 0 first, Apply Mirror joins halves that meet"))
+            };
+            if button.clicked() {
                 actions.push(action);
             }
         }
