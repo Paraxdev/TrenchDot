@@ -2546,5 +2546,7 @@
   "Open a Godot project first, an override goes into it": "Ouvrez d'abord un projet Godot, une surcharge y sera placée",
   "Godot kept the new project settings, set {keys} back in its Project Settings.": "Godot a gardé les nouveaux paramètres du projet, remettez {keys} dans ses Paramètres du projet.",
   "Close Godot first. It has this project open and its addon cannot take new project settings.": "Fermez d'abord Godot. Il a ce projet ouvert et son addon ne peut pas prendre de nouveaux réglages de projet.",
-  "Godot did not take the project settings: {error}. Nothing was written.": "Godot n'a pas pris les réglages du projet : {error}. Rien n'a été écrit."
+  "Godot did not take the project settings: {error}. Nothing was written.": "Godot n'a pas pris les réglages du projet : {error}. Rien n'a été écrit.",
+  "Override in project": "Surcharger dans le projet",
+  "Copies this definition into res://entities with a script of its own, so you can change it.": "Copie cette définition dans res://entities avec un script propre, pour que vous puissiez la modifier."
 }

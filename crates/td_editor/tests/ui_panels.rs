@@ -2987,3 +2987,202 @@ fn outliner_menu_of_a_linked_group_row_selects_its_linked_groups() {
     harness.run();
     assert_eq!(harness.state().actions, [Action::SelectLinkedGroups]);
 }
+
+fn copy_dir(from: &std::path::Path, to: &std::path::Path) {
+    std::fs::create_dir_all(to).unwrap();
+    for entry in std::fs::read_dir(from).unwrap().map(Result::unwrap) {
+        let target = to.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            copy_dir(&entry.path(), &target);
+        } else {
+            std::fs::copy(entry.path(), target).unwrap();
+        }
+    }
+}
+
+/// A fixture whose project has the addon definitions and the Gameplay pack, like one that installed both.
+fn with_project() -> (Fixture, tempfile::TempDir) {
+    let addon = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../godot/addons/func_godot");
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path();
+    copy_dir(&addon.join("fgd"), &root.join("addons/func_godot/fgd"));
+    copy_dir(&addon.join("gameplay_pack/definitions"), &root.join("trenchdot/entities/definitions"));
+    copy_dir(&addon.join("gameplay_pack/scripts"), &root.join("trenchdot/entities/scripts"));
+    copy_dir(&addon.join("src/trenchdot/entities"), &root.join("addons/func_godot/src/trenchdot/entities"));
+    std::fs::write(root.join("project.godot"), "config_version=5\n").unwrap();
+    let mut f = Fixture::new();
+    f.state.game.project_root = Some(root.to_path_buf());
+    (f, dir)
+}
+
+fn entity_cards(f: Fixture) -> Harness<'static, Fixture> {
+    Harness::builder()
+        .with_size(egui::vec2(700.0, 900.0))
+        .build_ui_state(|ui, f: &mut Fixture| panels::entity_browser(ui, &mut f.state, &mut f.panels, &mut f.actions), f)
+}
+
+fn reference_of(f: Fixture) -> Harness<'static, Fixture> {
+    Harness::builder()
+        .with_size(egui::vec2(900.0, 800.0))
+        .build_ui_state(|ui, f: &mut Fixture| panels::reference(ui, &mut f.state, &mut f.panels, &mut f.actions), f)
+}
+
+#[test]
+fn the_card_menu_overrides_the_clicked_entity_in_the_project() {
+    let (f, dir) = with_project();
+    let root = dir.path();
+    let mut harness = entity_cards(f);
+    harness.run();
+    harness.get_by_label("func_door").click_secondary();
+    harness.run_steps(2);
+    harness.get_by_label("Show in Reference");
+    harness.get_by_label("Override in project").click();
+    harness.run();
+    for file in [
+        "entities/func_door.tres",
+        "entities/func_door.gd",
+        "entities/project_fgd.tres",
+        "entities/project_map_settings.tres",
+        "entities/project_game_config.tres",
+    ] {
+        assert!(root.join(file).is_file(), "{file}");
+    }
+
+    assert!(!root.join("entities/light.tres").exists(), "only the clicked card is overridden");
+    let script = std::fs::read_to_string(root.join("entities/func_door.gd")).unwrap();
+    assert!(script.contains("extends \"res://trenchdot/entities/scripts/td_door.gd\""), "{script}");
+    let settings = std::fs::read_to_string(root.join("project.godot")).unwrap();
+    assert!(settings.contains("default_map_settings=\"res://entities/project_map_settings.tres\""), "{settings}");
+    let status = &harness.state().state.status;
+    assert!(status.starts_with("Overrode func_door with res://entities/func_door.tres. Change it in res://entities/func_door.gd."), "{status}");
+    assert_eq!(harness.state().state.game.entity("func_door").unwrap().script, "res://entities/func_door.gd");
+    assert!(harness.query_by_label("Override in project").is_none(), "the menu closes after the click");
+}
+
+#[test]
+fn the_card_menu_has_no_override_without_a_project() {
+    let mut harness = entity_cards(Fixture::new());
+    harness.run();
+    harness.get_by_label("func_door").click_secondary();
+    harness.run_steps(2);
+    harness.get_by_label("Show in Reference");
+    assert!(harness.query_by_label("Override in project").is_none());
+}
+
+#[test]
+fn the_card_menu_sits_below_show_in_reference_and_explains_itself() {
+    let (f, _dir) = with_project();
+    let mut harness = entity_cards(f);
+    harness.run();
+    harness.get_by_label("func_door").click_secondary();
+    harness.run_steps(2);
+    let shown = harness.get_by_label("Show in Reference").rect();
+    let item = harness.get_by_label("Override in project");
+    assert!(item.rect().min.y >= shown.max.y, "below Show in Reference");
+    item.hover();
+    harness.run_steps(3);
+    harness.get_by_label_contains("Copies this definition into res://entities");
+}
+
+#[test]
+fn the_card_menu_refuses_a_second_override_and_names_the_file() {
+    let (f, dir) = with_project();
+    let root = dir.path();
+    let mut harness = entity_cards(f);
+    harness.run();
+    for _ in 0..2 {
+        harness.get_by_label("func_button").click_secondary();
+        harness.run_steps(2);
+        harness.get_by_label("Override in project").click();
+        harness.run();
+    }
+
+    let status = &harness.state().state.status;
+    assert!(status.contains("func_button is overridden already. Change it in res://entities/func_button.tres"), "{status}");
+    let fgd = std::fs::read_to_string(root.join("entities/project_fgd.tres")).unwrap();
+    assert_eq!(fgd.matches("func_button.tres").count(), 1, "{fgd}");
+}
+
+#[test]
+fn the_reference_button_overrides_the_selected_class_on_every_tab() {
+    let (mut f, dir) = with_project();
+    let root = dir.path();
+    f.panels.reference_class = "light".into();
+    let mut harness = reference_of(f);
+    harness.run();
+    harness.get_by_label("Override in project");
+    harness.get_by_label("C# class").click();
+    harness.run();
+    harness.get_by_label("Override in project");
+    harness.get_by_label("FGD .tres").click();
+    harness.run();
+    harness.get_by_label("Create in project");
+    harness.get_by_label("Override in project").click();
+    harness.run();
+    assert!(root.join("entities/light.tres").is_file() && root.join("entities/light.gd").is_file());
+    assert!(!root.join("entities/my_light.tres").exists());
+    let status = &harness.state().state.status;
+    assert!(status.starts_with("Overrode light with res://entities/light.tres."), "{status}");
+}
+
+#[test]
+fn the_reference_button_refuses_the_second_click() {
+    let (mut f, dir) = with_project();
+    f.panels.reference_class = "func_button".into();
+    let mut harness = reference_of(f);
+    harness.run();
+    harness.get_by_label("Override in project").click();
+    harness.run();
+    let before = std::fs::read_to_string(dir.path().join("entities/project_fgd.tres")).unwrap();
+    harness.get_by_label("Override in project").click();
+    harness.run();
+    let status = &harness.state().state.status;
+    assert!(status.contains("func_button is overridden already. Change it in res://entities/func_button.tres"), "{status}");
+    assert_eq!(std::fs::read_to_string(dir.path().join("entities/project_fgd.tres")).unwrap(), before);
+}
+
+#[test]
+fn the_reference_has_no_override_button_without_a_project() {
+    let mut f = Fixture::new();
+    f.panels.reference_class = "light".into();
+    let mut harness = reference_of(f);
+    harness.run();
+    harness.get_by_label("Place");
+    assert!(harness.query_by_label("Override in project").is_none());
+}
+
+#[test]
+fn create_in_project_still_writes_the_my_copy_beside_an_override() {
+    let (mut f, dir) = with_project();
+    let root = dir.path();
+    f.panels.reference_class = "light".into();
+    let mut harness = reference_of(f);
+    harness.run();
+    harness.get_by_label("FGD .tres").click();
+    harness.run();
+    harness.get_by_label("Create in project").click();
+    harness.run();
+    assert!(root.join("entities/my_light.tres").is_file() && root.join("entities/my_light.gd").is_file());
+    assert!(!root.join("entities/light.tres").exists() && !root.join("entities/project_fgd.tres").exists());
+    assert!(harness.state().state.status.starts_with("Wrote "), "{}", harness.state().state.status);
+    harness.get_by_label("Override in project").click();
+    harness.run();
+    assert!(root.join("entities/light.tres").is_file() && root.join("entities/my_light.tres").is_file());
+}
+
+#[test]
+fn the_override_item_is_german() {
+    let _german = td_editor::i18n::scope(td_editor::i18n::Lang::De);
+    let (f, dir) = with_project();
+    let mut harness = entity_cards(f);
+    harness.run();
+    harness.get_by_label("func_button").click_secondary();
+    harness.run_steps(2);
+    assert!(harness.query_by_label("Override in project").is_none(), "the menu is German");
+    harness.get_by_label("Im Projekt überschreiben").click();
+    harness.run();
+    assert!(dir.path().join("entities/func_button.tres").is_file());
+    assert!(harness.state().state.status.starts_with("Overrode func_button"), "the English status stays English");
+    let shown = harness.state().state.status_shown().to_string();
+    assert!(shown.contains("func_button") && shown.contains("überschrieben"), "{shown}");
+}

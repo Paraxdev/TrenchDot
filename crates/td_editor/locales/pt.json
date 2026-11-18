@@ -2546,5 +2546,7 @@
   "Open a Godot project first, an override goes into it": "Abra primeiro um projeto do Godot, uma substituição vai nele",
   "Godot kept the new project settings, set {keys} back in its Project Settings.": "O Godot manteve as novas configurações do projeto, volte {keys} nas Configurações do Projeto dele.",
   "Close Godot first. It has this project open and its addon cannot take new project settings.": "Feche o Godot primeiro. Ele está com este projeto aberto e seu addon não aceita novas configurações de projeto.",
-  "Godot did not take the project settings: {error}. Nothing was written.": "O Godot não aceitou as configurações do projeto: {error}. Nada foi escrito."
+  "Godot did not take the project settings: {error}. Nothing was written.": "O Godot não aceitou as configurações do projeto: {error}. Nada foi escrito.",
+  "Override in project": "Substituir no projeto",
+  "Copies this definition into res://entities with a script of its own, so you can change it.": "Copia esta definição para res://entities com um script próprio, para que você possa alterá-la."
 }

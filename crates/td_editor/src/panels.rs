@@ -2869,6 +2869,8 @@ pub fn entity_browser(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState,
     let mut placed: Option<String> = None;
     let mut dragged: Option<(egui::Response, String)> = None;
     let mut to_reference: Option<String> = None;
+    let mut to_override: Option<String> = None;
+    let in_project = state.game.project_root.is_some();
     ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
         for (group, defs) in &groups {
             let section = crate::widgets::collapsing(group).default_open(true).show(ui, |ui| {
@@ -2903,6 +2905,11 @@ pub fn entity_browser(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState,
 
                                 if ui.button(tr("Show in Reference")).clicked() {
                                     to_reference = Some(def.classname.clone());
+                                    ui.close();
+                                }
+
+                                if in_project && ui.button(tr("Override in project")).on_hover_text(tr(OVERRIDE_TIP)).clicked() {
+                                    to_override = Some(def.classname.clone());
                                     ui.close();
                                 }
 
@@ -2941,6 +2948,20 @@ pub fn entity_browser(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState,
     if let Some(classname) = to_reference {
         ps.reference_class = classname;
         actions.push(Action::ShowReference);
+    }
+
+    if let Some(classname) = to_override {
+        override_in_project(state, &classname);
+    }
+}
+
+const OVERRIDE_TIP: &str = en!("Copies this definition into res://entities with a script of its own, so you can change it.");
+
+/// Override in project for a person's click, the status tells what was written or why not.
+fn override_in_project(state: &mut EditorState, classname: &str) {
+    match crate::entity_override::override_in_project(state, classname, crate::entity_override::Script::Extend, true) {
+        Ok(report) => state.set_status(report.message()),
+        Err(refusal) => state.set_status(refusal),
     }
 }
 
@@ -3272,6 +3293,10 @@ fn reference_detail(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, a
                 Ok(()) => msg!("Wrote {path}", path = path.display()),
                 Err(e) => format!("{}: {e}", path.display()).into(),
             });
+        }
+
+        if state.game.project_root.is_some() && ui.button(tr("Override in project")).on_hover_text(tr(OVERRIDE_TIP)).clicked() {
+            override_in_project(state, &def.classname);
         }
 
         if ui.button(tr("Place")).on_hover_text(tr("Point entities at the cursor, brush entities from the selection")).clicked() {

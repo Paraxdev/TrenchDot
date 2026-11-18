@@ -2546,5 +2546,7 @@
   "Open a Godot project first, an override goes into it": "Сначала откройте проект Godot, переопределение попадёт в него",
   "Godot kept the new project settings, set {keys} back in its Project Settings.": "Godot оставил новые настройки проекта, верните {keys} в его настройках проекта.",
   "Close Godot first. It has this project open and its addon cannot take new project settings.": "Сначала закройте Godot. В нём открыт этот проект, а его аддон не принимает новые настройки проекта.",
-  "Godot did not take the project settings: {error}. Nothing was written.": "Godot не принял настройки проекта: {error}. Ничего не записано."
+  "Godot did not take the project settings: {error}. Nothing was written.": "Godot не принял настройки проекта: {error}. Ничего не записано.",
+  "Override in project": "Переопределить в проекте",
+  "Copies this definition into res://entities with a script of its own, so you can change it.": "Копирует это определение в res://entities со своим скриптом, чтобы вы могли его менять."
 }
