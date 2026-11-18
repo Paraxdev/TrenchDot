@@ -2440,5 +2440,8 @@
   "List every use of the next key you press": "Alle Verwendungen der nächsten gedrückten Taste auflisten",
   "Press the key to look up (Esc cancels)": "Gesuchte Taste drücken (Esc bricht ab)",
   "Clear the key search": "Tastensuche löschen",
-  "Nothing uses this key": "Keine Belegung für diese Taste"
+  "Nothing uses this key": "Keine Belegung für diese Taste",
+  "While the {tool} tool is active it takes {chord} first.": "Solange das Werkzeug {tool} aktiv ist, nimmt es {chord} zuerst.",
+  "Set anyway": "Trotzdem setzen",
+  "{chord} is used by {action}.": "{chord} wird von {action} verwendet."
 }

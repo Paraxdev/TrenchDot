@@ -2440,5 +2440,8 @@
   "List every use of the next key you press": "次に押したキーの用途をすべて表示します",
   "Press the key to look up (Esc cancels)": "調べるキーを押してください (Esc で中止)",
   "Clear the key search": "キー検索を消去",
-  "Nothing uses this key": "このキーは使われていません"
+  "Nothing uses this key": "このキーは使われていません",
+  "While the {tool} tool is active it takes {chord} first.": "{tool} ツールが有効な間は、{chord} をツールが先に受け取ります。",
+  "Set anyway": "このまま設定",
+  "{chord} is used by {action}.": "{chord} は {action} で使われています。"
 }

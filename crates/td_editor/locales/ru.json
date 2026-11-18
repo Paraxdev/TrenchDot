@@ -2440,5 +2440,8 @@
   "List every use of the next key you press": "Показать все применения следующей нажатой клавиши",
   "Press the key to look up (Esc cancels)": "Нажмите нужную клавишу (Esc отменяет)",
   "Clear the key search": "Сбросить поиск клавиши",
-  "Nothing uses this key": "Эта клавиша нигде не используется"
+  "Nothing uses this key": "Эта клавиша нигде не используется",
+  "While the {tool} tool is active it takes {chord} first.": "Пока активен инструмент «{tool}», он первым получает {chord}.",
+  "Set anyway": "Всё равно назначить",
+  "{chord} is used by {action}.": "{chord} занято: {action}."
 }

@@ -777,6 +777,46 @@ pub fn shortcuts(prefs: &Prefs) -> Vec<(KeyboardShortcut, Action)> {
     list
 }
 
+/// How a new shortcut takes a chord another action holds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Resolve {
+    Replace,
+    Swap,
+}
+
+/// The action other than `id` that holds `chord` today, from the preset or from an override.
+pub fn chord_conflict(prefs: &Prefs, id: &str, chord: &KeyboardShortcut) -> Option<Action> {
+    let text = shortcut_to_text(chord);
+    shortcuts(prefs).into_iter().find(|(s, a)| shortcut_to_text(s) == text && a.binding_id() != id).map(|(_, a)| a)
+}
+
+/// The chord an action holds now, which a swap hands to the action that loses its own.
+pub fn swap_chord(prefs: &Prefs, id: &str) -> Option<KeyboardShortcut> {
+    shortcuts(prefs).into_iter().find(|(_, a)| a.binding_id() == id).map(|(s, _)| s)
+}
+
+/// Gives `id` the chord. Replace leaves the holder without it, Swap gives the holder the chord `id` had, and falls
+/// back to Replace when `id` had none. Overrides hold one chord per action, so a holder with two keeps one.
+pub fn apply_rebind(prefs: &mut Prefs, id: &str, chord: &KeyboardShortcut, how: Resolve) {
+    let text = shortcut_to_text(chord);
+    if let Some(holder) = chord_conflict(prefs, id, chord) {
+        let holder_id = holder.binding_id();
+        match swap_chord(prefs, id).filter(|_| how == Resolve::Swap) {
+            Some(old) => {
+                prefs.key_overrides.insert(holder_id, shortcut_to_text(&old));
+            }
+
+            // A preset chord is dropped by the new override alone, an override chord has to be cleared.
+            None if prefs.key_overrides.get(&holder_id).is_some_and(|t| parse_shortcut(t).is_some_and(|s| shortcut_to_text(&s) == text)) => {
+                prefs.key_overrides.insert(holder_id, String::new());
+            }
+            None => {}
+        }
+    }
+
+    prefs.key_overrides.insert(id.to_string(), text);
+}
+
 /// Every action that can carry a key binding, for the keymap editor.
 pub fn bindable_actions() -> Vec<Action> {
     let mut out: Vec<Action> = trenchbroom_bindings().into_iter().map(|(_, a)| a).collect();
@@ -3145,6 +3185,119 @@ mod tests {
         let ids: Vec<String> = bindable_actions().iter().map(|a| a.binding_id()).collect();
         let unique: std::collections::BTreeSet<&String> = ids.iter().collect();
         assert_eq!(ids.len(), unique.len());
+    }
+
+    fn holders(prefs: &Prefs, chord: KeyboardShortcut) -> Vec<Action> {
+        shortcuts(prefs).into_iter().filter(|(s, _)| *s == chord).map(|(_, a)| a).collect()
+    }
+
+    fn chords_of(prefs: &Prefs, action: &Action) -> Vec<String> {
+        shortcuts(prefs).iter().filter(|(_, a)| a == action).map(|(s, _)| shortcut_to_text(s)).collect()
+    }
+
+    #[test]
+    fn chord_conflict_names_the_other_holder_and_ignores_the_action_itself() {
+        let mut prefs = Prefs::default();
+        let id = Action::CsgSubtract.binding_id();
+        assert_eq!(chord_conflict(&prefs, &id, &sc(CTRL, Key::E)), Some(Action::SelectInside));
+        assert_eq!(chord_conflict(&prefs, &id, &sc(CTRL, Key::K)), None, "its own chord");
+        assert_eq!(chord_conflict(&prefs, &id, &sc(CTRL.plus(Modifiers::ALT), Key::E)), None, "same key, other modifiers");
+        assert_eq!(chord_conflict(&prefs, &id, &sc(Modifiers::ALT, Key::F20)), None);
+        let both = Modifiers { ctrl: true, command: true, ..Default::default() };
+        assert_eq!(chord_conflict(&prefs, &id, &sc(both, Key::E)), Some(Action::SelectInside), "ctrl with command is Ctrl");
+
+        prefs.key_overrides.insert(Action::SelectInside.binding_id(), "Ctrl+Shift+Y".into());
+        assert_eq!(chord_conflict(&prefs, &id, &sc(CTRL_SHIFT, Key::Y)), Some(Action::SelectInside), "an override chord");
+        assert_eq!(chord_conflict(&prefs, &id, &sc(CTRL, Key::E)), None, "the override gave it up");
+
+        prefs.key_overrides.insert(Action::SelectInside.binding_id(), String::new());
+        assert_eq!(chord_conflict(&prefs, &id, &sc(CTRL, Key::E)), None, "a cleared action holds nothing");
+    }
+
+    #[test]
+    fn replace_takes_the_chord_and_the_other_action_loses_only_it() {
+        let mut prefs = Prefs::default();
+        let (ctrl_e, ctrl_k) = (sc(CTRL, Key::E), sc(CTRL, Key::K));
+        let id = Action::CsgSubtract.binding_id();
+        let before = shortcuts(&prefs).len();
+        apply_rebind(&mut prefs, &id, &ctrl_e, Resolve::Replace);
+        assert_eq!(holders(&prefs, ctrl_e), [Action::CsgSubtract]);
+        assert_eq!(holders(&prefs, ctrl_k), Vec::<Action>::new(), "the old chord is free");
+        assert_eq!(chords_of(&prefs, &Action::SelectInside), Vec::<String>::new());
+        assert_eq!(chords_of(&prefs, &Action::CsgSubtract), ["Ctrl+E"]);
+        assert_eq!(shortcuts(&prefs).len(), before - 1);
+        assert_eq!(prefs.key_overrides.len(), 1, "a preset chord needs no override on the loser");
+    }
+
+    #[test]
+    fn replace_clears_an_override_chord_whichever_action_sorts_first() {
+        let first = Action::CsgIntersect;
+        let second = Action::CsgSubtract;
+        assert!(first.binding_id() < second.binding_id());
+        for (taker, holder) in [(&first, &second), (&second, &first)] {
+            let mut prefs = Prefs::default();
+            let chord = sc(CTRL_SHIFT, Key::Y);
+            prefs.key_overrides.insert(holder.binding_id(), "Ctrl+Shift+Y".into());
+            apply_rebind(&mut prefs, &taker.binding_id(), &chord, Resolve::Replace);
+            assert_eq!(holders(&prefs, chord), std::slice::from_ref(taker));
+            assert_eq!(chords_of(&prefs, holder), Vec::<String>::new());
+        }
+    }
+
+    #[test]
+    fn swap_hands_the_holder_the_chord_the_action_had() {
+        let mut prefs = Prefs::default();
+        let (ctrl_e, ctrl_k) = (sc(CTRL, Key::E), sc(CTRL, Key::K));
+        let id = Action::CsgSubtract.binding_id();
+        assert_eq!(swap_chord(&prefs, &id), Some(ctrl_k));
+        apply_rebind(&mut prefs, &id, &ctrl_e, Resolve::Swap);
+        assert_eq!(holders(&prefs, ctrl_e), [Action::CsgSubtract]);
+        assert_eq!(holders(&prefs, ctrl_k), [Action::SelectInside]);
+        assert_eq!(chords_of(&prefs, &Action::CsgSubtract), ["Ctrl+E"]);
+        assert_eq!(chords_of(&prefs, &Action::SelectInside), ["Ctrl+K"]);
+        assert_eq!(prefs.key_overrides.len(), 2);
+    }
+
+    #[test]
+    fn swap_with_an_override_chord_on_the_action_and_on_the_holder() {
+        let mut prefs = Prefs::default();
+        let id = Action::CsgSubtract.binding_id();
+        prefs.key_overrides.insert(id.clone(), "Ctrl+Shift+Q".into());
+        prefs.key_overrides.insert(Action::SelectInside.binding_id(), "Alt+F7".into());
+        apply_rebind(&mut prefs, &id, &sc(Modifiers::ALT, Key::F7), Resolve::Swap);
+        assert_eq!(chords_of(&prefs, &Action::CsgSubtract), ["Alt+F7"]);
+        assert_eq!(chords_of(&prefs, &Action::SelectInside), ["Ctrl+Shift+Q"]);
+        assert!(chords_of(&prefs, &Action::CsgIntersect).contains(&"Ctrl+L".to_string()), "bystanders keep their keys");
+    }
+
+    #[test]
+    fn swap_without_an_old_chord_is_not_offered_and_acts_as_replace() {
+        let mut prefs = Prefs::default();
+        let id = Action::CsgSubtract.binding_id();
+        prefs.key_overrides.insert(id.clone(), String::new());
+        assert_eq!(swap_chord(&prefs, &id), None);
+        let ctrl_e = sc(CTRL, Key::E);
+        apply_rebind(&mut prefs, &id, &ctrl_e, Resolve::Swap);
+        assert_eq!(holders(&prefs, ctrl_e), [Action::CsgSubtract]);
+        assert_eq!(chords_of(&prefs, &Action::SelectInside), Vec::<String>::new());
+    }
+
+    #[test]
+    fn a_free_chord_or_the_own_chord_changes_only_the_one_override() {
+        let mut prefs = Prefs::default();
+        let id = Action::CsgSubtract.binding_id();
+        let before = shortcuts(&prefs);
+        apply_rebind(&mut prefs, &id, &sc(CTRL, Key::K), Resolve::Replace);
+        assert_eq!(shortcuts(&prefs).len(), before.len());
+        assert_eq!(chords_of(&prefs, &Action::CsgSubtract), ["Ctrl+K"]);
+        assert_eq!(prefs.key_overrides.len(), 1);
+
+        let free = sc(Modifiers::ALT, Key::F20);
+        assert_eq!(chord_conflict(&prefs, &id, &free), None);
+        apply_rebind(&mut prefs, &id, &free, Resolve::Swap);
+        assert_eq!(chords_of(&prefs, &Action::CsgSubtract), ["Alt+F20"]);
+        assert_eq!(prefs.key_overrides.len(), 1, "nobody else was touched");
+        assert_eq!(chords_of(&prefs, &Action::SelectInside), ["Ctrl+E"]);
     }
 
     #[test]

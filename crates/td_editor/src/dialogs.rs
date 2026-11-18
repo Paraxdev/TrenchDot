@@ -11,7 +11,7 @@ use crate::commands::{self, Action, ModelImport};
 use crate::i18n::{self, Lang, Msg, en, tr, tr_n, trf};
 use crate::mesh_tool::MeshOp;
 use crate::state::{EditorState, Shade};
-use crate::tool_keys::{ToolKeyRow, describe, tool_key_rows};
+use crate::tool_keys::{ToolKeyRow, describe, tool_key_rows, tools_reading};
 use crate::tools::ToolKind;
 use crate::widgets;
 
@@ -1226,6 +1226,15 @@ pub struct KeymapWindow {
     recording: Option<String>,
     searching: bool,
     key_search: Option<egui::KeyboardShortcut>,
+    taken: Option<TakenChord>,
+}
+
+/// A recorded chord another action holds, waiting for Replace, Swap or Cancel.
+struct TakenChord {
+    id: String,
+    chord: egui::KeyboardShortcut,
+    holder: Option<Action>,
+    tools: Vec<ToolKind>,
 }
 
 /// Everything that reacts to `chord`'s key, with any modifier: the bound actions in the grid's order, then the keys
@@ -1270,7 +1279,14 @@ impl KeymapWindow {
             match capture_chord(ctx) {
                 (_, true) => self.recording = None,
                 (Some(s), _) => {
-                    state.prefs.key_overrides.insert(id, commands::shortcut_to_text(&s));
+                    let holder = commands::chord_conflict(&state.prefs, &id, &s);
+                    let tools = tools_reading(&s);
+                    if holder.is_none() && tools.is_empty() {
+                        commands::apply_rebind(&mut state.prefs, &id, &s, commands::Resolve::Replace);
+                    } else {
+                        self.taken = Some(TakenChord { id, chord: s, holder, tools });
+                    }
+
                     self.recording = None;
                 }
                 _ => {}
@@ -1300,14 +1316,10 @@ impl KeymapWindow {
             }
 
             ui.horizontal(|ui| {
-                ui.label(tr("Preset"));
-                egui::ComboBox::from_id_salt("keymap_preset").selected_text(commands::preset_label(&state.prefs.keymap_preset)).show_ui(ui, |ui| {
-                    for p in commands::PRESETS {
-                        ui.selectable_value(&mut state.prefs.keymap_preset, p.to_string(), commands::preset_label(p));
-                    }
-                });
+                self.preset_combo(ui, state);
                 if ui.button(tr("Reset overrides")).clicked() {
                     state.prefs.key_overrides.clear();
+                    self.taken = None;
                 }
 
                 self.search_controls(ui);
@@ -1354,6 +1366,19 @@ impl KeymapWindow {
         self.open = open;
     }
 
+    fn preset_combo(&mut self, ui: &mut egui::Ui, state: &mut EditorState) {
+        ui.label(tr("Preset"));
+        let before = state.prefs.keymap_preset.clone();
+        egui::ComboBox::from_id_salt("keymap_preset").selected_text(commands::preset_label(&state.prefs.keymap_preset)).show_ui(ui, |ui| {
+            for p in commands::PRESETS {
+                ui.selectable_value(&mut state.prefs.keymap_preset, p.to_string(), commands::preset_label(p));
+            }
+        });
+        if state.prefs.keymap_preset != before {
+            self.taken = None;
+        }
+    }
+
     fn search_controls(&mut self, ui: &mut egui::Ui) {
         match self.key_search {
             Some(chord) => {
@@ -1370,6 +1395,7 @@ impl KeymapWindow {
         if ui.button(tr("Press a key")).on_hover_text(tr("List every use of the next key you press")).clicked() {
             self.searching = true;
             self.recording = None;
+            self.taken = None;
         }
     }
 
@@ -1388,19 +1414,63 @@ impl KeymapWindow {
                     if ui.small_button(if self.recording.as_deref() == Some(id.as_str()) { "…" } else { tr("Set") }).clicked() {
                         self.recording = Some(id.clone());
                         self.searching = false;
+                        self.taken = None;
                     }
 
                     if ui.small_button(tr("Clear")).clicked() {
                         state.prefs.key_overrides.insert(id.clone(), String::new());
+                        self.taken = None;
                     }
 
                     if state.prefs.key_overrides.contains_key(&id) && ui.small_button(tr("Default")).clicked() {
                         state.prefs.key_overrides.remove(&id);
+                        self.taken = None;
                     }
                 });
                 ui.end_row();
+                if self.taken.as_ref().is_some_and(|t| t.id == id) {
+                    self.taken_row(ui, state);
+                    ui.end_row();
+                }
             }
         });
+    }
+
+    fn taken_row(&mut self, ui: &mut egui::Ui, state: &mut EditorState) {
+        let Some(taken) = self.taken.as_ref() else { return };
+        let can_swap = commands::swap_chord(&state.prefs, &taken.id).is_some();
+        let chord = commands::shortcut_to_text(&taken.chord);
+        let mut lines: Vec<String> = taken.holder.iter().map(|a| trf!("{chord} is used by {action}.", chord = chord.as_str(), action = a.title())).collect();
+        lines.extend(taken.tools.iter().map(|t| trf!("While the {tool} tool is active it takes {chord} first.", tool = tr(t.label()), chord = chord.as_str())));
+        ui.label("");
+        ui.label(RichText::new(lines.join("\n")).color(crate::theme::colors().yellow));
+        let mut resolve = None;
+        ui.horizontal(|ui| {
+            if taken.holder.is_none() {
+                if ui.small_button(tr("Set anyway")).clicked() {
+                    resolve = Some(Some(commands::Resolve::Replace));
+                }
+            } else {
+                if ui.small_button(tr("Replace")).clicked() {
+                    resolve = Some(Some(commands::Resolve::Replace));
+                }
+
+                if ui.add_enabled(can_swap, egui::Button::new(tr("Swap")).small()).clicked() {
+                    resolve = Some(Some(commands::Resolve::Swap));
+                }
+            }
+
+            if ui.small_button(tr("Cancel")).clicked() {
+                resolve = Some(None);
+            }
+        });
+        if let Some(how) = resolve {
+            if let Some(how) = how {
+                commands::apply_rebind(&mut state.prefs, &taken.id, &taken.chord, how);
+            }
+
+            self.taken = None;
+        }
     }
 
     fn tool_keys_tab(&mut self, ui: &mut egui::Ui) {
@@ -2695,6 +2765,122 @@ mod tests {
         assert!(h.query_by_label("Nothing uses this key").is_none());
     }
 
+    fn record_chord(h: &mut egui_kittest::Harness<'static, (KeymapWindow, EditorState)>, action: &Action, modifiers: egui::Modifiers, key: Key) {
+        use egui_kittest::kittest::Queryable;
+        h.state_mut().0.filter = action.title();
+        h.run();
+        h.get_by_label("Set").click();
+        h.run();
+        assert!(h.state().0.recording.is_some());
+        h.key_press_modifiers(modifiers, key);
+        h.run();
+    }
+
+    fn overrides(h: &egui_kittest::Harness<'static, (KeymapWindow, EditorState)>) -> Vec<(String, String)> {
+        h.state().1.prefs.key_overrides.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+    }
+
+    #[test]
+    fn setting_a_free_chord_writes_straight_away() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        record_chord(&mut h, &Action::CsgSubtract, egui::Modifiers::ALT | egui::Modifiers::SHIFT, Key::F9);
+        assert_eq!(overrides(&h), [(Action::CsgSubtract.binding_id(), "Shift+Alt+F9".to_string())]);
+        assert!(h.state().0.taken.is_none());
+        assert!(h.query_by_label("Replace").is_none());
+    }
+
+    #[test]
+    fn setting_a_used_chord_asks_and_cancel_writes_nothing() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        record_chord(&mut h, &Action::CsgSubtract, egui::Modifiers::COMMAND, Key::E);
+        assert!(overrides(&h).is_empty());
+        assert!(h.state().0.recording.is_none());
+        let taken = h.state().0.taken.as_ref().unwrap();
+        assert_eq!((taken.id.as_str(), taken.holder.clone()), (Action::CsgSubtract.binding_id().as_str(), Some(Action::SelectInside)));
+        assert!(h.query_by_label_contains("Ctrl+E is used by Select Inside").is_some());
+        assert!(h.query_by_label("Replace").is_some() && h.query_by_label("Swap").is_some());
+
+        h.get_by_label("Cancel").click();
+        h.run();
+        assert!(overrides(&h).is_empty());
+        assert!(h.state().0.taken.is_none());
+        assert!(h.query_by_label("Replace").is_none());
+    }
+
+    #[test]
+    fn replace_in_the_prompt_takes_the_chord() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        record_chord(&mut h, &Action::CsgSubtract, egui::Modifiers::COMMAND, Key::E);
+        h.get_by_label("Replace").click();
+        h.run();
+        assert_eq!(overrides(&h), [(Action::CsgSubtract.binding_id(), "Ctrl+E".to_string())]);
+        assert!(h.state().0.taken.is_none());
+        assert!(h.query_by_label("Replace").is_none());
+        let prefs = &h.state().1.prefs;
+        assert!(commands::shortcuts(prefs).iter().all(|(_, a)| *a != Action::SelectInside));
+    }
+
+    #[test]
+    fn swap_in_the_prompt_gives_the_other_action_the_old_chord() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        record_chord(&mut h, &Action::CsgSubtract, egui::Modifiers::COMMAND, Key::E);
+        h.get_by_label("Swap").click();
+        h.run();
+        let want: std::collections::BTreeMap<String, String> =
+            [(Action::CsgSubtract.binding_id(), "Ctrl+E".to_string()), (Action::SelectInside.binding_id(), "Ctrl+K".to_string())].into();
+        assert_eq!(h.state().1.prefs.key_overrides, want);
+        assert!(h.state().0.taken.is_none());
+    }
+
+    #[test]
+    fn a_chord_a_tool_reads_asks_before_it_is_set() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        let chord = egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, Key::B);
+        assert!(commands::chord_conflict(&h.state().1.prefs, &Action::CsgSubtract.binding_id(), &chord).is_none(), "no action holds it");
+        record_chord(&mut h, &Action::CsgSubtract, chord.modifiers, chord.logical_key);
+        assert!(overrides(&h).is_empty());
+        assert!(h.query_by_label_contains("While the Mesh tool is active it takes Ctrl+B first.").is_some());
+        assert!(h.query_by_label("Replace").is_none() && h.query_by_label("Swap").is_none());
+
+        h.get_by_label("Set anyway").click();
+        h.run();
+        assert_eq!(overrides(&h), [(Action::CsgSubtract.binding_id(), "Ctrl+B".to_string())]);
+        assert!(h.state().0.taken.is_none());
+    }
+
+    #[test]
+    fn swap_is_greyed_out_when_the_action_had_no_chord() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        h.state_mut().1.prefs.key_overrides.insert(Action::CsgSubtract.binding_id(), String::new());
+        record_chord(&mut h, &Action::CsgSubtract, egui::Modifiers::COMMAND, Key::E);
+        assert!(h.state().0.taken.is_some());
+        h.get_by_label("Swap").click();
+        h.run();
+        assert!(h.state().0.taken.is_some(), "a disabled Swap does nothing");
+        assert!(!h.state().1.prefs.key_overrides.contains_key(&Action::SelectInside.binding_id()), "the holder is untouched");
+        h.get_by_label("Replace").click();
+        h.run();
+        assert_eq!(h.state().1.prefs.key_overrides[&Action::CsgSubtract.binding_id()], "Ctrl+E");
+    }
+
+    #[test]
+    fn the_prompt_follows_a_new_recording() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        record_chord(&mut h, &Action::CsgSubtract, egui::Modifiers::COMMAND, Key::E);
+        assert!(h.state().0.taken.is_some());
+        h.get_by_label("Set").click();
+        h.run();
+        assert!(h.state().0.taken.is_none(), "starting another recording drops the question");
+        assert!(h.query_by_label("Replace").is_none());
+    }
+
     #[test]
     fn a_command_name_says_what_it_does_on_hover() {
         use egui_kittest::kittest::Queryable;
@@ -2706,6 +2892,38 @@ mod tests {
         h.get_by_label(&Action::SelectAllInMode.title()).hover();
         h.run();
         assert!(h.query_by_label(help).is_some(), "an unbound command in the TrenchBroom preset explains itself");
+    }
+
+    #[test]
+    fn the_prompt_goes_when_the_row_changes() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        record_chord(&mut h, &Action::CsgSubtract, egui::Modifiers::COMMAND, Key::E);
+        h.get_by_label("Clear").click();
+        h.run();
+        assert!(h.state().0.taken.is_none(), "Clear");
+        assert_eq!(overrides(&h), [(Action::CsgSubtract.binding_id(), String::new())]);
+
+        record_chord(&mut h, &Action::CsgSubtract, egui::Modifiers::COMMAND, Key::E);
+        h.get_by_label("Default").click();
+        h.run();
+        assert!(h.state().0.taken.is_none(), "Default");
+        assert!(overrides(&h).is_empty());
+    }
+
+    #[test]
+    fn the_prompt_goes_when_the_preset_changes() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        record_chord(&mut h, &Action::CsgSubtract, egui::Modifiers::COMMAND, Key::E);
+        assert!(h.state().0.taken.is_some());
+        h.get_by_role(egui::accesskit::Role::ComboBox).click();
+        h.run();
+        h.get_by_label(commands::preset_label("hammer")).click();
+        h.run();
+        assert_eq!(h.state().1.prefs.keymap_preset, "hammer");
+        assert!(h.state().0.taken.is_none());
+        assert!(h.query_by_label_contains("is used by").is_none());
     }
 
     #[test]

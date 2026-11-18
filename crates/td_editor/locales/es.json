@@ -2440,5 +2440,8 @@
   "List every use of the next key you press": "Listar todos los usos de la próxima tecla que pulses",
   "Press the key to look up (Esc cancels)": "Pulsa la tecla a buscar (Esc cancela)",
   "Clear the key search": "Borrar la búsqueda de tecla",
-  "Nothing uses this key": "Nada usa esta tecla"
+  "Nothing uses this key": "Nada usa esta tecla",
+  "While the {tool} tool is active it takes {chord} first.": "Mientras la herramienta {tool} está activa, recibe {chord} primero.",
+  "Set anyway": "Asignar igualmente",
+  "{chord} is used by {action}.": "{action} ya usa {chord}."
 }

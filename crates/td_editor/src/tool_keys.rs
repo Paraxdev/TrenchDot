@@ -129,6 +129,14 @@ pub fn tool_key_rows() -> &'static [ToolKeyRow] {
     TOOL_KEYS
 }
 
+/// The tools that read `chord` themselves while they are active, in toolbar order.
+pub fn tools_reading(chord: &KeyboardShortcut) -> Vec<ToolKind> {
+    let text = commands::shortcut_to_text(chord);
+    let mut tools: Vec<ToolKind> = TOOL_KEYS.iter().filter(|r| r.chord() == text).map(|r| r.tool).collect();
+    tools.dedup();
+    tools
+}
+
 /// The text a row shows beside its chord, with the condition when it has one.
 pub fn describe(row: &ToolKeyRow) -> String {
     match row.when.label() {
@@ -148,6 +156,13 @@ mod tests {
                 assert!(!(a.tool == b.tool && a.key == b.key && a.modifiers == b.modifiers && a.when == b.when), "{:?} {}", a.tool, a.chord());
             }
         }
+    }
+
+    #[test]
+    fn tools_reading_a_chord_are_listed_once() {
+        assert_eq!(tools_reading(&KeyboardShortcut::new(NONE, Key::Num1)), [ToolKind::Mesh]);
+        assert_eq!(tools_reading(&KeyboardShortcut::new(CTRL_SHIFT, Key::B)), [ToolKind::Mesh]);
+        assert!(tools_reading(&KeyboardShortcut::new(ALT | SHIFT, Key::F9)).is_empty());
     }
 
     #[test]
