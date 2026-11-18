@@ -1844,7 +1844,7 @@ fn the_inspector_names_the_mirror_plane_of_a_selected_half() {
     let (group, copy) = f.state.doc.edit("mirror", |m, s| {
         let layer = m.default_layer();
         let group = td_doc::ops::group_selection(m, s, "half", layer).unwrap();
-        let (copies, _) = td_doc::mirror::mirror_linked(m, s, 2, &PlaneChoice { at: PlaneAt::Custom, custom: 100.5 }).unwrap();
+        let (copies, _) = td_doc::mirror::mirror_linked(m, s, 2, &PlaneChoice { at: PlaneAt::Custom, custom: 100.5 }, 0.0).unwrap();
         (group, copies[0])
     });
     let mut harness = Harness::builder()
@@ -1880,7 +1880,7 @@ fn the_inspector_offers_apply_mirror_only_for_a_mirrored_half() {
         s.select_node(half);
         let layer = m.default_layer();
         let group = td_doc::ops::group_selection(m, s, "half", layer).unwrap();
-        td_doc::mirror::mirror_linked(m, s, 0, &PlaneChoice::default()).unwrap();
+        td_doc::mirror::mirror_linked(m, s, 0, &PlaneChoice::default(), 0.0).unwrap();
         group
     });
     f.state.doc.select(|_, s| {
@@ -2728,7 +2728,7 @@ fn linked_rows_fixture() -> (Fixture, LinkedRows) {
         s.clear();
         s.nodes.extend([a, b]);
         let left = ops::group_selection(m, s, "half", layer).unwrap();
-        let (copies, _) = td_doc::mirror::mirror_linked(m, s, 0, &PlaneChoice { at: PlaneAt::Custom, custom: -40.0 }).unwrap();
+        let (copies, _) = td_doc::mirror::mirror_linked(m, s, 0, &PlaneChoice { at: PlaneAt::Custom, custom: -40.0 }, 0.0).unwrap();
         let right = copies[0];
         let kids = |m: &td_doc::Map, g: NodeId| m.get(g).unwrap().children.clone();
         let plain_child = cube(m, DVec3::new(512.0, 320.0, 64.0), DVec3::splat(48.0));

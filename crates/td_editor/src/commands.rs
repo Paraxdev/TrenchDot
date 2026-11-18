@@ -1235,7 +1235,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
                     s.nodes.insert(group);
                 }
 
-                td_doc::mirror::mirror_linked(m, s, axis, &choice)
+                td_doc::mirror::mirror_linked(m, s, axis, &choice, 0.0)
             });
             if let Some((copies, plane)) = mirrored {
                 state.set_status(msg_n!(

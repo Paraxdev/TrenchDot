@@ -654,6 +654,19 @@ impl Map {
         b
     }
 
+    /// Bounds of the brushes and meshes at or under `id`, leaving out the spread of a scatter and the stand in boxes of
+    /// entities and instances. Falls back to [`Map::bounds`] when there are none.
+    pub fn solid_bounds(&self, id: NodeId) -> Aabb {
+        let mut b = Aabb::EMPTY;
+        for n in std::iter::once(id).chain(self.descendants(id)) {
+            if let Some(NodeKind::Brush(_) | NodeKind::Mesh(_)) = self.get(n).map(|n| &n.kind) {
+                b.include(&self.bounds(n));
+            }
+        }
+
+        if b.is_empty() { self.bounds(id) } else { b }
+    }
+
     /// Nearest ancestor group that is closed, which is what a click in the viewport selects.
     pub fn selection_target(&self, id: NodeId, open_groups: &[NodeId]) -> NodeId {
         let mut target = id;

@@ -6,6 +6,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use td_core::{Aabb, AxisPlane, DMat4, DVec3, NodeId};
 use td_geom::{Brush, csg};
 
+use crate::linked;
 use crate::map::{Map, NodeKind};
 use crate::ops::{self, EditOptions, Replaced};
 use crate::selection::Selection;
@@ -29,20 +30,44 @@ fn link_of(map: &Map, id: NodeId) -> Option<u64> {
 }
 
 /// Gives each selected group a linked copy reflected across the plane `choice` puts on `axis` for the groups' bounds,
-/// and selects the copies. Returns None and changes nothing without a selected group or a plane.
-pub fn mirror_linked(map: &mut Map, sel: &mut Selection, axis: usize, choice: &PlaneChoice) -> Option<(Vec<NodeId>, AxisPlane)> {
+/// and selects the copies. A `gap` moves the plane half of it away from the groups, so they stay where they are and
+/// the copies land `gap` further off. Returns None and changes nothing without a selected group or a plane.
+pub fn mirror_linked(map: &mut Map, sel: &mut Selection, axis: usize, choice: &PlaneChoice, gap: f64) -> Option<(Vec<NodeId>, AxisPlane)> {
     let is_group = |id: &NodeId| matches!(map.get(*id).map(|n| &n.kind), Some(NodeKind::Group(_)));
     let groups: Vec<NodeId> = ops::selection_roots(map, sel).into_iter().filter(is_group).collect();
     if groups.is_empty() {
         return None;
     }
 
-    let plane = choice.resolve(axis, &map.bounds_of(groups))?;
+    let bounds = map.bounds_of(groups.iter().copied());
+    let plane = choice.resolve(axis, &bounds)?;
+    let mut solid = Aabb::EMPTY;
+    for g in &groups {
+        solid.include(&map.solid_bounds(*g));
+    }
+
+    let plane = widened(plane, &bounds, &solid, gap.min(MAX_GAP));
     // Sync maps edits between copies with UV lock on, a copy made without it would change its textures on the first edit.
     let opts = EditOptions { uv_lock: true, ..EditOptions::default() };
     let copies = ops::duplicate_linked(map, sel, DVec3::ZERO, opts);
     ops::transform_selection(map, sel, &plane.matrix(), opts);
     Some((copies, plane))
+}
+
+/// How far short of covering each other the halves stop when a gap pulls them in. Once they cover each other exactly
+/// nothing tells which one was lower, and the next gap could swap them.
+const COVER_SLACK: f64 = 1.0 / 4096.0;
+
+/// The widest gap [`mirror_linked`] and [`set_gap`] put between halves, so a typo cannot throw a half out of the world.
+pub const MAX_GAP: f64 = 65536.0;
+
+/// `plane` moved `gap` / 2 away from the original within `bounds`. It stops [`COVER_SLACK`] / 2 short of the centre of
+/// the `solid` bounds, where the copy covers the original, the same limit as [`set_gap`].
+fn widened(plane: AxisPlane, bounds: &Aabb, solid: &Aabb, gap: f64) -> AxisPlane {
+    let (p, axis) = (plane.at, plane.axis);
+    let (centre, slack) = (solid.center()[axis], COVER_SLACK / 2.0);
+    let at = if p >= bounds.center()[axis] { (p + gap / 2.0).max(p.min(centre + slack)) } else { (p - gap / 2.0).min(p.max(centre - slack)) };
+    AxisPlane { axis, at }
 }
 
 /// The other members of `group`'s link set placed as its mirror image, each with the plane between them, by id.
@@ -173,6 +198,66 @@ pub fn selection_planes(map: &Map, sel: &Selection) -> Vec<MirrorPlane> {
     }
 
     planes
+}
+
+/// The halves of `mirror` with their solid bounds, the one lower on the axis first, the group on a tie.
+fn sides(map: &Map, mirror: &MirrorPlane) -> [(NodeId, Aabb); 2] {
+    let axis = mirror.plane.axis;
+    let [a, b] = [mirror.group, mirror.partner].map(|id| (id, map.solid_bounds(id)));
+    if b.1.center()[axis] < a.1.center()[axis] { [b, a] } else { [a, b] }
+}
+
+/// Space between the brushes and meshes of the halves of `mirror` along its axis, negative where they overlap, to a
+/// thousandth so the [`COVER_SLACK`] left at full overlap reads as none.
+pub fn gap(map: &Map, mirror: &MirrorPlane) -> f64 {
+    let axis = mirror.plane.axis;
+    let [(_, low), (_, high)] = sides(map, mirror);
+    ((high.min[axis] - low.max[axis]) * 1000.0).round() / 1000.0
+}
+
+/// The gap [`set_gap`] sets for `gap`, between minus the narrower half's width and [`MAX_GAP`], and whether the halves
+/// have to move for it.
+pub fn gap_target(map: &Map, mirror: &MirrorPlane, gap: f64) -> (f64, bool) {
+    let (gap, offset) = gap_offset(&sides(map, mirror), mirror.plane.axis, gap);
+    (gap, offset != 0.0)
+}
+
+fn gap_offset(sides: &[(NodeId, Aabb); 2], axis: usize, gap: f64) -> (f64, f64) {
+    let [(_, a), (_, b)] = sides;
+    let width = |b: &Aabb| b.max[axis] - b.min[axis];
+    let narrower = width(a).min(width(b));
+    let gap = gap.max(-narrower).min(MAX_GAP);
+    let offset = (gap.max(COVER_SLACK - narrower) - (b.min[axis] - a.max[axis])) / 2.0;
+    (gap, if offset.abs() < 1e-9 { 0.0 } else { offset })
+}
+
+/// Moves the halves of `mirror` evenly apart or together until they are `gap` apart, so the plane stays. The rest of
+/// the link set moves with the half on its side, which keeps every other mirror plane of the set a pure reflection.
+/// The gap stops at [`MAX_GAP`] and at minus the narrower half's width, where one half covers the other, less
+/// [`COVER_SLACK`]. Returns the gap it set.
+pub fn set_gap(map: &mut Map, mirror: &MirrorPlane, gap: f64) -> f64 {
+    let axis = mirror.plane.axis;
+    let sides = sides(map, mirror);
+    let [(low, _), (high, _)] = sides;
+    let (gap, by) = gap_offset(&sides, axis, gap);
+    if by == 0.0 {
+        return gap;
+    }
+
+    let mut offset = DVec3::ZERO;
+    offset[axis] = by;
+    let (mut lows, mut highs) = (Selection::default(), Selection::default());
+    let members = link_of(map, mirror.group).map(|link| linked::members(map, link)).unwrap_or_else(|| vec![low, high]);
+    for m in members {
+        let below = m == low || (m != high && map.solid_bounds(m).center()[axis] < mirror.plane.at);
+        let side = if below { &mut lows } else { &mut highs };
+        side.nodes.insert(m);
+    }
+
+    let opts = EditOptions { uv_lock: true, ..EditOptions::default() };
+    ops::translate_selection(map, &lows, -offset, opts);
+    ops::translate_selection(map, &highs, offset, opts);
+    gap
 }
 
 /// What [`apply_mirror`] did.
@@ -397,8 +482,10 @@ mod tests {
 
     use super::*;
     use crate::linked::tests::{assert_copy_maps, wedge};
+    use crate::map::Instance;
+    use crate::scatter::ScatterInstance;
     use crate::symmetry::{MIRROR_TOLERANCE, PlaneAt};
-    use crate::{Document, Entity};
+    use crate::{Document, Entity, Scatter, ScatterItem, ScatterKind};
 
     const WEDGE_MIN: DVec3 = DVec3::new(8.0, 2.0, 4.0);
     const WEDGE_MAX: DVec3 = DVec3::new(40.0, 34.0, 20.0);
@@ -421,7 +508,7 @@ mod tests {
 
     fn mirror(doc: &mut Document, ids: &[NodeId], axis: usize, at: PlaneAt) -> (Vec<NodeId>, AxisPlane) {
         select(doc, ids);
-        doc.edit("Mirror Linked", |m, s| mirror_linked(m, s, axis, &PlaneChoice { at, custom: 100.25 })).unwrap()
+        doc.edit("Mirror Linked", |m, s| mirror_linked(m, s, axis, &PlaneChoice { at, custom: 100.25 }, 0.0)).unwrap()
     }
 
     fn shifted(doc: &mut Document, ids: &[NodeId], offset: DVec3) -> Vec<NodeId> {
@@ -504,7 +591,7 @@ mod tests {
         for (ids, at) in [(&[][..], PlaneAt::World), (&[loose][..], PlaneAt::World), (&[empty][..], PlaneAt::Max), (&[empty][..], PlaneAt::Center)] {
             select(&mut doc, ids);
             let mut sel = doc.selection.clone();
-            assert_eq!(mirror_linked(&mut doc.map, &mut sel, 0, &PlaneChoice { at, custom: 0.0 }), None, "{ids:?} {at:?}");
+            assert_eq!(mirror_linked(&mut doc.map, &mut sel, 0, &PlaneChoice { at, custom: 0.0 }, 0.0), None, "{ids:?} {at:?}");
             assert!(doc.map.nodes == before, "{ids:?} {at:?} changed the map");
             assert_eq!(sel, doc.selection, "{ids:?} {at:?} changed the selection");
         }
@@ -841,7 +928,7 @@ mod tests {
         let group = group_of(&mut doc, wedge(), "half");
         select(&mut doc, &[group]);
         let gap = PlaneChoice { at: PlaneAt::Custom, custom: 40.5 };
-        let copy = doc.edit("Mirror Linked", |m, s| mirror_linked(m, s, 0, &gap)).unwrap().0[0];
+        let copy = doc.edit("Mirror Linked", |m, s| mirror_linked(m, s, 0, &gap, 0.0)).unwrap().0[0];
         let before = doc.map.nodes.clone();
         assert_eq!(apply(&mut doc, &[group], 0.49), Err(ApplyError::Apart));
         assert!(doc.map.nodes == before);
@@ -943,6 +1030,218 @@ mod tests {
         for w in all {
             let b = doc.map.brush(children(&doc.map, w)[0]).unwrap();
             assert!(b.faces.iter().all(|f| f.data.material == "glass"), "{w} missed the edit");
+        }
+    }
+
+    fn shifted_box(b: Aabb, axis: usize, by: f64) -> Aabb {
+        let mut offset = DVec3::ZERO;
+        offset[axis] = by;
+        Aabb::new(b.min + offset, b.max + offset)
+    }
+
+    fn reflected(b: Aabb, p: AxisPlane) -> Aabb {
+        Aabb::from_points([b.min, b.max].map(|c| p.matrix().transform_point3(c)))
+    }
+
+    fn the_plane(doc: &Document, ids: &[NodeId], axis: usize) -> MirrorPlane {
+        let sel = Selection { nodes: ids.iter().copied().collect(), ..Selection::default() };
+        selection_planes(&doc.map, &sel).into_iter().find(|m| m.plane.axis == axis).unwrap()
+    }
+
+    fn set(doc: &mut Document, mirror: &MirrorPlane, to: f64) -> f64 {
+        let set = doc.edit("Set Mirror Gap", |m, _| set_gap(m, mirror, to));
+        assert!(!doc.take_link_conflict(), "moving whole halves leaves the copies alike");
+        set
+    }
+
+    fn rocks_at(position: DVec3) -> Scatter {
+        let mut rocks = Scatter::new("rocks", ScatterKind::Props, vec![ScatterItem::new("res://a.glb")]);
+        rocks.instances.push(ScatterInstance { item: 0, position, angles: DVec3::ZERO, scale: 1.0 });
+        rocks
+    }
+
+    const WEDGE: Aabb = Aabb { min: WEDGE_MIN, max: WEDGE_MAX };
+
+    #[test]
+    fn solid_bounds_leave_out_scatter_entities_and_instances() {
+        let mut doc = Document::new();
+        let layer = doc.map.default_layer();
+        let furniture = furnished(&mut doc);
+        let [lamp] = of_kind(&doc.map, furniture, "entity")[..] else { panic!("one light") };
+        let prop = Instance { path: "prop.tdm".into(), origin: DVec3::new(-50.0, 6.0, 30.0), angles: DVec3::ZERO, fixup: String::new() };
+        let lone = doc.edit("add", |m, s| {
+            m.insert(furniture, NodeKind::Scatter(rocks_at(DVec3::new(90.0, -20.0, 12.0))));
+            m.insert(furniture, NodeKind::Instance(prop));
+            let mut light = Entity::new("light");
+            light.origin = LAMP;
+            s.clear();
+            s.select_node(m.insert(layer, NodeKind::Entity(light)));
+            ops::group_selection(m, s, "lone", layer).unwrap()
+        });
+
+        assert_bounds(doc.map.solid_bounds(furniture), Aabb::new(WEDGE_MIN, DVec3::new(40.0, 59.5, 20.0)));
+        assert_bounds(doc.map.bounds(furniture), Aabb::new(DVec3::new(-58.0, -20.0, -4.0), DVec3::new(106.0, 59.5, 38.0)));
+        let [brush] = of_kind(&doc.map, furniture, "brush")[..] else { panic!("one brush") };
+        assert_bounds(doc.map.solid_bounds(brush), WEDGE);
+        let lamp_box = Aabb::from_center_size(LAMP, DVec3::splat(16.0));
+        assert_bounds(doc.map.solid_bounds(lamp), lamp_box);
+        assert_bounds(doc.map.solid_bounds(lone), lamp_box);
+    }
+
+    #[test]
+    fn the_gap_counts_brushes_and_meshes_only() {
+        let mut doc = Document::new();
+        let half = furnished(&mut doc);
+        doc.edit("add", |m, _| m.insert(half, NodeKind::Scatter(rocks_at(DVec3::new(60.0, 10.0, 12.0)))));
+        let (copies, found) = mirror(&mut doc, &[half], 0, PlaneAt::Max);
+        assert_eq!(found, plane(0, 76.0), "the plane is still put on the full bounds");
+
+        let pair = the_plane(&doc, &[half], 0);
+        assert_eq!((pair.group, pair.partner), (half, copies[0]));
+        assert_eq!(gap(&doc.map, &pair), 72.0);
+        assert!(found.meets(&doc.map.bounds(half), 0.0) && found.meets(&doc.map.bounds(copies[0]), 0.0), "the rocks of both halves touch");
+    }
+
+    #[test]
+    fn setting_the_gap_moves_both_halves_evenly() {
+        for axis in 0..3 {
+            let mut doc = Document::new();
+            let group = group_of(&mut doc, wedge(), "half");
+            let (copies, found) = mirror(&mut doc, &[group], axis, PlaneAt::Max);
+            let copy = copies[0];
+            let picked = if axis == 1 { copy } else { group };
+            let pair = the_plane(&doc, &[picked], axis);
+            assert_eq!(pair.plane, found);
+            assert_eq!(gap(&doc.map, &pair), 0.0);
+
+            for to in [0.0, 1.0, 40.0] {
+                assert_eq!(set(&mut doc, &pair, to), to, "axis {axis}");
+                assert_eq!(gap(&doc.map, &pair), to, "axis {axis}");
+                assert_eq!(partners(&doc.map, group), [(copy, found)], "the plane stays on {axis}");
+                assert_bounds(doc.map.solid_bounds(group), shifted_box(WEDGE, axis, -to / 2.0));
+                assert_bounds(doc.map.solid_bounds(copy), shifted_box(reflected(WEDGE, found), axis, to / 2.0));
+                assert_copy_maps(&doc.map, group, copy, &found.matrix());
+            }
+
+            assert_eq!(doc.undo().as_deref(), Some("Set Mirror Gap"));
+            assert_eq!(gap(&doc.map, &pair), 1.0);
+        }
+    }
+
+    #[test]
+    fn the_gap_clamps_at_minus_the_narrower_half() {
+        let mut doc = Document::new();
+        let group = group_of(&mut doc, wedge(), "half");
+        let copy = mirror(&mut doc, &[group], 0, PlaneAt::Max).0[0];
+        let bystander = group_of(&mut doc, wedge(), "bystander");
+        let pair = the_plane(&doc, &[group], 0);
+
+        assert_eq!(set(&mut doc, &pair, -31.0), -31.0);
+        assert_eq!(set(&mut doc, &pair, -32.0), -32.0, "exactly the width");
+        assert_bounds(doc.map.solid_bounds(copy), shifted_box(doc.map.solid_bounds(group), 0, COVER_SLACK));
+        let covered = doc.map.nodes.clone();
+        assert_eq!(set(&mut doc, &pair, -33.0), -32.0, "past the width clamps");
+        assert!(doc.map.nodes == covered, "a clamped gap that changes nothing moves nothing");
+        assert_eq!(set(&mut doc, &pair, -100.0), -32.0);
+        assert_eq!((gap(&doc.map, &pair), partners(&doc.map, group)), (-32.0, vec![(copy, plane(0, 40.0))]));
+        assert_bounds(doc.map.solid_bounds(bystander), WEDGE);
+        assert_eq!(gap_target(&doc.map, &pair, -100.0), (-32.0, false));
+        assert_eq!(gap_target(&doc.map, &pair, 8.0), (8.0, true));
+    }
+
+    #[test]
+    fn the_gap_stops_at_max_gap() {
+        let mut doc = Document::new();
+        let group = group_of(&mut doc, wedge(), "half");
+        mirror(&mut doc, &[group], 0, PlaneAt::Max);
+        let pair = the_plane(&doc, &[group], 0);
+        assert_eq!(set(&mut doc, &pair, 1e300), MAX_GAP);
+        assert_eq!(gap(&doc.map, &pair), MAX_GAP);
+        assert_eq!(gap_target(&doc.map, &pair, MAX_GAP + 1.0), (MAX_GAP, false));
+        assert_eq!(gap_target(&doc.map, &pair, MAX_GAP), (MAX_GAP, false), "the same gap again moves nothing");
+        assert_eq!(the_plane(&doc, &[group], 0).plane, plane(0, 40.0));
+    }
+
+    #[test]
+    fn the_halves_keep_their_sides_through_full_overlap() {
+        for picked_copy in [false, true] {
+            let mut doc = Document::new();
+            let group = group_of(&mut doc, wedge(), "half");
+            let (copies, found) = mirror(&mut doc, &[group], 0, PlaneAt::Max);
+            let copy = copies[0];
+            let pair = the_plane(&doc, &[if picked_copy { copy } else { group }], 0);
+            assert_eq!(set(&mut doc, &pair, -5000.0), -32.0);
+            assert_eq!(gap(&doc.map, &the_plane(&doc, &[group], 0)), -32.0);
+            let pair = the_plane(&doc, &[if picked_copy { copy } else { group }], 0);
+            assert_eq!(set(&mut doc, &pair, 0.0), 0.0);
+            assert_eq!(gap(&doc.map, &the_plane(&doc, &[group], 0)), 0.0);
+            assert_bounds(doc.map.solid_bounds(group), WEDGE);
+            assert_bounds(doc.map.solid_bounds(copy), reflected(WEDGE, found));
+        }
+
+        for at in [PlaneAt::Max, PlaneAt::Min] {
+            let mut doc = Document::new();
+            let group = group_of(&mut doc, wedge(), "half");
+            select(&mut doc, &[group]);
+            let choice = PlaneChoice { at, custom: 0.0 };
+            let (copies, found) = doc.edit("Mirror Linked", |m, s| mirror_linked(m, s, 0, &choice, -5000.0)).unwrap();
+            assert_bounds(doc.map.solid_bounds(group), WEDGE);
+            assert_eq!(gap(&doc.map, &the_plane(&doc, &copies, 0)), -32.0, "{at:?}");
+            let pair = the_plane(&doc, &copies, 0);
+            set(&mut doc, &pair, 0.0);
+            let (g, c) = (doc.map.solid_bounds(group), doc.map.solid_bounds(copies[0]));
+            let low = if at == PlaneAt::Max { (g, c) } else { (c, g) };
+            assert!((low.0.max.x - found.at).abs() < 1e-3 && (low.1.min.x - found.at).abs() < 1e-3, "{at:?} {g:?} {c:?} {found:?}");
+        }
+    }
+
+    #[test]
+    fn setting_the_gap_keeps_the_other_planes_of_quarters() {
+        let mut doc = Document::new();
+        let a = group_of(&mut doc, wedge(), "quarter");
+        let b = mirror(&mut doc, &[a], 0, PlaneAt::Max).0[0];
+        let [c, d]: [NodeId; 2] = mirror(&mut doc, &[a, b], 2, PlaneAt::Min).0.try_into().unwrap();
+        let pair = the_plane(&doc, &[a], 0);
+        assert_eq!(set(&mut doc, &pair, 10.0), 10.0);
+
+        select(&mut doc, &[a]);
+        assert_eq!(
+            selection_planes(&doc.map, &doc.selection),
+            [
+                MirrorPlane { plane: plane(0, 40.0), group: a, partner: b, span: Aabb::new(DVec3::new(3.0, 2.0, 4.0), DVec3::new(77.0, 34.0, 20.0)) },
+                MirrorPlane { plane: plane(2, 4.0), group: a, partner: c, span: Aabb::new(DVec3::new(3.0, 2.0, -12.0), DVec3::new(35.0, 34.0, 20.0)) },
+            ]
+        );
+        assert_eq!(partners(&doc.map, d), [(b, plane(2, 4.0)), (c, plane(0, 40.0))]);
+        assert_eq!(gap(&doc.map, &the_plane(&doc, &[d], 0)), 10.0);
+    }
+
+    #[test]
+    fn mirror_linked_with_a_gap_leaves_the_original_in_place() {
+        let cases = [
+            (PlaneAt::Max, 0.0, 40.0, 0.0),
+            (PlaneAt::Max, 16.0, 48.0, 16.0),
+            (PlaneAt::Min, 16.0, 0.0, 16.0),
+            (PlaneAt::Center, 16.0, 32.0, -16.0),
+            (PlaneAt::Center, -8.0, 24.0, -32.0),
+            (PlaneAt::World, 16.0, -8.0, 32.0),
+            (PlaneAt::Custom, 16.0, 108.25, 136.5),
+            (PlaneAt::Max, -10.0, 35.0, -10.0),
+            (PlaneAt::Max, -32.0, 24.0 + COVER_SLACK / 2.0, -32.0),
+            (PlaneAt::Max, -40.0, 24.0 + COVER_SLACK / 2.0, -32.0),
+            (PlaneAt::Max, 1e300, 40.0 + MAX_GAP / 2.0, MAX_GAP),
+        ];
+        for (at, by, want, measured) in cases {
+            let mut doc = Document::new();
+            let group = group_of(&mut doc, wedge(), "half");
+            select(&mut doc, &[group]);
+            let choice = PlaneChoice { at, custom: 100.25 };
+            let (copies, found) = doc.edit("Mirror Linked", |m, s| mirror_linked(m, s, 0, &choice, by)).unwrap();
+            assert_eq!(found, plane(0, want), "{at:?} {by}");
+            assert_bounds(doc.map.solid_bounds(group), WEDGE);
+            assert_copy_maps(&doc.map, group, copies[0], &found.matrix());
+            let pair = MirrorPlane { plane: found, group, partner: copies[0], span: Aabb::EMPTY };
+            assert_eq!(gap(&doc.map, &pair), measured, "{at:?} {by}");
         }
     }
 

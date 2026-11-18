@@ -3528,7 +3528,7 @@ mod tests {
             ops::group_selection(m, s, "half", layer).unwrap()
         });
         let choice = td_doc::symmetry::PlaneChoice::default();
-        let (copies, _) = state.doc.edit("Mirror Linked", |m, s| td_doc::mirror::mirror_linked(m, s, axis, &choice)).unwrap();
+        let (copies, _) = state.doc.edit("Mirror Linked", |m, s| td_doc::mirror::mirror_linked(m, s, axis, &choice, 0.0)).unwrap();
         (state, group, copies[0])
     }
 

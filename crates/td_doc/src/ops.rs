@@ -1340,7 +1340,7 @@ mod tests {
             (group_selection(m, s, "half", layer).unwrap(), [window, twin])
         });
         select(&mut doc, &[half]);
-        let copy = doc.edit("Mirror Linked", |m, s| mirror_linked(m, s, 0, &PlaneChoice { at: PlaneAt::Max, custom: 0.0 })).unwrap().0[0];
+        let copy = doc.edit("Mirror Linked", |m, s| mirror_linked(m, s, 0, &PlaneChoice { at: PlaneAt::Max, custom: 0.0 }, 0.0)).unwrap().0[0];
         let pair = link(&doc.map, copy);
         assert!(pair.0.is_some() && pair.1 != DMat4::IDENTITY, "{pair:?}");
         let copied_windows: Vec<NodeId> = doc
