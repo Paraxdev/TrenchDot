@@ -207,6 +207,9 @@ The coordinates that say which part of a texture lands on each point of a face, 
 ## vertex
 A corner point of a shape. A terrain has one at every crossing of its grid, each holding a height and a paint mix, and the cells are the squares between them. Meshes have vertices too, and a face is the area between its corners.
 
+## VisGroup
+A named set of objects in Hammer that you show or hide together. TrenchDot's layers do the same job, but you fill them yourself.
+
 ## worldspawn
 The map's root entity, which holds the world brushes. Its keys hold settings for the whole map, such as the sky, fog, sun and streaming, and the Inspector shows it when nothing is selected.
 

@@ -6,6 +6,7 @@
 * Editor
     * [Interface and navigation](editor/interface.md)
     * [Coming from Unity or Blender](editor/coming-from-unity-blender.md)
+    * [Coming from Hammer or TrenchBroom](editor/coming-from-hammer-trenchbroom.md)
     * [Brushes and CSG](editor/brushes.md)
     * [Trim](editor/trim.md)
     * [Meshes](editor/meshes.md)
