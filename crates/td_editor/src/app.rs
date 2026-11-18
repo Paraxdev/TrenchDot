@@ -15,7 +15,7 @@ use crate::mesh_tool::MeshOp;
 use crate::panels::{self, PanelState};
 use crate::scene::SceneCache;
 use crate::state::{EditorState, Prefs, Shade};
-use crate::tools::ToolKind;
+use crate::tools::{self, ToolKind};
 use crate::toolset::ToolSet;
 use crate::viewport::{ViewCtx, Viewport};
 
@@ -1638,7 +1638,7 @@ impl App {
             });
             menu(ui, en!("Tools"), |ui| {
                 ui.set_min_width(MENU_WIDTH);
-                for (i, group) in ToolKind::GROUPS.iter().enumerate() {
+                for (i, group) in tools::FAMILIES.iter().flat_map(|family| family.iter()).enumerate() {
                     if i > 0 {
                         ui.separator();
                     }
@@ -1898,25 +1898,36 @@ impl App {
             tools_rect |= group;
             group = egui::Rect::NOTHING;
             group_gap(ui);
-            for (i, tools) in ToolKind::GROUPS.iter().enumerate() {
-                if i > 0 {
-                    ui.add_space(6.0);
+            for (f, family) in tools::FAMILIES.iter().enumerate() {
+                if f > 0 {
+                    tools_rect |= group;
+                    group = egui::Rect::NOTHING;
+                    group_gap(ui);
                 }
 
-                for t in tools.iter().copied() {
-                    let text = format!("{}\n{}", tip(&trf!("{tool} Tool", tool = tr(t.label())), &Action::SetTool(t)), tr(panels::tool_help(t)));
-                    let tooltip = help::tooltip(ui, &text, tr(help::TOOL_HINT));
-                    let resp = icons::toggle(ui, icons::tool(t), size, self.state.tool == t, tr(t.label()), tooltip);
-                    group |= resp.rect;
-                    icon_count += 1;
-                    self.tool_buttons.push((t, resp.rect));
-                    help::register(&resp, Topic::Tool(t));
-                    if !help::open_on_ctrl_click(&resp, Topic::Tool(t)) && resp.clicked() {
-                        self.actions.push(Action::SetTool(t));
+                for (i, sub) in family.iter().enumerate() {
+                    if i > 0 {
+                        ui.add_space(6.0);
+                    }
+
+                    for t in sub.iter().copied() {
+                        let text = format!("{}\n{}", tip(&trf!("{tool} Tool", tool = tr(t.label())), &Action::SetTool(t)), tr(panels::tool_help(t)));
+                        let tooltip = help::tooltip(ui, &text, tr(help::TOOL_HINT));
+                        let resp = icons::toggle(ui, icons::tool(t), size, self.state.tool == t, tr(t.label()), tooltip);
+                        group |= resp.rect;
+                        icon_count += 1;
+                        self.tool_buttons.push((t, resp.rect));
+                        help::register(&resp, Topic::Tool(t));
+                        if !help::open_on_ctrl_click(&resp, Topic::Tool(t)) && resp.clicked() {
+                            self.actions.push(Action::SetTool(t));
+                        }
                     }
                 }
             }
 
+            let (end_rect, end_icons) = self.tool_row_end(ui, size);
+            group |= end_rect;
+            icon_count += end_icons;
             tools_rect |= group;
             group = egui::Rect::NOTHING;
             group_gap(ui);
@@ -2000,6 +2011,11 @@ impl App {
         self.toolbar_fit.icon = size;
         self.toolbar_fit.icons = icon_count;
         self.toolbar_fit.tools_width = tools_rect.width();
+    }
+
+    /// The end of the tool block. A preset dependent widget, such as an Object or Face switch, goes here. It returns the rect it used and how many icons it added so the toolbar fit stays right.
+    fn tool_row_end(&mut self, _ui: &mut Ui, _size: f32) -> (egui::Rect, usize) {
+        (egui::Rect::NOTHING, 0)
     }
 
     /// Godot robot button (open the project in Godot, or show the editor that has it open) and the live mode toggle, laid

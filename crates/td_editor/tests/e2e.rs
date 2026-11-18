@@ -5799,3 +5799,49 @@ fn the_vertex_bar_picks_the_symmetry_axis_and_plane() {
     assert_eq!(axis(&ed)["plane"], "world");
     ed.screenshot("window", "plane_world");
 }
+
+/// The tool row lists the brush tools first, then a wider gap, then the terrain and paint tools.
+#[test]
+#[ignore]
+fn the_tool_row_puts_brush_tools_before_terrain_and_paint_tools() {
+    let ed = Editor::launch("tool_row_families");
+    let state = ed.state();
+    let buttons: Vec<(String, String, Vec<f64>)> = state["ui"]["tool_buttons"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|b| {
+            (
+                b["tool"].as_str().unwrap().to_string(),
+                b["family"].as_str().unwrap().to_string(),
+                b["rect"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect(),
+            )
+        })
+        .collect();
+    assert_eq!(buttons.len(), 16, "{buttons:?}");
+
+    let terrain: Vec<&str> = buttons.iter().filter(|b| b.1 == "terrain").map(|b| b.0.as_str()).collect();
+    assert_eq!(terrain, ["Sculpt", "Blend", "Paint", "Scatter"]);
+    assert!(buttons.iter().filter(|b| b.1 == "brush").all(|b| !terrain.contains(&b.0.as_str())));
+    assert_eq!(buttons.iter().filter(|b| b.1 == "brush").count(), 12);
+    assert!(buttons.iter().all(|b| b.1 == "brush" || b.1 == "terrain"), "{buttons:?}");
+
+    let last_brush = buttons.iter().filter(|b| b.1 == "brush").map(|b| b.2[2]).fold(f64::MIN, f64::max);
+    let first_terrain = buttons.iter().filter(|b| b.1 == "terrain").map(|b| b.2[0]).fold(f64::MAX, f64::min);
+    assert!(buttons.iter().filter(|b| b.1 == "brush").all(|b| b.2[2] <= first_terrain), "a brush tool sits right of a terrain tool: {buttons:?}");
+    let separator = first_terrain - last_brush;
+
+    let y_center = |b: &(String, String, Vec<f64>)| (b.2[1] + b.2[3]) / 2.0;
+    assert!(buttons.iter().all(|b| (y_center(b) - y_center(&buttons[0])).abs() < 1.0), "the tool row wrapped: {buttons:?}");
+
+    let mut inside = 0.0_f64;
+    for pair in buttons.windows(2) {
+        if pair[0].1 == pair[1].1 {
+            inside = inside.max(pair[1].2[0] - pair[0].2[2]);
+        }
+    }
+
+    assert!(inside > 0.0 && separator > inside, "separator {separator} is not wider than the widest gap inside a family {inside}");
+    assert_eq!(buttons.first().unwrap().0, "Select");
+    assert_eq!(buttons.iter().position(|b| b.0 == "Texture").map(|i| i < 12), Some(true), "Texture sits with the brush tools");
+}

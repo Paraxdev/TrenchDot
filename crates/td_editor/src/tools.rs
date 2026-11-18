@@ -77,14 +77,9 @@ impl ToolKind {
         ]
     }
 
-    /// Tools grouped the way the toolbar and the Tools menu show them: brush editing, meshes, surfaces, terrain, gameplay.
-    pub const GROUPS: [&'static [ToolKind]; 5] = [
-        &[ToolKind::Select, ToolKind::Polygon, ToolKind::Clip, ToolKind::Vertex, ToolKind::Rotate, ToolKind::Scale, ToolKind::Shear],
-        &[ToolKind::Mesh],
-        &[ToolKind::Texture, ToolKind::Paint],
-        &[ToolKind::Sculpt, ToolKind::Blend, ToolKind::Scatter],
-        &[ToolKind::Volume, ToolKind::Path, ToolKind::Measure],
-    ];
+    pub fn family(self) -> ToolFamily {
+        if TERRAIN_TOOLS.iter().any(|g| g.contains(&self)) { ToolFamily::Terrain } else { ToolFamily::Brush }
+    }
 
     /// Accepts labels case insensitively, and "sprinkle" as the old name of the scatter tool.
     pub fn from_name(name: &str) -> Option<ToolKind> {
@@ -95,6 +90,36 @@ impl ToolKind {
         ToolKind::all().into_iter().find(|t| t.label().eq_ignore_ascii_case(name))
     }
 }
+
+/// The two blocks of the tool row and the Tools menu.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ToolFamily {
+    Brush,
+    Terrain,
+}
+
+impl ToolFamily {
+    /// The name `get_state` reports.
+    pub fn name(self) -> &'static str {
+        match self {
+            ToolFamily::Brush => "brush",
+            ToolFamily::Terrain => "terrain",
+        }
+    }
+}
+
+/// Brush editing, then surfaces, meshes and the gameplay helpers. Sub groups are split by a small gap in the toolbar and a separator in the Tools menu.
+pub const BRUSH_TOOLS: &[&[ToolKind]] = &[
+    &[ToolKind::Select, ToolKind::Polygon, ToolKind::Clip, ToolKind::Vertex, ToolKind::Rotate, ToolKind::Scale, ToolKind::Shear],
+    &[ToolKind::Texture],
+    &[ToolKind::Mesh],
+    &[ToolKind::Volume, ToolKind::Path, ToolKind::Measure],
+];
+
+pub const TERRAIN_TOOLS: &[&[ToolKind]] = &[&[ToolKind::Sculpt, ToolKind::Blend, ToolKind::Paint, ToolKind::Scatter]];
+
+/// The families in toolbar order, brush work first.
+pub const FAMILIES: [&[&[ToolKind]]; 2] = [BRUSH_TOOLS, TERRAIN_TOOLS];
 
 /// An in-progress mouse drag in a viewport.
 #[derive(Clone, Debug)]
@@ -167,9 +192,23 @@ mod tests {
     use super::*;
 
     #[test]
-    fn groups_list_every_tool_once() {
-        let grouped: Vec<ToolKind> = ToolKind::GROUPS.iter().flat_map(|g| g.iter().copied()).collect();
-        assert_eq!(grouped.len(), ToolKind::all().len());
-        assert!(ToolKind::all().iter().all(|t| grouped.contains(t)));
+    fn families_list_every_tool_once() {
+        let listed: Vec<ToolKind> = FAMILIES.iter().flat_map(|f| f.iter()).flat_map(|g| g.iter().copied()).collect();
+        assert_eq!(listed.len(), ToolKind::all().len());
+        assert!(ToolKind::all().iter().all(|t| listed.iter().filter(|l| *l == t).count() == 1));
+    }
+
+    #[test]
+    fn brush_tools_come_first_and_terrain_tools_are_their_own_family() {
+        assert_eq!(FAMILIES[0], BRUSH_TOOLS);
+        assert_eq!(FAMILIES[1], TERRAIN_TOOLS);
+        assert_eq!(BRUSH_TOOLS[0][0], ToolKind::Select);
+        assert!(BRUSH_TOOLS.iter().any(|g| g.contains(&ToolKind::Texture)));
+        let terrain: Vec<ToolKind> = TERRAIN_TOOLS.iter().flat_map(|g| g.iter().copied()).collect();
+        assert_eq!(terrain, [ToolKind::Sculpt, ToolKind::Blend, ToolKind::Paint, ToolKind::Scatter]);
+        for t in ToolKind::all() {
+            let want = if terrain.contains(&t) { ToolFamily::Terrain } else { ToolFamily::Brush };
+            assert_eq!(t.family(), want, "{}", t.label());
+        }
     }
 }
