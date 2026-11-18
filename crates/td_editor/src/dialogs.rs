@@ -1214,6 +1214,7 @@ impl TerrainDialog {
 pub enum KeymapTab {
     #[default]
     Keys,
+    Mouse,
     ToolKeys,
 }
 
@@ -1227,6 +1228,32 @@ pub struct KeymapWindow {
     searching: bool,
     key_search: Option<egui::KeyboardShortcut>,
     taken: Option<TakenChord>,
+}
+
+/// The mouse gestures of `preset`, one grid per place they apply. Read only, the rows come from the click rules.
+fn mouse_tab(ui: &mut egui::Ui, preset: &str) {
+    let rows = crate::mouse_map::mouse_rows(preset);
+    let mut contexts: Vec<&str> = Vec::new();
+    for row in &rows {
+        if !contexts.contains(&row.context) {
+            contexts.push(row.context);
+        }
+    }
+
+    egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+        let column = ((ui.available_width() - ui.spacing().item_spacing.x) / 2.0).max(80.0);
+        for context in contexts {
+            ui.label(RichText::new(tr(context)).strong());
+            egui::Grid::new(("mouse", context)).striped(true).num_columns(2).min_col_width(column).max_col_width(column).show(ui, |ui| {
+                for row in rows.iter().filter(|r| r.context == context) {
+                    ui.label(&row.gesture);
+                    ui.label(tr(row.what));
+                    ui.end_row();
+                }
+            });
+            ui.add_space(6.0);
+        }
+    });
 }
 
 /// A recorded chord another action holds, waiting for Replace, Swap or Cancel.
@@ -1308,10 +1335,18 @@ impl KeymapWindow {
         widgets::centered_window(en!("Keyboard Shortcuts"), ctx).open(&mut open).default_size([520.0, 520.0]).show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.tab, KeymapTab::Keys, tr("Keys"));
+                ui.selectable_value(&mut self.tab, KeymapTab::Mouse, tr("Mouse"));
                 ui.selectable_value(&mut self.tab, KeymapTab::ToolKeys, tr("Tool keys"));
             });
             if self.tab == KeymapTab::ToolKeys {
                 self.tool_keys_tab(ui);
+                return;
+            }
+
+            if self.tab == KeymapTab::Mouse {
+                ui.horizontal(|ui| self.preset_combo(ui, state));
+                ui.separator();
+                mouse_tab(ui, &state.prefs.keymap_preset);
                 return;
             }
 
@@ -2604,6 +2639,32 @@ mod tests {
     }
 
     #[test]
+    fn the_mouse_tab_shows_the_clicks_of_the_chosen_preset() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        assert!(h.query_by_label("Select the face under the cursor, replacing the selection").is_none());
+        h.get_by_label("Mouse").click();
+        h.run();
+        assert_eq!(h.state().0.tab, KeymapTab::Mouse);
+        assert!(h.query_by_label("Preset").is_some(), "the preset decides the clicks");
+        assert!(h.query_by_label("Shift+click").is_some());
+        assert!(h.query_by_label("Select the face under the cursor, replacing the selection").is_some());
+        assert!(h.query_by_label("Shift+click a row").is_some());
+        assert!(h.query_by_label("Alt+right click a face").is_some());
+        assert!(h.query_by_label("Nothing changes, it has no faces to pick").is_none());
+
+        h.get_by_role(egui::accesskit::Role::ComboBox).click();
+        h.run();
+        h.get_by_label(commands::preset_label("blender")).click();
+        h.run();
+        assert_eq!(h.state().1.prefs.keymap_preset, "blender");
+        assert!(h.query_by_label("Shift+click").is_none(), "Blender has no Shift+click outside its modes");
+        assert!(h.query_by_label("Shift+click (Face mode)").is_some());
+        assert!(h.query_by_label("Shift+click (Object mode)").is_some());
+        assert!(h.query_by_label("Nothing changes, it has no faces to pick").is_some());
+    }
+
+    #[test]
     fn the_tool_keys_filter_keeps_matching_rows_of_every_tool() {
         use egui_kittest::kittest::Queryable;
         let mut h = keymap_harness();
@@ -2642,6 +2703,12 @@ mod tests {
         h.run();
         assert_eq!(h.state().0.filter, "Select Inside");
         assert!(h.query_by_label("Select Inside").is_some());
+
+        h.get_by_label("Mouse").click();
+        h.state_mut().1.prefs.keymap_preset = "blender".into();
+        h.run();
+        assert!(h.query_by_label("Click on something without faces (Face mode)").is_some());
+        assert_eq!(rect(&h), full, "long gestures wrap instead of widening the window");
     }
 
     fn chord(modifiers: egui::Modifiers, key: Key) -> egui::KeyboardShortcut {

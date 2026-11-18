@@ -10,6 +10,7 @@ use td_render::Renderer;
 use crate::commands::Action;
 use crate::i18n::{self, en, msg, msg_n, tr, tr_n, trf};
 use crate::icons;
+use crate::mouse_map::{RowClick, row_click};
 use crate::state::EditorState;
 pub use crate::uv_editor::uv_editor;
 use crate::{theme, widgets};
@@ -515,7 +516,9 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
 fn select_outliner_row(state: &mut EditorState, ps: &mut PanelState, order: &[NodeId], id: NodeId, modifiers: egui::Modifiers) {
     let map = &state.doc.map;
     let anchor = ps.outliner_anchor.and_then(|a| order.iter().position(|r| *r == a));
-    let range: Option<Vec<NodeId>> = match (modifiers.shift, anchor, order.iter().position(|r| *r == id)) {
+    let click = row_click(modifiers.command, modifiers.shift);
+    let ranged = matches!(click, RowClick::Range | RowClick::AddRange);
+    let range: Option<Vec<NodeId>> = match (ranged, anchor, order.iter().position(|r| *r == id)) {
         (true, Some(from), Some(to)) => {
             let rows = &order[from.min(to)..=from.max(to)];
             let objects = |r: &&NodeId| !matches!(map.get(**r).map(|n| &n.kind), Some(NodeKind::Layer(_)) | None);
@@ -527,7 +530,7 @@ fn select_outliner_row(state: &mut EditorState, ps: &mut PanelState, order: &[No
     state.last_bounds = map.bounds(id);
     state.doc.select(|map, s| match range {
         Some(rows) => {
-            if !modifiers.command {
+            if click == RowClick::Range {
                 s.clear();
             }
 
@@ -536,13 +539,13 @@ fn select_outliner_row(state: &mut EditorState, ps: &mut PanelState, order: &[No
             let all = s.nodes.clone();
             s.nodes.retain(|r| !map.ancestors(*r).iter().any(|a| all.contains(a)));
         }
-        None if modifiers.command => s.toggle_node(id),
+        None if click == RowClick::Toggle || click == RowClick::AddRange => s.toggle_node(id),
         None => {
             s.clear();
             s.select_node(id);
         }
     });
-    if !modifiers.shift || anchor.is_none() {
+    if !ranged || anchor.is_none() {
         ps.outliner_anchor = Some(id);
     }
 }

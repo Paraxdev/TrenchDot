@@ -36,14 +36,21 @@ while it is active. Press **Set anyway** to use it for the command everywhere el
 The **Tool keys** tab lists the keys each tool reads while it is active, such as Enter to apply in the Clip tool. They
 are fixed, so the tab is read only, and the key lookup shows them next to the commands that use the same key.
 
+The **Mouse** tab lists what each click and drag does in the views, the Texture tool and the Outliner. Its **Preset**
+row is the same one as on the Keys tab, so it switches the keymap of the whole editor, not only this list. Picking
+Blender there changes the keys at once, adds the **Object** and **Face** buttons to the toolbar and lists the clicks of
+both modes on this tab.
+
+![The Mouse tab with the TrenchBroom preset, listing Click, Ctrl+click, Shift+click and the other clicks and drags of the views with what each one does](../assets/shortcuts/mouse-tab.png)
+
 Shortcuts wait while you type in a field or a menu is open. While the pointer is over a floating window, such as the
 Shape Generator, only save, undo and redo work, so a key meant for the window never deletes or changes your map.
 
 ## Tools
 
 Press a tool's key again to go back to Select. Esc steps back one thing at a time: it cancels a drag or stroke, then
-clears the selected faces, then clears the selected objects, then leaves the tool for Select. TrenchBroom clears
-first and has no tool step. Esc never changes the Blender preset's Object or Face mode.
+clears the selected faces, then clears the selected objects, then leaves the tool for Select. It works this way in
+every preset, and it never changes the Blender preset's Object or Face mode.
 
 | Key | Tool |
 | --- | --- |
@@ -94,7 +101,7 @@ first and has no tool step. Esc never changes the Blender preset's Object or Fac
 | F2 | Rename the selected object in the Outliner |
 | Ctrl+R | Repeat the last rotate, flip, mirror linked, nudge or duplicate. In mesh editing it makes a loop cut |
 | Delete or Backspace | Delete |
-| Ctrl+A, Ctrl+Shift+A, Ctrl+I | Select all objects, select none, select inverse. Ctrl+A also drops any selected faces. In the Hammer preset Ctrl+Shift+A selects every face of the selected brushes and meshes instead, see [Other presets](#other-presets) |
+| Ctrl+A, Ctrl+Shift+A, Ctrl+I | Select all objects, select none, select inverse. Ctrl+A also drops any selected faces, and in the Blender preset it switches to Object mode. In the Hammer preset Ctrl+Shift+A selects every face of the selected brushes and meshes instead, see [Other presets](#other-presets) |
 | Ctrl+F | Find entities and replace a material, see [Find and Replace](find-replace.md) |
 | Ctrl+T, Ctrl+E | Use the selected brushes as a stencil and select what they touch, or what lies inside them. The stencil brushes are deleted. Both need brushes selected, faces alone are refused |
 | Ctrl+G, Ctrl+Shift+G | Group, ungroup |
@@ -173,6 +180,9 @@ The Blender preset also clicks in the current mode, which the **Object** and **F
 buttons in the toolbar show and switch. They appear only with this preset. Ctrl+click does the same as Shift+click here, and a click
 in Face mode picks the face under the cursor. The Texture tool keeps its own clicks in every preset, a click selects a
 face and Ctrl+click adds or removes one.
+
+A selects all in the current mode, while Ctrl+A always selects all objects and switches to Object mode. Esc clears the
+selection but leaves the mode as it is.
 
 ![The Object and Face buttons after the tool buttons in the toolbar with the Blender preset, Face highlighted](../assets/shortcuts/blender-mode-switch.png)
 

@@ -9,6 +9,7 @@ use td_render::LineVertex;
 
 use crate::camera::Camera;
 use crate::i18n::{msg, trf};
+use crate::mouse_map::{Button, Chord, TextureGesture, texture_gesture};
 use crate::picking;
 use crate::scene::v3;
 use crate::state::EditorState;
@@ -93,20 +94,17 @@ impl TextureTool {
         if response.clicked_by(PointerButton::Primary)
             && let Some(pos) = response.interact_pointer_pos()
         {
-            match face_at(pos, state) {
-                Some(face) if modifiers.alt => {
+            match (face_at(pos, state), texture_gesture(Chord::new(Button::Click, modifiers))) {
+                (Some(face), Some(TextureGesture::Pick)) => {
                     texture_ops::eyedropper(state, face);
                 }
-                Some((id, f)) => state.doc.select(|_, s| {
-                    if modifiers.command {
-                        s.toggle_face(id, f);
-                    } else {
-                        s.clear();
-                        s.select_face(id, f);
-                    }
+                (Some((id, f)), Some(TextureGesture::Toggle)) => state.doc.select(|_, s| s.toggle_face(id, f)),
+                (Some((id, f)), _) => state.doc.select(|_, s| {
+                    s.clear();
+                    s.select_face(id, f);
                 }),
-                None if !modifiers.command => state.doc.select(|_, s| s.clear()),
-                None => {}
+                (None, _) if !modifiers.command => state.doc.select(|_, s| s.clear()),
+                (None, _) => {}
             }
         }
 
@@ -114,7 +112,8 @@ impl TextureTool {
             && let Some(face) = response.interact_pointer_pos().and_then(|p| face_at(p, state))
         {
             let material = state.current_material.clone();
-            if modifiers.alt {
+            let gesture = texture_gesture(Chord::new(Button::RightClick, modifiers));
+            if gesture == Some(TextureGesture::Wrap) {
                 match Self::primary_face(state).filter(|p| *p != face) {
                     Some(src) => {
                         texture_ops::wrap_from(state, src, &[face], Some(&material));
@@ -122,17 +121,17 @@ impl TextureTool {
                     }
                     None => state.set_status(msg!("Select a source face first, then Alt+right click the faces to wrap onto")),
                 }
-            } else if modifiers.shift {
+            } else if gesture == Some(TextureGesture::PasteAlignment) {
                 if texture_ops::paste_alignment(state, &[face], true) == 0 {
                     state.set_status(msg!("Pick a face with Alt+click first"));
                 }
             } else {
-                texture_ops::apply_material(state, &[face], &material, modifiers.command);
+                texture_ops::apply_material(state, &[face], &material, gesture == Some(TextureGesture::ApplyReset));
             }
         }
 
         if response.drag_started_by(PointerButton::Primary)
-            && !modifiers.alt
+            && texture_gesture(Chord::new(Button::Drag, modifiers)) == Some(TextureGesture::Slide)
             && let Some(origin) = ui.input(|i| i.pointer.press_origin())
             && let Some(face) = face_at(origin, state)
             && texture_ops::target_faces(state).contains(&face)
@@ -189,11 +188,15 @@ impl TextureTool {
                 }
 
                 let dir = dy.signum() as f64;
-                if m.command {
-                    let f = if m.shift { 1.1f64 } else { 2.0 };
-                    texture_ops::scale(state, &faces, DVec2::splat(f.powf(dir)));
-                } else if m.alt {
-                    texture_ops::rotate(state, &faces, if m.shift { 1.0 } else { 15.0 } * dir);
+                match texture_gesture(Chord::new(Button::Wheel, m)) {
+                    Some(TextureGesture::Scale) => {
+                        let f = if m.shift { 1.1f64 } else { 2.0 };
+                        texture_ops::scale(state, &faces, DVec2::splat(f.powf(dir)));
+                    }
+                    Some(TextureGesture::Rotate) => {
+                        texture_ops::rotate(state, &faces, if m.shift { 1.0 } else { 15.0 } * dir);
+                    }
+                    _ => {}
                 }
             }
         }
