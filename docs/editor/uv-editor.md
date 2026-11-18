@@ -6,9 +6,9 @@ like placing mesh UVs to the pixel.
 
 ## Opening it
 
-The UV Editor is a tab in the right panel, next to the Inspector, and *Texture > UV Editor* brings it up too. Then
-select faces: Shift+click one in a view, or use the Texture tool. The top line names the material and how many faces
-you have.
+The UV Editor starts closed. *Texture > UV Editor*, or *View > Panels > UV Editor*, opens it as a tab in the right
+panel, next to the Inspector. Then select faces: Shift+click one in a view, or use the Texture tool. The top line names the
+material and how many faces you have.
 
 ![The UV Editor with one wall face selected, drawn as an orange rectangle over the tiled showcase/plaster texture](../assets/uv-editor/uv-editor-face.png)
 

@@ -16,7 +16,7 @@ physics body. TrenchDot and Godot both tell you when this happens, and this page
 
 2. The Issues panel
 
-    Open the **Issues** tab, next to Outliner and History on the left. It lists each class Godot built as a plain
+    Open the **Issues** tab, next to Outliner on the left. It lists each class Godot built as a plain
     node, with the fix, and the other warnings of that build start with "Godot:". Click a row to select the entity.
 
     ![The Issues panel with two warnings, Godot built func_button and func_door as plain nodes, each saying which file to add to Base Fgd Files](../assets/entities-troubleshooting/issues-missing-classes.png)

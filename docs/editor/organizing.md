@@ -147,7 +147,7 @@ Export > .map, cordon only…* writes just the objects inside it.
 
 ## Issues
 
-The Issues panel, the tab beside the Outliner and History, checks the map while you work. It lists problems that
+The Issues panel, the tab beside the Outliner, checks the map while you work. It lists problems that
 would break or look wrong in Godot, such as brushes with no volume, faces with no material, or outputs aimed at a
 targetname nothing has.
 
@@ -165,7 +165,8 @@ it can. Some warnings need more than a click:
 
 ## History
 
-The History panel lists every edit, newest at the top. Click an older entry to undo back to it, that entry included.
+The History panel lists every edit, newest at the top. It starts closed, open it from *View > Panels* and it appears
+next to Issues. Click an older entry to undo back to it, that entry included.
 Undone edits stay dimmed above *current*, click one to redo up to it.
 
 ![The History panel with Rename and Group dimmed above the current marker and the Hollow entry hovered](../assets/organizing/history-panel.png)

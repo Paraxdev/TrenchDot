@@ -1,8 +1,8 @@
 # Prefab library
 
-The **Prefabs** tab at the bottom, next to Materials and Models, holds ready made pieces to paste into a map: stairs,
-doorways, pillars, small rooms and details. Think of the prefab collections TrenchBroom mappers copy from, only built
-into the editor.
+The **Prefabs** tab holds ready made pieces to paste into a map: stairs, doorways, pillars, small rooms and details.
+Think of the prefab collections TrenchBroom mappers copy from, only built into the editor. It starts closed, so open it
+from *View > Panels*, and it appears at the bottom next to Materials.
 
 ![The Prefabs tab with Search prefabs, the category list, the card size slider and a card for every built-in piece, the Switchback stair hovered with its tooltip: Stairs/Switchback stair, 192 × 128 × 352 units, Built in](../assets/prefab-library/prefabs-panel.png)
 

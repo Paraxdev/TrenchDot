@@ -9,7 +9,7 @@ full setup.
 ## Scatter sets
 
 Everything you scatter lives in a **scatter set** on its own layer, for example one set for trees and one for grass.
-Press B and the Scatter panel opens on the right, with a card for every model in the active set.
+Press B and the Scatter panel opens on the right, next to the Inspector, with a card for every model in the active set.
 
 ![The Scatter panel with the bushes set active: the set menu, +, Preset, Rename and a card per model](../assets/scatter/scatter-panel.png)
 

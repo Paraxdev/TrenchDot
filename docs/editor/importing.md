@@ -24,7 +24,7 @@ Save it as `.tdm` and Godot builds it like any other map.
 
 4. Check the Issues tab
 
-    Open the Issues tab at the top left, next to Outliner and History. Every material the project still lacks shows up
+    Open the Issues tab at the top left, next to Outliner. Every material the project still lacks shows up
     as a warning, and its faces draw as a checker.
 
     ![The Issues tab with two warnings, Material 'castle/brick_wall' is not in the project (12 faces), and the 3D view with those walls and steps drawn as a grey checker](../assets/importing/issues-missing-materials.png)

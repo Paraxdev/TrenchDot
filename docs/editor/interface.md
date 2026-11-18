@@ -10,6 +10,11 @@ shows you around, and [Coming from Unity or Blender](coming-from-unity-blender.m
 The menus are at the top. A command sits under the kind of object it changes, so CSG is under *Brush* and terrain
 sculpting under *Terrain*.
 
+The toolbar under the menus starts with New, Open, Save, Undo and Redo, then the tools in two families. The brush
+tools come first: Select, Polygon, Clip, Vertex, Rotate, Scale and Shear, then Texture and Mesh, then Volume, Path and
+Measure. After a divider come the terrain and paint tools, Sculpt, Blend, Paint and Scatter. Grid, Snap, the CSG
+buttons and the shading toggles follow. The *Tools* menu lists the same tools in the same order.
+
 Can't find something? Press Ctrl+Shift+P (or F1) for the command palette and type its name. Commands with a jargon
 name, like *Hollow* or *UV Lock*, explain themselves when you hover them, and the palette shows the same line beneath
 its list. Escape or a click outside closes it without running anything.
@@ -23,37 +28,56 @@ use a tool that has none. Hover the tool's name there, or its button in the tool
 
 ### The empty map card
 
-On a new, empty map a card in the 3D view tells you where to start: drag in the Top view to draw your first box, and
-the Top view marks the spot with a yellow label. Below that it explains the 3D camera and links the
-[getting started guide](../getting-started.md). When the open project has maps, **Open a map from this project**
+On a new, empty map a card in the 3D view tells you where to start. Under the title it shows the loop TrenchDot is
+built around, **Block out**, **Texture it**, **Add entities** and **Play in Godot**, then says to drag in the Top view
+to draw your first box, and the Top view marks the spot with a yellow label. Below that it explains the 3D camera and
+links [Build your first room](../getting-started.md). When the open project has maps, **Open a map from this project**
 lists them, so you can open a finished one instead.
 
-![The empty map card in the 3D view with Getting Started Guide, Open a map from this project and Hide tips, beside the yellow label in the Top view](../assets/interface/empty-map-card.png)
+![The empty map card in the 3D view with the four steps, Build Your First Room, Open a map from this project and Hide tips, beside the yellow label in the Top view](../assets/interface/empty-map-card.png)
 
 The card goes away once the map has something in it. **Hide tips** turns the tips off, and *Tips on an empty map* in
 *File > Preferences* brings them back.
 
+#### The first start
+
+The very first time you start TrenchDot, the same card also asks which editor's keys you want, since that decides
+which keys pick the tools and what the key hints show. It has one row per
+[keymap preset](coming-from-hammer-trenchbroom.md), **TrenchBroom** (already picked), **Hammer** and **Blender**, with a
+line saying how it differs. Click a row to use that preset, or click **Skip** to keep TrenchBroom. Either way the
+question is gone for good, it is the only thing the first start asks. *File > Preferences > Keymap preset* changes the
+choice later. If you used an earlier TrenchDot, you never see it.
+
+![The first start card with the four steps, TrenchBroom picked in the keymap list above Hammer and Blender, Build Your First Room and Skip](../assets/interface/first-run-card.png)
+
 ### Panels
+
+A fresh layout opens only what the loop needs, so the views get most of the window. The rest are one click away in
+*View > Panels*, where each one opens next to a related panel, as the table says.
 
 | Panel | Dock | What it is for |
 | --- | --- | --- |
 | Outliner | Left | The map as a tree of [layers, groups](organizing.md) and objects |
-| History | Left | Every edit. Clicking one undoes it and everything after it, clicking a dimmed one redoes up to it |
 | Issues | Left | Problems found as you work, like faces with no material. Click one to select the object, most offer a fix |
 | Inspector | Right | The selection's properties, such as an entity's keys or a brush's exact position and size |
 | Entities | Right | Entity classes to drag into a view |
-| UV Editor | Right | [Exact texture placement](uv-editor.md) |
-| Scatter | Right | The models the [Scatter](scatter.md) tool paints |
 | Materials | Bottom | Your project's textures |
-| Models | Bottom | [Model files](models.md) to place |
-| Prefabs | Bottom | Ready made pieces from the [prefab library](prefab-library.md) to paste |
-| Logic | Starts closed | The [entity wiring as a graph](../gameplay/logic-graph.md), to connect entities and preview what an output sets off |
-| Reference | Starts closed | Code for using an entity class from your scripts |
+| History | Starts closed, opens next to Issues | Every edit. Clicking one undoes it and everything after it, clicking a dimmed one redoes up to it |
+| UV Editor | Starts closed, opens next to the Inspector | [Exact texture placement](uv-editor.md) |
+| Scatter | Starts closed, opens next to the Inspector | The models the [Scatter](scatter.md) tool paints. Picking the Scatter tool opens it by itself |
+| Models | Starts closed, opens next to Materials | [Model files](models.md) to place |
+| Prefabs | Starts closed, opens next to Materials | Ready made pieces from the [prefab library](prefab-library.md) to paste |
+| Logic | Starts closed, opens in the bottom dock | The [entity wiring as a graph](../gameplay/logic-graph.md), to connect entities and preview what an output sets off |
+| Reference | Starts closed, opens in the dock you last clicked in | Code for using an entity class from your scripts |
 
-Closed a panel by accident? Open it again from *View > Panels*. *Reset Layout* at the bottom of the same menu puts
-everything back where it started.
+Closed a panel by accident, or want one that starts closed? Open it from *View > Panels*. *Reset Layout* at the
+bottom of the same menu puts everything back the way a fresh install has it.
 
 ![The View menu with Panels open, the shown panels ticked and Reset Layout at the bottom](../assets/interface/view-panels-menu.png)
+
+> [!NOTE]
+> If you used TrenchDot before, you keep the layout you had, including panels that now start closed. *Reset Layout*
+> switches to the new one.
 
 ### The status bar
 

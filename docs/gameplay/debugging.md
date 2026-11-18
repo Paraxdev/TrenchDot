@@ -9,7 +9,7 @@ thorough.
 
 ## 1. The Issues panel
 
-Open the **Issues** tab, next to Outliner and History on the left. It flags outputs aimed at a targetname no entity
+Open the **Issues** tab, next to Outliner on the left. It flags outputs aimed at a targetname no entity
 has, and inputs the target's class does not have. A typo in a targetname is the most common reason a door stays shut.
 
 ![The Issues panel with one error: Output triggered targets unknown entity 'hall_lihgt' on trigger_once, with a Fix button](../assets/debugging/issues-panel.png)

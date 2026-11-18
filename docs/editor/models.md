@@ -3,8 +3,8 @@
 Models are 3D files made in another program, like Blender or Blockbench. TrenchDot reads glTF, OBJ, Blockbench,
 STL, MD2 and MD3 files.
 
-You find them in the **Models** tab at the bottom, next to Materials and Prefabs. It lists everything under
-`res://models`, plus the nature models in `res://trenchdot/nature` once you installed them.
+You find them in the **Models** tab. It starts closed, so open it from *View > Panels*, and it appears at the bottom
+next to Materials. It lists everything under `res://models`, plus the nature models in `res://trenchdot/nature` once you installed them.
 
 ![The Models tab: search field, folder and source filters, Sort, Slugs, the thumbnail size slider, Fit, the size multiplier, the rescan button and Import…, above a grid of nature model thumbnails](../assets/models/models-panel.png)
 
