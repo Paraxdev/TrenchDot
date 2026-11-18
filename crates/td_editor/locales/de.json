@@ -2368,5 +2368,6 @@
   "Closed": "Geschlossen",
   "Arched": "Gewölbt",
   "Round": "Rund",
-  "How the tunnel is cut across its length": "Der Querschnitt des Tunnels"
+  "How the tunnel is cut across its length": "Der Querschnitt des Tunnels",
+  "Keymap preset set to {preset}": "Tastenbelegung gesetzt: {preset}"
 }

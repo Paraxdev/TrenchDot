@@ -316,6 +316,7 @@ fn first_run_form(ui: &mut Ui, state: &mut EditorState) -> FirstRun {
         if row.clicked() {
             state.prefs.keymap_preset = id.into();
             state.prefs.keymap_asked = true;
+            state.set_status(crate::msg!("Keymap preset set to {preset}", preset = crate::commands::preset_label(id)));
         }
     }
 
@@ -687,6 +688,7 @@ mod tests {
             assert!(harness.query_by_label("Welcome to TrenchDot").is_none(), "{id}");
             assert!(harness.query_by_label("This is a new, empty map").is_some(), "{id} ends in the normal card");
             assert!(harness.state().first_run.is_none(), "{id}");
+            assert_eq!(harness.state().state.status, format!("Keymap preset set to {}", crate::commands::preset_label(id)), "{id}");
         }
     }
 
@@ -698,6 +700,7 @@ mod tests {
         fixture.state.prefs.keymap_preset = "blender".into();
         let mut harness = card_harness(fixture);
         harness.run();
+        let before = harness.state().state.status.clone();
         harness.get_by_label("Skip").click();
         harness.run();
         harness.run();
@@ -705,6 +708,7 @@ mod tests {
         assert_eq!((prefs.keymap_preset.as_str(), prefs.keymap_asked), ("blender", true));
         assert!(harness.query_by_label("This is a new, empty map").is_some());
         assert!(harness.state().first_run.is_none());
+        assert_eq!(harness.state().state.status, before, "skip says nothing");
     }
 
     #[test]

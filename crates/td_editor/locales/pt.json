@@ -2368,5 +2368,6 @@
   "Closed": "Fechado",
   "Arched": "Em arco",
   "Round": "Redondo",
-  "How the tunnel is cut across its length": "O corte transversal do túnel"
+  "How the tunnel is cut across its length": "O corte transversal do túnel",
+  "Keymap preset set to {preset}": "Predefinição de teclas aplicada: {preset}"
 }

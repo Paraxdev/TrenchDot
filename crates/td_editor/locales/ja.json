@@ -2368,5 +2368,6 @@
   "Closed": "閉じた形",
   "Arched": "アーチ形",
   "Round": "円形",
-  "How the tunnel is cut across its length": "トンネルの断面の形です"
+  "How the tunnel is cut across its length": "トンネルの断面の形です",
+  "Keymap preset set to {preset}": "キーマップのプリセットを適用しました: {preset}"
 }

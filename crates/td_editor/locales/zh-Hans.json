@@ -2368,5 +2368,6 @@
   "Closed": "封闭",
   "Arched": "拱形",
   "Round": "圆形",
-  "How the tunnel is cut across its length": "隧道的横截面形状"
+  "How the tunnel is cut across its length": "隧道的横截面形状",
+  "Keymap preset set to {preset}": "已应用快捷键预设：{preset}"
 }

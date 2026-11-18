@@ -6008,6 +6008,7 @@ fn the_first_run_card_applies_a_keymap_preset() {
     ed.input("window", json!([{ "type": "click", "x": x, "y": y }]));
     let state = ed.state();
     assert_eq!(state["editor"]["keymap"], "hammer");
+    assert_eq!(state["status"], "Keymap preset set to Hammer");
     assert!(state["ui"]["first_run"].is_null(), "the card goes once a preset is picked");
     assert_eq!(state["map"]["brushes"], 0);
 }
@@ -6019,9 +6020,11 @@ fn the_first_run_card_skips_without_changing_the_keymap() {
     let ed = Editor::launch("first_run_skip");
     let state = ed.state();
     assert!(state["ui"]["first_run"].is_object());
+    let before = state["status"].clone();
     let (x, y) = center_of(&state["ui"]["first_run"]["skip"]);
     ed.input("window", json!([{ "type": "click", "x": x, "y": y }]));
     let state = ed.state();
     assert_eq!(state["editor"]["keymap"], "trenchbroom");
+    assert_eq!(state["status"], before, "skip says nothing");
     assert!(state["ui"]["first_run"].is_null());
 }

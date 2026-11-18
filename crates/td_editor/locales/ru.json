@@ -2368,5 +2368,6 @@
   "Closed": "Закрытый",
   "Arched": "Арочный",
   "Round": "Круглый",
-  "How the tunnel is cut across its length": "Форма поперечного сечения тоннеля"
+  "How the tunnel is cut across its length": "Форма поперечного сечения тоннеля",
+  "Keymap preset set to {preset}": "Применён набор клавиш: {preset}"
 }
