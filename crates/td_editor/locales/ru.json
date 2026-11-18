@@ -1450,7 +1450,6 @@
   "Rotate UVs": "Поворот UV",
   "Object {n} of {total} under the cursor, click again for the next": "Объект {n} из {total} под курсором, щёлкните ещё раз для следующего",
   "{n} object under the cursor, click again or Alt+click to select the next": { "one": "{n} объект под курсором, щёлкните ещё раз или Alt+щелчок для следующего", "few": "{n} объекта под курсором, щёлкните ещё раз или Alt+щелчок для следующего", "many": "{n} объектов под курсором, щёлкните ещё раз или Alt+щелчок для следующего" },
-  "Selected group {name}": "Выбрана группа {name}",
   "Edit Gizmo": "Правка гизмо",
   "Resize Brushes": "Изменение размера брашей",
   "Duplicate Objects": "Дублирование объектов",

@@ -3603,7 +3603,7 @@ mod tests {
             s.nodes.insert(light);
         });
         execute(&mut state, Action::ObjectMode, &ctx);
-        assert_eq!(selected(&state), (vec![b, light, linked], FaceSet::new()), "the brush, not the plain group {plain:?}");
+        assert_eq!(selected(&state), (vec![light, plain, linked], FaceSet::new()), "the closed plain group, as a click selects it");
     }
 
     #[test]

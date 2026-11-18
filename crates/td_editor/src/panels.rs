@@ -169,6 +169,7 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
     // Hide or lock from the menu of a selected row, for the whole selection: (hide, value).
     let mut selection_flag: Option<(bool, bool)> = None;
     let mut clicked: Option<(NodeId, egui::Modifiers)> = None;
+    let mut drag_started: Option<(NodeId, NodeId)> = None;
     let mut opened: Option<NodeId> = None;
     let mut set_layer: Option<NodeId> = None;
     let mut renamed: Option<(NodeId, Option<String>)> = None;
@@ -268,8 +269,10 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
                     let ids = if selected {
                         td_doc::ops::selection_roots(map, &state.doc.selection).into_iter().filter(|n| !map.layers.contains(n)).collect()
                     } else {
-                        clicked = Some((*id, egui::Modifiers::NONE));
-                        vec![map.click_target(*id, &state.open_groups)]
+                        // A row names its node, so it drags alone out of a closed plain group, only a linked copy stays whole.
+                        let target = map.vertex_click_target(*id, &state.open_groups);
+                        drag_started = Some((*id, target));
+                        vec![target]
                     };
                     resp.dnd_set_drag_payload(OutlinerDrag(ids));
                 }
@@ -518,6 +521,15 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
 
     if let Some(id) = opened {
         open_outliner_row(state, ps, id);
+    }
+
+    if let Some((row, target)) = drag_started {
+        state.last_bounds = state.doc.map.bounds(target);
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_node(target);
+        });
+        ps.outliner_anchor = Some(row);
     }
 
     if let Some((id, modifiers)) = clicked {
@@ -3065,7 +3077,7 @@ pub fn issues(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actions
         }
     });
     if let Some(id) = select.filter(|id| state.doc.map.contains(*id)) {
-        let target = state.doc.map.selection_target(id, &state.open_groups);
+        let target = state.doc.map.click_target(id, &state.open_groups);
         state.doc.select(|_, s| {
             s.clear();
             s.select_node(target);

@@ -1450,7 +1450,6 @@
   "Rotate UVs": "旋转 UV",
   "Object {n} of {total} under the cursor, click again for the next": "光标下第 {n} 个对象，共 {total} 个，再次点击选下一个",
   "{n} object under the cursor, click again or Alt+click to select the next": { "other": "光标下有 {n} 个对象，再次点击或 Alt+点击选下一个" },
-  "Selected group {name}": "已选中组 {name}",
   "Edit Gizmo": "编辑控件",
   "Resize Brushes": "调整笔刷大小",
   "Duplicate Objects": "复制对象",

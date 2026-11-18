@@ -667,27 +667,22 @@ impl Map {
         if b.is_empty() { self.bounds(id) } else { b }
     }
 
-    /// Nearest ancestor group that is closed, which is what a click in the viewport selects.
-    pub fn selection_target(&self, id: NodeId, open_groups: &[NodeId]) -> NodeId {
-        let mut target = id;
-        for a in self.ancestors(id) {
-            if let Some(Node { kind: NodeKind::Group(_), .. }) = self.get(a)
-                && !open_groups.contains(&a)
-            {
-                target = a;
-            }
-        }
-
-        target
+    /// What a click selects: the outermost closed group around `id`, else `id`.
+    pub fn click_target(&self, id: NodeId, open_groups: &[NodeId]) -> NodeId {
+        self.outermost_closed_group(id, open_groups, false)
     }
 
-    /// What a click in a view selects: the clicked object itself, or the outermost closed linked group around it, because
-    /// linked groups are edited as a whole. [`Self::selection_target`] gives the whole group instead.
-    pub fn click_target(&self, id: NodeId, open_groups: &[NodeId]) -> NodeId {
+    /// What a click of the Vertex tool selects. It reshapes brushes and leaves plain groups closed, so it picks `id`
+    /// itself, or the outermost closed linked group around it, since linked copies only change as a whole.
+    pub fn vertex_click_target(&self, id: NodeId, open_groups: &[NodeId]) -> NodeId {
+        self.outermost_closed_group(id, open_groups, true)
+    }
+
+    fn outermost_closed_group(&self, id: NodeId, open_groups: &[NodeId], linked_only: bool) -> NodeId {
         let mut target = id;
         for a in self.ancestors(id) {
             if let Some(Node { kind: NodeKind::Group(g), .. }) = self.get(a)
-                && g.link_id.is_some()
+                && (g.link_id.is_some() || !linked_only)
                 && !open_groups.contains(&a)
             {
                 target = a;
@@ -870,19 +865,38 @@ mod tests {
     }
 
     #[test]
-    fn clicks_pick_objects_inside_groups_but_keep_linked_groups_whole() {
+    fn clicks_select_the_outermost_closed_group() {
         let mut m = Map::new();
         let layer = m.default_layer();
-        let brush = || NodeKind::Brush(Brush::from_aabb(&Aabb::new(DVec3::ZERO, DVec3::ONE), "x").unwrap());
+        let brush = |min: DVec3, size: DVec3| NodeKind::Brush(Brush::from_aabb(&Aabb::new(min, min + size), "x").unwrap());
+        let loose = m.insert(layer, brush(DVec3::new(-200.0, 48.0, 16.0), DVec3::new(32.0, 80.0, 8.0)));
         let house = m.insert(layer, NodeKind::Group(Group::new("house")));
         let chair = m.insert(house, NodeKind::Group(Group::new("chair")));
-        let leg = m.insert(chair, brush());
-        assert_eq!(m.click_target(leg, &[]), leg);
-        assert_eq!(m.selection_target(leg, &[]), house);
-
+        let leg = m.insert(chair, brush(DVec3::new(130.0, -70.0, 24.0), DVec3::new(4.0, 6.0, 40.0)));
         let window = m.insert(house, NodeKind::Group(Group { link_id: Some(7), ..Group::new("window") }));
-        let pane = m.insert(window, brush());
-        assert_eq!(m.click_target(pane, &[]), window);
-        assert_eq!(m.click_target(pane, &[window]), pane, "an opened linked group edits its contents");
+        let pane = m.insert(window, brush(DVec3::new(96.0, 12.0, 64.0), DVec3::new(48.0, 2.0, 36.0)));
+        let door = m.insert(house, NodeKind::Entity(Entity::new("func_door")));
+        let slab = m.insert(door, brush(DVec3::new(160.0, -8.0, 0.0), DVec3::new(8.0, 56.0, 112.0)));
+        let gate = m.insert(layer, NodeKind::Entity(Entity::new("func_door")));
+        let bar = m.insert(gate, brush(DVec3::new(-90.0, -150.0, 4.0), DVec3::new(6.0, 70.0, 96.0)));
+
+        let all = [loose, house, chair, leg, window, pane, door, slab, gate, bar];
+        let targets = |open: &[NodeId]| all.map(|id| m.click_target(id, open));
+        assert_eq!(targets(&[]), [loose, house, house, house, house, house, house, house, gate, bar]);
+        assert_eq!(targets(&[house]), [loose, house, chair, chair, window, window, door, slab, gate, bar]);
+        assert_eq!(targets(&[house, chair]), [loose, house, chair, leg, window, window, door, slab, gate, bar]);
+        assert_eq!(targets(&[chair]), [loose, house, house, house, house, house, house, house, gate, bar], "a closed parent wins over an open child");
+        assert_eq!(targets(&[house, window]), [loose, house, chair, chair, window, pane, door, slab, gate, bar]);
+
+        let vertex = |open: &[NodeId]| all.map(|id| m.vertex_click_target(id, open));
+        assert_eq!(vertex(&[]), [loose, house, chair, leg, window, window, door, slab, gate, bar], "plain groups stay closed");
+        assert_eq!(vertex(&[house, window]), all, "an opened linked group edits its contents");
+        assert_eq!(vertex(&[window]), all, "a closed plain parent does not swallow the open linked group");
+
+        let row = m.insert(layer, NodeKind::Group(Group { link_id: Some(9), ..Group::new("row") }));
+        let shed = m.insert(row, NodeKind::Group(Group { link_id: Some(8), ..Group::new("shed") }));
+        let roof = m.insert(shed, brush(DVec3::new(-40.0, 210.0, 96.0), DVec3::new(72.0, 64.0, 6.0)));
+        assert_eq!([row, shed, roof].map(|id| m.vertex_click_target(id, &[])), [row, row, row], "the outermost linked group wins");
+        assert_eq!([row, shed, roof].map(|id| m.vertex_click_target(id, &[row])), [row, shed, shed]);
     }
 }

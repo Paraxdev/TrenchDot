@@ -2815,6 +2815,7 @@ struct LinkedRows {
     right_brushes: Vec<NodeId>,
     plain: NodeId,
     plain_child: NodeId,
+    plain_lid: NodeId,
 }
 
 fn linked_rows_fixture() -> (Fixture, LinkedRows) {
@@ -2833,11 +2834,12 @@ fn linked_rows_fixture() -> (Fixture, LinkedRows) {
         let right = copies[0];
         let kids = |m: &td_doc::Map, g: NodeId| m.get(g).unwrap().children.clone();
         let plain_child = cube(m, DVec3::new(512.0, 320.0, 64.0), DVec3::splat(48.0));
+        let plain_lid = cube(m, DVec3::new(500.0, 368.0, 70.0), DVec3::new(72.0, 8.0, 40.0));
         s.clear();
-        s.select_node(plain_child);
+        s.nodes.extend([plain_child, plain_lid]);
         let plain = ops::group_selection(m, s, "crate", layer).unwrap();
         s.clear();
-        LinkedRows { left, right, left_brushes: kids(m, left), right_brushes: kids(m, right), plain, plain_child }
+        LinkedRows { left, right, left_brushes: kids(m, left), right_brushes: kids(m, right), plain, plain_child, plain_lid }
     });
     (f, rows)
 }
@@ -2866,11 +2868,41 @@ fn row_label(harness: &Harness<'_, Fixture>, id: NodeId) -> String {
 }
 
 #[test]
+fn outliner_drag_of_a_closed_groups_child_row_moves_the_row_alone() {
+    let (f, r) = linked_rows_fixture();
+    let layer = f.state.doc.map.default_layer();
+    let mut harness = outliner_harness(f);
+    harness.run();
+    reveal_rows(&mut harness, &[r.plain_child]);
+    let from = harness.get_by_label(&row_label(&harness, r.plain_child)).rect().center();
+    let to = harness.get_by_label_contains(&row_label(&harness, layer)).rect().center();
+    drag_through(&mut harness, &[from, from + egui::vec2(0.0, 12.0), to]);
+    let map = &harness.state().state.doc.map;
+    assert_eq!(map.get(r.plain_child).unwrap().parent, Some(layer), "the row leaves its group");
+    assert_eq!(map.get(r.plain_lid).unwrap().parent, Some(r.plain), "the rest of the group stays");
+    assert_eq!(map.get(r.plain).unwrap().parent, Some(layer));
+}
+
+#[test]
+fn outliner_drag_of_a_closed_linked_halfs_row_moves_the_half_whole() {
+    let (f, r) = linked_rows_fixture();
+    let mut harness = outliner_harness(f);
+    harness.run();
+    reveal_rows(&mut harness, &[r.left_brushes[0], r.plain_child]);
+    let from = harness.get_all_by_label(&row_label(&harness, r.left_brushes[0])).next().unwrap().rect().center();
+    let to = harness.get_by_label(&row_label(&harness, r.plain_child)).rect().center();
+    drag_through(&mut harness, &[from, from + egui::vec2(0.0, 12.0), to]);
+    let map = &harness.state().state.doc.map;
+    assert_eq!(map.get(r.left).unwrap().parent, Some(r.plain), "the whole half moves into the crate");
+    assert_eq!(map.get(r.left_brushes[0]).unwrap().parent, Some(r.left));
+}
+
+#[test]
 fn outliner_click_inside_a_closed_linked_half_selects_the_half() {
     let (f, r) = linked_rows_fixture();
     let mut harness = outliner_harness(f);
     harness.run();
-    let all: Vec<NodeId> = [r.left_brushes.clone(), r.right_brushes.clone(), vec![r.plain_child]].concat();
+    let all: Vec<NodeId> = [r.left_brushes.clone(), r.right_brushes.clone(), vec![r.plain_child, r.plain_lid]].concat();
     reveal_rows(&mut harness, &all);
     let brush = row_label;
 
@@ -2893,7 +2925,27 @@ fn outliner_click_inside_a_closed_linked_half_selects_the_half() {
     let label = brush(&harness, r.plain_child);
     harness.get_by_label(&label).click();
     harness.run();
-    assert_eq!(selection(&harness), [r.plain_child], "a plain group's child row selects the child");
+    assert_eq!(selection(&harness), [r.plain], "a plain group's child row selects the closed group");
+
+    harness.get_all_by_label(&brush(&harness, r.left_brushes[0])).next().unwrap().click_modifiers(egui::Modifiers::COMMAND);
+    harness.run();
+    let mut both = selection(&harness);
+    both.sort();
+    assert_eq!(both, [r.left, r.plain], "Ctrl click adds a linked half next to the plain group");
+    harness.get_by_label(&brush(&harness, r.plain_lid)).click_modifiers(egui::Modifiers::COMMAND);
+    harness.run();
+    assert_eq!(selection(&harness), [r.left], "Ctrl click on the other child row toggles the whole plain group off");
+    harness.get_by_label(&brush(&harness, r.plain_lid)).click_modifiers(egui::Modifiers::COMMAND);
+    harness.run();
+    let mut both = selection(&harness);
+    both.sort();
+    assert_eq!(both, [r.left, r.plain], "and back on");
+
+    harness.get_by_label(&brush(&harness, r.plain_child)).click();
+    harness.run();
+    harness.get_by_label(&brush(&harness, r.plain_lid)).click_modifiers(egui::Modifiers::SHIFT);
+    harness.run();
+    assert_eq!(selection(&harness), [r.plain], "a Shift range over the plain group's child rows holds the group once");
 
     harness.get_all_by_label(&brush(&harness, r.left_brushes[0])).next().unwrap().click();
     harness.run();

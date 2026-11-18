@@ -1450,7 +1450,6 @@
   "Rotate UVs": "Girar UVs",
   "Object {n} of {total} under the cursor, click again for the next": "Objeto {n} de {total} sob o cursor, clicar de novo para o próximo",
   "{n} object under the cursor, click again or Alt+click to select the next": { "one": "{n} objeto sob o cursor, clicar de novo ou Alt+clique escolhe o próximo", "other": "{n} objetos sob o cursor, clicar de novo ou Alt+clique escolhe o próximo" },
-  "Selected group {name}": "Grupo {name} selecionado",
   "Edit Gizmo": "Editar gizmo",
   "Resize Brushes": "Redimensionar brushes",
   "Duplicate Objects": "Duplicar objetos",

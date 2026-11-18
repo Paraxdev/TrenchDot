@@ -432,7 +432,7 @@ pub fn selectable_objects(map: &Map, open_groups: &[NodeId]) -> Vec<NodeId> {
             _ => false,
         };
         if leaf && map.is_editable(*id) {
-            out.insert(map.selection_target(*id, open_groups));
+            out.insert(map.click_target(*id, open_groups));
         }
     }
 
@@ -506,13 +506,13 @@ pub fn select_by_material(map: &Map, sel: &mut Selection, material: &str, open_g
     sel.clear();
     for (id, b) in map.brushes() {
         if map.is_editable(id) && b.faces.iter().any(|f| f.data.material.eq_ignore_ascii_case(material)) {
-            sel.nodes.insert(map.selection_target(id, open_groups));
+            sel.nodes.insert(map.click_target(id, open_groups));
         }
     }
 
     for (id, m) in map.meshes() {
         if map.is_editable(id) && m.faces.iter().any(|f| f.data.material.eq_ignore_ascii_case(material)) {
-            sel.nodes.insert(map.selection_target(id, open_groups));
+            sel.nodes.insert(map.click_target(id, open_groups));
         }
     }
 }

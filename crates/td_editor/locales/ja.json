@@ -1450,7 +1450,6 @@
   "Rotate UVs": "UV を回転",
   "Object {n} of {total} under the cursor, click again for the next": "カーソル下の {n}/{total} 番目のオブジェクト、再クリックで次へ",
   "{n} object under the cursor, click again or Alt+click to select the next": { "other": "カーソル下に {n} 個のオブジェクト、再クリックか Alt+クリックで次を選択" },
-  "Selected group {name}": "グループ {name} を選択",
   "Edit Gizmo": "ギズモを編集",
   "Resize Brushes": "ブラシのサイズ変更",
   "Duplicate Objects": "オブジェクトを複製",

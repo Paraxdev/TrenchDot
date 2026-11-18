@@ -480,19 +480,10 @@ impl Viewport {
             && let Some(pos) = response.interact_pointer_pos()
             && let Some(h) = self.double_click_hit(cx, pos)
         {
-            // A click picks the object, a double click widens that to the whole group around it.
             let map = &cx.state.doc.map;
-            let group = map.selection_target(h.node, &open_groups);
-            if group != map.click_target(h.node, &open_groups) {
-                cx.state.last_bounds = map.bounds(group);
-                cx.state.outliner_reveal = Some(group);
-                cx.state.doc.select(|_, s| {
-                    s.clear();
-                    s.select_node(group);
-                });
-                let name = cx.state.doc.map.get(group).map(|n| n.name()).unwrap_or_default();
-                cx.state.set_status(msg!("Selected group {name}", name));
-            } else if let Some(e) = map.owning_entity(h.node) {
+            if map.click_target(h.node, &open_groups) == h.node
+                && let Some(e) = map.owning_entity(h.node)
+            {
                 let brushes = map.get(e).map(|n| n.children.clone()).unwrap_or_default();
                 cx.state.outliner_reveal = Some(h.node);
                 cx.state.doc.select(|_, s| {
@@ -1401,7 +1392,8 @@ struct EdgeGrab {
 fn is_selected(state: &EditorState, id: NodeId) -> bool {
     let map = &state.doc.map;
     let target = map.click_target(id, &state.open_groups);
-    state.doc.selection.nodes.contains(&target) || map.ancestors(id).iter().any(|a| state.doc.selection.nodes.contains(a))
+    let nodes = &state.doc.selection.nodes;
+    nodes.contains(&id) || nodes.contains(&target) || map.ancestors(id).iter().any(|a| nodes.contains(a))
 }
 
 fn context_menu(ui: &mut Ui, state: &EditorState, actions: &mut Vec<Action>) {
@@ -1752,5 +1744,41 @@ mod tests {
         assert_eq!(normal(3.0, 1.0), Some(DVec3::NEG_X), "the top is nearer, but heights are not dragged");
         assert_eq!(normal(-3.0, -1.0), Some(DVec3::NEG_X));
         assert_eq!(normal(128.0, 1.0), None, "the top itself grabs nothing");
+    }
+
+    #[test]
+    fn a_hit_counts_as_selected_when_it_or_a_group_around_it_is() {
+        let mut state = EditorState::new(Default::default());
+        let layer = state.insert_parent();
+        let (crate_, lid, side, loose) = state.doc.edit("add", |m, s| {
+            let cube = |m: &mut td_doc::Map, min: DVec3, size: DVec3| {
+                td_doc::ops::create_brush(m, layer, td_geom::Brush::from_aabb(&td_core::Aabb::new(min, min + size), "dev/grey").unwrap())
+            };
+            let lid = cube(m, DVec3::new(96.0, -32.0, 8.0), DVec3::new(32.0, 64.0, 16.0));
+            let side = cube(m, DVec3::new(140.0, -20.0, 30.0), DVec3::new(8.0, 40.0, 72.0));
+            let loose = cube(m, DVec3::new(-300.0, 50.0, -12.0), DVec3::new(24.0, 24.0, 56.0));
+            s.clear();
+            s.nodes.extend([lid, side]);
+            let crate_ = td_doc::ops::group_selection(m, s, "crate", layer).unwrap();
+            s.clear();
+            (crate_, lid, side, loose)
+        });
+        let selected = |state: &EditorState| [crate_, lid, side, loose].map(|id| is_selected(state, id));
+        assert_eq!(selected(&state), [false; 4]);
+
+        state.doc.select(|_, s| s.select_node(lid));
+        assert_eq!(selected(&state), [false, true, false, false], "a brush selected by id inside a closed group still drags");
+
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_node(crate_);
+        });
+        assert_eq!(selected(&state), [true, true, true, false]);
+
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_node(loose);
+        });
+        assert_eq!(selected(&state), [false, false, false, true]);
     }
 }
