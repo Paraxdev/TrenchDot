@@ -223,6 +223,25 @@ fn gameplay_place_refuses_unknown_classnames() {
 
 #[test]
 #[ignore]
+fn create_brush_entity_wants_its_classname_in_args() {
+    let ed = Editor::launch("create_brush_entity");
+    let brush = ed.box_brush([40.0, 16.0, -72.0], [104.0, 112.0, -56.0]);
+    ed.call("select", json!({ "ids": [brush] }));
+    let e = ed.call_err("run_action", json!({ "action": "create_brush_entity", "classname": "func_door" }));
+    assert!(e.contains("args.classname") && e.contains("inside args"), "{e}");
+    assert_eq!(ed.call("list_nodes", json!({ "type": "entity" }))["total"], 0);
+    ed.call("run_action", json!({ "action": "create_brush_entity", "args": { "classname": "func_door" } }));
+    let second = ed.box_brush([-104.0, 16.0, 56.0], [-40.0, 112.0, 72.0]);
+    ed.call("select", json!({ "ids": [second] }));
+    ed.call("run_action", json!({ "action": "create_brush_entity" }));
+    let nodes = ed.call("list_nodes", json!({ "type": "entity" }));
+    let mut classnames: Vec<_> = nodes["nodes"].as_array().unwrap().iter().map(|n| n["classname"].as_str().unwrap().to_string()).collect();
+    classnames.sort();
+    assert_eq!(classnames, ["func_detail", "func_door"], "no classname at all keeps the old default");
+}
+
+#[test]
+#[ignore]
 fn place_entities_wants_its_classnames_in_args() {
     let ed = Editor::launch("place_entities");
     let e = ed.call_err("run_action", json!({ "action": "place_entities", "classnames": ["infodecal"], "at": [0, 0, 0] }));

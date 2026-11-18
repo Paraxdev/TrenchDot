@@ -1455,7 +1455,13 @@ impl App {
                 }
             }
             "focus_selection" => Action::FocusSelection,
-            "create_brush_entity" => Action::CreateBrushEntity(a["classname"].as_str().unwrap_or("func_detail").to_string()),
+            "create_brush_entity" => {
+                if a["classname"].is_null() && !args["classname"].is_null() {
+                    return err("create_brush_entity needs args.classname, inside args rather than next to action".to_string());
+                }
+
+                Action::CreateBrushEntity(a["classname"].as_str().unwrap_or("func_detail").to_string())
+            }
             "place_entities" => {
                 let classnames: Vec<String> = a["classnames"].as_array().into_iter().flatten().filter_map(|c| c.as_str()).map(str::to_string).collect();
                 if classnames.is_empty() {
