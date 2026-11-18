@@ -5746,6 +5746,12 @@ fn tool_defaults_paths_and_aliases_agree() {
     assert!(ed.call_err("transform", json!({ "flip": "x", "uv_lock": "on" })).contains("uv_lock"));
     assert!(ed.call_err("run_action", json!({ "action": "rotate", "args": { "axis": "w" } })).contains("axis"));
     assert!(ed.call_err("run_action", json!({ "action": "flip", "args": { "axis": 2 } })).contains("axis"));
+    let before_nudge = (ed.state()["undo"].clone(), ed.selection_bounds());
+    for bad in [json!({ "action": "nudge", "offset": [16, 0, 0] }), json!({ "action": "nudge", "args": { "offset": [16, 0] } })] {
+        assert!(ed.call_err("run_action", bad.clone()).contains("nudge needs args.offset"), "{bad}");
+    }
+
+    assert_eq!((ed.state()["undo"].clone(), ed.selection_bounds()), before_nudge, "a refused nudge moves nothing");
     let undo_steps = ed.state()["undo"].clone();
     assert_eq!(ed.call("run_action", json!({ "action": "undo", "args": { "steps": 0 } }))["steps"], 0);
     assert_eq!(ed.state()["undo"], undo_steps, "zero steps undoes nothing");

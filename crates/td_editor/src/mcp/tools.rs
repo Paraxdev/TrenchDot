@@ -1610,7 +1610,10 @@ impl App {
                     Err(e) => err(e),
                 };
             }
-            "nudge" => Action::Nudge(vec3(&a["offset"]).unwrap_or_default()),
+            "nudge" => match vec3(&a["offset"]) {
+                Some(offset) => Action::Nudge(offset),
+                None => return err(format!("nudge needs args.offset, [x, y, z] in map units, got {}", a["offset"])),
+            },
             "set_tool" => match a["tool"].as_str().and_then(ToolKind::from_name) {
                 Some(t) => Action::SetTool(t),
                 None => return err("unknown tool"),
