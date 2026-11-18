@@ -497,7 +497,7 @@
       "type": "point",
       "description": "Player spawn point",
       "color": "#33ff33ff",
-      "node_class": "Marker3D",
+      "node_class": "CharacterBody3D",
       "group": "info",
       "size": [
         [
@@ -512,8 +512,48 @@
         ]
       ],
       "properties": [],
-      "outputs": [],
-      "inputs": []
+      "scene": "res://demo/player.tscn",
+      "script": "res://demo/player.gd",
+      "outputs": [
+        {
+          "name": "health_changed",
+          "parameter": "health",
+          "type": "float"
+        },
+        {
+          "name": "died",
+          "parameter": ""
+        },
+        {
+          "name": "input_event",
+          "parameter": "camera, event, event_position, normal, shape_idx",
+          "type": "node, variant, vector3, vector3, int"
+        },
+        {
+          "name": "mouse_entered",
+          "parameter": ""
+        },
+        {
+          "name": "mouse_exited",
+          "parameter": ""
+        }
+      ],
+      "inputs": [
+        {
+          "name": "take_damage",
+          "parameter": "amount, _source",
+          "type": "float, node"
+        },
+        {
+          "name": "heal",
+          "parameter": "amount",
+          "type": "float"
+        },
+        {
+          "name": "use_target",
+          "parameter": ""
+        }
+      ]
     },
     {
       "classname": "light",
@@ -5637,5 +5677,15 @@
       "trigger_teleport",
       "worldspawn"
     ]
-  }
+  },
+  "clashes": [
+    {
+      "classname": "info_player_start",
+      "definitions": [
+        "res://addons/func_godot/fgd/trenchdot/info_player_start.tres",
+        "res://demo/entities/info_player_start.tres"
+      ],
+      "intended": true
+    }
+  ]
 }

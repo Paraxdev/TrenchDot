@@ -312,7 +312,14 @@ func test_live_rebuilds_are_saved() -> void:
 	var prop := { "id": 60, "type": "entity", "classname": "prop_model", "origin": [0.0, 0.0, 0.0], "angles": [0.0, 0.0, 0.0], "properties": { "model": PINE, "targetname": "live_pine" } }
 	session.apply([{ "op": "set", "id": 60, "parent": 1, "index": 0, "node": prop }, { "op": "set", "id": DOOR, "parent": 1, "index": 9, "node": session._nodes[DOOR].duplicate(true) }])
 	_settle(session)
-	var unowned: Array = t.collect(map, func(n: Node) -> bool: return n != map and n.owner == null).map(func(n: Node) -> String: return String(n.name))
+	var in_instance := func(n: Node) -> bool:
+		var up := n.get_parent()
+		while up != map:
+			if up.scene_file_path != "":
+				return true
+			up = up.get_parent()
+		return false
+	var unowned: Array = t.collect(map, func(n: Node) -> bool: return n != map and n.owner == null and not in_instance.call(n)).map(func(n: Node) -> String: return String(n.name))
 	check(unowned == [], "every node of the live rebuilds has an owner, got %s" % [unowned])
 	var packed := PackedScene.new()
 	packed.pack(scene)

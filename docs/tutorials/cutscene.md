@@ -73,7 +73,7 @@ damage, so the health is already up to date.
 
 The scene script,
 [godot/demo/scenes/scripted_scene.gd](https://github.com/Paraxdev/TrenchDot/blob/main/godot/demo/scenes/scripted_scene.gd),
-only builds the map, spawns the player at the `info_player_start` and adds a `TrenchDotDebugOverlay`. Press **F3**
+only builds the map and adds a `TrenchDotDebugOverlay`. The demo project overrides `info_player_start` with the player scene, so the map's own start builds the player. Press **F3**
 in game to watch each output fire. It is the quickest way to spot a step that is wired to the wrong name.
 
 <div class="td-mcp" markdown>

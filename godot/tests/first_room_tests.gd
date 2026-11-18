@@ -8,7 +8,7 @@ extends RefCounted
 
 const FIXTURE := "res://tests/first_room/project/entities"
 const SETTINGS := FIXTURE + "/project_map_settings.tres"
-const DEMO_SETTINGS := "res://demo/demo_map_settings.tres"
+const ADDON_SETTINGS := "res://addons/func_godot/func_godot_default_map_settings.tres"
 const START := Vector3(-40, 0, -64)
 
 static func run(t) -> void:
@@ -136,7 +136,7 @@ static func _test_room(t) -> void:
 
 static func _test_turned_start(t) -> void:
 	var at := Vector3(150, 0, 90)
-	var marked := _room(t, [_entity(20, "info_player_start", at, 90.0)], DEMO_SETTINGS)
+	var marked := _room(t, [_entity(20, "info_player_start", at, 90.0)], ADDON_SETTINGS)
 	var markers := _built(t, marked, "info_player_start")
 	var facing: float = markers[0].global_rotation.y if markers.size() == 1 and markers[0] is Marker3D else NAN
 	t.check(absf(facing) > 0.1, "the addon's own player start is a turned Marker3D, faces %s" % facing)

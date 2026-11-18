@@ -81,6 +81,7 @@ func _initialize() -> void:
 	test_default_fgd()
 	test_entity_pack()
 	test_demo_load_problem()
+	await test_demo_start_is_the_player()
 	test_resource_scripts_without_static_vars()
 	test_clashes()
 	test_build_report()
@@ -271,8 +272,8 @@ func test_build() -> void:
 		check(near(lamp.light_energy, 2.5), "light_energy applied")
 		check(not lamp.visible, "lamp starts off")
 
-	var start := collect(map, func(n): return n is Marker3D)
-	check(start.size() == 1, "player start built")
+	var start := collect(map, func(n): return n is DemoPlayer)
+	check(start.size() == 1, "player start built as the demo's player")
 	if start.size() == 1:
 		check(near(start[0].position, Vector3(0, 0, 4)), "player start position")
 		check(near(start[0].rotation_degrees.y, 45.0, 0.01), "player start yaw 45, got %s" % start[0].rotation_degrees)
@@ -803,6 +804,36 @@ func test_demo_load_problem() -> void:
 	check(demo.load_problem(MAP, false).contains("needs the Gameplay entities pack in res://trenchdot/entities"), "one that is there needs the pack when it is not installed")
 	check(demo.load_problem(MAP, true).contains("could not be loaded"), "and otherwise did not load for another reason")
 
+func test_demo_start_is_the_player() -> void:
+	print("- the demo's info_player_start builds the player")
+	var map := FuncGodotMap.new()
+	map.map_settings = load(SETTINGS)
+	map.local_map_file = "res://demo/maps/showcase/lighthouse_forest.tdm"
+	root.add_child(map)
+	map.build()
+	var players := collect(map, func(n): return n is DemoPlayer)
+	check(players.size() == 1, "the start builds exactly one DemoPlayer, got %s" % [players])
+	if players.size() == 1:
+		var p: DemoPlayer = players[0]
+		check(str(p.get_parent().name).contains("Gameplay") and str(p.name).ends_with("info_player_start"), "it is the start entity itself, got %s" % p.get_path())
+		check(Vector2(p.global_position.x, p.global_position.z).distance_to(Vector2(8.125, 37.5)) < 0.01, "it stands where the start is, got %s" % p.global_position)
+		check(absf(wrapf(p.global_rotation.y + PI / 2.0, -PI, PI)) < 0.01, "it faces the way the start does, got %s" % p.global_rotation.y)
+		await physics_frame
+		check(p.get_node("Head/Camera").current, "its camera is the current one")
+	map.free()
+	var demo: Node = load("res://demo/demo.tscn").instantiate()
+	root.add_child(demo)
+	await process_frame
+	var group := get_nodes_in_group(&"player")
+	check(group.size() == 1 and demo._level.is_ancestor_of(group[0]), "demo.tscn plays the player its level built, got %s" % [group])
+	demo.free()
+	var scene: Node = load("res://demo/scenes/scripted_scene.tscn").instantiate()
+	root.add_child(scene)
+	await process_frame
+	var scene_players := get_nodes_in_group(&"player")
+	check(scene_players.size() == 1 and scene.get_child(1).is_ancestor_of(scene_players[0]), "the cutscene demo has one player, built by its map, got %s" % [scene_players])
+	scene.free()
+
 func test_resource_scripts_without_static_vars() -> void:
 	print("- addon Resource classes keep no static vars")
 	var bases := {}
@@ -848,7 +879,8 @@ func test_clashes() -> void:
 	var exported: Array = config.build_config()["entities"].filter(func(e): return e["classname"] == "func_door")
 	check(exported.size() == 1 and exported[0].get("node_groups") == ["entities", "doors"], "node groups are exported for @group targets, got %s" % [exported])
 	var demo: TrenchDotGameConfig = load("res://demo/demo_game_config.tres")
-	check(not demo.build_config().has("clashes"), "the demo defines each classname once")
+	var demo_clashes: Array = demo.build_config().get("clashes", [])
+	check(demo_clashes.size() == 1 and demo_clashes[0]["classname"] == "info_player_start" and demo_clashes[0].get("intended") == true, "the demo's only repeated classname is its marked player start override, got %s" % [demo_clashes])
 
 func _check_intended_clashes() -> void:
 	var override := func(classname: String, path: String, meta: Variant) -> FuncGodotFGDEntityClass:
@@ -2602,8 +2634,7 @@ func test_scripted_scene_map() -> void:
 	TrenchDotIO.invoke(lamp, &"turn_on", "", null)
 	check(lamp.is_on(), "the built light switches on through I/O")
 
-	var player: DemoPlayer = load("res://demo/player.tscn").instantiate()
-	root.add_child(player)
+	var player := built_player(map)
 	await process_frame
 	player.global_position = barrel.global_position
 	var hp_at_broken := [-1.0]
@@ -2612,7 +2643,6 @@ func test_scripted_scene_map() -> void:
 	await process_frame
 	check(player.health < player.max_health, "the barrel blast hurt a player placed next to the map, health %s" % player.health)
 	check(hp_at_broken[0] == player.health, "broken fires after the blast so a readout sees the damage, got %s" % hp_at_broken[0])
-	player.queue_free()
 	map.queue_free()
 	await process_frame
 
@@ -2740,6 +2770,12 @@ func test_scripted_scene() -> void:
 	map.queue_free()
 	await process_frame
 
+## The one DemoPlayer the map's info_player_start built.
+func built_player(map: Node) -> DemoPlayer:
+	var players := collect(map, func(n): return n is DemoPlayer)
+	check(players.size() == 1, "the map's info_player_start builds one player, got %s" % [players])
+	return players[0] if players.size() == 1 else null
+
 func find_targetname(root: Node, targetname: String) -> Node:
 	for n in collect(root, func(n): return str(n.get_meta(TrenchDotIO.TARGETNAME_META, "")) == targetname):
 		return n
@@ -2754,19 +2790,16 @@ func test_showcase_playthrough() -> void:
 	root.add_child(map)
 	map.build()
 	await process_frame
-	var spawn := load("res://demo/demo.gd").find_spawn(map) as Node3D
-	check(spawn != null, "map has an info_player_start")
-	var player: DemoPlayer = load("res://demo/player.tscn").instantiate()
-	root.add_child(player)
+	var player := built_player(map)
+	var spawn := player.global_position
 	var units := func(v: Vector3) -> Vector3: return v * map.map_settings.scale_factor
 	var gate := find_targetname(map, "gate_left") as TDDoorRotating
 	var beacon := find_targetname(map, "beacon") as Light3D
 	check(gate != null and beacon != null, "gate and beacon entities built")
-	if not spawn or not gate or not beacon:
-		player.free()
+	if not gate or not beacon:
 		map.free()
 		return
-	player.global_position = spawn.global_position + Vector3.UP * 0.1
+	player.global_position = spawn
 	for i in 4:
 		await physics_frame
 	check(not gate.is_open and gate._angle == 0.0, "gate starts closed")
@@ -2780,7 +2813,6 @@ func test_showcase_playthrough() -> void:
 	while not near(beacon.light_energy, 30.0) and Time.get_ticks_msec() < deadline:
 		await physics_frame
 	check(near(beacon.light_energy, 30.0), "trigger_call ran set_param(0, 30) on the beacon, energy %.1f" % beacon.light_energy)
-	player.free()
 	map.free()
 
 func has_glowing_letters(mesh: MeshInstance3D, texture := "withered/letters") -> bool:
@@ -2816,8 +2848,7 @@ func test_withered_city_playthrough() -> void:
 	var lightning := find_targetname(map, "lightning") as TDLight
 	check(lightning != null and not lightning.is_on(), "the storm flash waits dark for its random timer")
 	check(find_targetname(map, "lightning_bolt") != null and find_targetname(map, "open_sign_e") != null, "the lightning bolt and the flickering OPEN letters are named fixtures")
-	var player: DemoPlayer = load("res://demo/player.tscn").instantiate()
-	root.add_child(player)
+	var player := built_player(map)
 	player.global_position = units.call(Vector3(96, 8, 1392))
 	player.rotation.y = PI
 	for i in 4:
@@ -2841,7 +2872,6 @@ func test_withered_city_playthrough() -> void:
 	while flicker.is_on() == was_on and Time.get_ticks_msec() < deadline:
 		await physics_frame
 	check(flicker.is_on() != was_on, "the timer flickers the light over the letters")
-	player.free()
 	map.free()
 
 func test_emission() -> void:
