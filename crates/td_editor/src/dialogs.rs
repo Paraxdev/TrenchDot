@@ -502,6 +502,17 @@ pub struct ShapeDialog {
     bounds: Option<Aabb>,
     /// The generated shape and its triangle count.
     preview: Option<(ShapeKey, Vec<NodeKind>, usize)>,
+    /// One entry per Create while the dialog stays open, so an undo, a redo or selecting an earlier shape again still
+    /// finds its box.
+    made: Vec<Made>,
+}
+
+/// What a Create made from which box. While it stays selected and unmoved, Create again builds from that box rather
+/// than from the made shape, which an arch or a rock leaves smaller.
+struct Made {
+    ids: Vec<td_doc::NodeId>,
+    bounds: Aabb,
+    source: Aabb,
 }
 
 /// A shape past this many triangles gets its count shown as a warning.
@@ -553,6 +564,7 @@ impl Default for ShapeDialog {
             rock: Rock::default(),
             bounds: None,
             preview: None,
+            made: Vec::new(),
         }
     }
 }
@@ -713,6 +725,10 @@ impl ShapeDialog {
         if !sources.is_empty() {
             state.shape_bounds = None;
             let bounds = state.doc.map.bounds_of(sources.iter().copied());
+            if let Some(m) = self.made.iter().find(|m| m.bounds == bounds && m.ids.len() == sources.len() && sources.iter().all(|id| m.ids.contains(id))) {
+                return (sources, m.source);
+            }
+
             return (sources, bounds);
         }
 
@@ -754,6 +770,7 @@ impl ShapeDialog {
             }
 
             self.bounds = None;
+            self.made.clear();
             state.shape_bounds = None;
             return;
         }
@@ -914,7 +931,8 @@ impl ShapeDialog {
             });
             if ui.add_enabled(count > 0, egui::Button::new(tr("Create"))).clicked() {
                 let kinds = self.preview.as_ref().map(|(_, p, _)| p.clone()).unwrap_or_default();
-                create_shape(state, &sources, kinds);
+                let ids = create_shape(state, &sources, kinds);
+                self.made.push(Made { bounds: state.doc.map.bounds_of(ids.iter().copied()), ids, source: bounds });
             }
         });
         self.open = open;
@@ -929,7 +947,7 @@ fn tunnel_thickness_max(bounds: &Aabb, grid: f64) -> f64 {
 }
 
 /// Puts the shape where `sources` were, in their parent, and selects it.
-fn create_shape(state: &mut EditorState, sources: &[td_doc::NodeId], kinds: Vec<NodeKind>) {
+fn create_shape(state: &mut EditorState, sources: &[td_doc::NodeId], kinds: Vec<NodeKind>) -> Vec<td_doc::NodeId> {
     let parent = state.insert_parent();
     state.doc.edit(en!("Create Shape"), |m, s| {
         let target_parent = sources.first().and_then(|b| m.get(*b)).and_then(|n| n.parent).unwrap_or(parent);
@@ -938,11 +956,15 @@ fn create_shape(state: &mut EditorState, sources: &[td_doc::NodeId], kinds: Vec<
         }
 
         s.clear();
-        for kind in kinds {
-            let id = m.insert(target_parent, kind);
-            s.nodes.insert(id);
-        }
-    });
+        kinds
+            .into_iter()
+            .map(|kind| {
+                let id = m.insert(target_parent, kind);
+                s.nodes.insert(id);
+                id
+            })
+            .collect()
+    })
 }
 
 pub struct TerrainDialog {
@@ -1616,6 +1638,104 @@ mod tests {
 
         assert!(state.doc.map.brush(block).is_none());
         assert_eq!(state.doc.map.meshes().count(), 1, "Create on the selected rock swaps it rather than stacking another");
+    }
+
+    fn made_bounds(state: &EditorState) -> Aabb {
+        let made = state.doc.selection.brushes(&state.doc.map);
+        assert!(!made.is_empty(), "Create made a shape");
+        state.doc.map.bounds_of(made.iter().copied())
+    }
+
+    fn fresh_bounds(dialog: ShapeDialog, source: &Aabb) -> Aabb {
+        let (ctx, mut state, mut time) = (egui::Context::default(), EditorState::new(crate::state::Prefs::default()), 0.0);
+        let block = insert_block(&mut state, source);
+        state.doc.selection.select_node(block);
+        click_create(&ctx, &mut ShapeDialog { open: true, ..dialog }, &mut state, &mut time);
+        made_bounds(&state)
+    }
+
+    #[test]
+    fn creating_again_builds_from_the_box_the_first_shape_replaced() {
+        let source = box_of([0.0, 0.0, 0.0], [256.0, 192.0, 32.0]);
+        let (ctx, mut state, mut time) = (egui::Context::default(), EditorState::new(crate::state::Prefs::default()), 0.0);
+        let block = insert_block(&mut state, &source);
+        state.doc.selection.select_node(block);
+        let mut dialog = ShapeDialog { open: true, kind: ShapeKind::Arch, angle: 60.0, ..Default::default() };
+        click_create(&ctx, &mut dialog, &mut state, &mut time);
+        assert!(made_bounds(&state).size().y < 40.0, "a 60 degree arch is flat");
+
+        for angle in [120.0, 180.0] {
+            dialog.angle = angle;
+            click_create(&ctx, &mut dialog, &mut state, &mut time);
+            let fresh = fresh_bounds(ShapeDialog { kind: ShapeKind::Arch, angle, ..Default::default() }, &source);
+            assert_eq!(made_bounds(&state), fresh, "{angle} degrees again matches a fresh one from the box");
+        }
+
+        dialog.kind = ShapeKind::Tunnel;
+        click_create(&ctx, &mut dialog, &mut state, &mut time);
+        assert_eq!(made_bounds(&state), source, "the tunnel fills the whole box");
+
+        let other = insert_block(&mut state, &box_of([512.0, 0.0, 0.0], [576.0, 64.0, 64.0]));
+        state.doc.selection.clear();
+        state.doc.selection.select_node(other);
+        dialog.kind = ShapeKind::Wedge;
+        click_create(&ctx, &mut dialog, &mut state, &mut time);
+        assert_eq!(made_bounds(&state), box_of([512.0, 0.0, 0.0], [576.0, 64.0, 64.0]), "another selection builds from its own box");
+    }
+
+    #[test]
+    fn undo_and_redo_back_to_a_recreated_arch_keep_its_box() {
+        let source = box_of([0.0, 0.0, 0.0], [192.0, 128.0, 128.0]);
+        let (ctx, mut state, mut time) = (egui::Context::default(), EditorState::new(crate::state::Prefs::default()), 0.0);
+        let block = insert_block(&mut state, &source);
+        state.doc.selection.select_node(block);
+        let mut dialog = ShapeDialog { open: true, kind: ShapeKind::Arch, ..Default::default() };
+        for angle in [120.0, 60.0, 180.0] {
+            dialog.angle = angle;
+            click_create(&ctx, &mut dialog, &mut state, &mut time);
+        }
+
+        let label = "Bounds 192 x 128 x 128 (replaces selection)";
+        let shows_box = |dialog: &mut ShapeDialog, state: &mut EditorState, time: &mut f64| {
+            shape_frame(&ctx, dialog, state, time, vec![]).iter().any(|(text, ..)| text == label)
+        };
+        assert_eq!(made_bounds(&state), source);
+        state.undo();
+        assert!(made_bounds(&state).size().y < 40.0, "the undo brings back the 60 degree arch");
+        assert!(shows_box(&mut dialog, &mut state, &mut time), "and the dialog still offers the box it came from");
+        state.redo();
+        assert!(shows_box(&mut dialog, &mut state, &mut time), "so does a redo");
+        state.undo();
+        click_create(&ctx, &mut dialog, &mut state, &mut time);
+        assert_eq!(made_bounds(&state), source, "Create after the undo builds the 180 degree arch from the box");
+
+        state.undo();
+        let arch = state.doc.selection.brushes(&state.doc.map);
+        assert!(made_bounds(&state).size().y < 40.0, "the 60 degree arch is back");
+        let select = |state: &mut EditorState, ids: &[td_doc::NodeId]| {
+            state.doc.selection.clear();
+            for id in ids {
+                state.doc.selection.select_node(*id);
+            }
+        };
+        let other = insert_block(&mut state, &box_of([512.0, 0.0, 0.0], [576.0, 64.0, 64.0]));
+        select(&mut state, &[other]);
+        assert!(!shows_box(&mut dialog, &mut state, &mut time), "another selection shows its own box");
+        select(&mut state, &arch);
+        assert!(shows_box(&mut dialog, &mut state, &mut time), "selecting the arch again brings its box back");
+        select(&mut state, &[other]);
+        click_create(&ctx, &mut dialog, &mut state, &mut time);
+        state.undo();
+        select(&mut state, &arch);
+        assert!(shows_box(&mut dialog, &mut state, &mut time), "so does undoing a Create on another object");
+        select(&mut state, &[]);
+        shape_frame(&ctx, &mut dialog, &mut state, &mut time, vec![]);
+        select(&mut state, &arch);
+        assert!(shows_box(&mut dialog, &mut state, &mut time), "so does selecting it after selecting nothing");
+        dialog.open = false;
+        shape_frame(&ctx, &mut dialog, &mut state, &mut time, vec![]);
+        dialog.open = true;
+        assert!(!shows_box(&mut dialog, &mut state, &mut time), "closing the dialog forgets the boxes");
     }
 
     #[test]
