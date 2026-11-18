@@ -6072,6 +6072,33 @@ fn edits_across_two_linked_copies_are_refused() {
 
 #[test]
 #[ignore]
+fn separate_linked_groups_frees_both_halves() {
+    let ed = Editor::launch("separate_linked");
+    let source = ed.box_brush([8.0, 2.0, -4.0], [40.0, 34.0, 20.0]);
+    ed.call("select", json!({ "ids": [source] }));
+    let copy = ed.call("run_action", json!({ "action": "mirror_linked", "args": { "axis": "x", "plane": "max" } }))["copies"][0].as_u64().unwrap();
+    let listed = |ed: &Editor, id: u64| ed.call("list_nodes", json!({}))["nodes"].as_array().unwrap().iter().find(|n| n["id"] == id).unwrap().clone();
+    let half = listed(&ed, source)["parent"].as_u64().unwrap();
+    let names = |ed: &Editor| [half, copy].map(|g| listed(ed, g)["name"].as_str().unwrap().to_string());
+    assert!(names(&ed).iter().all(|n| n.ends_with("(linked)")), "{:?}", names(&ed));
+    let steps = ed.state()["undo"].as_array().unwrap().len();
+
+    for (action, selected) in [("separate_linked_groups", half), ("unlink_groups", copy)] {
+        ed.call("select", json!({ "ids": [selected] }));
+        ed.call("run_action", json!({ "action": action }));
+        assert_eq!(names(&ed), ["Mirrored", "Mirrored"], "{action}: the partner left alone is freed too");
+        assert_eq!(ed.state()["undo"].as_array().unwrap().len(), steps + 1, "{action}");
+        assert_eq!(ed.state()["undo"][0], "MCP: Separate Linked Groups", "{action}");
+        ed.call("select", json!({ "ids": [half, copy] }));
+        assert!(ed.state()["mirror_planes"].as_array().unwrap().is_empty(), "{action}: no mirror is left");
+
+        ed.call("run_action", json!({ "action": "undo" }));
+        assert!(names(&ed).iter().all(|n| n.ends_with("(linked)")), "{action}: one undo links both again {:?}", names(&ed));
+    }
+}
+
+#[test]
+#[ignore]
 fn apply_mirror_joins_brushes_and_welds_meshes() {
     let ed = Editor::launch("apply_mirror");
     let brush = ed.box_brush([8.0, 2.0, -4.0], [40.0, 34.0, 20.0]);

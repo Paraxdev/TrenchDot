@@ -117,6 +117,7 @@ const ACTIONS: &[&str] = &[
     "convert_to_brushes",
     "join_meshes",
     "duplicate_linked",
+    "separate_linked_groups",
     "unlink_groups",
     "set_cordon",
     "toggle_cordon",

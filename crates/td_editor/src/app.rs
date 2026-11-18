@@ -1450,7 +1450,7 @@ impl App {
                     m.item(ui, None, en!("Close Group"), Action::CloseGroup);
                     ui.separator();
                     m.item(ui, None, en!("Duplicate Linked"), Action::DuplicateLinked);
-                    m.item(ui, None, en!("Unlink Groups"), Action::UnlinkGroups);
+                    m.item(ui, None, en!("Separate Linked Groups"), Action::UnlinkGroups);
                 });
                 sub_menu(ui, Some(icons::INSTANCE), en!("Prefabs"), |ui| {
                     m.item(ui, None, en!("Create from Selection…"), Action::CreatePrefab);

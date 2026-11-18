@@ -1648,7 +1648,7 @@ impl App {
             "convert_to_brushes" => Action::ConvertToBrushes,
             "join_meshes" => Action::JoinMeshes,
             "duplicate_linked" => Action::DuplicateLinked,
-            "unlink_groups" => Action::UnlinkGroups,
+            "separate_linked_groups" | "unlink_groups" => Action::UnlinkGroups,
             "set_cordon" => Action::SetCordonFromSelection,
             "toggle_cordon" => Action::ToggleCordon,
             "clear_cordon" => Action::ClearCordon,

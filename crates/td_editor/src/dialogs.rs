@@ -166,7 +166,7 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
         entry(en!("Godot"), en!("Add Content to Project"), Action::ShowProjectContent),
         entry(en!("Godot"), en!("Install or Update Addon"), Action::ShowAddonSetup),
         entry(en!("Group"), en!("Duplicate Linked"), Action::DuplicateLinked),
-        entry(en!("Group"), en!("Unlink Groups"), Action::UnlinkGroups),
+        entry(en!("Group"), en!("Separate Linked Groups"), Action::UnlinkGroups),
         entry(en!("Mesh"), en!("Edit Mesh"), Action::EditMesh),
         entry(en!("Edit"), en!("Toggle Edit Mode"), Action::ToggleEditMode),
         entry(en!("Mesh"), en!("Convert Brushes to Mesh"), Action::ConvertToMesh),
@@ -315,10 +315,21 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
 }
 
 /// The entries that match `query` in the shown label or the English one, best first.
+/// Names other editors give a command, so people find it by the word they know. They stay English and are never shown.
+fn aliases(action: &Action) -> &'static [&'static str] {
+    match action {
+        Action::UnlinkGroups => &["Make Unique", "Make Single User", "Unlink Groups"],
+        _ => &[],
+    }
+}
+
 fn ranked(query: &str, entries: Vec<(Msg, Action)>) -> Vec<(i32, Msg, Action)> {
     let mut matches: Vec<(i32, Msg, Action)> = entries
         .into_iter()
-        .filter_map(|(label, action)| [fuzzy_score(query, &label.shown), fuzzy_score(query, &label.en)].into_iter().flatten().max().map(|s| (s, label, action)))
+        .filter_map(|(label, action)| {
+            let names = [label.shown.as_str(), label.en.as_str()].into_iter().chain(aliases(&action).iter().copied());
+            names.filter_map(|name| fuzzy_score(query, name)).max().map(|s| (s, label, action))
+        })
         .collect();
     matches.sort_by(|a, b| b.0.cmp(&a.0).then(a.1.shown.cmp(&b.1.shown)));
     matches
@@ -2324,6 +2335,20 @@ mod tests {
         assert_eq!(down[0].2, Action::GridDown);
         assert!(ranked("zzzz", entries.clone()).is_empty());
         assert_eq!(ranked("", entries.clone()).len(), entries.len(), "an empty query lists everything");
+    }
+
+    #[test]
+    fn palette_finds_separate_linked_groups_by_its_other_names() {
+        let state = EditorState::new(crate::state::Prefs::default());
+        let entries = palette_entries(&state);
+        for query in ["make unique", "make single user", "unlink", "separate linked"] {
+            let matches = ranked(query, entries.clone());
+            assert_eq!(matches[0].2, Action::UnlinkGroups, "{query}");
+            assert_eq!(matches[0].1.en, "Group: Separate Linked Groups", "{query} shows the real name");
+        }
+
+        assert_eq!(ranked("make unique", entries.clone()).iter().filter(|m| m.2 == Action::UnlinkGroups).count(), 1, "an alias adds no row of its own");
+        assert_ne!(ranked("grid larger", entries)[0].2, Action::UnlinkGroups, "other queries are not pulled to it");
     }
 
     #[test]
