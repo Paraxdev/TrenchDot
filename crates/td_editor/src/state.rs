@@ -1104,6 +1104,34 @@ impl EditorState {
         self.valid_layer()
     }
 
+    /// Closes every open group that does not hold `id`, so a click elsewhere neither keeps a forgotten group open nor
+    /// sends the next brush into it. The group `id` itself and the groups around it stay open. Objects selected inside
+    /// a group it closes leave the selection, a closed group is only ever selected whole.
+    pub fn leave_groups_outside(&mut self, id: NodeId) {
+        let around = self.doc.map.ancestors(id);
+        let (kept, closed): (Vec<NodeId>, Vec<NodeId>) = self.open_groups.iter().partition(|g| **g == id || around.contains(g));
+        self.open_groups = kept;
+        let map = &self.doc.map;
+        let inside = |n: &NodeId| closed.iter().any(|g| map.is_ancestor(*g, *n));
+        if self.doc.selection.nodes.iter().any(inside) {
+            self.doc.select(|m, s| s.nodes.retain(|n| !closed.iter().any(|g| m.is_ancestor(*g, *n))));
+        }
+    }
+
+    /// Opens the closed groups around `id`, outer first, and `id` itself when it is a group. Open groups that do not
+    /// hold `id` are closed. Returns whether a group was opened.
+    pub fn open_groups_to(&mut self, id: NodeId) -> bool {
+        self.leave_groups_outside(id);
+        let map = &self.doc.map;
+        let mut chain = map.ancestors(id);
+        chain.reverse();
+        chain.push(id);
+        chain.retain(|g| is_group(map, *g) && !self.open_groups.contains(g));
+        let opened = !chain.is_empty();
+        self.open_groups.extend(chain);
+        opened
+    }
+
     /// An entity that holds geometry or whose definition says it is a brush entity, so brushes may go into it.
     pub fn is_brush_entity(&self, id: NodeId) -> bool {
         let map = &self.doc.map;
@@ -2961,5 +2989,128 @@ importer=\"texture\"
         assert!(state.reload_changed_game_config());
         assert!(state.status.starts_with("Failed to load"), "a file that stays cut off is broken: {}", state.status);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    struct Nest {
+        outer: NodeId,
+        inner: NodeId,
+        leg: NodeId,
+        side: NodeId,
+        other_group: NodeId,
+        loose: NodeId,
+    }
+
+    /// outer holds inner (holding leg) and side, a second group holds other, and loose sits in the layer.
+    fn nest() -> (EditorState, Nest) {
+        use td_doc::{NodeKind, ops};
+        use td_geom::Brush;
+        let mut state = EditorState::new(Prefs::default());
+        let layer = state.valid_layer();
+        let n = state.doc.edit("add", |m, s| {
+            let mut cube = |x: f64, y: f64, w: f64| {
+                let min = DVec3::new(x, y, 16.0);
+                m.insert(layer, NodeKind::Brush(Brush::from_aabb(&Aabb::new(min, min + DVec3::new(w, 48.0, 24.0)), "dev/grey").unwrap()))
+            };
+            let (leg, side, other, loose) = (cube(96.0, 32.0, 16.0), cube(160.0, 64.0, 40.0), cube(-224.0, 128.0, 32.0), cube(320.0, -96.0, 24.0));
+            s.clear();
+            s.nodes.insert(leg);
+            let inner = ops::group_selection(m, s, "inner", layer).unwrap();
+            s.clear();
+            s.nodes.extend([inner, side]);
+            let outer = ops::group_selection(m, s, "outer", layer).unwrap();
+            s.clear();
+            s.nodes.insert(other);
+            let other_group = ops::group_selection(m, s, "other group", layer).unwrap();
+            s.clear();
+            Nest { outer, inner, leg, side, other_group, loose }
+        });
+        (state, n)
+    }
+
+    #[test]
+    fn leaving_groups_keeps_only_the_groups_around_the_click() {
+        let (mut state, n) = nest();
+        state.leave_groups_outside(n.leg);
+        assert!(state.open_groups.is_empty(), "nothing open stays nothing open");
+
+        state.open_groups = vec![n.outer];
+        state.leave_groups_outside(n.side);
+        assert_eq!(state.open_groups, [n.outer], "one open group that holds the click stays");
+
+        state.open_groups = vec![n.outer, n.inner];
+        state.leave_groups_outside(n.leg);
+        assert_eq!(state.open_groups, [n.outer, n.inner], "a click inside the inner group keeps the chain");
+
+        state.leave_groups_outside(n.side);
+        assert_eq!(state.open_groups, [n.outer], "a click inside outer only drops inner");
+
+        state.open_groups = vec![n.outer, n.inner];
+        state.leave_groups_outside(n.loose);
+        assert!(state.open_groups.is_empty(), "a click outside both closes both");
+
+        state.open_groups = vec![n.outer, n.other_group];
+        state.leave_groups_outside(n.leg);
+        assert_eq!(state.open_groups, [n.outer], "an unrelated open group is dropped");
+
+        state.open_groups = vec![n.outer, n.inner];
+        state.leave_groups_outside(n.inner);
+        assert_eq!(state.open_groups, [n.outer, n.inner], "the group's own id stays open, and so does the group around it");
+
+        state.leave_groups_outside(n.outer);
+        assert_eq!(state.open_groups, [n.outer], "a click on outer itself keeps outer and drops what is inside it");
+    }
+
+    #[test]
+    fn leaving_groups_drops_the_objects_selected_inside_the_groups_it_closes() {
+        use std::collections::BTreeSet;
+        let (mut state, n) = nest();
+        let pick = |state: &mut EditorState, ids: &[NodeId]| state.doc.select(|_, s| s.nodes = ids.iter().copied().collect());
+        let set = |ids: &[NodeId]| ids.iter().copied().collect::<BTreeSet<_>>();
+
+        state.open_groups = vec![n.outer, n.inner];
+        pick(&mut state, &[n.leg, n.side, n.loose]);
+        state.leave_groups_outside(n.side);
+        assert_eq!(state.doc.selection.nodes, set(&[n.side, n.loose]), "leg sat in the inner group that closed");
+
+        state.open_groups = vec![n.outer, n.inner];
+        pick(&mut state, &[n.leg, n.inner]);
+        state.leave_groups_outside(n.loose);
+        assert_eq!(state.doc.selection.nodes, set(&[]), "inner itself and leg both sat in outer");
+
+        state.open_groups = vec![n.outer];
+        pick(&mut state, &[n.outer, n.other_group, n.loose]);
+        state.leave_groups_outside(n.loose);
+        assert_eq!(state.doc.selection.nodes, set(&[n.outer, n.other_group, n.loose]), "a group that closes stays selected itself");
+
+        state.open_groups = vec![n.outer, n.inner];
+        pick(&mut state, &[n.leg]);
+        state.leave_groups_outside(n.leg);
+        assert_eq!(state.doc.selection.nodes, set(&[n.leg]), "nothing closes, nothing leaves");
+    }
+
+    #[test]
+    fn opening_groups_to_a_node_opens_the_closed_chain_outer_first_once() {
+        let (mut state, n) = nest();
+        assert!(state.open_groups_to(n.inner));
+        assert_eq!(state.open_groups, [n.outer, n.inner], "a nested group opens its closed parent too");
+        assert!(!state.open_groups_to(n.inner), "nothing new the second time");
+        assert_eq!(state.open_groups, [n.outer, n.inner], "and no duplicates");
+
+        assert!(!state.open_groups_to(n.leg), "the groups around a brush are open already");
+        assert_eq!(state.open_groups, [n.outer, n.inner]);
+        state.open_groups.clear();
+        assert!(state.open_groups_to(n.leg));
+        assert_eq!(state.open_groups, [n.outer, n.inner], "a brush opens the groups around it, not itself");
+
+        state.open_groups = vec![n.other_group];
+        assert!(state.open_groups_to(n.side));
+        assert_eq!(state.open_groups, [n.outer], "an unrelated open group is closed");
+
+        state.open_groups = vec![n.outer];
+        assert!(state.open_groups_to(n.inner));
+        assert_eq!(state.open_groups, [n.outer, n.inner], "an open parent is kept, only the missing level opens");
+
+        assert!(!state.open_groups_to(n.loose), "a loose brush has no group to open");
+        assert!(state.open_groups.is_empty(), "but the groups elsewhere still close");
     }
 }

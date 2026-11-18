@@ -1711,7 +1711,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
                 .filter(|id| matches!(state.doc.map.get(*id).map(|n| &n.kind), Some(td_doc::NodeKind::Group(_))))
                 .collect();
             if let Some(g) = groups.first() {
-                state.open_groups.push(*g);
+                state.open_groups_to(*g);
                 state.doc.select(|_, s| s.clear());
             }
         }
@@ -3571,6 +3571,43 @@ mod tests {
         execute(&mut state, Action::FaceMode, &ctx);
         let mesh_faces = state.doc.map.mesh(mesh).unwrap().faces.len();
         assert_eq!(selected(&state), (vec![], all_faces(&[(b, 6), (mesh, mesh_faces)])));
+    }
+
+    #[test]
+    fn open_group_opens_the_closed_parents_of_a_nested_group_and_drops_other_open_groups() {
+        let ctx = egui::Context::default();
+        let (mut state, a, b, _mesh, _light) = mode_state();
+        let parent = state.insert_parent();
+        let (inner, middle, outer, sibling) = state.doc.edit("Group", |m, s| {
+            s.clear();
+            s.nodes.insert(a);
+            let inner = ops::group_selection(m, s, "Inner", parent).unwrap();
+            s.clear();
+            s.nodes.insert(inner);
+            let middle = ops::group_selection(m, s, "Middle", parent).unwrap();
+            s.clear();
+            s.nodes.insert(middle);
+            let outer = ops::group_selection(m, s, "Outer", parent).unwrap();
+            s.clear();
+            s.nodes.insert(b);
+            let sibling = ops::group_selection(m, s, "Sibling", parent).unwrap();
+            (inner, middle, outer, sibling)
+        });
+        state.open_groups = vec![sibling];
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_node(inner);
+        });
+        execute(&mut state, Action::OpenGroup, &ctx);
+        assert_eq!(state.open_groups, [outer, middle, inner], "the closed parents open outer first and the unrelated group closes");
+        assert!(state.doc.selection.nodes.is_empty());
+
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_node(inner);
+        });
+        execute(&mut state, Action::OpenGroup, &ctx);
+        assert_eq!(state.open_groups, [outer, middle, inner], "an already open group is not pushed again");
     }
 
     #[test]

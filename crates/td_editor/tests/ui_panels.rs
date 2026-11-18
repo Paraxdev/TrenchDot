@@ -2976,6 +2976,30 @@ fn outliner_click_selects_the_row_itself_once_the_half_is_open() {
     harness.get_all_by_label(&label).next().unwrap().click();
     harness.run();
     assert_eq!(selection(&harness), [r.right], "the other half is still closed");
+    assert!(harness.state().state.open_groups.is_empty(), "a row outside the open half closes it");
+
+    harness.get_all_by_label(&row_label(&harness, r.left_brushes[1])).next().unwrap().click();
+    harness.run();
+    assert_eq!(selection(&harness), [r.left], "which makes the half whole again");
+}
+
+#[test]
+fn outliner_click_inside_an_open_group_keeps_it_open() {
+    let (f, r) = linked_rows_fixture();
+    let mut harness = outliner_harness(f);
+    harness.run();
+    reveal_rows(&mut harness, &[r.left_brushes[0], r.plain_child]);
+    harness.state_mut().state.open_groups.push(r.left);
+    harness.run();
+    harness.get_all_by_label(&row_label(&harness, r.left_brushes[0])).next().unwrap().click();
+    harness.run();
+    assert_eq!(harness.state().state.open_groups, [r.left]);
+    assert_eq!(selection(&harness), [r.left_brushes[0]]);
+
+    harness.get_all_by_label(&row_label(&harness, r.plain_child)).next().unwrap().click();
+    harness.run();
+    assert!(harness.state().state.open_groups.is_empty(), "a plain group's row is outside the open half");
+    assert_eq!(selection(&harness), [r.plain]);
 }
 
 #[test]
@@ -3000,20 +3024,61 @@ fn outliner_double_click_opens_the_group_and_reaches_the_row() {
     assert_eq!(selection(&harness), [r.left_brushes[1]], "the brush itself is selected, not the half");
 
     double(&mut harness, r.right);
-    assert_eq!(harness.state().state.open_groups, [r.left, r.right]);
+    assert_eq!(harness.state().state.open_groups, [r.right], "opening another half closes the first one");
     assert!(selection(&harness).is_empty(), "a group row opens the group and clears the selection");
 
     let rows = |h: &Harness<'_, Fixture>| h.query_all_by_label(&row_label(h, r.right_brushes[0])).count();
     let shown = rows(&harness);
     assert!(shown > 0);
     double(&mut harness, r.right);
-    assert_eq!(harness.state().state.open_groups, [r.left, r.right], "a second double click does not push it again");
+    assert_eq!(harness.state().state.open_groups, [r.right], "a second double click does not push it again");
     assert!(rows(&harness) < shown, "it folds the open group's row instead");
     double(&mut harness, r.right);
     assert_eq!(rows(&harness), shown, "and the next one unfolds it");
 
     double(&mut harness, r.plain);
-    assert_eq!(harness.state().state.open_groups, [r.left, r.right, r.plain], "a plain group opens too");
+    assert_eq!(harness.state().state.open_groups, [r.plain], "a plain group opens too and closes the half");
+}
+
+#[test]
+fn outliner_double_click_outside_an_open_half_leaves_only_its_own_group_open() {
+    let (f, r) = linked_rows_fixture();
+    let mut harness = outliner_harness(f);
+    harness.run();
+    reveal_rows(&mut harness, &[r.left_brushes[0], r.plain_child]);
+    harness.state_mut().state.open_groups.push(r.left);
+    harness.run();
+    let label = row_label(&harness, r.plain_child);
+    harness.run_steps(40);
+    harness.get_by_label(&label).click();
+    harness.step();
+    harness.get_by_label(&label).click();
+    harness.run();
+    assert_eq!(harness.state().state.open_groups, [r.plain]);
+    assert_eq!(selection(&harness), [r.plain_child]);
+}
+
+#[test]
+fn outliner_double_click_that_only_closes_another_group_keeps_the_fold() {
+    let (f, r) = linked_rows_fixture();
+    let mut harness = outliner_harness(f);
+    harness.run();
+    reveal_rows(&mut harness, &[r.left_brushes[0]]);
+    harness.state_mut().state.open_groups.push(r.left);
+    harness.run();
+    let label = row_label(&harness, r.left);
+    let shown = |h: &Harness<'_, Fixture>| h.query_all_by_label(&row_label(h, r.left_brushes[0])).count();
+    let before = shown(&harness);
+    harness.run_steps(40);
+    harness.get_all_by_label(&label).next().unwrap().click();
+    harness.step();
+    harness.state_mut().state.open_groups.push(r.plain);
+    harness.get_all_by_label(&label).next().unwrap().click();
+    harness.run();
+    assert_eq!(harness.state().state.open_groups, [r.left]);
+    assert!(harness.state().state.status.starts_with("Closed group"), "{}", harness.state().state.status);
+    assert_eq!(selection(&harness), [r.left]);
+    assert_eq!(shown(&harness), before, "closing the crate does not also fold the half");
 }
 
 #[test]

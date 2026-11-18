@@ -524,6 +524,7 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
     }
 
     if let Some((row, target)) = drag_started {
+        state.leave_groups_outside(target);
         state.last_bounds = state.doc.map.bounds(target);
         state.doc.select(|_, s| {
             s.clear();
@@ -540,24 +541,28 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
 
 /// A double click opens the closed groups around a row, outer first, like Open Group. A group row also expands and
 /// leaves nothing selected, any other row stays selected so a brush inside a half is reached in one gesture. A row with
-/// no closed group around it keeps the old double click, which folds or unfolds its children.
+/// no closed group around it keeps the old double click, which folds or unfolds its children, unless the double click
+/// closed another open group, then it only selects like a click.
 fn open_outliner_row(state: &mut EditorState, ps: &mut PanelState, id: NodeId) {
     let map = &state.doc.map;
-    let is_group = |n: NodeId| matches!(map.get(n).map(|n| &n.kind), Some(NodeKind::Group(_)));
-    let mut chain = map.ancestors(id);
-    chain.reverse();
-    chain.extend(is_group(id).then_some(id));
-    chain.retain(|g| is_group(*g) && !state.open_groups.contains(g));
-    let group_row = is_group(id);
-    if chain.is_empty() {
-        if !ps.expanded.remove(&id) {
+    let group_row = matches!(map.get(id).map(|n| &n.kind), Some(NodeKind::Group(_)));
+    let around = map.ancestors(id);
+    let closes_another = state.open_groups.iter().any(|g| *g != id && !around.contains(g));
+    if !state.open_groups_to(id) {
+        if closes_another {
+            let target = state.doc.map.click_target(id, &state.open_groups);
+            state.doc.select(|_, s| {
+                s.clear();
+                s.select_node(target);
+            });
+            ps.outliner_anchor = Some(id);
+        } else if !ps.expanded.remove(&id) {
             ps.expanded.insert(id);
         }
 
         return;
     }
 
-    state.open_groups.extend(chain);
     if group_row {
         ps.expanded.insert(id);
         state.doc.select(|_, s| s.clear());
@@ -574,6 +579,7 @@ fn open_outliner_row(state: &mut EditorState, ps: &mut PanelState, id: NodeId) {
 /// Plain click selects one row, Ctrl toggles it, Shift selects the rows from the last clicked one and Ctrl+Shift adds
 /// them. A range leaves out layers and keeps no row together with its group, those would move twice.
 fn select_outliner_row(state: &mut EditorState, ps: &mut PanelState, order: &[NodeId], id: NodeId, modifiers: egui::Modifiers) {
+    state.leave_groups_outside(id);
     let map = &state.doc.map;
     let anchor = ps.outliner_anchor.and_then(|a| order.iter().position(|r| *r == a));
     let click = row_click(modifiers.command, modifiers.shift);

@@ -759,6 +759,7 @@ impl ToolSet {
                 }
                 None => {
                     if let Some(h) = picking::pick(state, &cam.ray(rect, pos)) {
+                        state.leave_groups_outside(h.node);
                         let target = state.doc.map.vertex_click_target(h.node, &state.open_groups);
                         state.doc.select(|_, s| {
                             if !modifiers.command {

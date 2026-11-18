@@ -399,7 +399,6 @@ impl Viewport {
     fn handle_select_tool(&mut self, ui: &Ui, response: &Response, cx: &mut ViewCtx) {
         let rect = self.rect;
         let (modifiers, press_origin, pointer) = ui.input(|i| (i.modifiers, i.pointer.press_origin(), i.pointer.interact_pos()));
-        let open_groups = cx.state.open_groups.clone();
 
         if response.clicked()
             && let Some(pos) = response.interact_pointer_pos()
@@ -433,7 +432,6 @@ impl Viewport {
             }
 
             self.last_click = (self.camera.kind.is_2d() && plain).then_some((pos, now));
-            let map = &cx.state.doc.map;
             let click_hit = match hit {
                 None => ClickHit::None,
                 Some(h) if h.face.is_some() => ClickHit::Face,
@@ -445,6 +443,7 @@ impl Viewport {
                 Some(h) => match rule {
                     ClickRule::ReplaceFace | ClickRule::ToggleFace => {
                         let (id, face) = (h.node, h.face.unwrap());
+                        cx.state.leave_groups_outside(id);
                         cx.state.doc.select(|_, s| {
                             if rule == ClickRule::ToggleFace {
                                 s.toggle_face(id, face);
@@ -455,7 +454,9 @@ impl Viewport {
                         });
                     }
                     _ => {
-                        let target = map.click_target(h.node, &open_groups);
+                        cx.state.leave_groups_outside(h.node);
+                        let map = &cx.state.doc.map;
+                        let target = map.click_target(h.node, &cx.state.open_groups);
                         cx.state.last_bounds = map.bounds(target);
                         cx.state.outliner_reveal = Some(target);
                         cx.state.doc.select(|_, s| {
@@ -481,7 +482,7 @@ impl Viewport {
             && let Some(h) = self.double_click_hit(cx, pos)
         {
             let map = &cx.state.doc.map;
-            if map.click_target(h.node, &open_groups) == h.node
+            if map.click_target(h.node, &cx.state.open_groups) == h.node
                 && let Some(e) = map.owning_entity(h.node)
             {
                 let brushes = map.get(e).map(|n| n.children.clone()).unwrap_or_default();
