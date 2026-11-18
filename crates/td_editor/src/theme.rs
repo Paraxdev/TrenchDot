@@ -1295,6 +1295,23 @@ mod tests {
     }
 
     #[test]
+    fn brush_entity_outlines_read_on_paper() {
+        let game = td_formats::GameConfig::with_gameplay_pack();
+        let ground = LIGHT.view_2d;
+        let mut classes = 0;
+        for def in game.solid_entities() {
+            let (color, wide) = crate::scene::outline_2d(Some(def));
+            let on_paper = line_on(color, ground, true);
+            let ratio = contrast(on_paper, ground);
+            assert!(ratio >= 3.0, "{} outline {on_paper:?} is {ratio:.2}:1 on the paper", def.classname);
+            assert!(wide, "{} outline draws thin", def.classname);
+            classes += 1;
+        }
+
+        assert!(classes >= 5, "{classes} solid classes checked");
+    }
+
+    #[test]
     fn link_lines_stay_distinguishable_from_other_lines() {
         use crate::scene::{EDGE_COLOR_2D, INSTANCE_EDGE, IO_LINK, SELECTED_COLOR, TARGET_LINK, TERRAIN_EDGE};
         const MIN: f32 = 60.0;

@@ -67,6 +67,7 @@ struct Bucket {
     overlay: Option<GpuMesh>,
     edges: Option<GpuLines>,
     edges_2d: Option<GpuLines>,
+    entity_edges_2d: Option<GpuLines>,
     marker_edges: Option<GpuLines>,
     /// Box outlines of unselected model point entities, drawn where `edges_2d` is.
     model_boxes: Option<GpuLines>,
@@ -120,6 +121,8 @@ fn build_drag_batches(renderer: &Renderer, game: &GameConfig, base: &Map, nodes:
         face_overlay: MeshBatch::default(),
         edges: Vec::new(),
         edges_2d: Vec::new(),
+        entity_edges_2d: Vec::new(),
+        entity_outline: false,
         marker_edges: Vec::new(),
         model_boxes: Vec::new(),
         placed: BTreeMap::new(),
@@ -234,6 +237,15 @@ fn box_shape(def: Option<&EntityDef>, lo: Vec3, hi: Vec3, c: Color, arrow: Optio
     match def {
         Some(d) if d.group == "light" => shape.with_paper(LIGHT_PAPER),
         _ => shape,
+    }
+}
+
+/// The 2D outline of a brush, and whether it belongs to an entity, whose outlines draw wide so they keep their color on
+/// paper instead of resolving to a thin grey.
+pub(crate) fn outline_2d(def: Option<&EntityDef>) -> ([f32; 4], bool) {
+    match def {
+        Some(d) => ([d.color.r, d.color.g, d.color.b, 0.9], true),
+        None => (EDGE_COLOR_2D, false),
     }
 }
 
@@ -367,6 +379,10 @@ struct Builder<'a> {
     face_overlay: MeshBatch,
     edges: Vec<LineVertex>,
     edges_2d: Vec<LineVertex>,
+    /// The edges of brush entities, apart from `edges_2d` so they can draw wide.
+    entity_edges_2d: Vec<LineVertex>,
+    /// Set while building the brushes of an entity, their edges go to `entity_edges_2d`.
+    entity_outline: bool,
     /// Outlines and arrows of unselected point entity boxes, drawn by both the 2D and the 3D views.
     marker_edges: Vec<LineShape>,
     model_boxes: Vec<LineShape>,
@@ -903,7 +919,7 @@ impl Builder<'_> {
                 push_line(&mut self.sel_edges, pa, pb, SELECTED_COLOR);
             } else {
                 push_line(&mut self.edges, pa, pb, edge_3d);
-                push_line(&mut self.edges_2d, pa, pb, edge_2d);
+                push_line(if self.entity_outline { &mut self.entity_edges_2d } else { &mut self.edges_2d }, pa, pb, edge_2d);
             }
         }
     }
@@ -1011,7 +1027,7 @@ impl Builder<'_> {
                 push_line(&mut self.sel_edges, pa, pb, c);
             } else {
                 push_line(&mut self.edges, pa, pb, EDGE_COLOR);
-                push_line(&mut self.edges_2d, pa, pb, edge_2d);
+                push_line(if self.entity_outline { &mut self.entity_edges_2d } else { &mut self.edges_2d }, pa, pb, edge_2d);
             }
         }
     }
@@ -1526,6 +1542,8 @@ fn build_bucket<'a>(ctx: &BucketCtx<'a>, ids: &[NodeId]) -> Builder<'a> {
         face_overlay: MeshBatch::default(),
         edges: Vec::new(),
         edges_2d: Vec::new(),
+        entity_edges_2d: Vec::new(),
+        entity_outline: false,
         marker_edges: Vec::new(),
         model_boxes: Vec::new(),
         placed: BTreeMap::new(),
@@ -1564,9 +1582,10 @@ fn build_bucket<'a>(ctx: &BucketCtx<'a>, ids: &[NodeId]) -> Builder<'a> {
         } else {
             [1.0; 4]
         };
-        let edge_2d = entity_def.map(|d| [d.color.r, d.color.g, d.color.b, 0.9]).unwrap_or(EDGE_COLOR_2D);
+        let (edge_2d, entity_outline) = outline_2d(entity_def);
         let is_trigger = entity.is_some_and(|e| is_volume(ctx.game, e));
         builder.volume = is_trigger;
+        builder.entity_outline = entity_outline;
         builder.dark = in_set(&ctx.fixtures.dark);
         builder.charts = crate::bake::charts_of(map, id);
         match &node.kind {
@@ -1583,6 +1602,7 @@ fn build_bucket<'a>(ctx: &BucketCtx<'a>, ids: &[NodeId]) -> Builder<'a> {
     }
 
     builder.charts.clear();
+    builder.entity_outline = false;
     builder
 }
 
@@ -1616,6 +1636,7 @@ fn upload_bucket(ctx: &BucketCtx, builder: Builder) -> Bucket {
         overlay: renderer.upload_mesh(&builder.face_overlay),
         edges: renderer.upload_lines(&builder.edges),
         edges_2d: renderer.upload_lines(&builder.edges_2d),
+        entity_edges_2d: renderer.upload_lines(&builder.entity_edges_2d).map(GpuLines::wide),
         marker_edges: renderer.upload_shapes(&builder.marker_edges).map(GpuLines::wide),
         model_boxes: renderer.upload_shapes(&builder.model_boxes).map(GpuLines::wide),
         placed,
@@ -2309,11 +2330,13 @@ impl SceneCache {
         for b in &self.buckets {
             if is_2d {
                 frame.overlay_lines.extend(b.edges_2d.as_ref());
+                frame.overlay_lines.extend(b.entity_edges_2d.as_ref());
                 frame.overlay_lines.extend(b.model_boxes.as_ref());
                 frame.overlay_lines.extend(b.marker_edges.as_ref());
                 frame.overlay_lines.extend(b.sel_edges.as_ref());
             } else {
                 frame.wire_lines.extend(b.edges_2d.as_ref());
+                frame.wire_lines.extend(b.entity_edges_2d.as_ref());
                 frame.wire_lines.extend(b.model_boxes.as_ref());
                 frame.wire_lines.extend(b.marker_edges.as_ref());
                 frame.opaque.extend(b.opaque.as_ref());
@@ -2379,6 +2402,19 @@ impl SceneCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn brush_entity_outlines_draw_wide_in_their_own_color() {
+        let game = GameConfig::with_gameplay_pack();
+        for class in ["func_button", "trigger_area", "func_door_rotating", "prop_physics"] {
+            let def = game.entity(class).unwrap();
+            let (color, wide) = outline_2d(Some(def));
+            assert_eq!(color, [def.color.r, def.color.g, def.color.b, 0.9], "{class}");
+            assert!(wide, "{class}");
+        }
+
+        assert_eq!(outline_2d(None), (EDGE_COLOR_2D, false), "a world brush keeps the thin grey edge");
+    }
 
     #[test]
     fn light_entity_boxes_carry_their_own_color_for_paper() {
