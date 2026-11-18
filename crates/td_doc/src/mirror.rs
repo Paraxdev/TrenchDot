@@ -1,7 +1,7 @@
 //! Mirrored linked copies: members of a link set placed as reflections of each other across an axis plane, so an edit
 //! in one shows mirrored in the other.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use td_core::{Aabb, AxisPlane, DMat4, DVec3, NodeId};
 use td_geom::{Brush, csg};
@@ -163,19 +163,7 @@ fn touching(map: &Map, group: NodeId, found: Vec<(NodeId, AxisPlane)>, dist: f64
 /// the plane nearest the group counts, so in a row of mirrored pairs each pair shows its own plane rather than one
 /// plane per far copy.
 pub fn selection_planes(map: &Map, sel: &Selection) -> Vec<MirrorPlane> {
-    // A node seen before had its ancestors walked already, so a big selection visits each node once.
-    let (mut seen, mut groups) = (HashSet::new(), BTreeSet::new());
-    for id in &sel.nodes {
-        let mut at = Some(*id);
-        while let Some(node) = at.filter(|n| seen.insert(*n)) {
-            if link_of(map, node).is_some() {
-                groups.insert(node);
-            }
-
-            at = map.get(node).and_then(|n| n.parent);
-        }
-    }
-
+    let groups = linked_around(map, sel);
     // The walk of every map node waits until a selected group could have a mirror image at all.
     let sets = if groups.is_empty() { MirrorSets(HashMap::new()) } else { MirrorSets::of(map) };
     let mut planes: Vec<MirrorPlane> = Vec::new();
@@ -198,6 +186,152 @@ pub fn selection_planes(map: &Map, sel: &Selection) -> Vec<MirrorPlane> {
     }
 
     planes
+}
+
+/// The selected linked groups and the linked groups around a selected node.
+fn linked_around(map: &Map, sel: &Selection) -> BTreeSet<NodeId> {
+    // A node seen before had its ancestors walked already, so a big selection visits each node once.
+    let (mut seen, mut groups) = (HashSet::new(), BTreeSet::new());
+    for id in &sel.nodes {
+        let mut at = Some(*id);
+        while let Some(node) = at.filter(|n| seen.insert(*n)) {
+            if link_of(map, node).is_some() {
+                groups.insert(node);
+            }
+
+            at = map.get(node).and_then(|n| n.parent);
+        }
+    }
+
+    groups
+}
+
+/// A linked `group` whose `partner` was slid along the mirror `plane` between them, `slide` away from where it mirrors
+/// `group`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Drift {
+    pub plane: AxisPlane,
+    pub group: NodeId,
+    pub partner: NodeId,
+    pub slide: DVec3,
+}
+
+fn transform_of(map: &Map, id: NodeId) -> Option<DMat4> {
+    match map.get(id).map(|n| &n.kind) {
+        Some(NodeKind::Group(g)) => Some(g.transform),
+        _ => None,
+    }
+}
+
+/// Where `other` sits relative to `group`.
+fn relation(map: &Map, group: NodeId, other: NodeId) -> Option<DMat4> {
+    Some(transform_of(map, other)? * transform_of(map, group)?.inverse())
+}
+
+/// A partner with the plane between it and a group and its slide along that plane.
+type SlidPartner = (NodeId, AxisPlane, DVec3);
+
+/// The members of `group`'s link set placed as its mirror image, each with its plane and its slide along the plane.
+fn slid_partners(map: &Map, sets: &BTreeMap<u64, Vec<NodeId>>, group: NodeId) -> Vec<SlidPartner> {
+    let Some(members) = link_of(map, group).and_then(|link| sets.get(&link)) else { return Vec::new() };
+    members
+        .iter()
+        .copied()
+        .filter(|m| *m != group)
+        .filter_map(|m| relation(map, group, m).filter(|r| r.determinant() < 0.0).and_then(|r| AxisPlane::of_slid_reflection(&r)).map(|(p, s)| (m, p, s)))
+        .collect()
+}
+
+/// The partner on `axis` in `found` whose plane is nearest `bounds`, one that is not slid first on a tie, then the
+/// lower id. Returns it with whether it is slid.
+fn nearest_slid(found: &[SlidPartner], bounds: &Aabb, axis: usize) -> Option<(NodeId, bool)> {
+    let gap = |p: &AxisPlane| (bounds.min[axis] - p.at).max(p.at - bounds.max[axis]).max(0.0);
+    let slid = |s: &DVec3| s.abs().max_element() > AxisPlane::SLIDE;
+    found
+        .iter()
+        .filter(|(_, p, _)| p.axis == axis)
+        .min_by(|a, b| {
+            let (ga, gb) = (gap(&a.1), gap(&b.1));
+            if (ga - gb).abs() > 1e-6 { ga.total_cmp(&gb) } else { (slid(&a.2), a.0).cmp(&(slid(&b.2), b.0)) }
+        })
+        .map(|(m, _, s)| (*m, slid(s)))
+}
+
+/// The linked groups around the selection whose nearest mirror partner on an axis was slid along the plane, while
+/// that partner has no nearer or equally near partner that still mirrors it. The half that is selected or holds the
+/// selection is the `group` that stays, the lower id when both are.
+pub fn drifted(map: &Map, sel: &Selection) -> Vec<Drift> {
+    let groups = linked_around(map, sel);
+    if groups.is_empty() {
+        return Vec::new();
+    }
+
+    let sets = linked::link_sets(map);
+    let mut found: HashMap<NodeId, (Aabb, Vec<SlidPartner>)> = HashMap::new();
+    let mut nearest = |group: NodeId, axis: usize| {
+        let (bounds, partners) = found.entry(group).or_insert_with(|| (map.bounds(group), slid_partners(map, &sets, group)));
+        nearest_slid(partners, bounds, axis)
+    };
+    let mut drifts: Vec<Drift> = Vec::new();
+    for &group in &groups {
+        for axis in 0..3 {
+            let Some((partner, true)) = nearest(group, axis) else { continue };
+            if nearest(partner, axis).is_some_and(|(_, slid)| !slid) {
+                continue;
+            }
+
+            let stay = if groups.contains(&partner) { group.min(partner) } else { group };
+            let moving = if stay == group { partner } else { group };
+            if drifts.iter().any(|d| [d.group, d.partner].contains(&stay) && [d.group, d.partner].contains(&moving)) {
+                continue;
+            }
+
+            let Some((plane, slide)) = relation(map, stay, moving).and_then(|r| AxisPlane::of_slid_reflection(&r)) else { continue };
+            drifts.push(Drift { plane, group: stay, partner: moving, slide });
+        }
+    }
+
+    drifts
+}
+
+/// Whether a member at `relation` to the half that stays sits slid along the plane the same way as `drift`'s partner:
+/// flipped or not on each axis, and moved by the slide on every axis it is not flipped on other than the plane's.
+fn in_line(relation: &DMat4, drift: &Drift) -> bool {
+    const LINEAR: f64 = 1e-6;
+    let axis = drift.plane.axis;
+    (0..3).all(|a| {
+        let column = relation.col(a).truncate();
+        let sign = column[a].signum();
+        let mut unit = DVec3::ZERO;
+        unit[a] = sign;
+        let off = relation.w_axis[a] - drift.slide[a];
+        (column - unit).abs().max_element() <= LINEAR
+            && (a == axis || if sign < 0.0 { drift.slide[a].abs() <= AxisPlane::SLIDE } else { off.abs() <= AxisPlane::SLIDE })
+    })
+}
+
+/// Moves the partner of each [`drifted`] pair back across its plane from the half that stays, with every member of its
+/// link set slid the same way, so a facade row follows as a whole while a copy placed elsewhere stays. Returns how many
+/// groups moved, how far the first partner moved and its plane, or None when nothing around the selection drifted.
+pub fn mirror_again(map: &mut Map, sel: &Selection) -> Option<(usize, f64, AxisPlane)> {
+    let drifts = drifted(map, sel);
+    let first = *drifts.first()?;
+    let (mut sets, mut moved) = (BTreeSet::new(), 0);
+    let opts = EditOptions { uv_lock: true, ..EditOptions::default() };
+    for drift in drifts {
+        let Some(link) = link_of(map, drift.group).filter(|l| sets.insert(*l)) else { continue };
+        let mut moving = Selection::default();
+        for m in linked::members(map, link) {
+            if m != drift.group && relation(map, drift.group, m).is_some_and(|r| in_line(&r, &drift)) {
+                moving.nodes.insert(m);
+            }
+        }
+
+        moved += moving.nodes.len();
+        ops::translate_selection(map, &moving, -drift.slide, opts);
+    }
+
+    Some((moved, first.slide.length(), first.plane))
 }
 
 /// The halves of `mirror` with their solid bounds, the one lower on the axis first, the group on a tie.
@@ -1277,5 +1411,116 @@ mod tests {
         assert_bounds(welded.bounds(), Aabb::new(DVec3::new(-8.0, 40.0, 6.0), DVec3::new(24.0, 59.5, 34.0)));
         assert_no_face_on(welded, plane(0, 8.0));
         assert_no_face_on(welded, plane(2, 20.0));
+    }
+
+    fn moved(doc: &mut Document, ids: &[NodeId], offset: DVec3) {
+        select(doc, ids);
+        doc.edit("move", |m, s| ops::translate_selection(m, s, offset, EditOptions::default()));
+    }
+
+    fn again(doc: &mut Document, ids: &[NodeId]) -> Option<(usize, f64, AxisPlane)> {
+        select(doc, ids);
+        doc.try_edit("Mirror Again", |m, s| mirror_again(m, s).ok_or(())).ok()
+    }
+
+    #[test]
+    fn mirror_again_brings_the_partner_back_across_from_the_selected_half() {
+        let mut doc = Document::new();
+        let group = group_of(&mut doc, wedge(), "half");
+        let (copies, found) = mirror(&mut doc, &[group], 0, PlaneAt::Max);
+        let copy = copies[0];
+        let slide = DVec3::new(0.0, -5.0, 12.0);
+        moved(&mut doc, &[group], slide);
+        let (half, partner) = (transform(&doc.map, group), transform(&doc.map, copy));
+        select(&mut doc, &[group]);
+        assert_eq!(selection_planes(&doc.map, &doc.selection), [], "a slid half has no plane drawn");
+        let drifts = drifted(&doc.map, &doc.selection);
+        assert_eq!(drifts.len(), 1, "{drifts:?}");
+        assert_eq!((drifts[0].group, drifts[0].partner, drifts[0].plane.axis), (group, copy, 0));
+        assert!((drifts[0].plane.at - found.at).abs() < 1e-9 && drifts[0].slide.abs_diff_eq(-slide, 1e-9), "{drifts:?}");
+
+        let (count, distance, again_plane) = again(&mut doc, &[group]).unwrap();
+        assert_eq!(count, 1);
+        assert!((distance - slide.length()).abs() < 1e-9, "{distance}");
+        assert_eq!(again_plane, drifts[0].plane);
+        assert_eq!(transform(&doc.map, group), half, "the selected half stays");
+        assert!(transform(&doc.map, copy).abs_diff_eq(DMat4::from_translation(slide) * partner, 1e-9));
+        assert_eq!(partners(&doc.map, group).len(), 1);
+        assert!((partners(&doc.map, group)[0].1.at - found.at).abs() < 1e-9 && partners(&doc.map, group)[0].0 == copy);
+        assert_copy_maps(&doc.map, group, copy, &found.matrix());
+        assert_eq!(drifted(&doc.map, &doc.selection), []);
+        assert_eq!(doc.undo().as_deref(), Some("Mirror Again"));
+        assert!(transform(&doc.map, copy).abs_diff_eq(partner, 1e-12), "one undo step puts the partner back");
+
+        moved(&mut doc, &[group], -slide);
+        moved(&mut doc, &[copy], slide);
+        let child = doc.map.get(group).unwrap().children[0];
+        let (copy_before, half_before) = (transform(&doc.map, copy), transform(&doc.map, group));
+        assert_eq!(again(&mut doc, &[copy]).unwrap().0, 1);
+        assert_eq!(transform(&doc.map, copy), copy_before, "the selected partner stays");
+        assert!(transform(&doc.map, group).abs_diff_eq(DMat4::from_translation(slide) * half_before, 1e-9));
+        doc.undo();
+        assert_eq!(again(&mut doc, &[child]).unwrap().0, 1);
+        assert_eq!(transform(&doc.map, group), half_before, "the half around a selected brush stays");
+        doc.undo();
+        assert_eq!(again(&mut doc, &[copy, group]).unwrap().0, 1);
+        assert_eq!(transform(&doc.map, group), half_before, "with both selected the lower id stays");
+    }
+
+    #[test]
+    fn a_slide_within_the_slack_is_no_drift() {
+        let mut doc = Document::new();
+        let group = group_of(&mut doc, wedge(), "half");
+        let copy = mirror(&mut doc, &[group], 2, PlaneAt::Min).0[0];
+        moved(&mut doc, &[copy], DVec3::new(0.9e-3, 0.0, 0.0));
+        select(&mut doc, &[group]);
+        assert_eq!(drifted(&doc.map, &doc.selection), []);
+        assert_eq!(selection_planes(&doc.map, &doc.selection).len(), 1);
+        moved(&mut doc, &[copy], DVec3::new(0.2e-3, 0.0, 0.0));
+        select(&mut doc, &[group]);
+        assert_eq!(drifted(&doc.map, &doc.selection).len(), 1);
+        assert_eq!(selection_planes(&doc.map, &doc.selection), []);
+    }
+
+    #[test]
+    fn mirror_again_moves_a_facade_row_and_leaves_an_offset_copy() {
+        let mut doc = Document::new();
+        let [[a, b], [c, d], [e, f]] = facade(&mut doc);
+        let offset = shifted(&mut doc, &[a], DVec3::new(0.0, 200.0, 0.0))[0];
+        let row = [b, c, d, e, f];
+        let before = row.map(|id| transform(&doc.map, id));
+        let (spare, half) = (transform(&doc.map, offset), transform(&doc.map, a));
+        moved(&mut doc, &[a], DVec3::new(0.0, 0.0, -12.0));
+        let (count, distance, plane_found) = again(&mut doc, &[a]).unwrap();
+        assert_eq!((count, distance), (5, 12.0));
+        assert!((plane_found.at - 40.0).abs() < 1e-9 && plane_found.axis == 0, "the nearest partner's plane, {plane_found:?}");
+        for (id, was) in row.iter().zip(before) {
+            assert!(transform(&doc.map, *id).abs_diff_eq(DMat4::from_translation(DVec3::new(0.0, 0.0, -12.0)) * was, 1e-9), "{id}");
+        }
+
+        assert_eq!(transform(&doc.map, offset), spare, "a copy placed elsewhere stays");
+        assert!(transform(&doc.map, a).abs_diff_eq(DMat4::from_translation(DVec3::new(0.0, 0.0, -12.0)) * half, 1e-12));
+        assert_eq!(partners(&doc.map, a).len(), 3);
+    }
+
+    #[test]
+    fn mirror_again_with_nothing_drifted_changes_nothing() {
+        let mut doc = Document::new();
+        let group = group_of(&mut doc, wedge(), "half");
+        let plain = group_of(&mut doc, wedge(), "plain");
+        assert_eq!(again(&mut doc, &[]), None);
+        assert_eq!(again(&mut doc, &[group]), None, "an unlinked group");
+        let copy = mirror(&mut doc, &[group], 1, PlaneAt::Center).0[0];
+        moved(&mut doc, &[copy], DVec3::new(0.0, 24.0, 0.0));
+        let before = doc.map.nodes.clone();
+        let undo: Vec<String> = doc.history.undo_labels().map(String::from).collect();
+        assert_eq!(again(&mut doc, &[group]), None, "a move along the axis moves the plane");
+        assert_eq!(again(&mut doc, &[copy]), None);
+        assert_eq!(again(&mut doc, &[plain]), None);
+        assert!(doc.map.nodes == before && doc.history.undo_labels().eq(undo.iter().map(String::as_str)), "a refused Mirror Again leaves no undo step");
+        let twin = shifted(&mut doc, &[group], DVec3::new(0.0, 0.0, 64.0))[0];
+        let before_twin = doc.map.nodes.clone();
+        assert_eq!(again(&mut doc, &[twin]), None, "a copy beside a pair that still mirrors has nothing to fix");
+        assert!(doc.map.nodes == before_twin);
     }
 }

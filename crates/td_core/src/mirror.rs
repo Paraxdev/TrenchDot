@@ -95,12 +95,27 @@ impl AxisPlane {
     /// The plane `m` reflects across when it is a pure reflection on one axis. Group transforms gather rounding as
     /// they are composed, so the slide along the plane is allowed more slack than the linear part.
     pub fn of_reflection(m: &DMat4) -> Option<AxisPlane> {
+        Self::of_slid_reflection(m).filter(|(_, slide)| slide.abs().max_element() <= Self::SLIDE).map(|(plane, _)| plane)
+    }
+
+    /// Slack in the slide along the plane that still counts as no slide at all.
+    pub const SLIDE: f64 = 1e-3;
+
+    /// The plane `m` reflects across when its linear part is a pure reflection on one axis, with the slide along the
+    /// plane that follows the reflection. The slide has no component on the axis, a move along it moves the plane.
+    pub fn of_slid_reflection(m: &DMat4) -> Option<(AxisPlane, DVec3)> {
         const LINEAR: f64 = 1e-6;
-        const SLIDE: f64 = 1e-3;
-        (0..3).map(|axis| AxisPlane { axis, at: m.w_axis[axis] * 0.5 }).find(|plane| {
+        (0..3).find_map(|axis| {
+            let plane = AxisPlane { axis, at: m.w_axis[axis] * 0.5 };
             let r = plane.matrix();
             let linear = [(m.x_axis, r.x_axis), (m.y_axis, r.y_axis), (m.z_axis, r.z_axis)];
-            linear.iter().all(|(a, b)| (*a - *b).abs().max_element() <= LINEAR) && (m.w_axis - r.w_axis).abs().max_element() <= SLIDE
+            if !linear.iter().all(|(a, b)| (*a - *b).abs().max_element() <= LINEAR) || (m.w_axis.w - 1.0).abs() > Self::SLIDE {
+                return None;
+            }
+
+            let mut slide = m.w_axis.truncate();
+            slide[axis] = 0.0;
+            Some((plane, slide))
         })
     }
 }
@@ -247,5 +262,43 @@ mod tests {
         assert_eq!(AxisPlane::of_reflection(&(turn(DVec3::Y, 30.0) * planes()[0].matrix())), None);
         assert_eq!(AxisPlane::of_reflection(&DMat4::from_scale(DVec3::splat(-1.0))), None);
         assert_eq!(AxisPlane::of_reflection(&(planes()[0].matrix() * planes()[2].matrix())), None);
+    }
+
+    #[test]
+    fn of_slid_reflection_returns_the_sideways_slide_only() {
+        for plane in planes() {
+            let slid = |slide: DVec3| AxisPlane::of_slid_reflection(&(DMat4::from_translation(slide) * plane.matrix()));
+            assert_eq!(slid(DVec3::ZERO), Some((plane, DVec3::ZERO)), "{plane:?}");
+            for (side, by) in [(1, 0.9e-3), (2, -0.9e-3), (1, 12.0), (2, -12.0)] {
+                let mut slide = DVec3::ZERO;
+                slide[(plane.axis + side) % 3] = by;
+                let (found, got) = slid(slide).expect("a slid reflection");
+                assert_eq!(found.axis, plane.axis, "{plane:?} slid {slide}");
+                assert!((found.at - plane.at).abs() < 1e-12 && got.abs_diff_eq(slide, 1e-12), "{plane:?} slid {slide}: {found:?} {got}");
+            }
+
+            let mut both = DVec3::splat(7.5);
+            both[plane.axis] = 0.0;
+            let (_, got) = slid(both).unwrap();
+            assert!(got.abs_diff_eq(both, 1e-12), "{plane:?} {got}");
+
+            let mut along = DVec3::ZERO;
+            along[plane.axis] = 12.0;
+            let moved = AxisPlane { axis: plane.axis, at: plane.at + 6.0 };
+            let (found, got) = slid(along).unwrap();
+            assert!((found.at - moved.at).abs() < 1e-12 && found.axis == moved.axis && got == DVec3::ZERO, "{plane:?}: {found:?} {got}");
+
+            let mut scale = DVec3::splat(1.0);
+            scale[plane.axis] = 2.0;
+            assert_eq!(AxisPlane::of_slid_reflection(&(DMat4::from_scale(scale) * plane.matrix())), None, "{plane:?} scaled");
+        }
+
+        let turn = |axis: DVec3, degrees: f64| {
+            DMat4::from_translation(P) * DMat4::from_quat(glam::DQuat::from_axis_angle(axis, f64::to_radians(degrees))) * DMat4::from_translation(-P)
+        };
+        assert_eq!(AxisPlane::of_slid_reflection(&DMat4::from_translation(DVec3::new(64.0, -8.0, 3.0))), None);
+        assert_eq!(AxisPlane::of_slid_reflection(&(turn(DVec3::Y, 30.0) * planes()[0].matrix())), None);
+        assert_eq!(AxisPlane::of_slid_reflection(&turn(DVec3::Y, 180.0)), None);
+        assert_eq!(AxisPlane::of_slid_reflection(&(planes()[0].matrix() * planes()[2].matrix())), None);
     }
 }

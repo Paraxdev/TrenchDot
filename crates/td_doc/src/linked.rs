@@ -11,7 +11,8 @@ use crate::map::{Map, NodeKind};
 use crate::ops::{self, EditOptions};
 use crate::selection::Selection;
 
-fn link_sets(map: &Map) -> BTreeMap<u64, Vec<NodeId>> {
+/// Every linked group by link id. Build it once when looking up the members of several sets.
+pub fn link_sets(map: &Map) -> BTreeMap<u64, Vec<NodeId>> {
     let mut sets: BTreeMap<u64, Vec<NodeId>> = BTreeMap::new();
     for (id, node) in map.nodes.iter() {
         if let NodeKind::Group(g) = &node.kind
