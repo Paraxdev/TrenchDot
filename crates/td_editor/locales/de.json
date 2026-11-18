@@ -2378,5 +2378,7 @@
   "All in Current Mode": "Alles im aktuellen Modus",
   "Clicks and A pick whole objects, selected faces become their brushes and meshes": "Klicks und A wählen ganze Objekte, gewählte Flächen werden zu ihren Brushes und Meshes",
   "Clicks and A pick single faces, selected brushes and meshes become their faces": "Klicks und A wählen einzelne Flächen, gewählte Brushes und Meshes werden zu ihren Flächen",
-  "Selects every object, in Face mode every face of the visible brushes and meshes": "Wählt jedes Objekt, im Flächenmodus jede Fläche der sichtbaren Brushes und Meshes"
+  "Selects every object, in Face mode every face of the visible brushes and meshes": "Wählt jedes Objekt, im Flächenmodus jede Fläche der sichtbaren Brushes und Meshes",
+  "Object": "Objekt",
+  "Face mode picks faces, press 1 for objects": "Der Flächenmodus wählt Flächen, mit 1 wählst du Objekte"
 }

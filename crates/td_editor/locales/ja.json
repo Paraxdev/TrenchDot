@@ -2378,5 +2378,7 @@
   "All in Current Mode": "現在のモードですべて",
   "Clicks and A pick whole objects, selected faces become their brushes and meshes": "クリックと A はオブジェクト全体を選び、選択中の面はそのブラシやメッシュに変わります",
   "Clicks and A pick single faces, selected brushes and meshes become their faces": "クリックと A は面を1つずつ選び、選択中のブラシやメッシュはその面に変わります",
-  "Selects every object, in Face mode every face of the visible brushes and meshes": "全オブジェクトを選択します。面モードでは表示中のブラシとメッシュの全面です"
+  "Selects every object, in Face mode every face of the visible brushes and meshes": "全オブジェクトを選択します。面モードでは表示中のブラシとメッシュの全面です",
+  "Object": "オブジェクト",
+  "Face mode picks faces, press 1 for objects": "面モードでは面を選びます。オブジェクトを選ぶには 1 を押します"
 }

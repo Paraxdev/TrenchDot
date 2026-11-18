@@ -2378,5 +2378,7 @@
   "All in Current Mode": "Всё в текущем режиме",
   "Clicks and A pick whole objects, selected faces become their brushes and meshes": "Клики и A выбирают объекты целиком, выбранные грани становятся своими брашами и мешами",
   "Clicks and A pick single faces, selected brushes and meshes become their faces": "Клики и A выбирают отдельные грани, выбранные браши и меши становятся своими гранями",
-  "Selects every object, in Face mode every face of the visible brushes and meshes": "Выбирает каждый объект, в режиме граней каждую грань видимых брашей и мешей"
+  "Selects every object, in Face mode every face of the visible brushes and meshes": "Выбирает каждый объект, в режиме граней каждую грань видимых брашей и мешей",
+  "Object": "Объект",
+  "Face mode picks faces, press 1 for objects": "В режиме граней выбираются грани, нажмите 1 для выбора объектов"
 }

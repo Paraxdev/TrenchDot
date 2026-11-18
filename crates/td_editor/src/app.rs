@@ -14,7 +14,7 @@ use crate::mcp::{McpHost, ToolExecutor, switch, token, transport};
 use crate::mesh_tool::MeshOp;
 use crate::panels::{self, PanelState};
 use crate::scene::SceneCache;
-use crate::state::{EditorState, Prefs, Shade};
+use crate::state::{EditorState, Prefs, SelectMode, Shade};
 use crate::tools::{self, ToolKind};
 use crate::toolset::ToolSet;
 use crate::viewport::{ViewCtx, Viewport};
@@ -659,6 +659,26 @@ fn stats_text(s: &crate::scene::SceneStats) -> String {
     }
 
     parts.join("  ")
+}
+
+/// Blender preset only: the Object and Face buttons at the end of the tool row. Returns the action a click asked for
+/// and the space the buttons take, empty with any other preset.
+fn select_mode_switch(ui: &mut Ui, preset: &str, mode: SelectMode, tip: impl Fn(&str, &Action) -> String) -> (Option<Action>, egui::Rect) {
+    let mut asked = None;
+    let mut rect = egui::Rect::NOTHING;
+    if preset != "blender" {
+        return (asked, rect);
+    }
+
+    for (label, action, picks) in [(en!("Object"), Action::ObjectMode, SelectMode::Object), (en!("Face"), Action::FaceMode, SelectMode::Face)] {
+        let resp = ui.selectable_label(mode == picks, tr(label)).on_hover_text(tip(&action.title(), &action));
+        rect |= resp.rect;
+        if resp.clicked() {
+            asked = Some(action);
+        }
+    }
+
+    (asked, rect)
 }
 
 type FaceChipKey = (usize, u64, usize, Option<(td_doc::NodeId, usize)>, Option<(td_doc::NodeId, usize)>, crate::i18n::Lang);
@@ -2110,8 +2130,23 @@ impl App {
     }
 
     /// The end of the tool block. A preset dependent widget, such as an Object or Face switch, goes here. It returns the rect it used and how many icons it added so the toolbar fit stays right.
-    fn tool_row_end(&mut self, _ui: &mut Ui, _size: f32) -> (egui::Rect, usize) {
-        (egui::Rect::NOTHING, 0)
+    fn tool_row_end(&mut self, ui: &mut Ui, _size: f32) -> (egui::Rect, usize) {
+        if self.state.prefs.keymap_preset != "blender" {
+            return (egui::Rect::NOTHING, 0);
+        }
+
+        let ctx = ui.ctx().clone();
+        let shortcuts = commands::shortcuts(&self.state.prefs);
+        let tip = |label: &str, action: &Action| match shortcuts.iter().find(|(_, a)| a == action) {
+            Some((s, _)) => format!("{label} ({})", ctx.format_shortcut(s)),
+            None => label.to_string(),
+        };
+        ui.add_space(4.0);
+        ui.separator();
+        ui.add_space(4.0);
+        let (asked, rect) = select_mode_switch(ui, &self.state.prefs.keymap_preset, self.state.select_mode, tip);
+        self.actions.extend(asked);
+        (rect, 0)
     }
 
     /// Godot robot button (open the project in Godot, or show the editor that has it open) and the live mode toggle, laid
@@ -4167,5 +4202,43 @@ mod tests {
         harness.get_by_label("Y spiegeln").click();
         harness.run();
         assert_eq!(harness.state().actions, [Action::Flip { axis: 1 }]);
+    }
+
+    struct SwitchProbe {
+        preset: &'static str,
+        mode: SelectMode,
+        asked: Vec<Action>,
+    }
+
+    fn switch_harness(preset: &'static str, mode: SelectMode) -> egui_kittest::Harness<'static, SwitchProbe> {
+        egui_kittest::Harness::builder().with_size(egui::vec2(400.0, 80.0)).build_ui_state(
+            |ui, p: &mut SwitchProbe| {
+                ui.horizontal(|ui| {
+                    let (asked, _) = select_mode_switch(ui, p.preset, p.mode, |label, _| label.to_string());
+                    p.asked.extend(asked);
+                });
+            },
+            SwitchProbe { preset, mode, asked: Vec::new() },
+        )
+    }
+
+    #[test]
+    fn the_object_and_face_switch_only_exists_with_the_blender_preset() {
+        for preset in ["trenchbroom", "hammer"] {
+            let mut harness = switch_harness(preset, SelectMode::Object);
+            harness.run();
+            assert!(harness.query_by_label("Object").is_none(), "{preset}");
+            assert!(harness.query_by_label("Face").is_none(), "{preset}");
+        }
+
+        let mut harness = switch_harness("blender", SelectMode::Object);
+        harness.run();
+        assert!(harness.query_by_label("Object").is_some());
+        harness.get_by_label("Face").click();
+        harness.run();
+        assert_eq!(harness.state().asked, [Action::FaceMode]);
+        harness.get_by_label("Object").click();
+        harness.run();
+        assert_eq!(harness.state().asked, [Action::FaceMode, Action::ObjectMode]);
     }
 }

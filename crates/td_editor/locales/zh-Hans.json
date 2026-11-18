@@ -2378,5 +2378,7 @@
   "All in Current Mode": "当前模式下全部",
   "Clicks and A pick whole objects, selected faces become their brushes and meshes": "点击和 A 选择整个对象，已选的面变回其笔刷和网格",
   "Clicks and A pick single faces, selected brushes and meshes become their faces": "点击和 A 选择单个面，已选的笔刷和网格变成其所有面",
-  "Selects every object, in Face mode every face of the visible brushes and meshes": "选择所有对象，面模式下选择可见笔刷和网格的所有面"
+  "Selects every object, in Face mode every face of the visible brushes and meshes": "选择所有对象，面模式下选择可见笔刷和网格的所有面",
+  "Object": "对象",
+  "Face mode picks faces, press 1 for objects": "面模式只选择面，按 1 选择对象"
 }

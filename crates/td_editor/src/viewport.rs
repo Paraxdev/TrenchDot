@@ -439,8 +439,9 @@ impl Viewport {
                 Some(h) if h.face.is_some() => ClickHit::Face,
                 Some(_) => ClickHit::Object,
             };
-            let rule = click_rule(modifiers.command, modifiers.shift, click_hit);
+            let rule = click_rule(&cx.state.prefs.keymap_preset, cx.state.select_mode, modifiers.command, modifiers.shift, click_hit);
             match hit {
+                Some(_) if rule == ClickRule::FaceModeMiss => cx.state.set_status(msg!("Face mode picks faces, press 1 for objects")),
                 Some(h) => match rule {
                     ClickRule::ReplaceFace | ClickRule::ToggleFace => {
                         let (id, face) = (h.node, h.face.unwrap());

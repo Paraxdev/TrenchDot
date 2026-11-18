@@ -3690,6 +3690,84 @@ fn shift_click_picks_one_face_and_ctrl_shift_click_toggles_faces() {
     assert_eq!((nodes(), faces()), (vec![], vec![]), "a click on empty space clears");
 }
 
+/// The Blender preset's clicks in the 3D view: Shift+click and Ctrl+click toggle in the current mode, an object in Object
+/// mode and a face in Face mode, and Face mode leaves an entity alone.
+#[test]
+#[ignore]
+fn blender_shift_click_toggles_in_the_current_mode() {
+    let ed = Editor::launch("blender_clicks");
+    let a = ed.box_brush([8.0, -16.0, 0.0], [72.0, 48.0, 40.0]);
+    let b = ed.box_brush([136.0, 4.0, 12.0], [200.0, 52.0, 76.0]);
+    let wedge = ed.call("create_brush", json!({ "min": [-72, 8, 200], "max": [-8, 72, 296], "shape": "wedge" }))["ids"][0].as_u64().unwrap();
+    let light = ed.call("create_entity", json!({ "classname": "light", "origin": [250, 30, 100] }))["id"].as_u64().unwrap();
+    ed.call("set_editor", json!({ "keymap": "blender" }));
+    ed.call("select", json!({ "ids": [] }));
+    let click = |view: &str, at: [f64; 3], modifiers: &[&str]| {
+        ed.call("set_camera", json!({ "view": view, "center": at, "zoom": 1.0 }));
+        ed.input(view, json!([{ "type": "click", "world": at, "modifiers": modifiers }]));
+    };
+    let key = |key: &str| ed.input("top", json!([{ "type": "move" }, { "type": "key", "key": key, "modifiers": [] }]));
+    let mode = || ed.state()["editor"]["select_mode"].as_str().unwrap_or_default().to_string();
+    let normal = |(id, face): (u64, u64)| -> Vec<f64> {
+        let got = ed.call("texture", json!({ "op": "get", "faces": [[id, face]] }));
+        got["faces"][0]["normal"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect()
+    };
+    let top_a = [14.0, 48.0, 4.0];
+    let top_b = [192.0, 52.0, 70.0];
+    let front_b = [192.0, 10.0, 76.0];
+    let slant = [-14.0, 59.2, 219.2];
+    let empty = [150.0, 20.0, 250.0];
+    let on_light = [250.0, 30.0, 100.0];
+
+    click("top", top_a, &[]);
+    assert_eq!((mode(), selection_of(&ed)), ("object".into(), (vec![a], vec![])), "a click picks the object");
+    click("top", top_b, &["shift"]);
+    assert_eq!(selection_of(&ed), (vec![a, b], vec![]), "Shift+click adds an object in Object mode");
+    click("top", top_a, &["shift"]);
+    assert_eq!(selection_of(&ed), (vec![b], vec![]), "Shift+click on a selected object removes it");
+    click("top", top_a, &["ctrl"]);
+    assert_eq!(selection_of(&ed), (vec![a, b], vec![]), "Ctrl+click toggles the same way");
+    click("top", empty, &["shift"]);
+    assert_eq!(selection_of(&ed), (vec![a, b], vec![]), "Shift+click on empty space keeps the selection");
+    click("top", slant, &[]);
+    assert_eq!(selection_of(&ed), (vec![wedge], vec![]), "a click replaces the selection");
+
+    key("3");
+    ed.call("run_action", json!({ "action": "select_none" }));
+    assert_eq!(mode(), "face");
+    click("top", top_a, &[]);
+    let (nodes, faces) = selection_of(&ed);
+    assert_eq!((nodes, faces.len(), faces[0].0), (vec![], 1, a), "a click in Face mode picks one face");
+    assert!(approx(&normal(faces[0]), &[0.0, 1.0, 0.0]), "the top face");
+    click("top", top_b, &["shift"]);
+    assert_eq!(selection_of(&ed).1.iter().map(|f| f.0).collect::<Vec<_>>(), vec![a, b], "Shift+click adds a face on another brush");
+    click("front", front_b, &["shift"]);
+    assert_eq!(selection_of(&ed).1.len(), 3, "a second face of the same brush");
+    click("front", front_b, &["shift"]);
+    assert_eq!(selection_of(&ed).1.len(), 2, "Shift+click on a selected face removes just that face");
+    click("top", top_b, &["ctrl"]);
+    assert_eq!(selection_of(&ed).1.iter().map(|f| f.0).collect::<Vec<_>>(), vec![a], "Ctrl+click toggles a face too");
+    click("top", slant, &["shift"]);
+    let slanted = *selection_of(&ed).1.iter().find(|f| f.0 == wedge).expect("the wedge face is selected");
+    let n = normal(slanted);
+    assert!(n[0].abs() < 1e-3 && (n[1] - 0.8321).abs() < 1e-3 && (n[2] - 0.5547).abs() < 1e-3, "the slanted face {n:?}");
+
+    let before = selection_of(&ed);
+    click("top", on_light, &[]);
+    assert_eq!((mode(), selection_of(&ed)), ("face".into(), before.clone()), "an entity has no faces, so nothing changes");
+    assert!(ed.state()["status"].as_str().unwrap().contains("press 1"), "the status points at Object mode: {}", ed.state()["status"]);
+    click("top", on_light, &["shift"]);
+    assert_eq!(selection_of(&ed), before, "Shift does not turn it into an object pick");
+    click("top", empty, &["shift"]);
+    assert_eq!(selection_of(&ed), before, "Shift+click on empty space keeps the faces");
+    click("top", empty, &[]);
+    assert_eq!((mode(), selection_of(&ed)), ("face".into(), (vec![], vec![])), "a click on empty space clears and stays in Face mode");
+
+    key("1");
+    click("top", on_light, &[]);
+    assert_eq!((mode(), selection_of(&ed)), ("object".into(), (vec![light], vec![])), "back in Object mode the entity is picked");
+}
+
 /// Ctrl+Shift+A is Select None as in TrenchBroom, the Hammer preset keeps it for Select Brush Faces, and the MCP action
 /// does the same as that menu item in every preset.
 #[test]
