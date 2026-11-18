@@ -379,6 +379,11 @@ pub struct Plan {
     pub writes: Vec<Write>,
     /// `project.godot` settings as (section, key, value), only the ones that change.
     pub settings: Vec<(&'static str, &'static str, String)>,
+    /// The `res://` value each of `settings` stands for now, the addon's default when it is unset. Godot gets these back
+    /// when the files cannot be written after it took the new values.
+    pub before: Vec<String>,
+    /// The override is the first person player, whose node class is a CharacterBody3D.
+    pub player: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -392,6 +397,9 @@ const ADDON_RES: &str = "res://addons/";
 const MAP_SETTINGS_KEY: (&str, &str) = ("func_godot", "default_map_settings");
 const GAME_CONFIG_KEY: (&str, &str) = ("trenchdot", "game_config");
 const LEGACY_GAME_CONFIG_KEY: (&str, &str) = ("godottrench", "game_config");
+/// What the addon builds with while a setting is unset.
+const ADDON_MAP_SETTINGS: &str = "res://addons/func_godot/func_godot_default_map_settings.tres";
+const ADDON_GAME_CONFIG: &str = "res://addons/func_godot/game_config/trenchdot/trenchdot_game_config.tres";
 /// Definitions FuncGodot ships itself, next to the TrenchDot ones in the addon's `fgd` folder.
 const FUNC_GODOT_ENTITIES: [&str; 5] = ["worldspawn", "func_geo", "func_detail", "func_detail_illusionary", "func_illusionary"];
 
@@ -609,6 +617,8 @@ pub fn plan_in(root: &Path, game: &GameConfig, classname: &str, script: Script, 
         fgd: String::new(),
         writes: Vec::new(),
         settings: Vec::new(),
+        before: Vec::new(),
+        player: script == Script::Player,
     };
     let add_new = |res: &str, text: String, plan: &mut Plan| -> Result<(), Msg> {
         let path = project_path(root, res)?;
@@ -648,6 +658,7 @@ pub fn plan_in(root: &Path, game: &GameConfig, classname: &str, script: Script, 
             let res = format!("{res_dir}/{MAP_SETTINGS}");
             add_new(&res, new_map_settings(&plan.fgd), &mut plan)?;
             plan.settings.push((MAP_SETTINGS_KEY.0, MAP_SETTINGS_KEY.1, res.clone()));
+            plan.before.push(current(root, &project, MAP_SETTINGS_KEY, ADDON_MAP_SETTINGS));
             res
         }
     };
@@ -655,9 +666,168 @@ pub fn plan_in(root: &Path, game: &GameConfig, classname: &str, script: Script, 
         let res = format!("{res_dir}/{GAME_CONFIG}");
         add_new(&res, new_game_config(&plan.fgd, &settings_res), &mut plan)?;
         plan.settings.push((GAME_CONFIG_KEY.0, GAME_CONFIG_KEY.1, res));
+        plan.before.push(current(root, &project, GAME_CONFIG_KEY, ADDON_GAME_CONFIG));
     }
 
     Ok(plan)
+}
+
+/// What Override in project did.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Report {
+    pub classname: String,
+    /// `res://` paths of the override's definition, script and FGD.
+    pub definition: String,
+    pub script: String,
+    pub fgd: String,
+    /// Every `res://` file written or edited, in order, `project.godot` not among them.
+    pub written: Vec<String>,
+    /// The project settings changed, as (`section/key`, value).
+    pub settings: Vec<(String, String)>,
+    /// A project FGD was created, so maps build with it from now on.
+    pub created_fgd: bool,
+    /// Godot has the project open, it was told about the new files and settings.
+    pub godot_open: bool,
+}
+
+impl Report {
+    pub fn message(&self) -> Msg {
+        let done = msg!(
+            "Overrode {classname} with {definition}. Change it in {script}.",
+            classname = self.classname,
+            definition = self.definition,
+            script = self.script
+        );
+        let done = if self.created_fgd { done.then(" ", msg!("Maps build with {fgd} from now on.", fgd = self.fgd)) } else { done };
+        if self.godot_open { done.then(" ", msg!("Build your maps again in Godot to use it.")) } else { done }
+    }
+}
+
+/// The `res://` path the setting `key` stands for, `default` when it is unset.
+fn current(root: &Path, project: &str, (section, key): (&str, &str), default: &str) -> String {
+    godot_settings::get(project, section, key).and_then(|v| godot_settings::resolve(root, &v).ok().flatten()).unwrap_or_else(|| default.to_string())
+}
+
+fn res_of(root: &Path, path: &Path) -> String {
+    path.strip_prefix(root).map_or_else(|_| path.display().to_string(), |rel| format!("res://{}", rel.to_string_lossy().replace('\\', "/")))
+}
+
+/// Writes every file of `writes`, new ones with `write_new`. A failure puts the files written so far back as they were.
+fn write_all(writes: &[Write]) -> Result<(), (PathBuf, std::io::Error)> {
+    let mut done: Vec<(&Path, Option<Vec<u8>>)> = Vec::new();
+    for write in writes {
+        let step = || -> std::io::Result<Option<Vec<u8>>> {
+            let old = if write.replace { Some(std::fs::read(&write.path)?) } else { None };
+            if let Some(dir) = write.path.parent() {
+                std::fs::create_dir_all(dir)?;
+            }
+
+            let mut bytes = write.text.as_bytes();
+            if write.replace { td_formats::write_atomic(&write.path, &mut bytes) } else { td_formats::write_new(&write.path, &mut bytes) }?;
+            Ok(old)
+        };
+        match step() {
+            Ok(old) => done.push((&write.path, old)),
+            Err(e) => {
+                for (path, old) in done.iter().rev() {
+                    let _ = match old {
+                        Some(old) => std::fs::write(path, old),
+                        None => std::fs::remove_file(path),
+                    };
+                }
+
+                return Err((write.path.clone(), e));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/// Carries out `plan` in the open project: the files, then `project.godot`, or the settings through the Godot editor
+/// that has the project open, which keeps its own copy of them and would write its old one back. Nothing is written
+/// when Godot refuses the settings, and Godot gets the old ones back when a file cannot be written after it took them. A person's click trusts a project that held no code, an agent's call never does.
+pub fn apply(state: &mut crate::state::EditorState, plan: &Plan, by_person: bool) -> Result<Report, Msg> {
+    let root = state.game.project_root.clone().ok_or_else(|| msg!("Open a Godot project first, an override goes into it"))?;
+    let project = root.join("project.godot");
+    let keys: Vec<(String, String)> = plan.settings.iter().map(|(section, key, value)| (format!("{section}/{key}"), value.clone())).collect();
+    let touched = plan.writes.iter().map(|w| w.path.as_path()).chain((!keys.is_empty()).then_some(project.as_path()));
+    for path in touched {
+        state.may_write(path).map_err(Msg::from)?;
+    }
+
+    let mut open = state.godot_has_project();
+    let mut told = false;
+    if open && !keys.is_empty() {
+        match crate::live_link::set_project_settings(state.prefs.live_link_port, &keys) {
+            Ok(()) => told = true,
+            Err(e) if crate::live_link::is_not_running(&e) => open = false,
+            Err(e) if e == "unknown event" => {
+                return Err(msg!("Close Godot first. It has this project open and its addon cannot take new project settings."));
+            }
+            Err(e) => return Err(msg!("Godot did not take the project settings: {error}. Nothing was written.", error = e)),
+        }
+    }
+
+    let mut writes = plan.writes.clone();
+    if !keys.is_empty() && !told {
+        let text = std::fs::read_to_string(&project).map_err(|e| msg!("{path} cannot be read: {error}", path = "project.godot", error = e))?;
+        let text = plan.settings.iter().fold(text, |text, (section, key, value)| godot_settings::with_setting(&text, section, key, value));
+        writes.push(Write { path: project, text, replace: true });
+    }
+
+    if let Err((path, e)) = write_all(&writes) {
+        let failed = msg!("Could not write {path}: {e}", path = path.display(), e);
+        if !told {
+            return Err(failed);
+        }
+
+        let before: Vec<(String, String)> = keys.iter().map(|(key, _)| key.clone()).zip(plan.before.iter().cloned()).collect();
+        return Err(match crate::live_link::set_project_settings(state.prefs.live_link_port, &before) {
+            Ok(()) => failed,
+            Err(_) => failed.then(
+                " ",
+                msg!(
+                    "Godot kept the new project settings, set {keys} back in its Project Settings.",
+                    keys = before.iter().map(|(key, _)| key.as_str()).collect::<Vec<_>>().join(", ")
+                ),
+            ),
+        });
+    }
+
+    if let Some(def) = state.game.entities.iter_mut().find(|e| e.classname == plan.classname) {
+        def.script = plan.script.clone();
+        if plan.player {
+            def.node_class = PLAYER_NODE_CLASS.to_string();
+        }
+    }
+
+    if by_person && let Some(first) = plan.writes.first() {
+        state.trust_after_save(&first.path);
+    }
+
+    if open {
+        state.godot_scan = crate::live_link::scan(state.prefs.live_link_port);
+    }
+
+    let fgd_path = project_path(&root, &plan.fgd).ok();
+    Ok(Report {
+        classname: plan.classname.clone(),
+        definition: plan.definition.clone(),
+        script: plan.script.clone(),
+        fgd: plan.fgd.clone(),
+        written: plan.writes.iter().map(|w| res_of(&root, &w.path)).collect(),
+        settings: keys,
+        created_fgd: plan.writes.iter().any(|w| !w.replace && Some(&w.path) == fgd_path.as_ref()),
+        godot_open: open,
+    })
+}
+
+/// Plans and applies an override of `classname` in the open project.
+pub fn override_in_project(state: &mut crate::state::EditorState, classname: &str, script: Script, by_person: bool) -> Result<Report, Msg> {
+    let root = state.game.project_root.clone().ok_or_else(|| msg!("Open a Godot project first, an override goes into it"))?;
+    let plan = plan(&root, &state.game, classname, script)?;
+    apply(state, &plan, by_person)
 }
 
 /// Where the overrides Godot's first room tests build with live, from the root of the Godot project in this repository.
@@ -1550,5 +1720,267 @@ mod plan_tests {
         let plan = plan_of(second.path(), "light");
         assert_eq!(plan.writes.len(), 5);
         assert_eq!(plan.writes[2].text, new_fgd("light"));
+    }
+
+    use crate::state::{EditorState, Trust};
+
+    const MAP_SETTINGS_RES: &str = "res://entities/project_map_settings.tres";
+    const GAME_CONFIG_RES: &str = "res://entities/project_game_config.tres";
+
+    fn open(root: &Path) -> EditorState {
+        let mut state = EditorState::new(Default::default());
+        state.load_project(root);
+        state.apply_code_scans(true);
+        state
+    }
+
+    /// Godot answers `replies` by event and the rest as an addon from before the event, and every message is kept
+    /// together with whether `entities` existed in `root` when it came.
+    fn fake_godot(root: &Path, replies: serde_json::Value) -> (u16, std::sync::mpsc::Receiver<(serde_json::Value, bool)>) {
+        use std::io::{BufRead, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let entities = root.join(DIR);
+        std::thread::spawn(move || {
+            for stream in listener.incoming().flatten() {
+                let mut line = String::new();
+                std::io::BufReader::new(stream.try_clone().unwrap()).read_line(&mut line).unwrap();
+                let message: serde_json::Value = serde_json::from_str(&line).unwrap();
+                let reply = replies.get(message["event"].as_str().unwrap()).cloned().unwrap_or(serde_json::json!({ "ok": false, "error": "unknown event" }));
+                let _ = tx.send((message, entities.exists()));
+                writeln!(&stream, "{reply}").unwrap();
+            }
+        });
+        (port, rx)
+    }
+
+    fn connect(state: &mut EditorState, port: u16) {
+        let root = state.game.project_root.clone().unwrap();
+        state.link_state = crate::live_link::LinkState {
+            connected: true,
+            project: Some(crate::live_link::path_key(&crate::live_link::godot_path(&root))),
+            ..Default::default()
+        };
+        state.prefs.live_link_port = port;
+    }
+
+    fn sent(rx: &std::sync::mpsc::Receiver<(serde_json::Value, bool)>) -> Vec<(String, bool)> {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        rx.try_iter().map(|(m, files)| (m["event"].as_str().unwrap().to_string(), files)).collect()
+    }
+
+    #[test]
+    fn an_override_with_godot_closed_writes_the_files_and_project_godot() {
+        let dir = project(GODOT);
+        let root = dir.path();
+        let mut state = open(root);
+        let report = override_in_project(&mut state, "light", Script::Extend, false).unwrap();
+        assert_eq!(
+            report.written,
+            ["res://entities/light.tres", "res://entities/light.gd", "res://entities/project_fgd.tres", MAP_SETTINGS_RES, GAME_CONFIG_RES]
+        );
+        assert_eq!(
+            report.settings,
+            [("func_godot/default_map_settings".to_string(), MAP_SETTINGS_RES.to_string()), ("trenchdot/game_config".to_string(), GAME_CONFIG_RES.to_string())]
+        );
+        assert!(report.created_fgd && !report.godot_open);
+        assert_eq!(
+            report.message().en,
+            "Overrode light with res://entities/light.tres. Change it in res://entities/light.gd. Maps build with res://entities/project_fgd.tres from now on."
+        );
+        let expected = settings_text(&[("func_godot", "default_map_settings", MAP_SETTINGS_RES), ("trenchdot", "game_config", GAME_CONFIG_RES)]);
+        assert_eq!(std::fs::read_to_string(root.join("project.godot")).unwrap(), expected);
+        let planned = plan_of(project(GODOT).path(), "light");
+        assert_eq!(std::fs::read_to_string(root.join("entities/light.tres")).unwrap(), planned.writes[0].text);
+        assert_eq!(state.game.entity("light").unwrap().script, "res://entities/light.gd");
+    }
+
+    #[test]
+    fn a_second_override_only_adds_to_the_fgd_and_a_repeat_changes_nothing() {
+        let dir = project(GODOT);
+        let root = dir.path();
+        let mut state = open(root);
+        override_in_project(&mut state, "light", Script::Extend, false).unwrap();
+        let godot = std::fs::read_to_string(root.join("project.godot")).unwrap();
+        let second = override_in_project(&mut state, "func_button", Script::Extend, false).unwrap();
+        assert!(!second.created_fgd && second.settings.is_empty());
+        assert_eq!(second.written, ["res://entities/func_button.tres", "res://entities/func_button.gd", "res://entities/project_fgd.tres"]);
+        assert_eq!(second.message().en, "Overrode func_button with res://entities/func_button.tres. Change it in res://entities/func_button.gd.");
+        assert_eq!(std::fs::read_to_string(root.join("project.godot")).unwrap(), godot, "the settings are set once");
+        let fgd = std::fs::read_to_string(root.join("entities/project_fgd.tres")).unwrap();
+        assert!(fgd.contains("light.tres") && fgd.contains("func_button.tres"), "{fgd}");
+
+        let again = override_in_project(&mut state, "func_button", Script::Extend, false).unwrap_err().en;
+        assert_eq!(again, "func_button is overridden already. Change it in res://entities/func_button.tres and res://entities/func_button.gd");
+        assert_eq!(std::fs::read_to_string(root.join("entities/project_fgd.tres")).unwrap(), fgd);
+        assert_eq!(std::fs::read_to_string(root.join("project.godot")).unwrap(), godot);
+    }
+
+    #[test]
+    fn the_player_override_sets_the_node_class_of_the_entity() {
+        let dir = project(GODOT);
+        let mut state = open(dir.path());
+        assert_eq!(state.game.entity("info_player_start").unwrap().node_class, "Marker3D");
+        override_in_project(&mut state, "info_player_start", Script::Player, false).unwrap();
+        let def = state.game.entity("info_player_start").unwrap();
+        assert_eq!((def.script.as_str(), def.node_class.as_str()), ("res://entities/info_player_start.gd", "CharacterBody3D"));
+        assert_eq!(std::fs::read_to_string(dir.path().join("entities/info_player_start.gd")).unwrap(), PLAYER_SCRIPT);
+    }
+
+    #[test]
+    fn a_godot_with_the_project_open_gets_the_settings_before_any_file() {
+        let dir = project(GODOT);
+        let root = dir.path();
+        let mut state = open(root);
+        let (port, rx) = fake_godot(root, serde_json::json!({ "project_settings": { "ok": true }, "scan": { "ok": true } }));
+        connect(&mut state, port);
+        let report = override_in_project(&mut state, "light", Script::Extend, false).unwrap();
+        let (message, files_before) = rx.recv_timeout(std::time::Duration::from_secs(30)).unwrap();
+        assert_eq!(message["event"], "project_settings");
+        assert_eq!(message["settings"], serde_json::json!({ "func_godot/default_map_settings": MAP_SETTINGS_RES, "trenchdot/game_config": GAME_CONFIG_RES }));
+        assert!(!files_before, "Godot is told before the first file is written");
+        assert_eq!(sent(&rx), [("scan".to_string(), true)]);
+        assert_eq!(std::fs::read_to_string(root.join("project.godot")).unwrap(), GODOT, "Godot saves project.godot, not the editor");
+        assert!(root.join("entities/light.tres").is_file() && report.godot_open);
+        assert!(report.message().en.ends_with(" Build your maps again in Godot to use it."), "{}", report.message().en);
+        assert_eq!(state.godot_scan, Some(0));
+
+        let saved = settings_text(&[("func_godot", "default_map_settings", MAP_SETTINGS_RES), ("trenchdot", "game_config", GAME_CONFIG_RES)]);
+        std::fs::write(root.join("project.godot"), saved).unwrap();
+        let (port, rx) = fake_godot(root, serde_json::json!({ "scan": { "ok": true } }));
+        state.prefs.live_link_port = port;
+        override_in_project(&mut state, "func_button", Script::Extend, false).unwrap();
+        assert_eq!(sent(&rx), [("scan".to_string(), true)], "no settings change, none sent");
+    }
+
+    #[test]
+    fn a_godot_that_cannot_take_settings_leaves_the_project_alone() {
+        let dir = project(GODOT);
+        let root = dir.path();
+        let mut state = open(root);
+        let (port, rx) = fake_godot(root, serde_json::json!({}));
+        connect(&mut state, port);
+        let e = override_in_project(&mut state, "light", Script::Extend, false).unwrap_err().en;
+        assert_eq!(e, "Close Godot first. It has this project open and its addon cannot take new project settings.");
+        assert!(!root.join("entities").exists());
+        assert_eq!(std::fs::read_to_string(root.join("project.godot")).unwrap(), GODOT);
+        assert_eq!(sent(&rx), [("project_settings".to_string(), false)], "no scan either");
+
+        let (port, _) = fake_godot(root, serde_json::json!({ "project_settings": { "ok": false, "error": "project.godot could not be saved, 32" } }));
+        state.prefs.live_link_port = port;
+        let e = override_in_project(&mut state, "light", Script::Extend, false).unwrap_err().en;
+        assert!(e.starts_with("Godot did not take the project settings: ") && e.contains("could not be saved"), "{e}");
+        assert!(!root.join("entities").exists());
+    }
+
+    #[test]
+    fn a_failed_write_after_godot_took_the_settings_gives_it_the_old_ones_back() {
+        let addon_config = "res://addons/func_godot/game_config/trenchdot/trenchdot_game_config.tres";
+        let dir = project(&settings_text(&[("trenchdot", "game_config", addon_config)]));
+        let root = dir.path();
+        let mut state = open(root);
+        let (port, rx) = fake_godot(root, serde_json::json!({ "project_settings": { "ok": true } }));
+        connect(&mut state, port);
+        let plan = plan(root, &state.game, "light", Script::Extend).unwrap();
+        assert_eq!(plan.before, ["res://addons/func_godot/func_godot_default_map_settings.tres", addon_config]);
+        put(root, "entities", "a file where the folder goes");
+        let e = super::apply(&mut state, &plan, false).unwrap_err().en;
+        assert!(e.starts_with("Could not write ") && !e.contains("Godot kept"), "{e}");
+        let settings: Vec<_> = (0..2).map(|_| rx.recv_timeout(std::time::Duration::from_secs(30)).unwrap().0["settings"].clone()).collect();
+        assert_eq!(settings[0], serde_json::json!({ "func_godot/default_map_settings": MAP_SETTINGS_RES, "trenchdot/game_config": GAME_CONFIG_RES }));
+        assert_eq!(
+            settings[1],
+            serde_json::json!({ "func_godot/default_map_settings": "res://addons/func_godot/func_godot_default_map_settings.tres", "trenchdot/game_config": addon_config })
+        );
+
+        let once = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        state.prefs.live_link_port = once.local_addr().unwrap().port();
+        std::thread::spawn(move || {
+            use std::io::{BufRead, Write};
+            let (stream, _) = once.accept().unwrap();
+            std::io::BufReader::new(stream.try_clone().unwrap()).read_line(&mut String::new()).unwrap();
+            writeln!(&stream, "{}", serde_json::json!({ "ok": true })).unwrap();
+        });
+        let e = super::apply(&mut state, &plan, false).unwrap_err().en;
+        assert!(
+            e.ends_with(" Godot kept the new project settings, set func_godot/default_map_settings, trenchdot/game_config back in its Project Settings."),
+            "{e}"
+        );
+        assert_eq!(text_of(root, "entities"), "a file where the folder goes");
+    }
+
+    #[test]
+    fn a_godot_that_stopped_answering_counts_as_closed() {
+        let dir = project(GODOT);
+        let root = dir.path();
+        let mut state = open(root);
+        let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        connect(&mut state, port);
+        let report = override_in_project(&mut state, "light", Script::Extend, false).unwrap();
+        assert!(!report.godot_open && !report.message().en.contains("Godot"), "{}", report.message().en);
+        assert!(godot_settings::get(&std::fs::read_to_string(root.join("project.godot")).unwrap(), "trenchdot", "game_config").is_some());
+    }
+
+    #[test]
+    fn a_script_fence_stops_an_override_before_anything_is_written() {
+        let dir = project(GODOT);
+        let root = dir.path();
+        let mut state = open(root);
+        let elsewhere = tempfile::tempdir().unwrap();
+        state.script_fence = Some(crate::mcp::script::Fence::new(vec![elsewhere.path().to_path_buf()]));
+        assert!(override_in_project(&mut state, "light", Script::Extend, false).is_err());
+        assert!(!root.join("entities").exists());
+        assert_eq!(std::fs::read_to_string(root.join("project.godot")).unwrap(), GODOT);
+
+        let mut without = EditorState::new(Default::default());
+        assert_eq!(override_in_project(&mut without, "light", Script::Extend, false).unwrap_err().en, "Open a Godot project first, an override goes into it");
+    }
+
+    #[test]
+    fn a_failed_write_puts_everything_back() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path();
+        put(root, "edit.tres", "old\n");
+        put(root, "block", "a file where a folder should be");
+        put(root, "taken.gd", "mine\n");
+        let write = |rel: &str, text: &str, replace: bool| Write { path: root.join(rel), text: text.to_string(), replace };
+        let writes = [write("new/a.tres", "a", false), write("edit.tres", "new\n", true), write("block/b.gd", "b", false)];
+        let (path, _) = write_all(&writes).unwrap_err();
+        assert_eq!(path, root.join("block/b.gd"));
+        assert!(!root.join("new/a.tres").exists());
+        assert_eq!(std::fs::read_to_string(root.join("edit.tres")).unwrap(), "old\n");
+
+        let (path, e) = write_all(&[write("new/a.tres", "a", false), write("taken.gd", "x", false)]).unwrap_err();
+        assert_eq!((path, e.kind()), (root.join("taken.gd"), std::io::ErrorKind::AlreadyExists));
+        assert_eq!(std::fs::read_to_string(root.join("taken.gd")).unwrap(), "mine\n", "a file that was there is never removed");
+        assert!(!root.join("new/a.tres").exists());
+
+        write_all(&[write("new/a.tres", "a", false), write("edit.tres", "new\n", true)]).unwrap();
+        assert_eq!(std::fs::read_to_string(root.join("edit.tres")).unwrap(), "new\n");
+        assert_eq!(std::fs::read_to_string(root.join("new/a.tres")).unwrap(), "a");
+    }
+
+    #[test]
+    fn only_a_click_trusts_a_project_that_held_no_code() {
+        let bare = |name: &str| {
+            let dir = tempfile::tempdir().unwrap();
+            put(dir.path(), "project.godot", GODOT);
+            put(
+                dir.path(),
+                "addons/func_godot/fgd/trenchdot/info_player_start.tres",
+                &std::fs::read_to_string(addon().join("fgd/trenchdot/info_player_start.tres")).unwrap(),
+            );
+            let state = open(dir.path());
+            assert_eq!(state.trust(), Some(Trust::NoCode), "{name}");
+            (dir, state)
+        };
+        let (_dir, mut agent) = bare("agent");
+        override_in_project(&mut agent, "info_player_start", Script::Extend, false).unwrap();
+        assert_eq!(agent.trust(), Some(Trust::NoCode));
+
+        let (_dir, mut person) = bare("person");
+        override_in_project(&mut person, "info_player_start", Script::Extend, true).unwrap();
+        assert_eq!(person.trust(), Some(Trust::Stored));
     }
 }

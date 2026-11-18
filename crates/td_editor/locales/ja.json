@@ -2539,5 +2539,12 @@
   "{classname} is defined by {path} in this project already, edit that definition instead": "{classname}はこのプロジェクトで既に{path}に定義されています。代わりにその定義を編集してください",
   "{classname} could not be copied: {error}": "{classname}をコピーできませんでした：{error}",
   "{path} is in the way, it exists already. Rename or move it, then try again": "{path}が邪魔をしています。既に存在します。名前を変えるか移動してから、もう一度試してください",
-  "{path} could not be extended: {error}. Add {classname} to its Entity Definitions yourself": "{path}を拡張できませんでした：{error}。{classname}を、そのEntity Definitionsに自分で追加してください"
+  "{path} could not be extended: {error}. Add {classname} to its Entity Definitions yourself": "{path}を拡張できませんでした：{error}。{classname}を、そのEntity Definitionsに自分で追加してください",
+  "Overrode {classname} with {definition}. Change it in {script}.": "{classname}を{definition}で上書きしました。変更は{script}で行ってください。",
+  "Maps build with {fgd} from now on.": "今後、マップは{fgd}でビルドされます。",
+  "Build your maps again in Godot to use it.": "使うにはGodotでマップをもう一度ビルドしてください。",
+  "Open a Godot project first, an override goes into it": "先にGodotプロジェクトを開いてください。上書きはそこに入ります",
+  "Godot kept the new project settings, set {keys} back in its Project Settings.": "Godot は新しいプロジェクト設定を保持しました。Godot のプロジェクト設定で {keys} を元に戻してください。",
+  "Close Godot first. It has this project open and its addon cannot take new project settings.": "先にGodotを閉じてください。このプロジェクトを開いていて、そのアドオンは新しいプロジェクト設定を受け付けられません。",
+  "Godot did not take the project settings: {error}. Nothing was written.": "Godotがプロジェクト設定を受け付けませんでした：{error}。何も書き込まれていません。"
 }

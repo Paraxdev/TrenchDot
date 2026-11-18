@@ -2539,5 +2539,12 @@
   "{classname} is defined by {path} in this project already, edit that definition instead": "{classname} 在此项目中已由 {path} 定义，请改为编辑那个定义",
   "{classname} could not be copied: {error}": "无法复制 {classname}：{error}",
   "{path} is in the way, it exists already. Rename or move it, then try again": "{path} 挡住了去路，它已经存在。请重命名或移走它，然后重试",
-  "{path} could not be extended: {error}. Add {classname} to its Entity Definitions yourself": "无法扩展 {path}：{error}。请自行把 {classname} 加入它的 Entity Definitions"
+  "{path} could not be extended: {error}. Add {classname} to its Entity Definitions yourself": "无法扩展 {path}：{error}。请自行把 {classname} 加入它的 Entity Definitions",
+  "Overrode {classname} with {definition}. Change it in {script}.": "已用 {definition} 覆盖 {classname}。请在 {script} 中修改。",
+  "Maps build with {fgd} from now on.": "此后地图将使用 {fgd} 构建。",
+  "Build your maps again in Godot to use it.": "请在 Godot 中重新构建地图以使用它。",
+  "Open a Godot project first, an override goes into it": "请先打开 Godot 项目，覆盖文件会放入其中",
+  "Godot kept the new project settings, set {keys} back in its Project Settings.": "Godot 保留了新的项目设置，请在它的项目设置中把 {keys} 改回去。",
+  "Close Godot first. It has this project open and its addon cannot take new project settings.": "请先关闭 Godot。它已打开此项目，其插件无法接受新的项目设置。",
+  "Godot did not take the project settings: {error}. Nothing was written.": "Godot 未接受项目设置：{error}。未写入任何内容。"
 }

@@ -24,6 +24,7 @@ const CONNECT_TIMEOUT: Duration = Duration::from_millis(400);
 const QUICK_REPLY: Duration = Duration::from_secs(15);
 const BUILD_REPLY: Duration = Duration::from_secs(180);
 const SCAN_REPLY: Duration = Duration::from_secs(3);
+const SETTINGS_REPLY: Duration = Duration::from_secs(10);
 
 /// Called with Godot's reply to a capture or walkable request, on the live link thread.
 pub type Done = Box<dyn FnOnce(Result<Value, String>) + Send>;
@@ -262,6 +263,19 @@ fn game_status(reloaded: Option<u64>) -> String {
 pub fn scan(port: u16) -> Option<u64> {
     let reply = send_timeout(port, &json!({ "event": "scan" }), SCAN_REPLY).ok().filter(|reply| reply["ok"].as_bool() == Some(true))?;
     Some(reply["scan"].as_u64().unwrap_or(0))
+}
+
+/// Has the Godot editor on `port` set project settings, as (`section/key`, `res://` path), and save project.godot. An
+/// addon from before the event answers "unknown event" as the error.
+pub fn set_project_settings(port: u16, settings: &[(String, String)]) -> Result<(), String> {
+    let settings: serde_json::Map<String, Value> = settings.iter().map(|(key, value)| (key.clone(), json!(value))).collect();
+    let reply = send_timeout(port, &json!({ "event": "project_settings", "settings": settings }), SETTINGS_REPLY)?;
+    if reply["ok"].as_bool() == Some(true) { Ok(()) } else { Err(reply_error(&reply)) }
+}
+
+/// Whether `error` of [`send`] says nothing listens on the port.
+pub fn is_not_running(error: &str) -> bool {
+    error == NOT_RUNNING
 }
 
 /// Sends `map_saved` on a background thread. The receiver yields a status message.

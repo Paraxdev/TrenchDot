@@ -2539,5 +2539,12 @@
   "{classname} is defined by {path} in this project already, edit that definition instead": "{classname} уже определён в этом проекте файлом {path}, правьте лучше то определение",
   "{classname} could not be copied: {error}": "Не удалось скопировать {classname}: {error}",
   "{path} is in the way, it exists already. Rename or move it, then try again": "{path} мешает, он уже существует. Переименуйте или переместите его и повторите",
-  "{path} could not be extended: {error}. Add {classname} to its Entity Definitions yourself": "Не удалось расширить {path}: {error}. Добавьте {classname} в его Entity Definitions самостоятельно"
+  "{path} could not be extended: {error}. Add {classname} to its Entity Definitions yourself": "Не удалось расширить {path}: {error}. Добавьте {classname} в его Entity Definitions самостоятельно",
+  "Overrode {classname} with {definition}. Change it in {script}.": "{classname} переопределён через {definition}. Меняйте его в {script}.",
+  "Maps build with {fgd} from now on.": "Теперь карты собираются с {fgd}.",
+  "Build your maps again in Godot to use it.": "Соберите карты в Godot заново, чтобы применить это.",
+  "Open a Godot project first, an override goes into it": "Сначала откройте проект Godot, переопределение попадёт в него",
+  "Godot kept the new project settings, set {keys} back in its Project Settings.": "Godot оставил новые настройки проекта, верните {keys} в его настройках проекта.",
+  "Close Godot first. It has this project open and its addon cannot take new project settings.": "Сначала закройте Godot. В нём открыт этот проект, а его аддон не принимает новые настройки проекта.",
+  "Godot did not take the project settings: {error}. Nothing was written.": "Godot не принял настройки проекта: {error}. Ничего не записано."
 }

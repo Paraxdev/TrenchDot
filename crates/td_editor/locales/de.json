@@ -2539,5 +2539,12 @@
   "{classname} is defined by {path} in this project already, edit that definition instead": "{classname} ist in diesem Projekt bereits durch {path} definiert, bearbeite stattdessen diese Definition",
   "{classname} could not be copied: {error}": "{classname} ließ sich nicht kopieren: {error}",
   "{path} is in the way, it exists already. Rename or move it, then try again": "{path} steht im Weg, es existiert schon. Benenne es um oder verschiebe es und versuche es dann erneut",
-  "{path} could not be extended: {error}. Add {classname} to its Entity Definitions yourself": "{path} ließ sich nicht erweitern: {error}. Füge {classname} selbst zu seinen Entity-Definitionen hinzu"
+  "{path} could not be extended: {error}. Add {classname} to its Entity Definitions yourself": "{path} ließ sich nicht erweitern: {error}. Füge {classname} selbst zu seinen Entity-Definitionen hinzu",
+  "Overrode {classname} with {definition}. Change it in {script}.": "{classname} mit {definition} überschrieben. Ändere es in {script}.",
+  "Maps build with {fgd} from now on.": "Karten werden ab jetzt mit {fgd} gebaut.",
+  "Build your maps again in Godot to use it.": "Baue deine Karten in Godot erneut, um es zu nutzen.",
+  "Open a Godot project first, an override goes into it": "Zuerst ein Godot-Projekt öffnen, eine Überschreibung kommt hinein",
+  "Godot kept the new project settings, set {keys} back in its Project Settings.": "Godot hat die neuen Projekteinstellungen behalten, setze {keys} in seinen Projekteinstellungen zurück.",
+  "Close Godot first. It has this project open and its addon cannot take new project settings.": "Schließe zuerst Godot. Es hat dieses Projekt geöffnet und sein Addon kann keine neuen Projekteinstellungen annehmen.",
+  "Godot did not take the project settings: {error}. Nothing was written.": "Godot hat die Projekteinstellungen nicht übernommen: {error}. Es wurde nichts geschrieben."
 }
