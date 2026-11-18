@@ -2587,6 +2587,11 @@ fn an_arch_takes_an_angle_over_mcp() {
     let low = arch([256, 32, 16], 90.0);
     assert!(low["angle"].as_f64().unwrap() < 60.0, "a low box caps the sweep: {low}");
     assert!(low["note"].as_str().unwrap().contains("rise above the bounds"), "{low}");
+    for angle in [90, 180] {
+        let one = json!({ "shape": "arch", "sides": 1, "angle": angle, "min": [0, 0, 400], "max": [256, 192, 432] });
+        assert!(ed.call_err("create_brush", one).contains("at least 2 sides"), "{angle}");
+    }
+
     let walled = |angle: f64, thickness: f64| {
         let args = json!({ "shape": "arch", "min": [0, 0, 600], "max": [256, 192, 632], "angle": angle, "thickness": thickness });
         ed.call("create_brush", args)

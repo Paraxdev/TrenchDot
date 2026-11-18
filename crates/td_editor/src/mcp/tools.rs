@@ -2293,6 +2293,10 @@ impl App {
             },
             "sphere" => shapes::sphere(&bounds, sides, (sides / 2).max(3), &material),
             "arch" => {
+                if sides < 2 {
+                    return err("an arch needs at least 2 sides, one side would lie flat on the floor");
+                }
+
                 let angle = match arch_angle_arg(&args["angle"]) {
                     Ok(angle) => angle,
                     Err(e) => return err(e),

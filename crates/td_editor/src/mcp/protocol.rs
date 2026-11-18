@@ -251,7 +251,7 @@ pub fn tool_definitions() -> Vec<Value> {
                     "axis": { "type": "string", "enum": ["x", "y", "z"], "description": "cylinder and cone: the axis they run along inside the bounds, y (upright) by default, the cone's tip at the max end" },
                     "text": { "type": "string" }, "standing": { "type": "boolean" }, "spacing": { "type": "number" },
                     "material": { "type": "string" },
-                    "sides": { "type": "integer" },
+                    "sides": { "type": "integer", "description": "segments around a round shape, 12 by default, at least 2 for an arch" },
                     "thickness": { "type": "number", "description": "arch, tunnel and pipe wall width, spiral_stairs inner radius, 16 by default. A tunnel keeps it between 1 and 40 percent of the smaller of its width and height, an arch under 180 degrees between 1 and 90 percent of its rise while a 180 degree arch takes any thickness above 0, and the reply carries thickness and a note when it differs" },
                     "steps": { "type": "integer" },
                     "parent": { "type": "integer", "description": "layer, group or brush entity id, unlocked" }
