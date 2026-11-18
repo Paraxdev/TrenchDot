@@ -827,6 +827,7 @@ impl Viewport {
             });
             let size = bounds.size();
             state.set_status(msg!("Brush {x} x {y} x {z}", x = size.x, y = size.y, z = size.z));
+            state.bind_status_to_selection();
         }
     }
 

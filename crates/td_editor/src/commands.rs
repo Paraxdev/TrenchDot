@@ -654,6 +654,7 @@ fn report_faces(state: &mut EditorState) {
     let n = state.doc.selection.faces.len();
     if n > 0 {
         state.set_status(msg_n!(n, "Selected {n} face", "Selected {n} faces"));
+        state.bind_status_to_selection();
     }
 }
 
@@ -667,6 +668,7 @@ fn select_all_faces(state: &mut EditorState) {
 
     if objects.is_empty() {
         state.fail_status(msg!("Select a brush or mesh first"));
+        state.bind_status_to_selection();
         return;
     }
 
@@ -674,8 +676,7 @@ fn select_all_faces(state: &mut EditorState) {
         s.faces.clear();
         s.select_faces_of(m, objects);
     });
-    let n = state.doc.selection.faces.len();
-    state.set_status(msg_n!(n, "Selected {n} face", "Selected {n} faces"));
+    report_faces(state);
 }
 
 /// Key bindings for a preset. Hammer and Blender presets take over some TrenchBroom chords, actions keep their other
@@ -1169,11 +1170,13 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         Action::Undo => {
             if let Some(l) = state.undo() {
                 state.set_status(msg!("Undo {l}", l));
+                state.bind_status_to_selection();
             }
         }
         Action::Redo => {
             if let Some(l) = state.redo() {
                 state.set_status(msg!("Redo {l}", l));
+                state.bind_status_to_selection();
             }
         }
         Action::RepeatLast => match state.last_repeatable.clone() {
@@ -1279,6 +1282,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             let objects = selected_faced_objects(state);
             if objects.is_empty() && !state.doc.selection.nodes.is_empty() && !state.doc.selection.has_faces() {
                 state.fail_status(msg!("Select a brush or mesh first"));
+                state.bind_status_to_selection();
             } else {
                 state.select_mode = SelectMode::Face;
                 if !objects.is_empty() || !state.doc.selection.nodes.is_empty() {
@@ -1308,9 +1312,10 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
                 state.fail_status(msg!("Select a brush or mesh first"));
             } else {
                 state.doc.select(|m, s| s.select_faces_of(m, objects));
-                let n = state.doc.selection.faces.len();
-                state.set_status(msg_n!(n, "Selected {n} face", "Selected {n} faces"));
+                report_faces(state);
             }
+
+            state.bind_status_to_selection();
         }
 
         // Not pure selection changes: like TrenchBroom they delete the selecting brushes, so they stay undoable edits.
@@ -1325,6 +1330,8 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
                 let n = state.doc.selection.nodes.len();
                 state.set_status(msg_n!(n, "Selected {n} object", "Selected {n} objects"));
             }
+
+            state.bind_status_to_selection();
         }
         Action::SelectSiblings => state.doc.select(ops::select_siblings),
         Action::SelectSameMaterial => {
@@ -1506,6 +1513,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         Action::SetTool(t) => {
             state.tool = if state.tool == t { ToolKind::Select } else { t };
             state.set_status(Msg { en: format!("{} tool", state.tool.label()), shown: trf!("{tool} tool", tool = tr(state.tool.label())) });
+            state.bind_status_to_tool();
             if state.tool == ToolKind::Volume {
                 let class = state.prefs.volume_class.clone();
                 match crate::entity_pack::install_for_wizard(state, &[&class]) {
@@ -3847,6 +3855,79 @@ mod tests {
         assert!(state.status_failed(), "a light has no faces");
         assert_eq!(state.doc.selection.nodes, std::collections::BTreeSet::from([light]));
         assert!(state.doc.selection.faces.is_empty());
+    }
+
+    #[test]
+    fn a_status_about_the_selection_clears_when_the_selection_changes() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        let a = brush_at(&mut state, 72.0);
+        let b = brush_at(&mut state, 200.0);
+
+        state.doc.select(|_, s| s.select_face(a, 3));
+        execute(&mut state, Action::SelectInside, &ctx);
+        state.expire_selection_status();
+        assert_eq!(state.status, "Select Inside needs brushes selected.", "the selection it judged still stands");
+        state.doc.select(|_, s| s.select_node(b));
+        execute(&mut state, Action::SelectAllInMode, &ctx);
+        state.expire_selection_status();
+        assert_eq!(state.status, "");
+        assert!(!state.status_failed());
+
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_node(a);
+        });
+        execute(&mut state, Action::SelectBrushFaces, &ctx);
+        assert_eq!(state.status, "Selected 6 faces");
+        execute(&mut state, Action::Cancel, &ctx);
+        assert!(state.doc.selection.faces.is_empty());
+        state.expire_selection_status();
+        assert_eq!(state.status, "");
+
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_node(a);
+        });
+        execute(&mut state, Action::FaceMode, &ctx);
+        assert_eq!(state.status, "Selected 6 faces");
+        state.doc.select(|_, s| s.select_face(b, 0));
+        state.expire_selection_status();
+        assert_eq!(state.status, "");
+
+        state.set_status("Saved");
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_node(a);
+        });
+        state.expire_selection_status();
+        assert_eq!(state.status, "Saved", "other news outlasts a selection change");
+    }
+
+    #[test]
+    fn undo_and_tool_statuses_clear_once_they_no_longer_hold() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        let a = brush_at(&mut state, 72.0);
+        let b = brush_at(&mut state, 200.0);
+        state.doc.select(|_, s| s.select_node(a));
+        execute(&mut state, Action::Nudge(DVec3::X * 16.0), &ctx);
+
+        execute(&mut state, Action::Undo, &ctx);
+        state.expire_selection_status();
+        assert_eq!(state.status, "Undo Move");
+        state.doc.select(|_, s| s.select_node(b));
+        state.expire_selection_status();
+        assert_eq!(state.status, "", "the undo is old news once the selection moves on");
+
+        execute(&mut state, Action::SetTool(ToolKind::Texture), &ctx);
+        state.expire_selection_status();
+        assert_eq!(state.status, "Texture tool");
+        execute(&mut state, Action::Cancel, &ctx);
+        execute(&mut state, Action::Cancel, &ctx);
+        assert_eq!(state.tool, ToolKind::Select);
+        state.expire_selection_status();
+        assert_eq!(state.status, "", "the tool it named is gone");
     }
 
     fn box_at(state: &mut EditorState, min: DVec3, size: DVec3) -> NodeId {

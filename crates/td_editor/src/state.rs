@@ -582,6 +582,10 @@ pub struct EditorState {
     status_time: Instant,
     /// The status line reports that the last command failed or had nothing to do, set by [`Self::fail_status`].
     status_failed: bool,
+    /// The selection the status line speaks of, see [`Self::bind_status_to_selection`].
+    status_selection: Option<td_doc::Selection>,
+    /// The tool the status line speaks of, see [`Self::bind_status_to_tool`].
+    status_tool: Option<ToolKind>,
     /// Recent status lines, newest last, listed under the status bar's bell.
     status_log: std::collections::VecDeque<LoggedStatus>,
     /// Failures that rang the bell lately, newest last, kept after the user saw them to hold back one that repeats.
@@ -809,6 +813,8 @@ impl EditorState {
             status_tr: None,
             status_time: Instant::now(),
             status_failed: false,
+            status_selection: None,
+            status_tool: None,
             status_log: Default::default(),
             status_rings: Vec::new(),
             status_unread: false,
@@ -930,6 +936,8 @@ impl EditorState {
         self.status = msg.en;
         self.status_time = Instant::now();
         self.status_failed = failed;
+        self.status_selection = None;
+        self.status_tool = None;
         let entry =
             LoggedStatus { en: self.status.clone(), shown: self.status_shown().to_string(), lang: crate::i18n::current(), failed, time: self.status_time };
         let last = self.status_log.back();
@@ -961,6 +969,29 @@ impl EditorState {
         }
 
         self.status_rang = rings || (failed && folds && self.status_rang);
+    }
+
+    /// The status line counts or judges the current selection, so [`Self::expire_selection_status`] clears it once the
+    /// selection changes rather than leave it to describe one that is gone.
+    pub fn bind_status_to_selection(&mut self) {
+        self.status_selection = Some(self.doc.selection.clone());
+    }
+
+    /// The status line names the current tool, so [`Self::expire_selection_status`] clears it once another tool takes over.
+    pub fn bind_status_to_tool(&mut self) {
+        self.status_tool = Some(self.tool);
+    }
+
+    pub fn expire_selection_status(&mut self) {
+        let stale_selection = self.status_selection.as_ref().is_some_and(|bound| *bound != self.doc.selection);
+        if stale_selection || self.status_tool.is_some_and(|bound| bound != self.tool) {
+            self.status.clear();
+            self.status_tr = None;
+            self.status_failed = false;
+            self.status_rang = false;
+            self.status_selection = None;
+            self.status_tool = None;
+        }
     }
 
     /// Recent status lines, newest last.

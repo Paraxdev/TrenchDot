@@ -18,6 +18,7 @@ const RING_ALPHA: f32 = 0.18;
 
 /// Draws the bell and the status message, and marks a failure seen once the user looks at either.
 pub fn show(ui: &mut Ui, state: &mut EditorState) {
+    state.expire_selection_status();
     let (looked, clicked) = bell(ui, state);
     let looked = message(ui, state) || looked;
     if looked || clicked {

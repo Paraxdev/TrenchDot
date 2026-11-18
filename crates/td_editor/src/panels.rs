@@ -2068,6 +2068,7 @@ fn material_interactions(resp: egui::Response, state: &mut EditorState, name: &s
         if ui.button(tr("Select faces using it")).clicked() {
             let n = select_faces_with_material(state, name);
             state.set_status(msg_n!(n, "Selected {n} face using {name}", "Selected {n} faces using {name}", name));
+            state.bind_status_to_selection();
             ui.close();
         }
 
