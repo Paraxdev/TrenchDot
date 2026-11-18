@@ -1229,7 +1229,7 @@ impl App {
             },
             "mirror_planes": td_doc::mirror::selection_planes(map, sel)
                 .iter()
-                .map(|m| json!({ "axis": axis_letter(m.plane.axis), "at": m.plane.at, "group": m.group.0, "partner": m.partner.0 }))
+                .map(|m| json!({ "axis": axis_letter(m.plane.axis), "at": m.plane.at, "group": m.group.0, "partner": m.partner.0, "gap": td_doc::mirror::gap(map, m) }))
                 .collect::<Vec<_>>(),
             "cameras": cameras,
             "ui": {

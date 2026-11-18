@@ -5969,6 +5969,15 @@ fn mirror_linked_copies_follow_edits_mirrored() {
     assert_eq!(planes.as_array().unwrap().len(), 1, "{planes}");
     assert_eq!((planes[0]["axis"].as_str(), planes[0]["at"].as_f64()), (Some("x"), Some(40.0)), "{planes}");
     assert_eq!(planes[0]["group"], copies[0], "{planes}");
+    assert_eq!(planes[0]["gap"], json!(0.0), "the halves meet {planes}");
+    ed.call("run_action", json!({ "action": "set_mirror_gap", "args": { "gap": 16 } }));
+    let planes = ed.state()["mirror_planes"].clone();
+    assert_eq!(planes[0]["gap"], json!(16.0), "{planes}");
+    assert_eq!((planes[0]["axis"].as_str(), planes[0]["at"].as_f64()), (Some("x"), Some(40.0)), "the plane stays {planes}");
+    assert_eq!(planes[0]["group"], copies[0], "{planes}");
+    assert!(planes[0]["partner"].is_u64() && planes[0]["partner"] != planes[0]["group"], "{planes}");
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(ed.state()["mirror_planes"][0]["gap"], json!(0.0), "undo closes the gap");
 
     let other_brush = |ed: &Editor| {
         let brushes = ed.call("list_nodes", json!({ "type": "brush" }));
