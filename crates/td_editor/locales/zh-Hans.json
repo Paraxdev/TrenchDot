@@ -28,7 +28,7 @@
   "Shift+click selects faces, Shift+drag a face pushes it, Ctrl+Shift+drag extrudes": "Shift+单击选择面，Shift+拖动面可推动，Ctrl+Shift+拖动可挤出",
   "Tab edits meshes Blender style: 1/2/3 modes, G/R/S, E extrude, I inset, Ctrl+R loop cut, K knife": "Tab 以 Blender 方式编辑网格：1/2/3 模式，G/R/S，E 挤出，I 内插，Ctrl+R 环切，K 刀",
   "F1 over a tool, panel tab, menu or Inspector section opens its manual page, so does {click} on a tool": "在工具、面板标签、菜单或检查器分区上按 F1 打开其手册页，在工具上{click}也可以",
-  "Getting Started Guide": "入门指南",
+  "Build Your First Room": "搭建第一个房间",
   "Discord Server": "Discord 服务器",
   "Ask questions and share ideas with other TrenchDot users": "向其他 TrenchDot 用户提问并分享想法",
   "Tips": "提示",
@@ -2345,5 +2345,16 @@
   "Y": "Y",
   "symmetry Y": "对称 Y",
   "Moving a vertex also moves its counterpart across the plane, both sides change in one undo step": "移动顶点时，平面另一侧与之对应的顶点也会一起移动，两侧在一个撤销步骤内一起改变",
-  "Where the symmetry plane sits: the middle of what you edit, the world origin or a typed position": "对称平面的位置：所编辑对象的中心、世界原点或输入的位置"
+  "Where the symmetry plane sits: the middle of what you edit, the world origin or a typed position": "对称平面的位置：所编辑对象的中心、世界原点或输入的位置",
+  "Block out": "搭建",
+  "Texture it": "贴纹理",
+  "Add entities": "添加实体",
+  "Play in Godot": "在 Godot 中试玩",
+  "Use the keys of the editor you know:": "选择你熟悉的编辑器的快捷键:",
+  "Q selects, C clips, Ctrl+K subtracts.": "Q 选择,C 裁切,Ctrl+K 减去。",
+  "Shift+S, Shift+X, Shift+V pick Select, Clip, Vertex, H hides.": "Shift+S、Shift+X、Shift+V 选择选取、裁切、顶点,H 隐藏。",
+  "A selects all, X deletes, Shift+D duplicates, S scales.": "A 全选,X 删除,Shift+D 复制,S 缩放。",
+  "Skip": "跳过",
+  "File > Preferences > Keymap preset changes it later": "文件 > 偏好设置 > 快捷键预设 可稍后更改",
+  "Welcome to TrenchDot": "欢迎使用 TrenchDot"
 }

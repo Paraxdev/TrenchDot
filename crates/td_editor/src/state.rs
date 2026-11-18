@@ -432,6 +432,14 @@ pub struct Prefs {
     /// The trusted projects were seeded from the recent ones. Preferences saved before project trust existed lack it.
     #[serde(default)]
     pub trust_seeded: bool,
+    /// The first run card asked which keymap preset to use, or the person was asked before it existed. A field level
+    /// default keeps preferences saved by an older release from being asked, `Prefs::default` is a fresh install.
+    #[serde(default = "answered_before")]
+    pub keymap_asked: bool,
+}
+
+fn answered_before() -> bool {
+    true
 }
 
 pub const UI_SCALE_MIN: f32 = 0.5;
@@ -529,6 +537,7 @@ impl Default for Prefs {
             trusted_projects: Default::default(),
             trusted_folders: Default::default(),
             trust_seeded: true,
+            keymap_asked: false,
         }
     }
 }
@@ -2327,6 +2336,21 @@ mod tests {
         assert_eq!(p.ui_scale, 0.9);
         let old: Prefs = serde_json::from_str(r#"{"fly_speed": 100.0}"#).unwrap();
         assert_eq!((old.ui_scale, old.follow_display_scaling), (1.0, true));
+    }
+
+    #[test]
+    fn stored_prefs_without_the_keymap_question_count_as_answered() {
+        let load = |json: &str| serde_json::from_str::<Prefs>(json).unwrap();
+        assert!(!Prefs::default().keymap_asked, "a fresh install is asked");
+        let old = load(r#"{"fly_speed": 100.0, "keymap_preset": "hammer"}"#);
+        assert_eq!((old.keymap_asked, old.keymap_preset.as_str(), old.fly_speed), (true, "hammer", 100.0));
+        assert!(load("{}").keymap_asked, "even prefs with nothing in them predate the question");
+        let unanswered = serde_json::to_string(&Prefs { fly_speed: 77.0, ..Prefs::default() }).unwrap();
+        assert!(unanswered.contains(r#""keymap_asked":false"#), "{unanswered}");
+        let again = load(&unanswered);
+        assert_eq!((again.keymap_asked, again.fly_speed), (false, 77.0), "a saved false stays unanswered");
+        let answered = serde_json::to_string(&Prefs { keymap_asked: true, ..Prefs::default() }).unwrap();
+        assert!(load(&answered).keymap_asked);
     }
 
     #[test]

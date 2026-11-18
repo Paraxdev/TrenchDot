@@ -112,7 +112,7 @@ pub const PAGES: &[(Topic<'static>, &str, &str)] = &[
     (Menu("Command Palette"), "editor/interface", "the-window"),
     (Menu("Keyboard Shortcuts…"), "editor/shortcuts", ""),
     (Menu("Entity and Code Reference"), "gameplay/placing", "code-for-any-entity"),
-    (Menu("Getting Started Guide"), "getting-started", ""),
+    (Menu("Build Your First Room"), "getting-started", ""),
     (Menu("Tips"), "tips", ""),
     (Menu("Manual"), "README", ""),
     (Menu("Mouse and Keys"), "editor/shortcuts", "mouse-in-the-views"),
@@ -343,7 +343,7 @@ mod tests {
         assert_eq!(url(Menu("Mesh")).unwrap(), format!("{SITE}editor/meshes.html"));
         assert_eq!(url(Menu("Manual")).unwrap(), format!("{SITE}index.html"));
         assert_eq!(url(Section("Properties")).unwrap(), format!("{SITE}gameplay/entities/index.html#reading-the-entries"));
-        assert_eq!(url(Menu("Getting Started Guide")).unwrap(), crate::welcome::getting_started_url());
+        assert_eq!(url(Menu("Build Your First Room")).unwrap(), crate::welcome::getting_started_url());
         assert_eq!(url(Menu("Not a menu")), None);
 
         for lang in crate::i18n::Lang::ALL {
@@ -363,7 +363,7 @@ mod tests {
             assert_eq!(url(Tool(ToolKind::Clip)).unwrap(), format!("{root}{folder}/editor/brushes.html#reshape"), "{}", lang.code());
             assert_eq!(url(Menu("Manual")).unwrap(), format!("{root}{folder}/index.html"), "{}", lang.code());
             assert_eq!(url(Section("Properties")).unwrap(), format!("{root}{folder}/gameplay/entities/index.html#reading-the-entries"), "{}", lang.code());
-            assert_eq!(url(Menu("Getting Started Guide")).unwrap(), format!("{root}{folder}/getting-started.html"), "{}", lang.code());
+            assert_eq!(url(Menu("Build Your First Room")).unwrap(), format!("{root}{folder}/getting-started.html"), "{}", lang.code());
         }
 
         assert_eq!(url(Tool(ToolKind::Clip)).unwrap(), format!("{SITE}editor/brushes.html#reshape"), "the scopes ended, English again");

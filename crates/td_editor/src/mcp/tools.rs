@@ -1198,6 +1198,11 @@ impl App {
                 "shape_bounds": s.shape_bounds.map(|b| json!({ "min": arr(b.min), "max": arr(b.max) })),
                 "windows": self.open_windows.iter().map(|(title, r)| json!({ "title": title, "rect": [r.min.x, r.min.y, r.max.x, r.max.y] })).collect::<Vec<_>>(),
                 "panels": self.panel_states().into_iter().map(|(panel, shown)| json!({ "panel": panel, "shown": shown })).collect::<Vec<_>>(),
+                "first_run": self.first_run.as_ref().map(|f| json!({
+                    "rect": [f.rect.min.x, f.rect.min.y, f.rect.max.x, f.rect.max.y],
+                    "presets": f.presets.iter().map(|(id, r)| json!({ "preset": id, "rect": [r.min.x, r.min.y, r.max.x, r.max.y], "selected": s.prefs.keymap_preset == *id })).collect::<Vec<_>>(),
+                    "skip": [f.skip.min.x, f.skip.min.y, f.skip.max.x, f.skip.max.y],
+                })),
                 "tool_buttons": self.tool_buttons.iter().map(|(t, r)| json!({ "tool": t.label(), "family": t.family().name(), "rect": [r.min.x, r.min.y, r.max.x, r.max.y] })).collect::<Vec<_>>(),
                 "mcp_prefs": self.mcp_pref_rects.iter().map(|(name, r)| (name.to_string(), json!([r.min.x, r.min.y, r.max.x, r.max.y]))).collect::<serde_json::Map<_, _>>(),
                 "tool_options": [self.tool_options_rect.min.x, self.tool_options_rect.min.y, self.tool_options_rect.max.x, self.tool_options_rect.max.y],

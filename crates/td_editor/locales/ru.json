@@ -28,7 +28,7 @@
   "Shift+click selects faces, Shift+drag a face pushes it, Ctrl+Shift+drag extrudes": "Shift+клик выделяет грани, Shift+перетаскивание грани толкает её, Ctrl+Shift+перетаскивание выдавливает",
   "Tab edits meshes Blender style: 1/2/3 modes, G/R/S, E extrude, I inset, Ctrl+R loop cut, K knife": "Tab редактирует меши как в Blender: режимы 1/2/3, G/R/S, E выдавить, I вставка, Ctrl+R петлевой разрез, K нож",
   "F1 over a tool, panel tab, menu or Inspector section opens its manual page, so does {click} on a tool": "F1 над инструментом, вкладкой панели, меню или разделом Инспектора открывает страницу руководства, так же {click} по инструменту",
-  "Getting Started Guide": "Руководство по началу работы",
+  "Build Your First Room": "Постройте первую комнату",
   "Discord Server": "Сервер Discord",
   "Ask questions and share ideas with other TrenchDot users": "Задавайте вопросы и делитесь идеями с другими пользователями TrenchDot",
   "Tips": "Советы",
@@ -2345,5 +2345,16 @@
   "Y": "Y",
   "symmetry Y": "симметрия Y",
   "Moving a vertex also moves its counterpart across the plane, both sides change in one undo step": "При перемещении вершины её пара по другую сторону плоскости тоже сдвигается, обе стороны меняются за один шаг отмены",
-  "Where the symmetry plane sits: the middle of what you edit, the world origin or a typed position": "Где лежит плоскость симметрии: середина редактируемого, начало координат мира или введённая позиция"
+  "Where the symmetry plane sits: the middle of what you edit, the world origin or a typed position": "Где лежит плоскость симметрии: середина редактируемого, начало координат мира или введённая позиция",
+  "Block out": "Блокинг",
+  "Texture it": "Текстуры",
+  "Add entities": "Добавить сущности",
+  "Play in Godot": "Играть в Godot",
+  "Use the keys of the editor you know:": "Выбери сочетания клавиш редактора, который знаешь:",
+  "Q selects, C clips, Ctrl+K subtracts.": "Q выбирает, C отсекает, Ctrl+K вычитает.",
+  "Shift+S, Shift+X, Shift+V pick Select, Clip, Vertex, H hides.": "Shift+S, Shift+X и Shift+V включают выбор, отсечение и вершины, H скрывает.",
+  "A selects all, X deletes, Shift+D duplicates, S scales.": "A выбирает всё, X удаляет, Shift+D дублирует, S масштабирует.",
+  "Skip": "Пропустить",
+  "File > Preferences > Keymap preset changes it later": "Файл > Настройки > Набор сочетаний клавиш изменит это позже",
+  "Welcome to TrenchDot": "Добро пожаловать в TrenchDot"
 }

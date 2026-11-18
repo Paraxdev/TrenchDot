@@ -28,7 +28,7 @@
   "Shift+click selects faces, Shift+drag a face pushes it, Ctrl+Shift+drag extrudes": "Shift+clic selecciona caras, Shift+arrastrar una cara la empuja, Ctrl+Shift+arrastrar extruye",
   "Tab edits meshes Blender style: 1/2/3 modes, G/R/S, E extrude, I inset, Ctrl+R loop cut, K knife": "Tab edita mallas al estilo Blender: modos 1/2/3, G/R/S, E extruir, I inset, Ctrl+R corte en bucle, K cuchillo",
   "F1 over a tool, panel tab, menu or Inspector section opens its manual page, so does {click} on a tool": "F1 sobre una herramienta, pestaña, menú o sección del Inspector abre su página del manual, igual que {click} en una herramienta",
-  "Getting Started Guide": "Guía de inicio",
+  "Build Your First Room": "Construye tu primera sala",
   "Discord Server": "Servidor de Discord",
   "Ask questions and share ideas with other TrenchDot users": "Haz preguntas y comparte ideas con otros usuarios de TrenchDot",
   "Tips": "Consejos",
@@ -2345,5 +2345,16 @@
   "Y": "Y",
   "symmetry Y": "simetría Y",
   "Moving a vertex also moves its counterpart across the plane, both sides change in one undo step": "Al mover un vértice también se mueve su contraparte al otro lado del plano, ambos lados cambian en un solo paso de deshacer",
-  "Where the symmetry plane sits: the middle of what you edit, the world origin or a typed position": "Dónde está el plano de simetría: el centro de lo que editas, el origen del mundo o una posición escrita"
+  "Where the symmetry plane sits: the middle of what you edit, the world origin or a typed position": "Dónde está el plano de simetría: el centro de lo que editas, el origen del mundo o una posición escrita",
+  "Block out": "Bloquear",
+  "Texture it": "Texturizar",
+  "Add entities": "Añadir entidades",
+  "Play in Godot": "Jugar en Godot",
+  "Use the keys of the editor you know:": "Usa los atajos del editor que ya conoces:",
+  "Q selects, C clips, Ctrl+K subtracts.": "Q selecciona, C corta, Ctrl+K resta.",
+  "Shift+S, Shift+X, Shift+V pick Select, Clip, Vertex, H hides.": "Shift+S, Shift+X y Shift+V eligen Seleccionar, Cortar y Vértice, H oculta.",
+  "A selects all, X deletes, Shift+D duplicates, S scales.": "A selecciona todo, X borra, Shift+D duplica, S escala.",
+  "Skip": "Omitir",
+  "File > Preferences > Keymap preset changes it later": "Archivo > Preferencias > Preajuste de atajos lo cambia después",
+  "Welcome to TrenchDot": "Te damos la bienvenida a TrenchDot"
 }

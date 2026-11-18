@@ -171,6 +171,8 @@ pub struct App {
     pub(crate) open_windows: Vec<(&'static str, egui::Rect)>,
     /// The toolbar's tool buttons and where, reported by get_state like the windows.
     pub(crate) tool_buttons: Vec<(ToolKind, egui::Rect)>,
+    /// The first run card in the 3D view this frame, reported by get_state.
+    pub(crate) first_run: Option<crate::welcome::FirstRun>,
     /// The manual page of what the pointer was over at the end of the last frame, for F1.
     manual_under_pointer: Option<String>,
     pub(crate) content_wizard: crate::content_wizard::ContentWizard,
@@ -679,7 +681,7 @@ fn help_menu_links(ui: &mut Ui) {
             ui.close();
         }
     };
-    link(ui, en!("Getting Started Guide"), &crate::welcome::getting_started_url());
+    link(ui, en!("Build Your First Room"), &crate::welcome::getting_started_url());
     if ui.add(menu_button(None, tr("Discord Server"), None)).on_hover_text(tr("Ask questions and share ideas with other TrenchDot users")).clicked() {
         ui.ctx().open_url(egui::OpenUrl::new_tab(crate::welcome::DISCORD_URL));
         ui.close();
@@ -1014,6 +1016,7 @@ impl App {
             ui_had_focus: false,
             open_windows: Vec::new(),
             tool_buttons: Vec::new(),
+            first_run: None,
             manual_under_pointer: None,
             content_wizard: Default::default(),
             updater,
@@ -2929,6 +2932,7 @@ struct Tabs<'a> {
     tools: &'a mut ToolSet,
     actions: &'a mut Vec<Action>,
     project_maps: &'a mut crate::welcome::ProjectMaps,
+    first_run: &'a mut Option<crate::welcome::FirstRun>,
 }
 
 impl TabViewer for Tabs<'_> {
@@ -2977,7 +2981,9 @@ impl TabViewer for Tabs<'_> {
                 let Some(vp) = self.viewports.get_mut(*i) else { return };
                 let mut cx = ViewCtx { state: self.state, renderer: self.renderer, scene: self.scene, actions: self.actions, tools: self.tools };
                 vp.ui(ui, &mut cx);
-                crate::welcome::view_hint(ui, vp.rect, vp.kind(), self.start_view, self.state, self.project_maps, self.actions);
+                if let Some(parts) = crate::welcome::view_hint(ui, vp.rect, vp.kind(), self.start_view, self.state, self.project_maps, self.actions) {
+                    *self.first_run = Some(parts);
+                }
             }
             Tab::Outliner => panels::outliner(ui, self.state, self.panels, self.actions),
             Tab::Inspector => panels::inspector(ui, self.state, self.panels, self.actions),
@@ -3171,6 +3177,7 @@ impl eframe::App for App {
                 })
                 .collect();
             self.panels.logic.begin_frame();
+            self.first_run = None;
             let mut tabs = Tabs {
                 shown,
                 plain_titles,
@@ -3184,6 +3191,7 @@ impl eframe::App for App {
                 tools: &mut self.tools,
                 actions: &mut self.actions,
                 project_maps: &mut self.project_maps,
+                first_run: &mut self.first_run,
             };
             let style = crate::theme::dock_style(ui.style());
             DockArea::new(&mut self.dock).style(style).show_leaf_collapse_buttons(false).show_leaf_close_all_buttons(false).show_inside(ui, &mut tabs);

@@ -28,7 +28,7 @@
   "Shift+click selects faces, Shift+drag a face pushes it, Ctrl+Shift+drag extrudes": "Shift+クリックで面を選択、Shift+ドラッグで面を押し、Ctrl+Shift+ドラッグで押し出し",
   "Tab edits meshes Blender style: 1/2/3 modes, G/R/S, E extrude, I inset, Ctrl+R loop cut, K knife": "TabでBlender風にメッシュを編集：1/2/3モード、G/R/S、E押し出し、Iインセット、Ctrl+Rループカット、Kナイフ",
   "F1 over a tool, panel tab, menu or Inspector section opens its manual page, so does {click} on a tool": "ツール、パネルタブ、メニュー、インスペクターの節の上でF1を押すとマニュアルが開き、ツールを{click}しても開きます",
-  "Getting Started Guide": "はじめにガイド",
+  "Build Your First Room": "最初の部屋を作る",
   "Discord Server": "Discord サーバー",
   "Ask questions and share ideas with other TrenchDot users": "ほかの TrenchDot ユーザーに質問したり、アイデアを共有したりできます",
   "Tips": "ヒント",
@@ -2345,5 +2345,16 @@
   "Y": "Y",
   "symmetry Y": "対称 Y",
   "Moving a vertex also moves its counterpart across the plane, both sides change in one undo step": "頂点を動かすと、平面の反対側にある対応する頂点も一緒に動きます。両側の変更は取り消し1回で戻せます",
-  "Where the symmetry plane sits: the middle of what you edit, the world origin or a typed position": "対称平面の位置です。編集中のものの中心、ワールド原点、または入力した位置を選べます"
+  "Where the symmetry plane sits: the middle of what you edit, the world origin or a typed position": "対称平面の位置です。編集中のものの中心、ワールド原点、または入力した位置を選べます",
+  "Block out": "ブロックアウト",
+  "Texture it": "テクスチャを貼る",
+  "Add entities": "エンティティを置く",
+  "Play in Godot": "Godotで遊ぶ",
+  "Use the keys of the editor you know:": "使い慣れたエディタのキー配置を選べます:",
+  "Q selects, C clips, Ctrl+K subtracts.": "Qで選択、Cでクリップ、Ctrl+Kで減算。",
+  "Shift+S, Shift+X, Shift+V pick Select, Clip, Vertex, H hides.": "Shift+S、Shift+X、Shift+Vで選択、クリップ、頂点、Hで非表示。",
+  "A selects all, X deletes, Shift+D duplicates, S scales.": "Aで全選択、Xで削除、Shift+Dで複製、Sで拡大縮小。",
+  "Skip": "スキップ",
+  "File > Preferences > Keymap preset changes it later": "ファイル > 環境設定 > キーマッププリセットで後から変更できます",
+  "Welcome to TrenchDot": "TrenchDotへようこそ"
 }

@@ -5858,3 +5858,51 @@ fn a_fresh_start_opens_only_the_loop_panels() {
     let expected = [("Entities", false), ("Inspector", true), ("Issues", false), ("Materials", true), ("Outliner", true)].map(|(n, s)| (n.to_string(), s));
     assert_eq!(panels, expected);
 }
+
+fn rect_of(value: &Value) -> Vec<f64> {
+    value.as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect()
+}
+
+fn center_of(value: &Value) -> (f64, f64) {
+    let r = rect_of(value);
+    ((r[0] + r[2]) / 2.0, (r[1] + r[3]) / 2.0)
+}
+
+/// The first start asks for a keymap preset on the empty map card, a click on a row applies it.
+#[test]
+#[ignore]
+fn the_first_run_card_applies_a_keymap_preset() {
+    let ed = Editor::launch("first_run_pick");
+    let state = ed.state();
+    let card = &state["ui"]["first_run"];
+    let presets: Vec<(&str, bool)> =
+        card["presets"].as_array().unwrap().iter().map(|p| (p["preset"].as_str().unwrap(), p["selected"].as_bool().unwrap())).collect();
+    assert_eq!(presets, [("trenchbroom", true), ("hammer", false), ("blender", false)]);
+    assert_eq!(state["editor"]["keymap"], "trenchbroom");
+    // The camera's rect is x, y, width, height, the card's is min and max corners.
+    let view = rect_of(&state["cameras"].as_array().unwrap().iter().find(|c| c["view"] == "3d").unwrap()["rect"]);
+    let at = rect_of(&card["rect"]);
+    assert!(at[0] >= view[0] && at[1] >= view[1] && at[2] <= view[0] + view[2] && at[3] <= view[1] + view[3], "the card {at:?} lies in the 3D view {view:?}");
+
+    let hammer = card["presets"].as_array().unwrap().iter().find(|p| p["preset"] == "hammer").unwrap()["rect"].clone();
+    let (x, y) = center_of(&hammer);
+    ed.input("window", json!([{ "type": "click", "x": x, "y": y }]));
+    let state = ed.state();
+    assert_eq!(state["editor"]["keymap"], "hammer");
+    assert!(state["ui"]["first_run"].is_null(), "the card goes once a preset is picked");
+    assert_eq!(state["map"]["brushes"], 0);
+}
+
+/// Skip ends the question and leaves the keymap as it was.
+#[test]
+#[ignore]
+fn the_first_run_card_skips_without_changing_the_keymap() {
+    let ed = Editor::launch("first_run_skip");
+    let state = ed.state();
+    assert!(state["ui"]["first_run"].is_object());
+    let (x, y) = center_of(&state["ui"]["first_run"]["skip"]);
+    ed.input("window", json!([{ "type": "click", "x": x, "y": y }]));
+    let state = ed.state();
+    assert_eq!(state["editor"]["keymap"], "trenchbroom");
+    assert!(state["ui"]["first_run"].is_null());
+}
