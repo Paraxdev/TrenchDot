@@ -823,7 +823,11 @@ impl ShapeDialog {
                 self.kind,
                 ShapeKind::Arch | ShapeKind::Tunnel | ShapeKind::Pipe | ShapeKind::Torus | ShapeKind::ArchWall | ShapeKind::GableRoof | ShapeKind::SpiralStairs
             ) {
-                let max = if self.kind == ShapeKind::Tunnel { tunnel_thickness_max(&bounds, state.effective_grid()) } else { 4096.0 };
+                let max = match self.kind {
+                    ShapeKind::Tunnel => tunnel_thickness_max(&bounds, state.effective_grid()),
+                    ShapeKind::Arch => shapes::arch_thickness_cap(&bounds, self.angle),
+                    _ => 4096.0,
+                };
                 ui.add(
                     egui::DragValue::new(&mut self.thickness)
                         .range(1.0_f64.min(max)..=max)
@@ -1752,6 +1756,25 @@ mod tests {
     }
 
     #[test]
+    fn the_arch_thickness_field_stops_at_the_arch_cap() {
+        let source = box_of([0.0, 0.0, 0.0], [192.0, 128.0, 256.0]);
+        let (ctx, mut state, mut time) = (egui::Context::default(), EditorState::new(crate::state::Prefs::default()), 0.0);
+        let block = insert_block(&mut state, &source);
+        state.doc.selection.select_node(block);
+        for angle in [90.0, 180.0] {
+            let mut dialog = ShapeDialog { open: true, kind: ShapeKind::Arch, angle, thickness: 500.0, ..Default::default() };
+            shape_frame(&ctx, &mut dialog, &mut state, &mut time, vec![]);
+            assert_eq!(dialog.thickness, shapes::arch_thickness_cap(&source, angle), "{angle}");
+        }
+
+        let mut dialog = ShapeDialog { open: true, kind: ShapeKind::Arch, thickness: 500.0, ..Default::default() };
+        shape_frame(&ctx, &mut dialog, &mut state, &mut time, vec![]);
+        dialog.angle = 60.0;
+        shape_frame(&ctx, &mut dialog, &mut state, &mut time, vec![]);
+        assert_eq!(dialog.thickness, shapes::arch_thickness_cap(&source, 60.0), "lowering the angle lowers a thick wall with it");
+    }
+
+    #[test]
     fn the_dialog_shows_how_high_an_arch_under_180_rises() {
         let source = box_of([0.0, 0.0, 0.0], [192.0, 128.0, 256.0]);
         let (ctx, mut state, mut time) = (egui::Context::default(), EditorState::new(crate::state::Prefs::default()), 0.0);
@@ -2273,9 +2296,9 @@ mod tests {
         let wall = |n: &NodeKind| matches!(n, NodeKind::Brush(b) if b.bounds().min.x == 0.0 && b.bounds().max.x == 32.0);
         assert!(dialog.generate(&source, "m").iter().any(wall), "the left wall is as thick as the field says");
 
-        let mut arch = ShapeDialog { kind: ShapeKind::Arch, thickness: 100.0, ..Default::default() };
-        shape_texts(&mut arch, &source);
-        assert_eq!(arch.thickness, 100.0, "only the tunnel caps the field");
+        let mut pipe = ShapeDialog { kind: ShapeKind::Pipe, thickness: 100.0, ..Default::default() };
+        shape_texts(&mut pipe, &source);
+        assert_eq!(pipe.thickness, 100.0, "a pipe leaves the field alone");
     }
 
     #[test]
