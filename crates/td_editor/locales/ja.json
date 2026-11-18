@@ -2562,5 +2562,6 @@
   "Select it, or the outermost closed group around it": "それを選択、またはそれを囲む最も外側の閉じたグループを選択",
   "Add it or its outermost closed group to the selection or remove it": "それまたは最も外側の閉じたグループを選択に追加、または選択から外す",
   "Double click a row": "行をダブルクリック",
-  "Open every closed group down to it and select it. Outside a closed group it folds or unfolds the row": "そこまでの閉じたグループをすべて開いて選択。閉じたグループの外では行を折りたたむか展開"
+  "Open every closed group down to it and select it. Outside a closed group it folds or unfolds the row": "そこまでの閉じたグループをすべて開いて選択。閉じたグループの外では行を折りたたむか展開",
+  "{shift} or {command}": "{shift}または{command}"
 }

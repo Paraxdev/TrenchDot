@@ -2562,5 +2562,6 @@
   "Select it, or the outermost closed group around it": "Sie auswählen, oder die äußerste geschlossene Gruppe um sie herum",
   "Add it or its outermost closed group to the selection or remove it": "Sie oder ihre äußerste geschlossene Gruppe zur Auswahl hinzufügen oder daraus entfernen",
   "Double click a row": "Doppelklick auf eine Zeile",
-  "Open every closed group down to it and select it. Outside a closed group it folds or unfolds the row": "Jede geschlossene Gruppe bis zu ihr öffnen und sie auswählen. Außerhalb einer geschlossenen Gruppe klappt er die Zeile auf oder zu"
+  "Open every closed group down to it and select it. Outside a closed group it folds or unfolds the row": "Jede geschlossene Gruppe bis zu ihr öffnen und sie auswählen. Außerhalb einer geschlossenen Gruppe klappt er die Zeile auf oder zu",
+  "{shift} or {command}": "{shift} oder {command}"
 }

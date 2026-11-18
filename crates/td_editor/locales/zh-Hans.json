@@ -2562,5 +2562,6 @@
   "Select it, or the outermost closed group around it": "选择它，或包含它的最外层已关闭组",
   "Add it or its outermost closed group to the selection or remove it": "将它或其最外层已关闭组加入选择或从中移除",
   "Double click a row": "双击一行",
-  "Open every closed group down to it and select it. Outside a closed group it folds or unfolds the row": "打开通向它的每个已关闭组并选择它。不在已关闭组内时折叠或展开该行"
+  "Open every closed group down to it and select it. Outside a closed group it folds or unfolds the row": "打开通向它的每个已关闭组并选择它。不在已关闭组内时折叠或展开该行",
+  "{shift} or {command}": "{shift}或{command}"
 }

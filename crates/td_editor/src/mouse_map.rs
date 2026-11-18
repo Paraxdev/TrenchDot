@@ -59,13 +59,14 @@ pub fn chord_label(preset: &str, rule: ClickRule) -> String {
     let click = |mods: &str| if mods.is_empty() { tr("Click").to_string() } else { trf!("{mods}click", mods = mods) };
     let in_mode = |click: String, mode: &str| trf!("{click} ({mode})", click = click, mode = tr(mode));
     if preset == "blender" {
+        let either = || trf!("{shift} or {command}", shift = click("Shift+"), command = click(command));
         return match rule {
             ClickRule::Clear => trf!("{click} on empty space", click = click("")),
             ClickRule::Keep => trf!("{click} on empty space", click = click("Shift+")),
             ClickRule::ReplaceObject => in_mode(click(""), en!("Object mode")),
-            ClickRule::ToggleObject => in_mode(click("Shift+"), en!("Object mode")),
+            ClickRule::ToggleObject => in_mode(either(), en!("Object mode")),
             ClickRule::ReplaceFace => in_mode(click(""), en!("Face mode")),
-            ClickRule::ToggleFace => in_mode(click("Shift+"), en!("Face mode")),
+            ClickRule::ToggleFace => in_mode(either(), en!("Face mode")),
             ClickRule::FaceModeMiss => trf!("{click} on something without faces ({mode})", click = click(""), mode = tr("Face mode")),
         };
     }
@@ -565,13 +566,13 @@ mod tests {
         }
 
         let blender = [
-            (Clear, "Click on empty space"),
-            (Keep, "Shift+click on empty space"),
-            (ReplaceObject, "Click (Object mode)"),
-            (ToggleObject, "Shift+click (Object mode)"),
-            (ReplaceFace, "Click (Face mode)"),
-            (ToggleFace, "Shift+click (Face mode)"),
-            (FaceModeMiss, "Click on something without faces (Face mode)"),
+            (Clear, "Click on empty space".to_string()),
+            (Keep, "Shift+click on empty space".to_string()),
+            (ReplaceObject, "Click (Object mode)".to_string()),
+            (ToggleObject, format!("Shift+click or {COMMAND}+click (Object mode)")),
+            (ReplaceFace, "Click (Face mode)".to_string()),
+            (ToggleFace, format!("Shift+click or {COMMAND}+click (Face mode)")),
+            (FaceModeMiss, "Click on something without faces (Face mode)".to_string()),
         ];
         for (rule, label) in blender {
             assert_eq!(chord_label("blender", rule), label, "blender {rule:?}");

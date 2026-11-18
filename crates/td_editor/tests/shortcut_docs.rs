@@ -171,8 +171,10 @@ fn the_blender_mouse_table_names_every_click_of_its_modes() {
         ClickRule::ToggleFace,
         ClickRule::FaceModeMiss,
     ] {
-        let label = chord_label("blender", rule).to_ascii_lowercase();
-        assert!(cells.contains(&label), "the Blender mouse table has no {label:?} row");
+        let label = chord_label("blender", rule).replace("Cmd+", "Ctrl+");
+        for cell in mouse_cells(&[vec![label.clone()]]) {
+            assert!(cells.contains(&cell), "the Blender mouse table has no {label:?} row");
+        }
     }
 }
 

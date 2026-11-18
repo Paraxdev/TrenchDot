@@ -2701,8 +2701,9 @@ mod tests {
         h.run();
         assert_eq!(h.state().1.prefs.keymap_preset, "blender");
         assert!(h.query_by_label("Shift+click").is_none(), "Blender has no Shift+click outside its modes");
-        assert!(h.query_by_label("Shift+click (Face mode)").is_some());
-        assert!(h.query_by_label("Shift+click (Object mode)").is_some());
+        let command = if cfg!(target_os = "macos") { "Cmd" } else { "Ctrl" };
+        assert!(h.query_by_label(&format!("Shift+click or {command}+click (Face mode)")).is_some());
+        assert!(h.query_by_label(&format!("Shift+click or {command}+click (Object mode)")).is_some());
         assert!(h.query_by_label("Nothing changes, it has no faces to pick").is_some());
         for label in ["Double click a group", "Double click an entity brush", "Double click empty space"] {
             assert!(h.query_by_label(label).is_some(), "{label} in the Blender preset");

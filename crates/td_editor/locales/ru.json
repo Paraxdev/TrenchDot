@@ -2562,5 +2562,6 @@
   "Select it, or the outermost closed group around it": "Выделить её или самую внешнюю закрытую группу вокруг неё",
   "Add it or its outermost closed group to the selection or remove it": "Добавить её или её самую внешнюю закрытую группу к выделению или убрать",
   "Double click a row": "Двойной клик по строке",
-  "Open every closed group down to it and select it. Outside a closed group it folds or unfolds the row": "Открыть все закрытые группы до неё и выделить её. Вне закрытой группы сворачивает или разворачивает строку"
+  "Open every closed group down to it and select it. Outside a closed group it folds or unfolds the row": "Открыть все закрытые группы до неё и выделить её. Вне закрытой группы сворачивает или разворачивает строку",
+  "{shift} or {command}": "{shift} или {command}"
 }

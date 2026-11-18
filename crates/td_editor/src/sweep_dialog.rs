@@ -408,7 +408,8 @@ mod tests {
         assert!(tb.query_by_label_contains("Ctrl+Shift+click adds more").is_some() || tb.query_by_label_contains("Cmd+Shift+click adds more").is_some());
         let blender = hint_after_a_frame("blender");
         assert!(blender.query_by_label_contains("Click (Face mode) a face to sweep").is_some());
-        assert!(blender.query_by_label_contains("Shift+click (Face mode) adds more").is_some());
+        let command = if cfg!(target_os = "macos") { "Cmd" } else { "Ctrl" };
+        assert!(blender.query_by_label_contains(&format!("Shift+click or {command}+click (Face mode) adds more")).is_some());
         assert!(blender.query_by_label_contains("Ctrl+Shift").is_none());
     }
 }
