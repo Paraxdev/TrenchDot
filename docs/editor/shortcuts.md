@@ -175,7 +175,7 @@ A preset only changes the keys and mouse gestures below, everything else stays a
 | Ctrl+Shift+I, Ctrl+Shift+R | Select inverse, rotate 90° around the vertical axis |
 | Ctrl+Shift+M, Ctrl+Shift+L | CSG convex merge, intersect |
 | Ctrl+F4 | Close tab |
-| Z | Mouse look in the 3D view under the pointer. The cursor hides, moving the mouse turns the camera and WASD flies. Z, Esc or a click stops it, and the click does nothing else. View > Mouse Look starts it in any preset |
+| Z | Mouse look in the 3D view under the pointer. The cursor hides, moving the mouse turns the camera and WASD flies. Z, Esc or a click stops it, and the click does nothing else. View > Views > Mouse Look starts it in any preset |
 
 The older keys of these actions keep working where the Hammer preset leaves them free. Q, C and V still pick the
 Select, Clip and Vertex tools, Shift+T the Texture tool, Ctrl+J isolates, Ctrl+Shift+H shows all and Ctrl+Shift+W

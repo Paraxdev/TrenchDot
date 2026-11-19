@@ -88,8 +88,8 @@ TrenchBroom keys are the defaults of TrenchBroom 2026.2. An empty cell means tha
 
 Transform Selection, Tie to Entity and the two flips have no key outside the Hammer preset, they sit in the *Brush* menu
 and the command palette, and you can bind them on the **Keys** tab of *Help > Keyboard Shortcuts…*. The Block tool
-sits right of Select in the toolbar, and mouse look under *View > Mouse Look*. In the Hammer preset, Rotate Y 90 moved
-to Ctrl+Shift+R, because Ctrl+L flips. The full list of keys is on [Shortcuts](shortcuts.md).
+sits right of Select in the toolbar, and mouse look under *View > Views > Mouse Look*. In the Hammer preset, Rotate Y
+90 moved to Ctrl+Shift+R, because Ctrl+L flips. The full list of keys is on [Shortcuts](shortcuts.md).
 
 The Hammer preset adds its keys next to the TrenchDot ones, so a TrenchDot key keeps working unless the Hammer column
 gives it to another action. Q, C, V and Shift+T still pick their tools, Ctrl+J still isolates and Ctrl+Shift+H still
