@@ -248,7 +248,7 @@ impl TextureTool {
     pub fn paint(&self, ui: &Ui, rect: Rect, state: &EditorState) {
         let clip = state.uv_clipboard.as_ref().map(|c| trf!("   picked: {material}", material = c.material)).unwrap_or_default();
         let text = trf!(
-            "Texture: click selects, right click applies {material}, Alt+click picks, drag slides, Ctrl+wheel scales{picked}",
+            "Texture: click selects, Ctrl+click adds, right click applies {material}, Alt+click picks, drag slides, Ctrl+wheel scales{picked}",
             material = state.current_material,
             picked = clip
         );

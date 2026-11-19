@@ -1535,7 +1535,7 @@
   "Select a source face first, then Alt+right click the faces to wrap onto": "先选源面，再 Alt+右键点击要包裹的面",
   "Pick a face with Alt+click first": "请先用 Alt+点击拾取一个面",
   "   picked: {material}": "   已拾取：{material}",
-  "Texture: click selects, right click applies {material}, Alt+click picks, drag slides, Ctrl+wheel scales{picked}": "纹理：点击选择，右键应用 {material}，Alt+点击拾取，拖动平移，Ctrl+滚轮缩放{picked}",
+  "Texture: click selects, Ctrl+click adds, right click applies {material}, Alt+click picks, drag slides, Ctrl+wheel scales{picked}": "纹理：点击选择，Ctrl+点击添加，右键应用 {material}，Alt+点击拾取，拖动平移，Ctrl+滚轮缩放{picked}",
   "Sides": "两侧",
   "Added {n} trim strip": { "other": "已添加 {n} 条饰条" },
   "Strips along face edges: baseboards on the bottom, crown molding on top, borders around floors.": "沿面边缘的条带：底部踢脚线，顶部顶角线，地面镶边。",

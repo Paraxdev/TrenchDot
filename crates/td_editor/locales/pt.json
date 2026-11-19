@@ -1535,7 +1535,7 @@
   "Select a source face first, then Alt+right click the faces to wrap onto": "Escolha primeiro uma face de origem, depois Alt+clique direito nas faces de destino",
   "Pick a face with Alt+click first": "Capture primeiro uma face com Alt+clique",
   "   picked: {material}": "   capturado: {material}",
-  "Texture: click selects, right click applies {material}, Alt+click picks, drag slides, Ctrl+wheel scales{picked}": "Textura: clique seleciona, clique direito aplica {material}, Alt+clique captura, arrastar desloca, Ctrl+roda escala{picked}",
+  "Texture: click selects, Ctrl+click adds, right click applies {material}, Alt+click picks, drag slides, Ctrl+wheel scales{picked}": "Textura: clique seleciona, Ctrl+clique adiciona, clique direito aplica {material}, Alt+clique captura, arrastar desloca, Ctrl+roda escala{picked}",
   "Sides": "Lados",
   "Added {n} trim strip": { "one": "{n} faixa de trim adicionada", "other": "{n} faixas de trim adicionadas" },
   "Strips along face edges: baseboards on the bottom, crown molding on top, borders around floors.": "Faixas nas bordas das faces: rodapés embaixo, sancas em cima, bordas ao redor de pisos.",

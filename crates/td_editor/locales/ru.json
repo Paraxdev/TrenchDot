@@ -1535,7 +1535,7 @@
   "Select a source face first, then Alt+right click the faces to wrap onto": "Сначала выберите грань-источник, затем Alt+правый клик по целевым граням",
   "Pick a face with Alt+click first": "Сначала возьмите грань через Alt+клик",
   "   picked: {material}": "   взято: {material}",
-  "Texture: click selects, right click applies {material}, Alt+click picks, drag slides, Ctrl+wheel scales{picked}": "Текстура: клик выделяет, правый клик применяет {material}, Alt+клик берёт, перетаскивание сдвигает, Ctrl+колесо масштабирует{picked}",
+  "Texture: click selects, Ctrl+click adds, right click applies {material}, Alt+click picks, drag slides, Ctrl+wheel scales{picked}": "Текстура: клик выделяет, Ctrl+клик добавляет, правый клик применяет {material}, Alt+клик берёт, перетаскивание сдвигает, Ctrl+колесо масштабирует{picked}",
   "Sides": "Бока",
   "Added {n} trim strip": { "one": "Добавлена {n} полоса трима", "few": "Добавлено {n} полосы трима", "many": "Добавлено {n} полос трима" },
   "Strips along face edges: baseboards on the bottom, crown molding on top, borders around floors.": "Полосы вдоль рёбер граней: плинтусы внизу, карнизы вверху, бордюры вокруг полов.",

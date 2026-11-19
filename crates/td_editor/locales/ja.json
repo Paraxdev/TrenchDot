@@ -1535,7 +1535,7 @@
   "Select a source face first, then Alt+right click the faces to wrap onto": "先に元の面を選び、Alt+右クリックで回り込ませる面を指定します",
   "Pick a face with Alt+click first": "先に Alt+クリックで面をスポイトします",
   "   picked: {material}": "   スポイト：{material}",
-  "Texture: click selects, right click applies {material}, Alt+click picks, drag slides, Ctrl+wheel scales{picked}": "テクスチャ：クリックで選択、右クリックで {material} を適用、Alt+クリックでスポイト、ドラッグでずらす、Ctrl+ホイールで拡縮{picked}",
+  "Texture: click selects, Ctrl+click adds, right click applies {material}, Alt+click picks, drag slides, Ctrl+wheel scales{picked}": "テクスチャ：クリックで選択、Ctrl+クリックで追加、右クリックで {material} を適用、Alt+クリックでスポイト、ドラッグでずらす、Ctrl+ホイールで拡縮{picked}",
   "Sides": "側面",
   "Added {n} trim strip": { "other": "トリムを {n} 本追加しました" },
   "Strips along face edges: baseboards on the bottom, crown molding on top, borders around floors.": "面のエッジ沿いの帯：下に幅木、上に廻り縁、床の周りに縁取り。",
