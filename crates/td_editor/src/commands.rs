@@ -4452,6 +4452,36 @@ mod tests {
         assert_eq!(state.status, "", "the tool it named is gone");
     }
 
+    #[test]
+    fn a_failure_clears_once_a_later_edit_lands() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        let a = brush_at(&mut state, 72.0);
+        state.doc.select(|_, s| s.select_node(a));
+        state.fail_status("Nothing to paste");
+        state.expire_selection_status();
+        state.doc.select(|_, s| s.clear());
+        state.expire_selection_status();
+        assert_eq!(state.status, "Nothing to paste", "a selection change is no edit");
+
+        state.doc.select(|_, s| s.select_node(a));
+        execute(&mut state, Action::Nudge(DVec3::X * 16.0), &ctx);
+        state.fail_status("Nothing to paste");
+        state.expire_selection_status();
+        assert_eq!(state.status, "Nothing to paste", "the edit came before the failure");
+        state.doc.edit("drag", |m, s| ops::translate_selection(m, s, DVec3::X * 16.0, ops::EditOptions::default()));
+        state.expire_selection_status();
+        assert_eq!(state.status, "", "an edit after it moves on");
+        assert!(!state.status_failed());
+        assert!(state.status_log().back().is_some_and(|l| l.failed), "the bell still lists it");
+
+        state.fail_status("Nothing to paste");
+        state.expire_selection_status();
+        state.doc.undo();
+        state.expire_selection_status();
+        assert_eq!(state.status, "", "so does an undo");
+    }
+
     fn box_at(state: &mut EditorState, min: DVec3, size: DVec3) -> NodeId {
         let parent = state.insert_parent();
         let brush = td_geom::Brush::from_aabb(&Aabb::new(min, min + size), "dev/grey").unwrap();

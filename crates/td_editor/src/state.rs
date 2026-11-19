@@ -586,6 +586,8 @@ pub struct EditorState {
     status_selection: Option<td_doc::Selection>,
     /// The tool the status line speaks of, see [`Self::bind_status_to_tool`].
     status_tool: Option<ToolKind>,
+    /// The document content a failure was first shown over, see [`Self::expire_selection_status`].
+    status_content: Option<(u64, u64)>,
     /// Recent status lines, newest last, listed under the status bar's bell.
     status_log: std::collections::VecDeque<LoggedStatus>,
     /// Failures that rang the bell lately, newest last, kept after the user saw them to hold back one that repeats.
@@ -847,6 +849,7 @@ impl EditorState {
             status_failed: false,
             status_selection: None,
             status_tool: None,
+            status_content: None,
             status_log: Default::default(),
             status_rings: Vec::new(),
             status_unread: false,
@@ -985,6 +988,7 @@ impl EditorState {
         self.status_failed = failed;
         self.status_selection = None;
         self.status_tool = None;
+        self.status_content = None;
         let entry =
             LoggedStatus { en: self.status.clone(), shown: self.status_shown().to_string(), lang: crate::i18n::current(), failed, time: self.status_time };
         let last = self.status_log.back();
@@ -1029,15 +1033,20 @@ impl EditorState {
         self.status_tool = Some(self.tool);
     }
 
+    /// Also clears a failure once an edit, undo or redo lands after it was first shown, it no longer describes the map.
+    /// Binding on show rather than on [`Self::fail_status`] keeps a failure that its own command followed with an edit.
     pub fn expire_selection_status(&mut self) {
+        let (doc, content, _) = self.doc.content_key();
+        let stale_failure = self.status_failed && *self.status_content.get_or_insert((doc, content)) != (doc, content);
         let stale_selection = self.status_selection.as_ref().is_some_and(|bound| *bound != self.doc.selection);
-        if stale_selection || self.status_tool.is_some_and(|bound| bound != self.tool) {
+        if stale_failure || stale_selection || self.status_tool.is_some_and(|bound| bound != self.tool) {
             self.status.clear();
             self.status_tr = None;
             self.status_failed = false;
             self.status_rang = false;
             self.status_selection = None;
             self.status_tool = None;
+            self.status_content = None;
         }
     }
 
