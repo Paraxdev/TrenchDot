@@ -717,9 +717,10 @@ impl ShapeDialog {
         )
     }
 
-    /// The dialog has no Angle row for a tunnel, so the angle an arch was given must not bend an arched tunnel.
     fn tunnel_params(&self) -> shapes::Tunnel {
-        shapes::Tunnel { sides: self.sides, thickness: self.thickness, angle: 180.0, ..self.tunnel }
+        // Only an arched tunnel has an arch, so the angle stays out of the key of the others.
+        let angle = if self.tunnel.profile == shapes::TunnelProfile::Arched { self.angle } else { 180.0 };
+        shapes::Tunnel { sides: self.sides, thickness: self.thickness, angle, ..self.tunnel }
     }
 
     pub fn generate(&self, bounds: &Aabb, material: &str) -> Vec<NodeKind> {
@@ -795,18 +796,39 @@ impl ShapeDialog {
 
     fn arch_fields(&mut self, ui: &mut egui::Ui, bounds: &Aabb) {
         let size = bounds.size();
-        let span = if self.kind == ShapeKind::Arch { size.x } else { (size.x - self.thickness * 2.0).max(1.0) };
-        let height = if self.kind == ShapeKind::Arch { size.y } else { (size.y - self.thickness).max(1.0) };
+        let tunnel = self.kind == ShapeKind::Tunnel;
+        let params = self.tunnel_params();
+        let (span, height) = match self.kind {
+            ShapeKind::Arch => (size.x, size.y),
+            ShapeKind::Tunnel => {
+                let opening = params.opening(bounds);
+                (opening.x, opening.x.min(opening.y) * 0.5)
+            }
+            _ => ((size.x - self.thickness * 2.0).max(1.0), (size.y - self.thickness).max(1.0)),
+        };
         ui.horizontal(|ui| {
-            ui.label(tr("Angle")).on_hover_text(tr(
-                "How much of a circle the arch sweeps. At 180 it is a half ellipse as tall as the box, below 180 the box height only caps how high it rises",
-            ));
+            let hover = if tunnel {
+                tr("How much of a circle the arch sweeps, 180 is a half round and less is flatter, springing from the tops of the walls")
+            } else {
+                tr("How much of a circle the arch sweeps. At 180 it is a half ellipse as tall as the box, below 180 the box height only caps how high it rises")
+            };
+            ui.label(tr("Angle")).on_hover_text(hover);
             // Clamped on edits only, else the slider rounds an angle set from a typed radius to its one decimal.
             ui.add(egui::Slider::new(&mut self.angle, shapes::ARCH_MIN_ANGLE..=180.0).suffix("°").max_decimals(1).clamping(egui::SliderClamping::Edits));
         });
-        let sweep = shapes::arch_sweep(span, height, self.angle);
-        if sweep < self.angle.clamp(shapes::ARCH_MIN_ANGLE, 180.0) - 1e-6 {
+        let capped = shapes::arch_sweep(span, height, self.angle);
+        let wanted = self.angle.clamp(shapes::ARCH_MIN_ANGLE, 180.0);
+        let sweep = if tunnel { params.fitted(bounds).angle } else { capped };
+        if tunnel && wanted < 180.0 && sweep >= 180.0 {
+            ui.label(RichText::new(tr("Too low and wide for an arch under 180° at this thickness")).weak());
+        } else if sweep > capped + 1e-6 {
+            ui.label(RichText::new(trf!("The arch needs {angle}° or more to stay 1 u thick", angle = format!("{sweep:.1}"))).weak());
+        } else if capped < wanted - 1e-6 {
             ui.label(RichText::new(trf!("The box height caps the sweep at {angle}°", angle = format!("{sweep:.1}"))).weak());
+        }
+
+        if let Some(crown) = params.arch_crown(bounds).filter(|_| tunnel) {
+            ui.label(RichText::new(trf!("The arch is {thickness} u thick at the top", thickness = format!("{crown:.1}"))).weak());
         }
 
         if self.kind == ShapeKind::Arch && sweep < 180.0 {
@@ -825,7 +847,7 @@ impl ShapeDialog {
         });
     }
 
-    fn tunnel_fields(&mut self, ui: &mut egui::Ui) {
+    fn tunnel_fields(&mut self, ui: &mut egui::Ui, bounds: &Aabb) {
         let square = self.tunnel.profile == shapes::TunnelProfile::Square;
         if square || self.tunnel.profile == shapes::TunnelProfile::Arched {
             ui.horizontal(|ui| {
@@ -833,6 +855,29 @@ impl ShapeDialog {
                 if square {
                     ui.checkbox(&mut self.tunnel.ceiling, tr("Ceiling")).on_hover_text(tr("Closes the top, without it a square tunnel is an open trench"));
                 }
+            });
+        }
+
+        ui.checkbox(&mut self.tunnel.walkway, tr("Walkway"))
+            .on_hover_text(tr("Raised walkways along both walls with a sunken channel between them, for sewers and culverts"));
+        if self.tunnel.walkway {
+            // An infinite want makes `fitted` hand back the most the box allows.
+            let params = self.tunnel_params();
+            let width_max = shapes::Tunnel { walkway_width: f64::INFINITY, ..params }.fitted(bounds).walkway_width;
+            let height_max = shapes::Tunnel { walkway_height: f64::INFINITY, ..params }.fitted(bounds).walkway_height;
+            ui.horizontal(|ui| {
+                ui.add(
+                    egui::DragValue::new(&mut self.tunnel.walkway_width)
+                        .range(1.0_f64.min(width_max)..=width_max)
+                        .prefix(format!("{} ", tr(en!("width"))))
+                        .suffix(" u"),
+                );
+                ui.add(
+                    egui::DragValue::new(&mut self.tunnel.walkway_height)
+                        .range(1.0_f64.min(height_max)..=height_max)
+                        .prefix(format!("{} ", tr(en!("height"))))
+                        .suffix(" u"),
+                );
             });
         }
     }
@@ -882,7 +927,7 @@ impl ShapeDialog {
                 ui.add(egui::Slider::new(&mut self.sides, 3..=96).text(tr(if segments { en!("segments") } else { en!("sides") })));
             }
 
-            if matches!(self.kind, ShapeKind::Arch | ShapeKind::ArchWall) {
+            if matches!(self.kind, ShapeKind::Arch | ShapeKind::ArchWall) || arched {
                 self.arch_fields(ui, &bounds);
             }
 
@@ -904,7 +949,7 @@ impl ShapeDialog {
             }
 
             if self.kind == ShapeKind::Tunnel {
-                self.tunnel_fields(ui);
+                self.tunnel_fields(ui, &bounds);
             }
 
             if matches!(self.kind, ShapeKind::Cylinder | ShapeKind::Cone) {
@@ -2262,6 +2307,19 @@ mod tests {
         assert_ne!(key(ShapeKind::Tunnel, 90.0, a), key(ShapeKind::Tunnel, 90.0, b));
         assert_ne!(key(ShapeKind::Tunnel, 90.0, a), key(ShapeKind::Tunnel, 90.0, shapes::Tunnel { floor: true, ..a }));
         assert_ne!(key(ShapeKind::Tunnel, 90.0, a), key(ShapeKind::Tunnel, 90.0, shapes::Tunnel { ceiling: false, ..a }));
+        assert_ne!(key(ShapeKind::Tunnel, 90.0, b), key(ShapeKind::Tunnel, 120.0, b), "the arch angle rebuilds an arched tunnel");
+        let walkway = shapes::Tunnel { walkway: true, ..b };
+        assert_ne!(key(ShapeKind::Tunnel, 90.0, b), key(ShapeKind::Tunnel, 90.0, walkway));
+        assert_ne!(
+            key(ShapeKind::Tunnel, 90.0, walkway),
+            key(ShapeKind::Tunnel, 90.0, shapes::Tunnel { walkway_width: walkway.walkway_width + 8.0, ..walkway }),
+            "the walkway width rebuilds"
+        );
+        assert_ne!(
+            key(ShapeKind::Tunnel, 90.0, walkway),
+            key(ShapeKind::Tunnel, 90.0, shapes::Tunnel { walkway_height: walkway.walkway_height + 8.0, ..walkway }),
+            "the walkway height rebuilds"
+        );
         for kind in [ShapeKind::Arch, ShapeKind::ArchWall] {
             assert_eq!(key(kind, 90.0, a), key(kind, 90.0, b));
             assert_ne!(key(kind, 90.0, a), key(kind, 180.0, a));
@@ -2825,6 +2883,140 @@ mod tests {
         }
     }
 
+    fn type_into_field(harness: &mut egui_kittest::Harness<'_, ShapeDialog>, index: usize, text: &str) {
+        use egui_kittest::kittest::Queryable;
+        let role = egui::accesskit::Role::SpinButton;
+        harness.get_all_by_role(role).nth(index).unwrap().click();
+        harness.run();
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+        harness.run();
+        harness.get_all_by_role(role).nth(index).unwrap().type_text(text);
+        harness.run();
+        harness.key_press(egui::Key::Enter);
+        for _ in 0..3 {
+            harness.run();
+        }
+    }
+
+    #[test]
+    fn a_typed_tunnel_arch_radius_stays_exact() {
+        use egui_kittest::kittest::Queryable;
+        let bounds = box_of([0.0, 0.0, 0.0], [128.0, 96.0, 32.0]);
+        let tunnel = shapes::Tunnel { profile: shapes::TunnelProfile::Arched, ..Default::default() };
+        let dialog = ShapeDialog { kind: ShapeKind::Tunnel, tunnel, angle: 90.0, ..Default::default() };
+        let mut harness =
+            egui_kittest::Harness::builder().with_size(egui::vec2(480.0, 200.0)).build_ui_state(|ui, d: &mut ShapeDialog| d.arch_fields(ui, &bounds), dialog);
+        harness.run();
+        let radius = |d: &ShapeDialog| shapes::arch_radius(128.0, d.tunnel_params().fitted(&bounds).angle);
+        for typed in [100.0, 200.0, 64.0] {
+            let last = harness.get_all_by_role(egui::accesskit::Role::SpinButton).count() - 1;
+            type_into_field(&mut harness, last, &typed.to_string());
+            assert!((radius(harness.state()) - typed).abs() < 1e-6, "typed {typed}, got {}", radius(harness.state()));
+        }
+    }
+
+    #[test]
+    fn the_arched_tunnel_notes_show_on_both_sides_of_each_guard() {
+        let note = |dialog: &mut ShapeDialog, source: &Aabb, start: &str| {
+            let found: Vec<String> = shape_texts(dialog, source).into_iter().filter(|t| t.starts_with(start)).collect();
+            assert!(found.len() <= 1, "{start} shows once, {found:?}");
+            found.into_iter().next()
+        };
+        let tunnel = shapes::Tunnel { profile: shapes::TunnelProfile::Arched, ..Default::default() };
+        let dialog = |angle| ShapeDialog { kind: ShapeKind::Tunnel, tunnel, thickness: 8.0, angle, ..Default::default() };
+        let notes = |d: &mut ShapeDialog, b: &Aabb| {
+            [
+                note(d, b, "The box height caps the sweep at"),
+                note(d, b, "The arch is "),
+                note(d, b, "The arch needs "),
+                note(d, b, "Too low and wide for an arch under 180"),
+            ]
+        };
+        let low = box_of([0.0, 0.0, 0.0], [256.0, 64.0, 32.0]);
+
+        // The box height caps a 100 degree sweep at 56.1, and 40 fits.
+        assert_eq!(notes(&mut dialog(100.0), &low)[0].as_deref(), Some("The box height caps the sweep at 56.1°"));
+        assert_eq!(notes(&mut dialog(40.0), &low)[0], None);
+
+        // A crown under 1 u thick raises 14 to 14.8, and 15 is already thick enough.
+        let at_14 = notes(&mut dialog(14.0), &low);
+        assert_eq!(at_14[2].as_deref(), Some("The arch needs 14.8° or more to stay 1 u thick"));
+        assert_eq!((at_14[0].as_deref(), at_14[3].as_deref()), (None, None), "a raised arch is not also capped or a fallback");
+        let at_15 = notes(&mut dialog(15.0), &low);
+        assert_eq!(at_15[2], None);
+        assert!(at_15[1].as_deref().is_some_and(|t| t.contains("1.0 u")), "{at_15:?}");
+
+        // Exactly the angle that keeps the crown 1 u thick is not raised.
+        let least = dialog(10.0).tunnel_params().fitted(&low).angle;
+        assert!(least > 14.0 && least < 15.0, "{least}");
+        assert_eq!(note(&mut dialog(least), &low, "The arch needs "), None);
+
+        // Under 180 the crown is thinner than the walls, at 180 it is not.
+        let crown = shapes::Tunnel { thickness: 8.0, angle: 40.0, ..tunnel }.arch_crown(&low).unwrap();
+        let at_40 = notes(&mut dialog(40.0), &low);
+        assert!(at_40[1].as_deref().is_some_and(|t| t.contains(&format!("{crown:.1} u"))), "{at_40:?}");
+        assert_eq!(notes(&mut dialog(180.0), &low), [None, None, None, None]);
+
+        // A box 18 high cannot hold a segmental arch at this thickness, so the arch stays a half ellipse.
+        let flat = box_of([0.0, 0.0, 0.0], [256.0, 18.0, 32.0]);
+        let got = notes(&mut dialog(40.0), &flat);
+        assert!(got[3].is_some(), "{got:?}");
+        assert_eq!((got[0].as_deref(), got[1].as_deref(), got[2].as_deref()), (None, None, None));
+        assert_eq!(notes(&mut dialog(180.0), &flat)[3], None, "no fallback when no arch was asked for");
+        assert_eq!(notes(&mut dialog(40.0), &box_of([0.0, 0.0, 0.0], [256.0, 20.0, 32.0]))[3], None, "20 high holds the arch");
+
+        for profile in [shapes::TunnelProfile::Square, shapes::TunnelProfile::Round] {
+            let mut d =
+                ShapeDialog { kind: ShapeKind::Tunnel, tunnel: shapes::Tunnel { profile, ..tunnel }, thickness: 8.0, angle: 40.0, ..Default::default() };
+            assert_eq!(notes(&mut d, &flat), [None, None, None, None], "{profile:?} has no arch notes");
+        }
+    }
+
+    #[test]
+    fn the_tunnel_walkway_fields_show_only_when_ticked_and_stop_at_the_cap() {
+        use egui::accesskit::Role::SpinButton;
+        use egui_kittest::kittest::Queryable;
+        let bounds = box_of([0.0, 0.0, 0.0], [128.0, 96.0, 32.0]);
+        for profile in shapes::TunnelProfile::ALL {
+            let dialog = ShapeDialog { kind: ShapeKind::Tunnel, tunnel: shapes::Tunnel { profile, ..Default::default() }, ..Default::default() };
+            let mut harness = egui_kittest::Harness::builder()
+                .with_size(egui::vec2(480.0, 160.0))
+                .build_ui_state(|ui, d: &mut ShapeDialog| d.tunnel_fields(ui, &bounds), dialog);
+            harness.run();
+            assert_eq!(harness.query_all_by_role(SpinButton).count(), 0, "{profile:?} unticked");
+            harness.get_by_label("Walkway").click();
+            harness.run();
+            assert!(harness.state().tunnel.walkway, "{profile:?}");
+            assert_eq!(harness.query_all_by_role(SpinButton).count(), 2, "{profile:?} ticked");
+
+            for index in 0..2 {
+                type_into_field(&mut harness, index, "1000");
+            }
+
+            let (d, fitted) = (harness.state(), harness.state().tunnel_params().fitted(&bounds));
+            assert_eq!(
+                (d.tunnel.walkway_width, d.tunnel.walkway_height),
+                (fitted.walkway_width, fitted.walkway_height),
+                "{profile:?} the fields stop at the cap"
+            );
+            assert!(fitted.walkway_width > 1.0 && fitted.walkway_height > 1.0);
+            if profile == shapes::TunnelProfile::Square {
+                assert!(
+                    (d.tunnel.walkway_width - 38.4).abs() < 1e-9 && d.tunnel.walkway_height == 40.0,
+                    "{} by {}",
+                    d.tunnel.walkway_width,
+                    d.tunnel.walkway_height
+                );
+            }
+
+            type_into_field(&mut harness, 0, "0");
+            assert_eq!(harness.state().tunnel.walkway_width, 1.0, "{profile:?} the width stops at 1");
+            harness.get_by_label("Walkway").click();
+            harness.run();
+            assert_eq!(harness.query_all_by_role(SpinButton).count(), 0, "{profile:?} unticked again");
+        }
+    }
+
     #[test]
     fn shape_dialog_builds_a_tunnel_per_profile() {
         let bounds = Aabb::new(DVec3::new(-24.0, 8.0, 40.0), DVec3::new(104.0, 104.0, 296.0));
@@ -2847,18 +3039,22 @@ mod tests {
             let tunnel = shapes::Tunnel { profile: shapes::TunnelProfile::Arched, ..Default::default() };
             ShapeDialog { kind: ShapeKind::Tunnel, tunnel, angle, ..Default::default() }.generate(&bounds, "m")
         };
-        assert_eq!(arched(90.0), arched(180.0), "an arch angle left in the dialog does not reach the tunnel");
+        assert_ne!(arched(90.0), arched(180.0), "the Angle row bends an arched tunnel");
+        let square = |angle| ShapeDialog { kind: ShapeKind::Tunnel, angle, ..Default::default() }.generate(&bounds, "m");
+        assert_eq!(square(90.0), square(180.0), "a square tunnel has no arch to bend");
     }
 
     #[test]
     fn the_tunnel_toggles_follow_the_profile() {
         use egui_kittest::kittest::Queryable;
+        let bounds = box_of([0.0, 0.0, 0.0], [128.0, 96.0, 32.0]);
         for (profile, floor, ceiling) in
             [(shapes::TunnelProfile::Square, true, true), (shapes::TunnelProfile::Arched, true, false), (shapes::TunnelProfile::Round, false, false)]
         {
             let dialog = ShapeDialog { kind: ShapeKind::Tunnel, tunnel: shapes::Tunnel { profile, ..Default::default() }, ..Default::default() };
-            let mut harness =
-                egui_kittest::Harness::builder().with_size(egui::vec2(480.0, 80.0)).build_ui_state(|ui, d: &mut ShapeDialog| d.tunnel_fields(ui), dialog);
+            let mut harness = egui_kittest::Harness::builder()
+                .with_size(egui::vec2(480.0, 80.0))
+                .build_ui_state(|ui, d: &mut ShapeDialog| d.tunnel_fields(ui, &bounds), dialog);
             harness.run();
             assert_eq!(harness.query_by_label("Floor").is_some(), floor, "{profile:?} Floor");
             assert_eq!(harness.query_by_label("Ceiling").is_some(), ceiling, "{profile:?} Ceiling");

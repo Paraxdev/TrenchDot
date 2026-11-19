@@ -2609,5 +2609,12 @@
   "Nothing inside, deleted {n} selecting brush": { "one": "Nichts darin, der auswählende Brush wurde gelöscht", "other": "Nichts darin, {n} auswählende Brushes gelöscht" },
   "Nothing touching, deleted {n} selecting brush": { "one": "Nichts berührt ihn, der auswählende Brush wurde gelöscht", "other": "Nichts berührt sie, {n} auswählende Brushes gelöscht" },
   "mixed": "gemischt",
-  "The faces use different materials, a name typed here goes on all of them": "Die Flächen haben verschiedene Materialien, ein hier eingegebener Name gilt für alle"
+  "The faces use different materials, a name typed here goes on all of them": "Die Flächen haben verschiedene Materialien, ein hier eingegebener Name gilt für alle",
+  "Walkway": "Gehweg",
+  "width": "Breite",
+  "Raised walkways along both walls with a sunken channel between them, for sewers and culverts": "Erhöhte Gehwege an beiden Wänden mit einer abgesenkten Rinne dazwischen, für Kanäle und Durchlässe",
+  "How much of a circle the arch sweeps, 180 is a half round and less is flatter, springing from the tops of the walls": "Wie viel eines Kreises der Bogen überspannt, 180 ist ein Halbrund und weniger ist flacher, er setzt oben an den Wänden an",
+  "The arch is {thickness} u thick at the top": "Der Bogen ist oben {thickness} u dick",
+  "The arch needs {angle}° or more to stay 1 u thick": "Der Bogen braucht {angle}° oder mehr, um 1 u dick zu bleiben",
+  "Too low and wide for an arch under 180° at this thickness": "Zu niedrig und breit für einen Bogen unter 180° bei dieser Dicke"
 }

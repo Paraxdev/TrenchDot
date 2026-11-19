@@ -2609,5 +2609,12 @@
   "Nothing inside, deleted {n} selecting brush": { "one": "Внутри ничего нет, удалён {n} выделяющий браш", "few": "Внутри ничего нет, удалено {n} выделяющих браша", "many": "Внутри ничего нет, удалено {n} выделяющих брашей" },
   "Nothing touching, deleted {n} selecting brush": { "one": "Ничто не касается, удалён {n} выделяющий браш", "few": "Ничто не касается, удалено {n} выделяющих браша", "many": "Ничто не касается, удалено {n} выделяющих брашей" },
   "mixed": "разные",
-  "The faces use different materials, a name typed here goes on all of them": "У граней разные материалы, введённое здесь имя получат все"
+  "The faces use different materials, a name typed here goes on all of them": "У граней разные материалы, введённое здесь имя получат все",
+  "Walkway": "Мостки",
+  "width": "ширина",
+  "Raised walkways along both walls with a sunken channel between them, for sewers and culverts": "Приподнятые мостки вдоль обеих стен с углублённым желобом между ними, для коллекторов и водопропускных труб",
+  "How much of a circle the arch sweeps, 180 is a half round and less is flatter, springing from the tops of the walls": "Какую часть окружности охватывает арка, 180 это полукруг, а меньше значит площе, арка начинается от верха стен",
+  "The arch is {thickness} u thick at the top": "Арка вверху толщиной {thickness} u",
+  "The arch needs {angle}° or more to stay 1 u thick": "Арке нужно {angle}° или больше, чтобы остаться толщиной 1 u",
+  "Too low and wide for an arch under 180° at this thickness": "Слишком низко и широко для арки меньше 180° при такой толщине"
 }

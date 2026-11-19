@@ -2609,5 +2609,12 @@
   "Nothing inside, deleted {n} selecting brush": { "one": "Nada dentro, {n} brush de seleção apagado", "other": "Nada dentro, {n} brushes de seleção apagados" },
   "Nothing touching, deleted {n} selecting brush": { "one": "Nada encostando, {n} brush de seleção apagado", "other": "Nada encostando, {n} brushes de seleção apagados" },
   "mixed": "misto",
-  "The faces use different materials, a name typed here goes on all of them": "As faces usam materiais diferentes, um nome digitado aqui vale para todas"
+  "The faces use different materials, a name typed here goes on all of them": "As faces usam materiais diferentes, um nome digitado aqui vale para todas",
+  "Walkway": "Passarela",
+  "width": "largura",
+  "Raised walkways along both walls with a sunken channel between them, for sewers and culverts": "Passarelas elevadas ao longo das duas paredes com um canal rebaixado entre elas, para esgotos e bueiros",
+  "How much of a circle the arch sweeps, 180 is a half round and less is flatter, springing from the tops of the walls": "Quanto de um círculo o arco percorre, 180 é um semicírculo e menos é mais achatado, saindo do topo das paredes",
+  "The arch is {thickness} u thick at the top": "O arco tem {thickness} u de espessura no topo",
+  "The arch needs {angle}° or more to stay 1 u thick": "O arco precisa de {angle}° ou mais para manter 1 u de espessura",
+  "Too low and wide for an arch under 180° at this thickness": "Baixo e largo demais para um arco abaixo de 180° com esta espessura"
 }

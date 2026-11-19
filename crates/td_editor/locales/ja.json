@@ -2609,5 +2609,12 @@
   "Nothing inside, deleted {n} selecting brush": { "other": "内側には何もありません。選択に使ったブラシ {n} 個を削除しました" },
   "Nothing touching, deleted {n} selecting brush": { "other": "接触するものはありません。選択に使ったブラシ {n} 個を削除しました" },
   "mixed": "混在",
-  "The faces use different materials, a name typed here goes on all of them": "面ごとにマテリアルが異なります。ここに入力した名前がすべての面に付きます"
+  "The faces use different materials, a name typed here goes on all of them": "面ごとにマテリアルが異なります。ここに入力した名前がすべての面に付きます",
+  "Walkway": "通路",
+  "width": "幅",
+  "Raised walkways along both walls with a sunken channel between them, for sewers and culverts": "両側の壁沿いに高い通路を設け、その間に低い溝を作ります。下水道や暗渠向けです",
+  "How much of a circle the arch sweeps, 180 is a half round and less is flatter, springing from the tops of the walls": "アーチが円のどれだけを描くかを決めます。180 は半円で、小さいほど平らになり、壁の上端から立ち上がります",
+  "The arch is {thickness} u thick at the top": "アーチの頂部の厚みは {thickness} u です",
+  "The arch needs {angle}° or more to stay 1 u thick": "厚み 1 u を保つにはアーチに {angle}° 以上が必要です",
+  "Too low and wide for an arch under 180° at this thickness": "この厚みでは、180° 未満のアーチには低く幅が広すぎます"
 }

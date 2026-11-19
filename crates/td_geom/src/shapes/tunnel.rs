@@ -189,6 +189,12 @@ impl Tunnel {
         if Toward::across(self.axis).contains(&self.toward) { self.toward } else { Toward::default_for(self.axis) }
     }
 
+    /// The width and height of the cross section [`tunnel`] cuts in `bounds` along this tunnel's axis.
+    pub fn opening(&self, bounds: &Aabb) -> DVec2 {
+        let size = Frame::new(bounds, self.axis).upright.size();
+        DVec2::new(size.x, size.y)
+    }
+
     /// The thickest wall [`tunnel`] builds in `bounds`, 40% of the smaller side of the cross section.
     pub fn thickness_cap(&self, bounds: &Aabb) -> f64 {
         tunnel_thickness(&Frame::new(bounds, self.axis).upright, f64::INFINITY)
@@ -1225,6 +1231,14 @@ mod tests {
         assert_eq!(clip_convex(&quad, DVec2::new(17.5, 5.5), 167.25), vec![quad[0], quad[3]], "the far side keeps only the edge");
         // The diagonal from the second corner to the last lies on 12 x + 35 y = 567.5.
         assert_eq!(clip_convex(&quad, DVec2::new(12.0, 35.0), 567.5), vec![quad[0], quad[1], quad[3]], "a cut through two corners");
+    }
+
+    #[test]
+    fn the_opening_is_the_cross_section_along_the_axis() {
+        let bounds = Aabb::new(DVec3::new(-5.0, 7.0, 11.0), DVec3::new(251.0, 103.0, 75.0));
+        for (axis, want) in [(Axis::Z, DVec2::new(256.0, 96.0)), (Axis::X, DVec2::new(64.0, 96.0)), (Axis::Y, DVec2::new(256.0, 64.0))] {
+            assert_eq!(Tunnel { axis, ..Tunnel::default() }.opening(&bounds), want, "{axis:?}");
+        }
     }
 
     #[test]

@@ -2609,5 +2609,12 @@
   "Nothing inside, deleted {n} selecting brush": { "other": "内部没有对象，已删除 {n} 个用于选择的笔刷" },
   "Nothing touching, deleted {n} selecting brush": { "other": "没有接触的对象，已删除 {n} 个用于选择的笔刷" },
   "mixed": "混合",
-  "The faces use different materials, a name typed here goes on all of them": "这些面使用不同的材质，在此输入的名称会应用到所有面"
+  "The faces use different materials, a name typed here goes on all of them": "这些面使用不同的材质，在此输入的名称会应用到所有面",
+  "Walkway": "步道",
+  "width": "宽度",
+  "Raised walkways along both walls with a sunken channel between them, for sewers and culverts": "沿两侧墙壁的凸起步道，中间是下沉的水槽，适合下水道和涵洞",
+  "How much of a circle the arch sweeps, 180 is a half round and less is flatter, springing from the tops of the walls": "拱覆盖圆的多大部分，180 是半圆，越小越平，拱从墙顶起拱",
+  "The arch is {thickness} u thick at the top": "拱顶厚 {thickness} u",
+  "The arch needs {angle}° or more to stay 1 u thick": "拱至少需要 {angle}° 才能保持 1 u 厚",
+  "Too low and wide for an arch under 180° at this thickness": "在此厚度下，对于小于 180° 的拱来说太低太宽"
 }
