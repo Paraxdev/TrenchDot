@@ -53,8 +53,11 @@ Shape Generator, only save, undo and redo work, so a key meant for the window ne
 
 Press a tool's key again to go back to Select. Esc steps back one thing at a time: it cancels a drag or stroke, then
 clears the selected faces, then clears the selected objects, then leaves the tool for Select, then closes the open
-group, one level per press. It works this way in every preset, and it never changes the Blender preset's Object or Face
-mode.
+group, one level per press. The Hammer preset skips the tool step in the Block tool, so you keep drawing until you pick
+another tool, Shift+S for Select. Esc never changes the Blender preset's Object or Face mode.
+
+While the Transform Selection window is open, Esc closes it and keeps the selection, and so does the key that opened
+it, Ctrl+M in the Hammer preset.
 
 | Key | Tool |
 | --- | --- |
