@@ -1,4 +1,4 @@
-//! Primitive generators. All shapes but a sloped tunnel fit inside `bounds`, and they use Y as the height axis.
+//! Primitive generators. All shapes but a sloped or bent tunnel fit inside `bounds`, and they use Y as the height axis.
 
 use std::f64::consts::TAU;
 
@@ -10,7 +10,7 @@ use crate::uv::FaceUv;
 
 mod tunnel;
 
-pub use tunnel::{Tunnel, TunnelProfile, tunnel, tunnel_thickness};
+pub use tunnel::{Toward, Tunnel, TunnelProfile, tunnel, tunnel_thickness};
 
 /// The world axis a round shape (cylinder, cone) runs along.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

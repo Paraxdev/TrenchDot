@@ -2,7 +2,7 @@
 
 use std::f64::consts::FRAC_PI_2;
 
-use td_core::{Aabb, DVec2, DVec3, Plane};
+use td_core::{Aabb, DVec2, DVec3, Plane, snap_vec};
 
 use super::{ARCH_MIN_ANGLE, Axis, arch_quads, arch_radius, arch_sweep, hull, ring};
 use crate::brush::Brush;
@@ -36,6 +36,70 @@ impl TunnelProfile {
     }
 }
 
+/// The world direction a tunnel's far end bends toward.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Toward {
+    #[default]
+    PlusX,
+    MinusX,
+    PlusY,
+    MinusY,
+    PlusZ,
+    MinusZ,
+}
+
+impl Toward {
+    pub const ALL: [Toward; 6] = [Toward::PlusX, Toward::MinusX, Toward::PlusY, Toward::MinusY, Toward::PlusZ, Toward::MinusZ];
+
+    /// `+x`, `-x` and so on, a bare `x` meaning `+x`.
+    pub fn parse(s: &str) -> Option<Toward> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "+x" | "x" => Some(Toward::PlusX),
+            "-x" => Some(Toward::MinusX),
+            "+y" | "y" => Some(Toward::PlusY),
+            "-y" => Some(Toward::MinusY),
+            "+z" | "z" => Some(Toward::PlusZ),
+            "-z" => Some(Toward::MinusZ),
+            _ => None,
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Toward::PlusX => "+X",
+            Toward::MinusX => "-X",
+            Toward::PlusY => "+Y",
+            Toward::MinusY => "-Y",
+            Toward::PlusZ => "+Z",
+            Toward::MinusZ => "-Z",
+        }
+    }
+
+    pub fn dir(self) -> DVec3 {
+        match self {
+            Toward::PlusX => DVec3::X,
+            Toward::MinusX => DVec3::NEG_X,
+            Toward::PlusY => DVec3::Y,
+            Toward::MinusY => DVec3::NEG_Y,
+            Toward::PlusZ => DVec3::Z,
+            Toward::MinusZ => DVec3::NEG_Z,
+        }
+    }
+
+    /// The four directions a tunnel along `axis` can bend toward.
+    pub fn across(axis: Axis) -> [Toward; 4] {
+        match axis {
+            Axis::X => [Toward::PlusY, Toward::MinusY, Toward::PlusZ, Toward::MinusZ],
+            Axis::Y => [Toward::PlusX, Toward::MinusX, Toward::PlusZ, Toward::MinusZ],
+            Axis::Z => [Toward::PlusX, Toward::MinusX, Toward::PlusY, Toward::MinusY],
+        }
+    }
+
+    pub fn default_for(axis: Axis) -> Toward {
+        if axis == Axis::X { Toward::PlusZ } else { Toward::PlusX }
+    }
+}
+
 /// Every option of a tunnel. The default is the tunnel the Shape Generator has always made.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Tunnel {
@@ -62,6 +126,15 @@ pub struct Tunnel {
     /// How far the far end climbs toward the ceiling side, at most twice the length either way. Both ends stay plumb
     /// on the box's end planes.
     pub rise: f64,
+    /// Degrees the tunnel turns past its far end in an exact arc, at most 180. 0 keeps it straight. The bend is level
+    /// after a slope.
+    pub bend: f64,
+    /// Where the bend turns, one of the four directions that cross the axis.
+    pub toward: Toward,
+    /// The gap between the bend's pivot and the inside wall.
+    pub bend_radius: f64,
+    /// Segments of the bend, at least one per quarter turn and at most 64.
+    pub bend_segments: usize,
 }
 
 impl Default for Tunnel {
@@ -78,6 +151,10 @@ impl Default for Tunnel {
             walkway_height: 16.0,
             axis: Axis::Z,
             rise: 0.0,
+            bend: 0.0,
+            toward: Toward::PlusX,
+            bend_radius: 64.0,
+            bend_segments: 8,
         }
     }
 }
@@ -92,7 +169,24 @@ impl Tunnel {
             _ => self.angle,
         };
         let walkway = walkways(bounds, self, thickness).0;
-        Tunnel { thickness, angle, walkway_width: walkway.x, walkway_height: walkway.y, rise: tunnel_rise(bounds, self.rise), ..*self }
+        let bend = tunnel_bend(self.bend);
+        Tunnel {
+            thickness,
+            angle,
+            walkway_width: walkway.x,
+            walkway_height: walkway.y,
+            rise: tunnel_rise(bounds, self.rise),
+            bend,
+            toward: self.bend_toward(),
+            bend_radius: bend_radius(self.bend_radius),
+            bend_segments: bend_segments(bend, self.bend_segments),
+            ..*self
+        }
+    }
+
+    /// The direction the bend really turns, the axis' default when the one asked for runs along the axis.
+    fn bend_toward(&self) -> Toward {
+        if Toward::across(self.axis).contains(&self.toward) { self.toward } else { Toward::default_for(self.axis) }
     }
 
     /// The thickest wall [`tunnel`] builds in `bounds`, 40% of the smaller side of the cross section.
@@ -130,17 +224,35 @@ fn tunnel_rise(bounds: &Aabb, rise: f64) -> f64 {
     rise.clamp(-most, most)
 }
 
-/// Tunnel filling the bounds along its axis, its far end raised by the rise and left sticking out of them. The side
-/// walls run the full height, the ceiling and floor sit between them, then come the walkways. An arched tunnel stands
-/// its walls up to where the arch begins, the arch rising at most `min(width, height) / 2`.
+/// The bend a tunnel really gets, 0 to 180 degrees. Not a number leaves it straight.
+fn tunnel_bend(bend: f64) -> f64 {
+    if bend > 0.0 { bend.min(180.0) } else { 0.0 }
+}
+
+fn bend_radius(radius: f64) -> f64 {
+    if radius > 0.0 { radius.min(65536.0) } else { 0.0 }
+}
+
+/// At least one segment per quarter turn, so the hull of two stations never wraps past the pivot.
+fn bend_segments(bend: f64, segments: usize) -> usize {
+    segments.clamp(((bend / 90.0).ceil() as usize).max(1), 64)
+}
+
+/// Tunnel filling the bounds along its axis, its far end raised by the rise and left sticking out of them, then
+/// turned through the bend past them. The side walls run the full height, the ceiling and floor sit between them, then
+/// come the walkways. An arched tunnel stands its walls up to where the arch begins, the arch rising at most
+/// `min(width, height) / 2`. The bend's segments follow the straight pieces, piece by piece.
 pub fn tunnel(bounds: &Aabb, params: &Tunnel, material: &str) -> Vec<Brush> {
     let frame = Frame::new(bounds, params.axis);
     let rise = tunnel_rise(&frame.upright, params.rise);
-    section(&frame.upright, params)
-        .iter()
-        .filter_map(|piece| place_straight(piece, &frame.upright, material))
-        .map(|b| frame.lay(slope(b, &frame.upright, rise)))
-        .collect()
+    let pieces = section(&frame.upright, params);
+    let mut out: Vec<Brush> =
+        pieces.iter().filter_map(|piece| place_straight(piece, &frame.upright, material)).map(|b| frame.lay(slope(b, &frame.upright, rise))).collect();
+    if let Some(bend) = Bend::new(&frame, params, rise) {
+        out.extend(pieces.iter().flat_map(|piece| bend.place(piece, rise, material)).map(|b| frame.lay(b)));
+    }
+
+    out
 }
 
 /// The upright box a tunnel is built in, width along X, up along Y and length along Z, and the turn that lays it
@@ -164,12 +276,27 @@ impl Frame {
         Frame { axis, center, upright: Aabb::new(center - half, center + half) }
     }
 
-    fn world(&self, p: DVec3) -> DVec3 {
-        let d = p - self.center;
+    fn turn(&self, d: DVec3) -> DVec3 {
         match self.axis {
-            Axis::X => self.center + DVec3::new(d.z, d.y, -d.x),
-            Axis::Y => self.center + DVec3::new(d.x, d.z, -d.y),
+            Axis::X => DVec3::new(d.z, d.y, -d.x),
+            Axis::Y => DVec3::new(d.x, d.z, -d.y),
+            Axis::Z => d,
+        }
+    }
+
+    /// The upright direction [`Frame::turn`] takes to `d`.
+    fn unturn(&self, d: DVec3) -> DVec3 {
+        match self.axis {
+            Axis::X => DVec3::new(-d.z, d.y, d.x),
+            Axis::Y => DVec3::new(d.x, -d.z, d.y),
+            Axis::Z => d,
+        }
+    }
+
+    fn world(&self, p: DVec3) -> DVec3 {
+        match self.axis {
             Axis::Z => p,
+            _ => self.center + self.turn(p - self.center),
         }
     }
 
@@ -179,9 +306,12 @@ impl Frame {
         }
 
         let mut b = Brush { vertices: brush.vertices.iter().map(|v| self.world(*v)).collect(), faces: brush.faces };
-        b.update_planes();
+        // The planes are turned like the corners rather than fitted to them again, so an end exactly on a plane stays
+        // exactly on the turned one.
         for f in &mut b.faces {
-            f.data.uv = FaceUv::paraxial(f.plane.normal, f.data.uv.scale);
+            let normal = self.turn(f.plane.normal);
+            f.plane = Plane::new(normal, f.plane.dist - f.plane.normal.dot(self.center) + normal.dot(self.center));
+            f.data.uv = FaceUv::paraxial(normal, f.data.uv.scale);
         }
 
         b
@@ -406,6 +536,110 @@ fn slope(mut brush: Brush, bounds: &Aabb, rise: f64) -> Brush {
     }
 
     brush
+}
+
+/// The arc a bent tunnel turns through past its far end, in the upright box. The pivot line lies on the far end plane,
+/// `bend_radius` beyond the side the tunnel turns toward and level with the raised far end.
+struct Bend {
+    /// The upright axis the tunnel turns toward, 0 for X and 1 for Y, and which way along it.
+    axis: usize,
+    sign: f64,
+    pivot: f64,
+    far: f64,
+    /// Cosine and sine of each station's angle, the far end first.
+    stations: Vec<(f64, f64)>,
+}
+
+impl Bend {
+    fn new(frame: &Frame, params: &Tunnel, rise: f64) -> Option<Bend> {
+        let angle = tunnel_bend(params.bend);
+        if angle == 0.0 {
+            return None;
+        }
+
+        let toward = frame.unturn(params.bend_toward().dir());
+        let (axis, sign) = if toward.x != 0.0 { (0, toward.x) } else { (1, toward.y) };
+        let (a, b) = (frame.upright.min, frame.upright.max);
+        let lift = if axis == 1 { rise } else { 0.0 };
+        let radius = bend_radius(params.bend_radius);
+        let pivot = if sign > 0.0 { b[axis] + lift + radius } else { a[axis] + lift - radius };
+        let n = bend_segments(angle, params.bend_segments);
+        let stations = (0..=n).map(|k| exact_cos_sin(if k == n { angle } else { angle * k as f64 / n as f64 })).collect();
+        Some(Bend { axis, sign, pivot, far: b.z, stations })
+    }
+
+    /// Where the far end point `q` lands at station `k`. Written from the pivot rather than from `q`, so a quarter turn
+    /// lands exactly on the pivot's plane and a half turn exactly back on the far end plane.
+    fn point(&self, q: DVec3, k: usize) -> DVec3 {
+        if k == 0 {
+            return q;
+        }
+
+        let (c, s) = self.stations[k];
+        let r = self.sign * (self.pivot - q[self.axis]);
+        let mut p = q;
+        p[self.axis] = self.pivot - self.sign * r * c;
+        p.z = self.far + r * s;
+        snap_vec(p)
+    }
+
+    /// The plane through the pivot line at station `k`, facing the way the tunnel runs there.
+    fn plane(&self, k: usize) -> Plane {
+        let (c, s) = self.stations[k];
+        let mut normal = DVec3::new(0.0, 0.0, c);
+        normal[self.axis] = self.sign * s;
+        Plane::new(normal, self.sign * s * self.pivot + c * self.far)
+    }
+
+    /// One piece's segments, each the hull of two neighbouring stations. A hull cuts its corners from its planes and
+    /// would land them a hair off, so the corners go back to the station points and the ends onto the station planes.
+    fn place(&self, piece: &Piece, rise: f64, material: &str) -> Vec<Brush> {
+        let far: Vec<DVec3> = outline(piece).iter().map(|p| DVec3::new(p.x, p.y + rise, self.far)).collect();
+        let rings: Vec<Vec<DVec3>> = (0..self.stations.len()).map(|k| far.iter().map(|q| self.point(*q, k)).collect()).collect();
+        rings
+            .windows(2)
+            .enumerate()
+            .filter_map(|(k, pair)| {
+                let points = pair.concat();
+                let mut brush = hull(&points, material)?;
+                for v in &mut brush.vertices {
+                    *v = points.iter().copied().min_by(|p, q| p.distance_squared(*v).total_cmp(&q.distance_squared(*v)))?;
+                }
+
+                let (start, end) = (self.plane(k).flipped(), self.plane(k + 1));
+                for f in &mut brush.faces {
+                    if f.plane.normal.dot(start.normal) > 1.0 - 1e-9 {
+                        f.plane = start;
+                    } else if f.plane.normal.dot(end.normal) > 1.0 - 1e-9 {
+                        f.plane = end;
+                    }
+
+                    f.data.uv = FaceUv::paraxial(f.plane.normal, f.data.uv.scale);
+                }
+
+                Some(brush)
+            })
+            .collect()
+    }
+}
+
+/// Cosine and sine of an angle in degrees, exact at the quarter turns a bend ends on.
+fn exact_cos_sin(degrees: f64) -> (f64, f64) {
+    if degrees == 90.0 {
+        (0.0, 1.0)
+    } else if degrees == 180.0 {
+        (-1.0, 0.0)
+    } else {
+        let a = degrees.to_radians();
+        (a.cos(), a.sin())
+    }
+}
+
+fn outline(piece: &Piece) -> Vec<DVec2> {
+    match piece {
+        Piece::Rect(min, max) => vec![*min, DVec2::new(max.x, min.y), *max, DVec2::new(min.x, max.y)],
+        Piece::Poly(points) => points.clone(),
+    }
 }
 
 #[cfg(test)]
@@ -1027,7 +1261,7 @@ mod tests {
                 }
 
                 assert_apart(&got, &what);
-                assert_eq!(turned.fitted(&bounds), Tunnel { axis, ..params.fitted(&upright) }, "{what}");
+                assert_eq!(turned.fitted(&bounds), Tunnel { axis, toward: Toward::default_for(axis), ..params.fitted(&upright) }, "{what}");
                 assert_eq!(turned.arch_crown(&bounds), params.arch_crown(&upright), "{what}");
                 assert_eq!(turned.thickness_cap(&bounds), params.thickness_cap(&upright), "{what}");
             }
@@ -1209,6 +1443,330 @@ mod tests {
                     assert_eq!(sloped.fitted(&bounds).rise, rise, "{what}");
                 }
             }
+        }
+    }
+
+    /// 129 wide, 99 tall and 157 long, on the grid but off the origin.
+    fn grid_box() -> Aabb {
+        Aabb::new(DVec3::new(-61.0, 13.0, 203.0), DVec3::new(68.0, 112.0, 360.0))
+    }
+
+    fn bent(params: Tunnel, bend: f64, toward: Toward, bend_radius: f64, bend_segments: usize) -> Tunnel {
+        Tunnel { bend, toward, bend_radius, bend_segments, ..params }
+    }
+
+    /// The bend segments of each of a tunnel's `straight` pieces, which follow the straight pieces piece by piece.
+    fn bend_of(made: &[Brush], straight: usize) -> Vec<&[Brush]> {
+        let bend = &made[straight..];
+        assert!(!bend.is_empty() && bend.len().is_multiple_of(straight), "{} bend segments for {straight} pieces", bend.len());
+        bend.chunks(bend.len() / straight).collect()
+    }
+
+    /// The corners of the one face of `brush` whose plane is exactly `normal` and `dist`.
+    fn end_face(brush: &Brush, normal: DVec3, dist: f64, what: &str) -> Vec<DVec3> {
+        let ends: Vec<_> = brush.faces.iter().filter(|f| f.plane.normal == normal).collect();
+        assert_eq!(ends.len(), 1, "{what} has one face toward {normal}");
+        assert_eq!(ends[0].plane.dist, dist, "{what} toward {normal}");
+        ends[0].indices.iter().map(|k| brush.vertices[*k as usize]).collect()
+    }
+
+    fn assert_same_points(got: &[DVec3], want: &[DVec3], hair: f64, what: &str) {
+        assert_eq!(got.len(), want.len(), "{what}: {got:?} for {want:?}");
+        for w in want {
+            assert!(got.iter().any(|g| (*g - *w).abs().max_element() <= hair), "{what} misses {w} in {got:?}");
+        }
+    }
+
+    /// Checks every piece is valid and every two are kept apart by a face plane of one of them.
+    fn assert_separated(pieces: &[Brush], what: &str) {
+        let outside = |a: &Brush, b: &Brush| a.faces.iter().any(|f| b.vertices.iter().all(|v| f.plane.distance(*v) >= -1e-7));
+        for (i, a) in pieces.iter().enumerate() {
+            a.validate().unwrap_or_else(|e| panic!("{what} piece {i}: {e:?}"));
+            for (j, b) in pieces.iter().enumerate().skip(i + 1) {
+                assert!(outside(a, b) || outside(b, a), "{what} pieces {i} and {j} overlap");
+            }
+        }
+    }
+
+    #[test]
+    fn a_quarter_bend_ends_square_on_the_grid() {
+        let bounds = grid_box();
+        let (b, end) = (bounds.max, bounds.max.x + 64.0);
+        let lined = |profile, angle, sides| Tunnel { profile, angle, sides, floor: true, ..Tunnel::default() };
+        for params in [lined(TunnelProfile::Square, 180.0, 12), lined(TunnelProfile::Arched, 120.0, 7), lined(TunnelProfile::Round, 180.0, 7)] {
+            let what = format!("{:?} {}", params.profile, params.angle);
+            let square = params.profile == TunnelProfile::Square;
+            let straight = tunnel(&bounds, &params, "m");
+            let made = tunnel(&bounds, &bent(params, 90.0, Toward::PlusX, 64.0, 3), "m");
+            assert_eq!(made[..straight.len()], straight[..], "{what} keeps its straight run");
+            for (i, (piece, segments)) in straight.iter().zip(bend_of(&made, straight.len())).enumerate() {
+                let what = format!("{what} piece {i}");
+                assert_eq!(segments.len(), 3, "{what}");
+                let last = &segments[2];
+                let corners = end_face(last, DVec3::X, end, &what);
+                assert!(corners.iter().all(|v| v.x == end), "{what} ends on x = {end}: {corners:?}");
+                assert!(last.vertices.iter().all(|v| v.x <= end), "{what} stops at its end");
+                // A quarter turn about the pivot line takes (x, y, b.z) to (end, y, b.z + end - x).
+                let turned: Vec<DVec3> = end_face(piece, DVec3::Z, b.z, &what).iter().map(|q| DVec3::new(end, q.y, b.z + (end - q.x))).collect();
+                assert_same_points(&corners, &turned, if square { 0.0 } else { 1e-9 }, &what);
+                if square {
+                    assert!(corners.iter().all(|v| *v == v.round()), "{what} keeps its corners on the grid: {corners:?}");
+                }
+            }
+
+            assert_separated(&made, &what);
+        }
+    }
+
+    #[test]
+    fn a_half_bend_comes_back_on_the_start_plane() {
+        let bounds = off_origin();
+        let b = bounds.max;
+        let pivot = bounds.min.x - 40.0;
+        for params in every_profile() {
+            let what = format!("{:?} {} ceiling {}", params.profile, params.angle, params.ceiling);
+            let straight = tunnel(&bounds, &params, "m");
+            let made = tunnel(&bounds, &bent(params, 180.0, Toward::MinusX, 40.0, 2), "m");
+            for (i, (piece, segments)) in straight.iter().zip(bend_of(&made, straight.len())).enumerate() {
+                let what = format!("{what} piece {i}");
+                assert_eq!(segments.len(), 2, "{what}");
+                let half = end_face(&segments[0], DVec3::NEG_X, -pivot, &what);
+                assert!(half.iter().all(|v| v.x == pivot), "{what} is square on x = {pivot} half way: {half:?}");
+                let back = end_face(&segments[1], DVec3::NEG_Z, -b.z, &what);
+                assert!(back.iter().all(|v| v.z == b.z), "{what} comes back on z = {}: {back:?}", b.z);
+                let mirrored: Vec<DVec3> = end_face(piece, DVec3::Z, b.z, &what).iter().map(|q| DVec3::new(pivot - (q.x - pivot), q.y, b.z)).collect();
+                assert_same_points(&back, &mirrored, 1e-9, &what);
+            }
+
+            assert_separated(&made, &what);
+        }
+    }
+
+    #[test]
+    fn a_bend_turns_up_down_and_on_other_axes() {
+        let bounds = grid_box();
+        let (a, b, c, h) = (bounds.min, bounds.max, bounds.center(), bounds.size() * 0.5);
+        type Turn = fn(DVec3) -> DVec3;
+        let turns: [(Axis, DVec3, Turn, Turn); 3] = [
+            (Axis::Z, h, |d| d, |d| d),
+            (Axis::X, DVec3::new(h.z, h.y, h.x), |d| DVec3::new(d.z, d.y, -d.x), |d| DVec3::new(-d.z, d.y, d.x)),
+            (Axis::Y, DVec3::new(h.x, h.z, h.y), |d| DVec3::new(d.x, d.z, -d.y), |d| DVec3::new(d.x, -d.z, d.y)),
+        ];
+        for (axis, half, turn, unturn) in turns {
+            let upright = Aabb::new(c - half, c + half);
+            let closed = Tunnel { axis, floor: true, ..Tunnel::default() };
+            for toward in Toward::across(axis) {
+                let what = format!("{axis:?} toward {}", toward.label());
+                let made = tunnel(&bounds, &bent(closed, 90.0, toward, 24.0, 2), "m");
+                let dir = toward.dir();
+                let j = (0..3).find(|j| dir[*j] != 0.0).unwrap();
+                let dist = if dir[j] > 0.0 { b[j] + 24.0 } else { -(a[j] - 24.0) };
+                for (i, segments) in bend_of(&made, 4).iter().enumerate() {
+                    let corners = end_face(&segments[1], dir, dist, &format!("{what} piece {i}"));
+                    assert!(corners.iter().all(|v| v[j] * dir[j] == dist), "{what} piece {i} ends on its plane: {corners:?}");
+                }
+
+                assert_separated(&made, &what);
+                let local = Toward::ALL.into_iter().find(|t| t.dir() == unturn(dir)).unwrap();
+                let want = tunnel(&upright, &bent(Tunnel { axis: Axis::Z, ..closed }, 90.0, local, 24.0, 2), "m");
+                assert_eq!(made.len(), want.len(), "{what}");
+                for (i, (piece, upright_piece)) in made.iter().zip(&want).enumerate() {
+                    let mapped: Vec<DVec3> = upright_piece.vertices.iter().map(|v| if axis == Axis::Z { *v } else { c + turn(*v - c) }).collect();
+                    assert_eq!(piece.vertices, mapped, "{what} piece {i} is the upright bend toward {} turned", local.label());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn bend_pieces_do_not_overlap() {
+        let bounds = off_origin();
+        let (a, b, c) = (bounds.min, bounds.max, bounds.center());
+        for (bend, segments, toward) in [(45.0, 3, Toward::PlusX), (90.0, 1, Toward::MinusY), (180.0, 2, Toward::PlusY)] {
+            for params in every_profile() {
+                let what = format!("{bend} in {segments} toward {} {:?} {} ceiling {}", toward.label(), params.profile, params.angle, params.ceiling);
+                let made = tunnel(&bounds, &bent(params, bend, toward, 32.0, segments), "m");
+                assert_eq!(made.len(), tunnel(&bounds, &params, "m").len() * (segments + 1), "{what}");
+                assert_separated(&made, &what);
+                let filled = |p: DVec3| made.iter().any(|piece| piece.contains_point(p));
+                for k in 0..=segments {
+                    let (cos, sin) = exact_cos_sin(bend * k as f64 / segments as f64);
+                    let probe = match toward {
+                        Toward::PlusX => DVec3::new(b.x + 32.0 - (b.x + 32.0 - c.x) * cos, c.y, b.z + (b.x + 32.0 - c.x) * sin),
+                        Toward::PlusY => DVec3::new(c.x, b.y + 32.0 - (b.y + 32.0 - c.y) * cos, b.z + (b.y + 32.0 - c.y) * sin),
+                        _ => DVec3::new(c.x, a.y - 32.0 + (c.y - a.y + 32.0) * cos, b.z + (c.y - a.y + 32.0) * sin),
+                    };
+                    assert!(!filled(probe), "{what} leaves the middle of the bore empty at station {k}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_45_degree_bend_ends_square_to_its_direction() {
+        let bounds = off_origin();
+        let (a, b) = (bounds.min, bounds.max);
+        let s = std::f64::consts::FRAC_1_SQRT_2;
+        let cases = [
+            (Toward::PlusX, DVec3::new(b.x + 20.0, 0.0, b.z), DVec3::new(s, 0.0, s)),
+            (Toward::MinusY, DVec3::new(0.0, a.y - 20.0, b.z), DVec3::new(0.0, -s, s)),
+        ];
+        for (toward, pivot, want) in cases {
+            for params in every_profile() {
+                let what = format!("toward {} {:?} {} ceiling {}", toward.label(), params.profile, params.angle, params.ceiling);
+                let straight = tunnel(&bounds, &params, "m").len();
+                let made = tunnel(&bounds, &bent(params, 45.0, toward, 20.0, 4), "m");
+                for (i, segments) in bend_of(&made, straight).iter().enumerate() {
+                    let last = &segments[3];
+                    let ends: Vec<_> = last.faces.iter().filter(|f| (f.plane.normal - want).length() < 1e-12).collect();
+                    assert_eq!(ends.len(), 1, "{what} piece {i} ends square to {want}");
+                    let plane = ends[0].plane;
+                    assert!(plane.distance(pivot).abs() < 1e-9, "{what} piece {i} ends on a plane through the pivot line");
+                    assert!(ends[0].indices.iter().all(|k| plane.distance(last.vertices[*k as usize]).abs() < 1e-9), "{what} piece {i}");
+                    assert!(last.vertices.iter().all(|v| plane.distance(*v) < 1e-9), "{what} piece {i} stops at its end");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_bend_with_no_inner_radius_keeps_every_piece() {
+        let bounds = tunnel_bounds();
+        for params in every_profile() {
+            let what = format!("{:?} {} ceiling {}", params.profile, params.angle, params.ceiling);
+            let straight = tunnel(&bounds, &params, "m").len();
+            let made = tunnel(&bounds, &bent(params, 90.0, Toward::PlusX, 0.0, 4), "m");
+            assert_eq!(made.len(), straight * 5, "{what}");
+            assert_separated(&made, &what);
+        }
+
+        // The right wall's outer face lies on the pivot line, so it turns as wedges, and half a unit of radius makes
+        // blocks of them again. The left wall stays blocks either way.
+        for (radius, right) in [(0.0, (6, 5)), (0.5, (8, 6))] {
+            let made = tunnel(&bounds, &bent(Tunnel::default(), 90.0, Toward::PlusX, radius, 4), "m");
+            let segments = bend_of(&made, 3);
+            for (piece, want) in [(0, (8, 6)), (1, right)] {
+                for segment in segments[piece] {
+                    assert_eq!((segment.vertices.len(), segment.faces.len()), want, "radius {radius} piece {piece}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_bend_is_clamped() {
+        let bounds = tunnel_bounds();
+        let base = Tunnel { floor: true, ..Tunnel::default() };
+        let straight = tunnel(&bounds, &base, "m").len();
+        for (bend, segments, kept_bend, kept_segments) in [
+            (180.0, 1, 180.0, 2),
+            (180.0, 2, 180.0, 2),
+            (91.0, 1, 91.0, 2),
+            (90.0, 1, 90.0, 1),
+            (45.0, 0, 45.0, 1),
+            (90.0, 64, 90.0, 64),
+            (90.0, 65, 90.0, 64),
+            (180.0, 1000, 180.0, 64),
+            (181.0, 8, 180.0, 8),
+            (1e9, 1, 180.0, 2),
+        ] {
+            let what = format!("bend {bend} in {segments}");
+            let params = Tunnel { bend, bend_segments: segments, ..base };
+            let fitted = params.fitted(&bounds);
+            assert_eq!((fitted.bend, fitted.bend_segments), (kept_bend, kept_segments), "{what}");
+            let made = tunnel(&bounds, &params, "m");
+            assert_eq!(made.len(), straight * (kept_segments + 1), "{what}");
+            assert_eq!(made, tunnel(&bounds, &Tunnel { bend: kept_bend, bend_segments: kept_segments, ..base }, "m"), "{what}");
+        }
+
+        for (radius, kept) in [(-1.0, 0.0), (0.0, 0.0), (65536.0, 65536.0), (65537.0, 65536.0), (f64::INFINITY, 65536.0), (f64::NAN, 0.0)] {
+            let params = Tunnel { bend: 90.0, bend_radius: radius, ..base };
+            assert_eq!(params.fitted(&bounds).bend_radius, kept, "radius {radius}");
+            assert_eq!(tunnel(&bounds, &params, "m"), tunnel(&bounds, &Tunnel { bend_radius: kept, ..params }, "m"), "radius {radius}");
+        }
+
+        for bend in [0.0, -0.0, -5.0, f64::NEG_INFINITY, f64::NAN] {
+            assert_eq!(Tunnel { bend, ..base }.fitted(&bounds).bend, 0.0, "{bend}");
+            for name in LEGACY {
+                let (profile, floor) = TunnelProfile::parse(name).unwrap();
+                let params = Tunnel { profile, floor, sides: 6, bend, toward: Toward::MinusY, bend_radius: 5.0, bend_segments: 3, ..Tunnel::default() };
+                let (made, old) = (tunnel(&bounds, &params, "m"), old_tunnel(&bounds, name, 6, 16.0));
+                assert_eq!(format!("{made:?}"), format!("{old:?}"), "bend {bend} {name} builds the straight tunnel");
+            }
+        }
+    }
+
+    #[test]
+    fn a_sloped_tunnel_bends_level_at_its_raised_end() {
+        let bounds = off_origin();
+        let (a, b) = (bounds.min, bounds.max);
+        let end = b.x + 64.0;
+        for params in every_profile() {
+            let what = format!("{:?} {} ceiling {}", params.profile, params.angle, params.ceiling);
+            let hair = if params.profile == TunnelProfile::Square { 0.0 } else { 1e-9 };
+            let sloped = Tunnel { rise: 48.0, ..params };
+            let straight = tunnel(&bounds, &sloped, "m");
+            let made = tunnel(&bounds, &bent(sloped, 90.0, Toward::PlusX, 64.0, 4), "m");
+            assert_eq!(made[..straight.len()], straight[..], "{what} keeps its sloped run");
+            for (i, (piece, segments)) in straight.iter().zip(bend_of(&made, straight.len())).enumerate() {
+                let what = format!("{what} piece {i}");
+                let far = end_face(piece, DVec3::Z, b.z, &what);
+                assert_same_points(&end_face(&segments[0], DVec3::NEG_Z, -b.z, &what), &far, hair, &format!("{what} starts at the raised end"));
+                let level: Vec<DVec3> = far.iter().map(|q| DVec3::new(end, q.y, b.z + (end - q.x))).collect();
+                assert_same_points(&end_face(&segments[3], DVec3::X, end, &what), &level, hair, &format!("{what} turns level"));
+                let (low, high) = far.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), q| (lo.min(q.y), hi.max(q.y)));
+                for segment in segments.iter() {
+                    assert!(segment.vertices.iter().all(|v| v.y >= low - hair && v.y <= high + hair), "{what} stays level through the bend");
+                }
+            }
+
+            assert_separated(&made, &what);
+        }
+
+        for (toward, normal, dist) in [(Toward::PlusY, DVec3::Y, b.y + 48.0 + 64.0), (Toward::MinusY, DVec3::NEG_Y, -(a.y + 48.0 - 64.0))] {
+            let made = tunnel(&bounds, &bent(Tunnel { rise: 48.0, floor: true, ..Tunnel::default() }, 90.0, toward, 64.0, 2), "m");
+            for (i, segments) in bend_of(&made, 4).iter().enumerate() {
+                let what = format!("toward {} piece {i}", toward.label());
+                let corners = end_face(&segments[1], normal, dist, &what);
+                assert!(corners.iter().all(|v| v.y * normal.y == dist), "{what} turns from the raised end: {corners:?}");
+            }
+
+            assert_separated(&made, &format!("toward {}", toward.label()));
+        }
+    }
+
+    #[test]
+    fn a_direction_along_the_axis_falls_back() {
+        let bounds = grid_box();
+        for (axis, along, default) in [(Axis::X, DVec3::X, Toward::PlusZ), (Axis::Y, DVec3::Y, Toward::PlusX), (Axis::Z, DVec3::Z, Toward::PlusX)] {
+            assert_eq!(Toward::default_for(axis), default, "{axis:?}");
+            let across = Toward::across(axis);
+            for toward in Toward::ALL {
+                let what = format!("{axis:?} toward {}", toward.label());
+                let crosses = toward.dir().dot(along) == 0.0;
+                assert_eq!(across.contains(&toward), crosses, "{what}");
+                let params = bent(Tunnel { axis, ..Tunnel::default() }, 90.0, toward, 16.0, 2);
+                let kept = if crosses { toward } else { default };
+                assert_eq!(params.fitted(&bounds).toward, kept, "{what}");
+                assert_eq!(tunnel(&bounds, &params, "m"), tunnel(&bounds, &Tunnel { toward: kept, ..params }, "m"), "{what}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_bend_direction_reads_its_names() {
+        for toward in Toward::ALL {
+            assert_eq!(Toward::parse(toward.label()), Some(toward));
+            assert_eq!(Toward::parse(&format!("  {} ", toward.label().to_lowercase())), Some(toward));
+        }
+
+        assert_eq!((Toward::PlusX.label(), Toward::MinusZ.label()), ("+X", "-Z"));
+        for (name, want) in [("x", Toward::PlusX), ("Y", Toward::PlusY), (" z ", Toward::PlusZ), ("-y", Toward::MinusY)] {
+            assert_eq!(Toward::parse(name), Some(want), "{name}");
+        }
+
+        for name in ["", "+", "-", "w", "+w", "xx", "+-x", "- x", "-x-"] {
+            assert_eq!(Toward::parse(name), None, "{name:?}");
         }
     }
 }
