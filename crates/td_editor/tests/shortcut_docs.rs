@@ -135,6 +135,28 @@ fn the_selection_chords_are_where_trenchbroom_has_them() {
     assert_eq!(at("Ctrl+Shift+T", "trenchbroom"), None);
 }
 
+/// The paragraph right below the table with this column.
+fn prose_below(column: &str) -> String {
+    let text = page();
+    let mut lines = text.lines().skip_while(|l| !(l.starts_with('|') && l.split('|').any(|c| c.trim() == column)));
+    lines.by_ref().take_while(|l| l.starts_with('|')).for_each(drop);
+    lines.skip_while(|l| l.trim().is_empty()).take_while(|l| !l.trim().is_empty()).collect::<Vec<_>>().join(" ")
+}
+
+#[test]
+fn the_hammer_table_is_followed_by_the_older_keys_it_keeps() {
+    let base = preset_bindings("trenchbroom");
+    let hammer = preset_bindings("hammer");
+    let moved: Vec<&Action> = hammer.iter().filter(|b| !base.contains(b)).map(|(_, a)| a).collect();
+    let kept: Vec<String> = base.iter().filter(|b| moved.contains(&&b.1) && hammer.contains(b)).map(|(s, _)| shortcut_to_text(s)).collect();
+    assert!(kept.contains(&"Shift+T".to_string()), "{kept:?}");
+
+    let note = prose_below("Hammer preset");
+    let words: BTreeSet<&str> = note.split(|c: char| c.is_whitespace() || ",.;:()".contains(c)).collect();
+    let missing: Vec<&String> = kept.iter().filter(|c| !words.contains(c.as_str())).collect();
+    assert!(missing.is_empty(), "the note below the Hammer table leaves out {missing:?}: {note}");
+}
+
 fn mouse_cells(rows: &[Vec<String>]) -> Vec<String> {
     rows.iter().flat_map(|r| r[0].replace(", or ", ", ").replace(" or ", ", ").split(", ").map(|c| c.trim().to_ascii_lowercase()).collect::<Vec<_>>()).collect()
 }

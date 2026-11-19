@@ -174,6 +174,11 @@ A preset only changes the keys and mouse gestures below, everything else stays a
 | Ctrl+F4 | Close tab |
 | Z | Mouse look in the 3D view under the pointer. The cursor hides, moving the mouse turns the camera and WASD flies. Z, Esc or a click stops it, and the click does nothing else. View > Mouse Look starts it in any preset |
 
+The older keys of these actions keep working where the Hammer preset leaves them free. Q, C and V still pick the
+Select, Clip and Vertex tools, Shift+T the Texture tool, Ctrl+J isolates, Ctrl+Shift+H shows all and Ctrl+Shift+W
+moves brushes to world. A key this table gives to another action, such as Ctrl+T, Ctrl+H, Ctrl+M or Ctrl+W, does the
+new one instead.
+
 In the Hammer preset, Ctrl+A with the Texture tool active selects every face of the selected brushes instead of the
 objects, which is what you want before aligning a whole room.
 
