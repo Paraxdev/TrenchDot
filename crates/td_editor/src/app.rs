@@ -3254,12 +3254,7 @@ impl TabViewer for Tabs<'_> {
         } else if let Tab::View(i) = tab
             && let Some(vp) = self.viewports.get(*i)
         {
-            let help = match (vp.kind().is_2d(), self.state.prefs.keymap_preset.as_str()) {
-                (true, "hammer") => crate::welcome::CAMERA_2D_HELP_HAMMER,
-                (true, _) => crate::welcome::CAMERA_2D_HELP,
-                (false, _) => crate::welcome::CAMERA_3D_HELP,
-            };
-            tr(help).to_string()
+            tr(crate::welcome::camera_help(&self.state.prefs.keymap_preset, vp.kind().is_2d())).to_string()
         } else {
             return;
         };

@@ -2673,5 +2673,6 @@
   "How far the far end climbs over the box length, negative runs downhill": "Насколько дальний конец поднимается на длине бокса, отрицательное значение идёт вниз",
   "Only 90° and 180° bends end on the grid": "Только изгибы на 90° и 180° заканчиваются на сетке",
   "The floor climbs at {angle}°": "Пол поднимается под углом {angle}°",
-  "The radius stays between {min} and {max} u": "Радиус остаётся между {min} и {max} u"
+  "The radius stays between {min} and {max} u": "Радиус остаётся между {min} и {max} u",
+  "Right drag or Space+drag looks around, Z toggles mouse look and WASD flies. Middle drag pans, the wheel moves forward and back.": "Правая кнопка или Пробел+тянуть для обзора, Z включает и выключает обзор мышью, WASD летает. Средняя кнопка сдвигает, колесо едет вперёд и назад."
 }

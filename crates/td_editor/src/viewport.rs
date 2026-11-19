@@ -1317,7 +1317,7 @@ impl Viewport {
             && !crate::welcome::map_is_empty(&cx.state.doc.map)
         {
             let hint = painter.layout(
-                crate::i18n::tr(crate::welcome::CAMERA_3D_HELP).into(),
+                crate::i18n::tr(crate::welcome::camera_help(&cx.state.prefs.keymap_preset, false)).into(),
                 FontId::proportional(12.0),
                 label_color.gamma_multiply(0.6),
                 self.rect.width() - 16.0,

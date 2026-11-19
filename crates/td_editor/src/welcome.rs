@@ -24,7 +24,19 @@ pub const DISCORD_URL: &str = env!("TRENCHDOT_DISCORD_URL");
 pub const CAMERA_3D_HELP: &str = en!("Hold the right mouse button to look around, WASD flies. Middle drag pans, the wheel moves forward and back.");
 pub const CAMERA_2D_HELP: &str = en!("Right or middle drag pans, the wheel zooms. Drag on empty space to draw a box brush.");
 pub const CAMERA_2D_HELP_HAMMER: &str = en!("Right or middle drag pans, the wheel zooms. Drag on empty space to draw a selection box.");
+pub const CAMERA_3D_HELP_HAMMER: &str =
+    en!("Right drag or Space+drag looks around, Z toggles mouse look and WASD flies. Middle drag pans, the wheel moves forward and back.");
 const LOOP_STEPS: [&str; 4] = [en!("Block out"), en!("Texture it"), en!("Add entities"), en!("Play in Godot")];
+
+/// How the camera of a 2D or 3D view moves in the keymap `preset`.
+pub fn camera_help(preset: &str, is_2d: bool) -> &'static str {
+    match (is_2d, preset) {
+        (true, "hammer") => CAMERA_2D_HELP_HAMMER,
+        (true, _) => CAMERA_2D_HELP,
+        (false, "hammer") => CAMERA_3D_HELP_HAMMER,
+        (false, _) => CAMERA_3D_HELP,
+    }
+}
 
 /// The first run card's one line on what a keymap preset changes. A test checks the keys it names against
 /// `commands::preset_bindings`.
@@ -226,6 +238,10 @@ pub fn view_hint(
     let width = (rect.width() - 32.0).min(420.0);
     let id = ui.id().with("start_hint");
     let size = ui.data(|d| d.get_temp::<Vec2>(id)).unwrap_or(Vec2::new(width, 180.0));
+    // In a short view, like the default layout's 3D view of about 475 by 246 points, the card leaves out the loop strip
+    // when the whole card would run past the bottom. The whole card's height is kept, so the strip stays out next frame.
+    let (full_id, strip_id) = (id.with("full"), id.with("strip"));
+    let compact = !first_run && ui.data(|d| d.get_temp::<f32>(full_id)).is_some_and(|h| h > rect.height() - CAPTION_HEIGHT);
     let card = Align2::CENTER_CENTER.align_size_within_rect(Vec2::new(width, size.y), rect);
     let card = card.translate(Vec2::new(0.0, (rect.min.y + CAPTION_HEIGHT - card.min.y).max(0.0)));
     let root = state.game.project_root.clone();
@@ -239,8 +255,13 @@ pub fn view_hint(
             }
 
             ui.label(RichText::new(tr("This is a new, empty map")).strong().size(17.0));
-            ui.add_space(2.0);
-            loop_strip(ui);
+            if !compact {
+                let top = ui.cursor().min.y;
+                ui.add_space(2.0);
+                loop_strip(ui);
+                ui.data_mut(|d| d.insert_temp(strip_id, ui.cursor().min.y - top));
+            }
+
             ui.add_space(4.0);
             let place = match start_view {
                 Some(ViewKind::Top) => tr("in the Top view"),
@@ -256,7 +277,7 @@ pub fn view_hint(
                 None => tr("Brush > CSG > Hollow").into(),
             };
             ui.label(trf!("Then {hollow} turns the box into a room.", hollow));
-            ui.label(RichText::new(tr(CAMERA_3D_HELP)).weak());
+            ui.label(RichText::new(tr(camera_help(&state.prefs.keymap_preset, false))).weak());
             ui.add_space(6.0);
             ui.horizontal_wrapped(|ui| {
                 let guide = getting_started_url();
@@ -276,6 +297,8 @@ pub fn view_hint(
         })
     });
     ui.data_mut(|d| d.insert_temp(id, shown.response.rect.size()));
+    let strip = if compact { ui.data(|d| d.get_temp::<f32>(strip_id)).unwrap_or(0.0) } else { 0.0 };
+    ui.data_mut(|d| d.insert_temp(full_id, shown.response.rect.height() + strip));
     if first_run {
         ui.data_mut(|d| d.insert_temp(first_run_height, shown.response.rect.height()));
     }
@@ -639,6 +662,34 @@ mod tests {
         let above = title.min.y - 12.0 - tall.min.y;
         let below = tall.max.y - (last.max.y + 12.0);
         assert!((above - below).abs() < 4.0, "a card with room stays centered, {above} above and {below} below");
+    }
+
+    #[test]
+    fn the_whole_card_fits_the_default_3d_view_in_every_preset() {
+        use egui_kittest::kittest::Queryable;
+        let short = Rect::from_min_size(egui::pos2(37.0, 61.0), egui::vec2(475.0, 246.0));
+        let tall = Rect::from_min_size(egui::pos2(37.0, 61.0), egui::vec2(475.0, 470.0));
+        for (preset, view) in crate::commands::PRESETS.into_iter().flat_map(|p| [(p, short), (p, tall)]) {
+            let mut state = EditorState::new(Default::default());
+            state.prefs.keymap_preset = preset.into();
+            let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(900.0, 900.0)).build_ui_state(
+                move |ui, f: &mut Fixture| {
+                    view_hint(ui, view, ViewKind::Perspective, f.start_view, &mut f.state, &mut f.maps, &mut f.actions);
+                },
+                Fixture::new(state),
+            );
+            harness.run();
+            harness.step();
+            harness.step();
+            let last = harness.get_by_label("Hide tips").rect();
+            assert!(last.max.y <= view.max.y, "{preset}: the last row ends at {} in {view:?}", last.max.y);
+            assert!(harness.query_by_label(camera_help(preset, false)).is_some(), "{preset}");
+            if view == tall {
+                assert!(harness.query_by_label("1 Block out").is_some(), "{preset}: a view with room keeps the loop strip");
+            }
+        }
+
+        assert!(CAMERA_3D_HELP_HAMMER.contains("Space+drag") && CAMERA_3D_HELP_HAMMER.contains("Z toggles mouse look"));
     }
 
     #[test]

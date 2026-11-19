@@ -2673,5 +2673,6 @@
   "How far the far end climbs over the box length, negative runs downhill": "Cuánto sube el extremo lejano a lo largo de la caja, un valor negativo baja",
   "Only 90° and 180° bends end on the grid": "Solo las curvas de 90° y 180° terminan en la cuadrícula",
   "The floor climbs at {angle}°": "El suelo sube {angle}°",
-  "The radius stays between {min} and {max} u": "El radio queda entre {min} y {max} u"
+  "The radius stays between {min} and {max} u": "El radio queda entre {min} y {max} u",
+  "Right drag or Space+drag looks around, Z toggles mouse look and WASD flies. Middle drag pans, the wheel moves forward and back.": "Arrastrar con el derecho o Espacio+arrastrar para mirar, Z activa la vista con ratón y WASD vuela. Arrastrar con el central desplaza, la rueda avanza y retrocede."
 }

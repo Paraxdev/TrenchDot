@@ -2673,5 +2673,6 @@
   "How far the far end climbs over the box length, negative runs downhill": "远端在方框长度内升高多少，负值向下",
   "Only 90° and 180° bends end on the grid": "只有 90° 和 180° 的弯曲会终止在网格上",
   "The floor climbs at {angle}°": "地面以 {angle}° 上升",
-  "The radius stays between {min} and {max} u": "半径保持在 {min} 到 {max} u 之间"
+  "The radius stays between {min} and {max} u": "半径保持在 {min} 到 {max} u 之间",
+  "Right drag or Space+drag looks around, Z toggles mouse look and WASD flies. Middle drag pans, the wheel moves forward and back.": "右键拖动或空格+拖动环视，Z 切换鼠标观察，WASD 飞行。中键拖动平移，滚轮前进后退。"
 }
