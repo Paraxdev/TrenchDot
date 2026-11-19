@@ -32,6 +32,8 @@ static func run(t) -> void:
 	await _test_apply_fills_missing_textures(t)
 	_test_cli(t)
 	await _test_cli_instances(t)
+	await _test_cli_settings(t)
+	await _test_settings_refusals(t)
 	_test_new_folder_settings(t)
 	await _test_lost_settings(t)
 	await _test_spacing_sources(t)
@@ -483,14 +485,8 @@ static func _test_cli(t) -> void:
 static func _test_cli_instances(t) -> void:
 	var folder := WORK.path_join("cli_instances")
 	var terrain := await _world(t, "cli_instances")
-	var assets: Object = terrain.get(&"assets")
-	for id in 3:
-		if assets.call(&"get_mesh_count") <= id:
-			assets.call(&"set_mesh_asset", id, ClassDB.instantiate(&"Terrain3DMeshAsset"))
 	var west := Vector2i(-1, 0)
-	var spot := Vector3(-150.0, 0.0, 22.5)
-	var xforms: Array[Transform3D] = [Transform3D(Basis(), spot + Vector3.UP * terrain.get(&"data").get_height(spot))]
-	terrain.get(&"instancer").call(&"add_transforms", 2, xforms)
+	_add_instance(terrain)
 	terrain.get(&"data").save_directory(folder)
 	TrenchDotTerrain3DCache.export(terrain, folder)
 	var base := _hash(folder, west)
@@ -510,6 +506,129 @@ static func _test_cli_instances(t) -> void:
 		for cell in cells.values():
 			count += cell[0].size()
 	t.check(count == 1, "the instances of the region are kept, got %d" % count)
+
+## Gives [param terrain] mesh assets and one instance of mesh 2 in region (-1, 0).
+static func _add_instance(terrain: Node3D) -> void:
+	var assets: Object = terrain.get(&"assets")
+	for id in 3:
+		if assets.call(&"get_mesh_count") <= id:
+			assets.call(&"set_mesh_asset", id, ClassDB.instantiate(&"Terrain3DMeshAsset"))
+	var spot := Vector3(-150.0, 0.0, 22.5)
+	var xforms: Array[Transform3D] = [Transform3D(Basis(), spot + Vector3.UP * terrain.get(&"data").get_height(spot))]
+	terrain.get(&"instancer").call(&"add_transforms", 2, xforms)
+
+## Every file below [param folder] by its path under it, with its MD5.
+static func _tree(folder: String, below := "") -> Dictionary:
+	var out := {}
+	var dir := folder.path_join(below)
+	for file in DirAccess.get_files_at(dir):
+		out[below.path_join(file)] = FileAccess.get_md5(dir.path_join(file))
+	for sub in DirAccess.get_directories_at(dir):
+		out.merge(_tree(folder, below.path_join(sub)))
+	return out
+
+## The Terrain3D region files of [param folder] by name, with the region size and vertex spacing saved in each.
+static func _region_files(folder: String) -> Dictionary:
+	var out := {}
+	for file in DirAccess.get_files_at(folder):
+		if TrenchDotTerrain3DCache.parse_region_file(file) != null:
+			var region: Resource = ResourceLoader.load(folder.path_join(file), "", ResourceLoader.CACHE_MODE_IGNORE)
+			out[file] = [int(region.get(&"region_size")), float(region.get(&"vertex_spacing"))]
+	return out
+
+## The hash the manifest of [param folder] names for each region.
+static func _hashes(folder: String) -> Dictionary:
+	var out := {}
+	for entry in TrenchDotTerrain3DCache.read_manifest(folder).get("regions", []):
+		out[Vector2i(int(entry["loc"][0]), int(entry["loc"][1]))] = entry["hash"]
+	return out
+
+## With Godot closed the CLI changes the region size and vertex spacing of a folder for good, after a backup, and
+## leaves every other folder alone.
+static func _test_cli_settings(t) -> void:
+	var folder := WORK.path_join("cli_settings")
+	(await _world(t, "cli_settings")).free()
+	(await _world(t, "cli_settings_other")).free()
+	var other := _tree(WORK.path_join("cli_settings_other"))
+	var first := _hashes(folder)
+	var originals := _tree(folder)
+
+	var bigger := Export._cli(["settings", folder, "128", "2.5"])
+	var manifest := TrenchDotTerrain3DCache.read_manifest(folder)
+	var files := _region_files(folder)
+	t.check(bigger[0] == 0 and bigger[1].get("ok") == true and bigger[1].get("error") == "", "the CLI changes the region size to 128, got %s" % [bigger])
+	t.check(files == { "terrain3d-01_00.res": [128, SPACING], "terrain3d_00-01.res": [128, SPACING], "terrain3d_01-01.res": [128, SPACING] }, "only the region files of size 128 are left, got %s" % [files])
+	t.check(int(manifest.get("region_size", 0)) == 128 and float(manifest.get("scene_vertex_spacing", 0.0)) == SPACING and manifest.get("dirty") == [] and not manifest.has("unsaved_settings") and _hashes(folder).size() == 3, "the cache names size 128, no unsaved region and the spacing for the scene, got %s" % [manifest])
+	var saved: String = bigger[1].get("backup", "")
+	var copies := _tree(saved)
+	var same := copies.keys().filter(func(k: String) -> bool: return copies[k] == originals.get(".trenchdot/manifest.json" if k == "manifest.json" else k))
+	t.check(saved.begins_with(TrenchDotTerrain3DCache.cache_dir(folder).path_join("backups")) and copies.size() == 4 and same.size() == 4, "the backup holds the three region files and the manifest as they were, got %s in %s" % [copies.keys(), saved])
+
+	var back := Export._cli(["settings", folder, "64", "2.5"])
+	var hashes := _hashes(folder)
+	var kept := first.keys().filter(func(loc: Vector2i) -> bool: return hashes.get(loc) == first[loc])
+	files = _region_files(folder)
+	t.check(back[0] == 0 and kept.size() == 3, "back at size 64 the regions have their heights, control and color again, got %s of %s" % [kept, first])
+	t.check(files.size() == hashes.size() and files.values().all(func(f: Array) -> bool: return f == [SIZE, SPACING]), "every region file is of size 64 and the cache lists them all, got %s and %s" % [files, hashes.keys()])
+
+	var spaced := Export._cli(["settings", folder, "64", "1.0"])
+	manifest = TrenchDotTerrain3DCache.read_manifest(folder)
+	var header := Export._decode(FileAccess.get_file_as_bytes(TrenchDotTerrain3DCache.region_path(folder, Vector2i(-1, 0))))
+	t.check(spaced[0] == 0 and _hashes(folder) == hashes and float(manifest.get("vertex_spacing", 0.0)) == 1.0 and float(manifest.get("scene_vertex_spacing", 0.0)) == 1.0 and header.get("spacing") == 1.0, "a spacing change alone keeps every region and gives the cache the spacing, got %s and %s" % [spaced, header.get("spacing")])
+	t.check(_region_files(folder).values().all(func(f: Array) -> bool: return f == [SIZE, 1.0]), "and every region file, got %s" % [_region_files(folder)])
+
+	var again := Export._cli(["settings", folder, "64", "2.5"])
+	var backups := Array(DirAccess.get_directories_at(TrenchDotTerrain3DCache.cache_dir(folder).path_join("backups")))
+	t.check(again[0] == 0 and backups.size() == 3 and not DirAccess.dir_exists_absolute(saved) and DirAccess.dir_exists_absolute(again[1].get("backup", "")), "four changes keep the last three backups, got %s" % [backups])
+	var exported := Export._cli(["export", folder])
+	t.check(exported[0] == 0 and float(TrenchDotTerrain3DCache.read_manifest(folder).get("scene_vertex_spacing", 0.0)) == SPACING, "a CLI export keeps the spacing for the scene, got %s" % [exported])
+	t.check(_tree(WORK.path_join("cli_settings_other")) == other, "the other data folder is left alone")
+
+	var empty := WORK.path_join("cli_settings_empty")
+	new_folder(empty, SIZE, 1.0)
+	var none := Export._cli(["settings", empty, "256", "2.0"])
+	manifest = TrenchDotTerrain3DCache.read_manifest(empty)
+	t.check(none[0] == 0 and int(manifest.get("region_size", 0)) == 256 and float(manifest.get("vertex_spacing", 0.0)) == 2.0 and manifest.get("regions") == [] and _region_files(empty).is_empty(), "a folder without regions gets only a manifest with the new settings, got %s and %s" % [none, manifest])
+
+## A change the folder cannot take is refused with nothing written, and so are wrong arguments.
+static func _test_settings_refusals(t) -> void:
+	var wide := WORK.path_join("settings_wide")
+	var terrain: Node3D = await Export._terrain(t, wide, 128, 1.0)
+	for loc in [Vector2i(-16, 0), Vector2i(15, 3)]:
+		terrain.get(&"data").add_region_blank(loc, false)
+	terrain.get(&"data").save_directory(wide)
+	TrenchDotTerrain3DCache.export(terrain, wide)
+	terrain.free()
+	var untouched := _tree(wide)
+	var refused := Export._cli(["settings", wide, "64", "1.0"])
+	t.check(refused[0] == 1 and refused[1].get("ok") == false and str(refused[1].get("error")).contains("-16 to 15") and _tree(wide) == untouched, "a size that spreads the regions past -16 to 15 is refused with nothing written, got %s" % [refused])
+
+	var crowded := WORK.path_join("settings_instances")
+	terrain = await _world(t, "settings_instances")
+	_add_instance(terrain)
+	terrain.get(&"data").save_directory(crowded)
+	TrenchDotTerrain3DCache.export(terrain, crowded)
+	terrain.free()
+	var before := _tree(crowded)
+	refused = Export._cli(["settings", crowded, "128", "2.5"])
+	t.check(refused[0] == 1 and str(refused[1].get("error")).contains("(-1, 0) hold Terrain3D instances") and _tree(crowded) == before, "a folder with instances is refused with nothing written, got %s" % [refused])
+
+	var waiting := WORK.path_join("settings_pending")
+	terrain = await _world(t, "settings_pending")
+	_pending(waiting, Vector2i(-1, 0), { "height": _slanted(Vector2i(-1, 0), 2.0), "control": Image.create_empty(SIZE, SIZE, false, Image.FORMAT_RF) }, _hash(waiting, Vector2i(-1, 0)))
+	before = _tree(waiting)
+	var result := TrenchDotTerrain3DCache.rewrite_settings(terrain, waiting, 128, SPACING)
+	t.check(not result.ok and result.error.contains("not applied") and _tree(waiting) == before and int(terrain.get(&"region_size")) == SIZE, "a folder with pending edits is refused with nothing written, got %s" % [result])
+	terrain.free()
+
+	var cli: GDScript = load("res://addons/func_godot/src/trenchdot/terrain3d_cli.gd")
+	for args in [["settings", wide], ["settings", wide, "128"], ["settings", wide, "128", "2.5", "1"], ["export", wide, "128", "2.5"], ["settings", wide, "big", "2.5"], ["settings", wide, "128.5", "2.5"], ["settings", wide, "128", "wide"]]:
+		t.check(cli.refusal(PackedStringArray(args)).begins_with("usage"), "the CLI refuses %s with its usage, got %s" % [args, cli.refusal(PackedStringArray(args))])
+	for config in [[["settings", wide, "100", "2.5"], "no region size 100"], [["settings", wide, "128", "0.125"], "0.25 to 100"], [["settings", wide, "4096", "1"], "no region size 4096"], [["settings", wide, "128", "-1"], "0.25 to 100"]]:
+		t.check(cli.refusal(PackedStringArray(config[0])).contains(config[1]), "the CLI refuses %s, got %s" % [config[0], cli.refusal(PackedStringArray(config[0]))])
+	t.check(cli.refusal(PackedStringArray(["settings", wide, "2048", "100"])) == "", "it takes the largest size and spacing")
+	var wrong := Export._cli(["settings", wide, "100", "2.5"])
+	t.check(wrong[0] == 1 and wrong[1].get("ok") == false and str(wrong[1].get("error")).contains("no region size 100") and _tree(wide) == untouched, "a wrong size exits with 1 and names it, got %s" % [wrong])
 
 ## What TrenchDot writes when it links a folder with no regions yet: a manifest with the size and spacing the new
 ## terrain should get, and no region file.
