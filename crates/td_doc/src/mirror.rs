@@ -159,10 +159,10 @@ fn touching(map: &Map, group: NodeId, found: Vec<(NodeId, AxisPlane)>, dist: f64
     found.into_iter().filter(|(other, plane)| plane.meets(&bounds, dist) && plane.meets(&map.bounds(*other), dist)).collect()
 }
 
-/// Mirror planes of the selected linked groups and of the linked groups around a selected node. Per group and axis only
-/// the plane nearest the group counts, so in a row of mirrored pairs each pair shows its own plane rather than one
-/// plane per far copy.
-pub fn selection_planes(map: &Map, sel: &Selection) -> Vec<MirrorPlane> {
+/// Mirror planes of the selected linked groups and of the linked groups around a selected node, one per pair. Per group
+/// and axis only the plane nearest the group counts, so in a row of mirrored pairs each pair shows its own plane rather
+/// than one plane per far copy.
+pub fn selection_pairs(map: &Map, sel: &Selection) -> Vec<MirrorPlane> {
     let groups = linked_around(map, sel);
     // The walk of every map node waits until a selected group could have a mirror image at all.
     let sets = if groups.is_empty() { MirrorSets(HashMap::new()) } else { MirrorSets::of(map) };
@@ -182,6 +182,38 @@ pub fn selection_planes(map: &Map, sel: &Selection) -> Vec<MirrorPlane> {
             if !span.is_empty() && !drawn {
                 planes.push(MirrorPlane { plane, group, partner, span });
             }
+        }
+    }
+
+    planes
+}
+
+/// The planes of [`selection_pairs`], with the pairs of one link set on one plane, like the quarters of a mirror
+/// mirrored again, as one plane around all of them, since [`set_gap`] on it moves them all.
+pub fn selection_planes(map: &Map, sel: &Selection) -> Vec<MirrorPlane> {
+    shared_planes(map, &selection_pairs(map, sel))
+}
+
+pub fn shared_planes(map: &Map, pairs: &[MirrorPlane]) -> Vec<MirrorPlane> {
+    joined(map, pairs, |_, _| true)
+}
+
+/// The pairs as the views draw them, where pairs on one shared plane that touch draw as one, but a facade of pairs keeps
+/// a plane on each.
+pub fn drawn_planes(map: &Map, pairs: &[MirrorPlane]) -> Vec<MirrorPlane> {
+    joined(map, pairs, |a, b| a.expanded(MIRROR_TOLERANCE).intersects(b))
+}
+
+fn joined(map: &Map, pairs: &[MirrorPlane], joins: impl Fn(&Aabb, &Aabb) -> bool) -> Vec<MirrorPlane> {
+    let mut planes: Vec<MirrorPlane> = Vec::new();
+    for p in pairs {
+        let link = link_of(map, p.group);
+        let shared = planes
+            .iter_mut()
+            .find(|m| m.plane.axis == p.plane.axis && (m.plane.at - p.plane.at).abs() < 1e-6 && link_of(map, m.group) == link && joins(&m.span, &p.span));
+        match shared {
+            Some(m) => m.span = m.span.union(&p.span),
+            None => planes.push(*p),
         }
     }
 
@@ -955,6 +987,35 @@ mod tests {
         assert_eq!(whole(&doc), []);
         doc.edit("unlink", |m, s| ops::unlink_groups(m, s));
         assert_eq!(whole(&doc), []);
+    }
+
+    #[test]
+    fn quarters_share_each_plane_once_around_all_of_them() {
+        let mut doc = Document::new();
+        let a = group_of(&mut doc, wedge(), "quarter");
+        let b = mirror(&mut doc, &[a], 0, PlaneAt::Max).0[0];
+        let [c, d]: [NodeId; 2] = mirror(&mut doc, &[a, b], 2, PlaneAt::Min).0.try_into().unwrap();
+        let all = [a, b, c, d].iter().fold(Aabb::EMPTY, |span, g| span.union(&doc.map.bounds(*g)));
+        let shown = |doc: &mut Document, ids: &[NodeId]| {
+            select(doc, ids);
+            selection_planes(&doc.map, &doc.selection).iter().map(|m| (m.plane, m.span)).collect::<Vec<_>>()
+        };
+        let pair = doc.map.bounds(c).union(&doc.map.bounds(d));
+        assert_eq!(shown(&mut doc, &[c, d]), [(plane(0, 40.0), pair), (plane(2, 4.0), all)], "both Z pairs, one row");
+        assert_eq!(shown(&mut doc, &[a, b, c, d]), [(plane(0, 40.0), all), (plane(2, 4.0), all)]);
+
+        select(&mut doc, &[c, d]);
+        let z = selection_planes(&doc.map, &doc.selection)[1];
+        doc.edit("gap", |m, _| set_gap(m, &z, 16.0)).unwrap();
+        select(&mut doc, &[a, b, c, d]);
+        let gaps: Vec<f64> = selection_planes(&doc.map, &doc.selection).iter().map(|m| gap(&doc.map, m)).collect();
+        assert_eq!(gaps, [0.0, 16.0]);
+        assert_eq!(gap(&doc.map, &MirrorPlane { group: b, partner: d, ..z }), 16.0, "the one Z gap moved both pairs");
+
+        let drawn = |doc: &Document| drawn_planes(&doc.map, &selection_pairs(&doc.map, &doc.selection)).iter().map(|m| m.plane).collect::<Vec<_>>();
+        assert_eq!(drawn(&doc), [plane(0, 40.0), plane(2, 4.0), plane(0, 40.0)], "the Z gap parts the X pairs, the Z pairs still touch");
+        doc.edit("close", |m, _| set_gap(m, &z, 0.0)).unwrap();
+        assert_eq!(drawn(&doc), [plane(0, 40.0), plane(2, 4.0)]);
     }
 
     /// A closed block from x 8 to 24 whose top slopes down along x and up along z, so it touches the wedge's min side.

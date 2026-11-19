@@ -1973,6 +1973,15 @@ fn the_inspector_names_the_mirror_plane_of_a_selected_half() {
     harness.get_by_label("Mirror plane Z = 100.5");
     select(&mut harness, &[copy, group]);
     assert_eq!(harness.query_all_by_label("Mirror plane Z = 100.5").count(), 1, "a pair names its plane once");
+
+    let quarters = harness
+        .state_mut()
+        .state
+        .doc
+        .edit("mirror again", |m, s| td_doc::mirror::mirror_linked(m, s, 0, &PlaneChoice { at: PlaneAt::Custom, custom: 300.0 }, 0.0).unwrap().0);
+    select(&mut harness, &quarters);
+    harness.get_by_label("Mirror plane X = 300");
+    assert_eq!(harness.query_all_by_label("Mirror plane Z = 100.5").count(), 1, "both pairs across Z share one row");
 }
 
 fn gap_harness(mut f: Fixture, selected: NodeId) -> Harness<'static, Fixture> {

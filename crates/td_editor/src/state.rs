@@ -800,6 +800,7 @@ struct MirrorPairs {
     key: ((u64, u64, u64), u64),
     selection: td_doc::Selection,
     planes: Vec<td_doc::mirror::MirrorPlane>,
+    drawn: Vec<td_doc::mirror::MirrorPlane>,
     gaps: Vec<f64>,
     drifts: Vec<td_doc::mirror::Drift>,
     turned: Vec<(NodeId, NodeId)>,
@@ -812,6 +813,11 @@ impl EditorState {
     pub fn mirror_pairs(&self) -> (Vec<td_doc::mirror::MirrorPlane>, Vec<f64>, Vec<td_doc::mirror::Drift>) {
         let c = self.mirror_cache();
         (c.planes.clone(), c.gaps.clone(), c.drifts.clone())
+    }
+
+    /// The mirror planes as the views draw them, see [`td_doc::mirror::drawn_planes`], cached with [`Self::mirror_pairs`].
+    pub fn drawn_mirror_planes(&self) -> Vec<td_doc::mirror::MirrorPlane> {
+        self.mirror_cache().drawn.clone()
     }
 
     /// The halves around the selection turned off their mirror plane when no other half there has a plane, see
@@ -830,11 +836,13 @@ impl EditorState {
 
         std::cell::RefMut::map(cache, |cache| {
             cache.get_or_insert_with(|| {
-                let planes = td_doc::mirror::selection_planes(&doc.map, &doc.selection);
+                let pairs = td_doc::mirror::selection_pairs(&doc.map, &doc.selection);
+                let planes = td_doc::mirror::shared_planes(&doc.map, &pairs);
+                let drawn = td_doc::mirror::drawn_planes(&doc.map, &pairs);
                 let gaps = planes.iter().map(|m| td_doc::mirror::gap(&doc.map, m)).collect();
                 let drifts = td_doc::mirror::drifted(&doc.map, &doc.selection);
                 let turned = if planes.is_empty() && drifts.is_empty() { td_doc::mirror::turned(&doc.map, &doc.selection) } else { Vec::new() };
-                MirrorPairs { key, selection: doc.selection.clone(), planes, gaps, drifts, turned }
+                MirrorPairs { key, selection: doc.selection.clone(), planes, drawn, gaps, drifts, turned }
             })
         })
     }

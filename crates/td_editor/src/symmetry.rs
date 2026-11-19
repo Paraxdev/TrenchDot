@@ -331,7 +331,7 @@ pub fn edit_lines(state: &EditorState, out: &mut Vec<LineVertex>) {
 /// on draws it as a bar three points wide, so it reads apart from the grid and from the brush edges it covers at gap 0.
 pub fn mirror_link_lines(state: &EditorState, cam: &Camera, out: &mut Vec<LineVertex>) {
     let depth = cam.kind.is_2d().then(|| cam.kind.depth_axis());
-    for m in state.mirror_pairs().0 {
+    for m in state.drawn_mirror_planes() {
         match depth {
             Some(depth) if depth != m.plane.axis => plane_bar(m.plane.axis, m.plane.at, &m.span, depth, cam.zoom, out),
             _ => plane_rect(m.plane.axis, m.plane.at, &m.span, out),

@@ -284,8 +284,10 @@ plane honest, you decide what happens to each side. What you edit inside a half 
 * **To space the halves apart**, type a number into **Gap** in the Mirror section. It is the distance between the two
   halves in map units, and both move by the same amount, so the plane stays where it is. Dragging the field is one undo
   step. The gap goes up to 65536 units, 2048 m. A negative gap pulls them into each other, down to minus the width of the
-  narrower half, below that it stops. Gap counts brushes and meshes, not decals or entities. If the pair has more linked copies, the Gap moves every copy
-  on each side along with its half, hidden ones included. A locked copy stops it, the status bar names it, unlock it first.
+  narrower half, below that it stops. Gap counts brushes and meshes, not decals or entities. If the pair has more
+  linked copies, the Gap moves every copy on each side along with its half, hidden ones included. Mirror a pair again
+  and the four quarters share each plane, so the section lists each plane once and its Gap moves all four. A locked
+  copy stops it, the status bar names it, unlock it first.
 * **To put the halves back across from each other** after you slid one along the plane, click **Mirror Again** in
   the Mirror section. The partner moves to the mirror image of the selected half in one undo step, and the status bar says how
   far it moved. The button only shows while a half is slid, and the section says by how much, for example *half is slid
