@@ -83,12 +83,13 @@ TrenchBroom keys are the defaults of TrenchBroom 2026.2. An empty cell means tha
 | UV lock | U | Ctrl+Shift+U | Ctrl+Shift+U |
 | Frame the selection | Ctrl+U | F or Ctrl+U | F or Ctrl+U |
 | Maximize the view | Ctrl+Space | Shift+Space | Shift+Space |
+| Mouse look in 3D | | | Z |
 | Repeat the last action | Ctrl+R | Ctrl+R | Ctrl+R |
 
 Transform Selection, Tie to Entity and the two flips have no key outside the Hammer preset, they sit in the *Brush* menu
 and the command palette, and you can bind them on the **Keys** tab of *Help > Keyboard Shortcuts…*. The Block tool
-sits right of Select in the toolbar. In the Hammer preset, Rotate Y 90 moved to Ctrl+Shift+R, because Ctrl+L flips.
-The full list of keys is on [Shortcuts](shortcuts.md).
+sits right of Select in the toolbar, and mouse look under *View > Mouse Look*. In the Hammer preset, Rotate Y 90 moved
+to Ctrl+Shift+R, because Ctrl+L flips. The full list of keys is on [Shortcuts](shortcuts.md).
 
 ## Mouse
 
@@ -151,8 +152,8 @@ what the TrenchDot column says.
 * **The Hammer preset changes the Select tool's mouse too.** Shift+drag copies the selection, in every view, and a drag
   never locks to an axis, drag a gizmo arrow for that. Shift+click picks an object like a plain click, because Shift
   belongs to cloning, so faces are picked in the Texture tool (Shift+A) and nothing pushes or pulls a face with Shift. The
-  camera and the tools Hammer has no key for keep the TrenchBroom ones. **Help > Keyboard Shortcuts…** shows the mouse of
-  the preset you are on.
+  camera keeps the TrenchBroom gestures and adds Hammer's Space+drag and Z for mouse look, and the tools Hammer has no
+  key for keep the TrenchBroom ones. **Help > Keyboard Shortcuts…** shows the mouse of the preset you are on.
 
   ![The Mouse tab of Keyboard Shortcuts with the Hammer preset chosen, listing Shift+drag as the copy gesture](../assets/coming-from-hammer-trenchbroom/mouse-tab-hammer.png)
 

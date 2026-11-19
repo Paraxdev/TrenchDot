@@ -127,6 +127,7 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
         entry(en!("View"), en!("Decrease Interface Scale"), Action::UiScaleDown),
         entry(en!("View"), en!("Reset Interface Scale"), Action::UiScaleReset),
         entry(en!("View"), en!("Maximize View"), Action::ToggleMaximizeView),
+        entry(en!("View"), en!("Mouse Look"), Action::ToggleMouseLook),
         entry(en!("View"), en!("Single View"), Action::ViewLayout(1)),
         entry(en!("View"), en!("Two Views"), Action::ViewLayout(2)),
         entry(en!("View"), en!("Four Views"), Action::ViewLayout(4)),

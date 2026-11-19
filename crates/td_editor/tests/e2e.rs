@@ -4555,6 +4555,61 @@ fn hammer_space_drag_pans_and_looks() {
     assert_eq!(ed.brushes(), 2, "TrenchBroom leaves Space alone and draws a brush");
 }
 
+#[test]
+#[ignore]
+fn hammer_mouse_look_toggles_with_z() {
+    let ed = Editor::launch("hammer_mouse_look");
+    let a = ed.box_brush([0.0, 0.0, 0.0], [64.0, 64.0, 64.0]);
+    ed.call("set_editor", json!({ "keymap": "hammer" }));
+    ed.call("set_camera", json!({ "view": "3d", "position": [-300, 250, 300], "look_at": [32, 32, 32] }));
+    ed.call("run_action", json!({ "action": "select_none" }));
+    let camera = || ed.state()["cameras"].as_array().unwrap().iter().find(|c| c["view"] == "3d").unwrap().clone();
+    let looking = || ed.state()["editor"]["mouse_look"].as_bool().unwrap();
+    let z = |view: &str| ed.input(view, json!([{ "type": "move", "world": [32, 32, 32] }, { "type": "key", "key": "Z" }]));
+    let motion = |dx: i64, dy: i64| ed.input("3d", json!([{ "type": "motion", "dx": dx, "dy": dy }]));
+
+    z("3d");
+    assert!(looking(), "Z over the 3D view starts mouse look");
+    let tool = ed.state()["editor"]["tool"].clone();
+    let before = camera();
+    motion(40, -15);
+    let turned = camera();
+    assert_ne!(turned["forward"], before["forward"], "moving the mouse turns the camera");
+    assert_eq!(turned["position"], before["position"]);
+    motion(40, 0);
+    let turned_again = camera();
+    assert_ne!(turned_again["forward"], turned["forward"], "and keeps turning it");
+
+    ed.input("3d", json!([{ "type": "key", "key": "W" }]));
+    assert_ne!(camera()["position"], turned_again["position"], "W flies");
+    assert_eq!(ed.state()["editor"]["tool"], tool, "and picks no tool");
+
+    ed.input("3d", json!([{ "type": "key", "key": "Z" }]));
+    assert!(!looking(), "Z again stops it");
+    let still = camera();
+    motion(40, 0);
+    assert_eq!(camera()["forward"], still["forward"], "then the mouse no longer turns the view");
+
+    z("3d");
+    ed.input("3d", json!([{ "type": "key", "key": "Escape" }]));
+    assert!(!looking(), "Esc stops it");
+
+    z("3d");
+    ed.input("3d", json!([{ "type": "click", "world": [32, 32, 32] }]));
+    assert!(!looking(), "a click stops it");
+    assert!(selected(&ed).is_empty(), "and selects nothing");
+    ed.input("3d", json!([{ "type": "click", "world": [32, 32, 32] }]));
+    assert_eq!(selected(&ed), [a], "the next click selects again");
+
+    z("top");
+    assert!(!looking(), "a 2D view has no mouse look");
+    assert_eq!(ed.state()["status"], "Mouse look works in the 3D view");
+
+    ed.call("set_editor", json!({ "keymap": "trenchbroom" }));
+    z("3d");
+    assert!(!looking(), "TrenchBroom binds no key to it");
+}
+
 /// The Hammer preset clones on Shift+drag, Ctrl+drag too, and has no Shift axis lock. TrenchBroom keeps Shift as the
 /// axis lock and as the face push in 3D.
 #[test]

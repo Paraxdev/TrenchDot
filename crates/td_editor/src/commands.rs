@@ -278,6 +278,8 @@ pub enum Action {
     CheckForUpdates,
     /// Fills the view area with the view under the pointer, or brings the other views back.
     ToggleMaximizeView,
+    /// Turns the 3D view under the pointer with the mouse alone, no button held, until a click, Esc or the key again.
+    ToggleMouseLook,
     /// Shows 1, 2 or 4 views.
     ViewLayout(u8),
     /// Closes or reopens one of the four views.
@@ -484,6 +486,7 @@ impl Action {
             Action::ShowPreferences => en!("Preferences"),
             Action::CheckForUpdates => en!("Check for Updates"),
             Action::ToggleMaximizeView => en!("Maximize View"),
+            Action::ToggleMouseLook => en!("Mouse Look"),
             Action::ViewLayout(1) => en!("Single View"),
             Action::ViewLayout(2) => en!("Two Views"),
             Action::ViewLayout(_) => en!("Four Views"),
@@ -557,6 +560,7 @@ impl Action {
             Action::InstallNatureModels => en!("Adds the trees, bushes, rocks and grass the scatter presets use to res://trenchdot/nature"),
             Action::InstallGameplayEntities => en!("Copies the gameplay entities into res://trenchdot/entities, where you can edit them"),
             Action::ShowAddonSetup => en!("Installs, updates or enables the TrenchDot addon in the Godot project"),
+            Action::ToggleMouseLook => en!("Turns the 3D view by moving the mouse alone, no button held. WASD flies, Esc or a click stops"),
             _ => return None,
         })
     }
@@ -738,6 +742,7 @@ pub fn preset_bindings(preset: &str) -> Vec<(KeyboardShortcut, Action)> {
             (sc(CTRL, Key::F4), Action::CloseTab),
             (sc(CTRL_SHIFT, Key::M), Action::CsgMerge),
             (sc(CTRL_SHIFT, Key::L), Action::CsgIntersect),
+            (sc(NONE, Key::Z), Action::ToggleMouseLook),
         ],
         "blender" => vec![
             (sc(NONE, Key::A), Action::SelectAllInMode),
@@ -2188,6 +2193,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         | Action::ShowPreferences
         | Action::CheckForUpdates
         | Action::ToggleMaximizeView
+        | Action::ToggleMouseLook
         | Action::ViewLayout(_)
         | Action::ToggleView(_) => {}
         Action::CreateBrushFromBounds => {
@@ -4289,6 +4295,23 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn only_the_hammer_preset_binds_mouse_look() {
+        let preset = |p: &str| Prefs { keymap_preset: p.into(), ..Default::default() };
+        let bound = |prefs: &Prefs| shortcuts(prefs).into_iter().filter(|(_, a)| *a == Action::ToggleMouseLook).map(|(s, _)| s).collect::<Vec<_>>();
+        assert_eq!(bound(&preset("hammer")), [sc(NONE, Key::Z)]);
+        assert!(bound(&preset("trenchbroom")).is_empty());
+        assert!(bound(&preset("blender")).is_empty());
+        assert!(shortcuts(&preset("blender")).contains(&(sc(NONE, Key::Z), Action::ToggleTextured)), "Blender keeps Z for the shading");
+
+        let mut prefs = preset("trenchbroom");
+        prefs.key_overrides.insert(Action::ToggleMouseLook.binding_id(), "Alt+Z".into());
+        assert_eq!(bound(&prefs), [sc(ALT, Key::Z)]);
+        prefs.key_overrides.insert("NoSuchAction".into(), "Z".into());
+        assert_eq!(bound(&prefs), [sc(ALT, Key::Z)]);
+        assert!(shortcuts(&prefs).iter().all(|(s, _)| *s != sc(NONE, Key::Z)), "an unknown action binds nothing");
     }
 
     #[test]

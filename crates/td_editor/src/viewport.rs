@@ -48,6 +48,10 @@ pub struct Viewport {
     pub(crate) pixels_per_point: f32,
     /// The 3D camera was looked around with this session, so the hint on how to do it is no longer shown.
     looked: bool,
+    /// Moving the mouse turns this 3D view with no button held, see `App::drive_mouse_look`.
+    pub(crate) mouse_look: bool,
+    /// A press ended mouse look, the view ignores the buttons until they are all up again.
+    swallowing: bool,
 }
 
 // Linear values, the targets are sRGB.
@@ -72,6 +76,8 @@ impl Viewport {
             hover_edge: None,
             pixels_per_point: 1.0,
             looked: false,
+            mouse_look: false,
+            swallowing: false,
         }
     }
 
@@ -117,17 +123,22 @@ impl Viewport {
             }
         }
 
-        self.handle_camera(ui, &response, cx);
+        let swallowed = self.swallow_press(ui);
+        if !swallowed {
+            self.handle_camera(ui, &response, cx);
+        }
+
         self.handle_keys(ui, cx);
         self.hover_edge = None;
         // While a menu is open a click in the view only closes it, like in most programs.
         let closing_menu = self.popup_open && self.drag.is_none();
+        let passive = closing_menu || swallowed;
         let extruding = cx.tools.extrude.active();
-        if !closing_menu && extruding && !self.is_camera_drag() {
+        if !passive && extruding && !self.is_camera_drag() {
             cx.tools.extrude.input(ui, &response, &self.camera, rect, cx.state);
-        } else if !closing_menu && (draws_like_select(cx.state.tool) || self.is_camera_drag()) {
+        } else if !passive && (draws_like_select(cx.state.tool) || self.is_camera_drag()) {
             self.handle_select_tool(ui, &response, cx);
-        } else if !closing_menu {
+        } else if !passive {
             let hover = response.hover_pos();
             cx.tools.viewport_input(ui, &response, &self.camera, rect, hover, cx.state);
         }
@@ -158,7 +169,7 @@ impl Viewport {
         }
 
         // Right click applies materials in the texture tool. The right click that cancels an extrude opens no menu.
-        if cx.state.tool != ToolKind::Texture && !extruding {
+        if cx.state.tool != ToolKind::Texture && !extruding && !swallowed {
             response.context_menu(|ui| context_menu(ui, cx.state, cx.actions));
         }
     }
@@ -186,9 +197,27 @@ impl Viewport {
         matches!(self.drag, Some(Drag::Look | Drag::Pan | Drag::Orbit { .. }))
     }
 
-    /// The right mouse look in the 3D view, while it runs WASD, Q and E fly the camera.
+    /// The right mouse look in the 3D view, or mouse look. While it runs WASD, Q and E fly the camera.
     pub fn is_flying(&self) -> bool {
-        matches!(self.drag, Some(Drag::Look))
+        matches!(self.drag, Some(Drag::Look)) || self.mouse_look
+    }
+
+    pub(crate) fn start_mouse_look(&mut self) {
+        self.mouse_look = true;
+        self.looked = true;
+    }
+
+    /// Any press ends mouse look and does nothing else, through the frame its button comes up.
+    fn swallow_press(&mut self, ui: &Ui) -> bool {
+        let (pressed, released, down) = ui.input(|i| (i.pointer.any_pressed(), i.pointer.any_released(), i.pointer.any_down()));
+        if self.mouse_look && pressed {
+            self.mouse_look = false;
+            self.swallowing = true;
+        } else if self.swallowing && !down && !released {
+            self.swallowing = false;
+        }
+
+        self.swallowing
     }
 
     /// What a left drag does now that Space is held, Hammer's temporary camera. Off while a text field has the
@@ -222,6 +251,14 @@ impl Viewport {
                 }
 
                 let invert = if invert_y { -1.0 } else { 1.0 };
+                if self.mouse_look {
+                    // Raw device motion, which keeps coming while the hidden cursor is held in place.
+                    let moved = ui.input(|i| i.events.iter().fold(Vec2::ZERO, |sum, e| if let egui::Event::MouseMoved(d) = e { sum + *d } else { sum }));
+                    if moved != Vec2::ZERO {
+                        self.camera.rotate(Vec2::new(moved.x, moved.y * invert) / self.pixels_per_point, look_sensitivity);
+                    }
+                }
+
                 match self.drag {
                     Some(Drag::Look) => self.camera.rotate(Vec2::new(delta.x, delta.y * invert), look_sensitivity),
                     Some(Drag::Pan) => self.camera.pan(delta * 1.5, rect),
@@ -1305,6 +1342,15 @@ impl Viewport {
                 self.rect.width() - 16.0,
             );
             painter.galley(label.left_bottom() + Vec2::new(0.0, 4.0), hint, label_color);
+        }
+
+        if self.mouse_look {
+            let center = self.rect.center();
+            for (width, color) in [(3.0, Color32::from_black_alpha(160)), (1.0, label_color)] {
+                for arm in [Vec2::X * 7.0, Vec2::Y * 7.0] {
+                    painter.line_segment([center - arm, center + arm], egui::Stroke::new(width, color));
+                }
+            }
         }
 
         let state = &cx.state;

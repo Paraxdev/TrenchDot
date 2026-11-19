@@ -1383,6 +1383,7 @@ impl App {
                 "mirror_plane": s.mirror_plane,
                 "edit_symmetry": edit_symmetry_json(&s.edit_symmetry),
                 "selection_box": s.selection_box.map(|b| json!({ "view": view_name(b.view), "min": arr(b.min()), "max": arr(b.max()), "add": b.add })),
+                "mouse_look": self.viewports.iter().any(|v| v.mouse_look),
             },
             "mirror_planes": td_doc::mirror::selection_planes(map, sel)
                 .iter()
@@ -3073,6 +3074,11 @@ impl App {
                     steps.push_back(step(vec![Event::Key { key, physical_key: None, pressed: false, repeat: false, modifiers }]));
                 }
                 "text" => steps.push_back(step(vec![Event::Text(ev["text"].as_str().unwrap_or_default().to_string())])),
+                "motion" => {
+                    let d = |k: &str| ev[k].as_f64().unwrap_or(0.0) as f32;
+                    steps.push_back(step(vec![Event::MouseMoved(Vec2::new(d("dx"), d("dy")))]));
+                    steps.push_back(step(vec![]));
+                }
                 "scroll" => {
                     let p = self.resolve_pos(target, ev, "x", "world")?;
                     let d = ev["delta"].as_f64().unwrap_or(120.0) as f32;
