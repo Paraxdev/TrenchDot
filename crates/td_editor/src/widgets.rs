@@ -92,7 +92,7 @@ pub fn vector_input_snapped(ui: &mut Ui, values: &mut [f64], width: f32, speed: 
             };
             ui.add_sized([AXIS_LABEL, ROW_HEIGHT - 2.0], egui::Label::new(RichText::new(letter).color(color).strong()));
             let before = *value;
-            let drag = egui::DragValue::new(value).speed(speed).update_while_editing(false).custom_formatter(|n, _| format_number(n));
+            let drag = egui::DragValue::new(value).speed(speed).update_while_editing(false).custom_formatter(|n, _| format_display(n));
             let response = ui.add_sized([field_w, ROW_HEIGHT - 2.0], drag);
             // egui still sees the lost focus one frame after Escape and applies the typed text then, so undo that.
             let escaped = response.id.with("escaped");
@@ -103,6 +103,12 @@ pub fn vector_input_snapped(ui: &mut Ui, values: &mut [f64], width: f32, speed: 
 
             if response.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
                 ui.data_mut(|d| d.insert_temp(escaped, true));
+            }
+
+            // Leaving a field parses the rounded text back, which must not move a value by what the text hides.
+            if response.changed() && format_display(*value) == format_display(before) {
+                *value = before;
+                continue;
             }
 
             if response.changed() && response.dragged() && grid > 0.0 {
@@ -217,6 +223,12 @@ pub fn format_number(v: f64) -> String {
         let s = format!("{v:.6}");
         s.trim_end_matches('0').trim_end_matches('.').to_string()
     }
+}
+
+/// A number as an Inspector field shows it, to a thousandth, so the slack a full overlap leaves between mirrored halves
+/// does not stretch a row. The stored value keeps every digit.
+pub fn format_display(v: f64) -> String {
+    format_number((v * 1000.0).round() / 1000.0)
 }
 
 pub fn parse_numbers(value: &str) -> Option<Vec<f64>> {
@@ -563,6 +575,16 @@ mod tests {
         assert_eq!(format_color([1.0, 0.0, 0.0], true), "1.0 0.0 0.0");
         assert_eq!(format_number(-35.0), "-35");
         assert_eq!(format_number(0.0002), "0.0002");
+    }
+
+    #[test]
+    fn displayed_numbers_round_to_a_thousandth() {
+        assert_eq!(format_display(123.999878), "124");
+        assert_eq!(format_display(128.000122), "128");
+        assert_eq!(format_display(-255.9998779), "-256");
+        assert_eq!(format_display(-0.0004), "0");
+        assert_eq!(format_display(7.2504), "7.25");
+        assert_eq!(format_display(-0.0016), "-0.002");
     }
 
     #[test]

@@ -6898,7 +6898,12 @@ fn mirror_linked_copies_follow_edits_mirrored() {
     let overlap = ed.call("run_action", json!({ "action": "mirror_linked", "args": { "axis": "x", "plane": "max", "gap": -500 } }));
     assert_eq!(overlap["gap"], json!(-32.0), "a gap below minus the width stops there {overlap}");
     let at = overlap["plane"]["at"].as_f64().unwrap();
-    assert!(at > 24.0 && at < 24.001, "the plane stops a hair past the middle, so the halves keep their sides {overlap}");
+    assert_eq!(at, 24.0, "the plane stops a hair past the middle, which a reply rounds away {overlap}");
+    let thousandths = |v: f64| (v * 1000.0).round() / 1000.0 == v;
+    let (min, max) = ed.selection_bounds();
+    assert!(min.iter().chain(&max).all(|v| thousandths(*v)), "bounds drop the slack {min:?} {max:?}");
+    let state = ed.state();
+    assert!(state["mirror_planes"][0]["at"].as_f64().is_some_and(thousandths), "{}", state["mirror_planes"]);
     ed.call("run_action", json!({ "action": "undo" }));
 
     let before = ed.state()["undo"].as_array().unwrap().len();
@@ -6940,7 +6945,12 @@ fn set_mirror_gap_moves_both_halves() {
     let on_axis = ed.call("run_action", json!({ "action": "set_mirror_gap", "args": { "gap": -500, "axis": "x" } }));
     assert_eq!(on_axis["gap"], json!(-32.0), "a gap below minus the width stops there {on_axis}");
     assert_eq!(on_axis["plane"], json!({ "axis": "x", "at": 40.0 }), "{on_axis}");
-    ed.call("run_action", json!({ "action": "set_mirror_gap", "args": { "gap": 0 } }));
+    let (min, max) = ed.selection_bounds();
+    assert_eq!([min[0], max[0]], [24.0, 56.0], "the copy covers the original and the slack is not shown");
+    let restored = ed.call("run_action", json!({ "action": "set_mirror_gap", "args": { "gap": 0 } }));
+    assert_eq!(restored["gap"], json!(0.0), "{restored}");
+    let (min, max) = ed.selection_bounds();
+    assert_eq!([min[0], max[0]], [40.0, 72.0], "gap 0 puts the copy back on its side");
     let xs: Vec<i64> = vertices_of(&ed, source).iter().map(|v| v[0]).collect();
     assert_eq!((xs.iter().min(), xs.iter().max()), (Some(&8000), Some(&40000)), "the original comes back on its own side {xs:?}");
     ed.call("run_action", json!({ "action": "undo", "args": { "steps": 3 } }));

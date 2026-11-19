@@ -84,6 +84,11 @@ pub(crate) fn round2(v: f64) -> f64 {
     (v * 100.0).round() / 100.0
 }
 
+/// A thousandth, finer than the slack mirrored halves keep at full overlap, so replies do not show it.
+fn round3(v: f64) -> f64 {
+    (v * 1000.0).round() / 1000.0
+}
+
 fn vec2(v: &Value) -> Option<DVec2> {
     let a = v.as_array()?;
     Some(DVec2::new(a.first()?.as_f64()?, a.get(1)?.as_f64()?))
@@ -94,7 +99,7 @@ fn arr(v: DVec3) -> Value {
 }
 
 fn bounds_json(b: &Aabb) -> Value {
-    if b.is_empty() { Value::Null } else { json!({ "min": arr(b.min), "max": arr(b.max) }) }
+    if b.is_empty() { Value::Null } else { json!({ "min": arr(b.min.to_array().map(round3).into()), "max": arr(b.max.to_array().map(round3).into()) }) }
 }
 
 /// The `edit_symmetry` setting of set_editor: "off", "x", "y" or "z" (the plane through the middle of what is edited),
@@ -1267,7 +1272,7 @@ impl App {
             },
             "mirror_planes": td_doc::mirror::selection_planes(map, sel)
                 .iter()
-                .map(|m| json!({ "axis": axis_letter(m.plane.axis), "at": m.plane.at, "group": m.group.0, "partner": m.partner.0, "gap": td_doc::mirror::gap(map, m) }))
+                .map(|m| json!({ "axis": axis_letter(m.plane.axis), "at": round3(m.plane.at), "group": m.group.0, "partner": m.partner.0, "gap": td_doc::mirror::gap(map, m) }))
                 .collect::<Vec<_>>(),
             "cameras": cameras,
             "ui": {
@@ -1905,7 +1910,7 @@ impl App {
             let selected = &self.state.doc.selection.nodes;
             result["copies"] = json!(selected.iter().map(|i| i.0).collect::<Vec<_>>());
             if let Some(m) = planes.iter().find(|m| m.plane.axis == axis && selected.contains(&m.group)) {
-                result["plane"] = json!({ "axis": axis_letter(axis), "at": m.plane.at });
+                result["plane"] = json!({ "axis": axis_letter(axis), "at": round3(m.plane.at) });
                 result["gap"] = json!(td_doc::mirror::gap(&self.state.doc.map, m));
             }
         }
@@ -1913,7 +1918,7 @@ impl App {
         if let Some(axis) = mirror_gap_axis {
             let planes = td_doc::mirror::selection_planes(&self.state.doc.map, &self.state.doc.selection);
             if let Some(m) = planes.iter().find(|m| axis.is_none_or(|a| m.plane.axis == a)) {
-                result["plane"] = json!({ "axis": axis_letter(m.plane.axis), "at": m.plane.at });
+                result["plane"] = json!({ "axis": axis_letter(m.plane.axis), "at": round3(m.plane.at) });
                 result["gap"] = json!(td_doc::mirror::gap(&self.state.doc.map, m));
             }
         }
@@ -1923,7 +1928,7 @@ impl App {
         {
             result["moved"] = json!(moved);
             result["distance"] = json!(distance);
-            result["plane"] = json!({ "axis": axis_letter(plane.axis), "at": plane.at });
+            result["plane"] = json!({ "axis": axis_letter(plane.axis), "at": round3(plane.at) });
         }
 
         if name == "apply_mirror"

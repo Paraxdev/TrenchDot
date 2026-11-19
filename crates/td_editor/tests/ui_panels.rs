@@ -609,6 +609,37 @@ fn selection_summary_offers_door_wizards() {
 }
 
 #[test]
+fn inspector_rounds_the_position_and_keeps_the_data_when_a_field_is_left() {
+    let mut f = Fixture::new();
+    let layer = f.state.doc.map.default_layer();
+    let min = DVec3::new(123.999878, -0.0004, 7.25);
+    let id = f.state.doc.edit("add", |m, s| {
+        let id = m.insert(layer, NodeKind::Brush(Brush::from_aabb(&Aabb::new(min, min + DVec3::new(64.0, 32.5, 16.0)), "wood").unwrap()));
+        s.select_node(id);
+        id
+    });
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(520.0, 700.0))
+        .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+    harness.run();
+    let shown: Vec<_> = harness.get_all_by_role(egui::accesskit::Role::SpinButton).take(6).map(|n| n.value().unwrap_or_default()).collect();
+    assert_eq!(shown, ["124", "0", "7.25", "64", "32.5", "16"]);
+
+    let before = harness.state().state.doc.map.bounds(id);
+    let steps = harness.state().state.doc.history.undo_labels().count();
+    for field in [0, 1] {
+        harness.get_all_by_role(egui::accesskit::Role::SpinButton).nth(field).unwrap().click();
+        harness.run();
+        harness.key_press(egui::Key::Enter);
+        harness.run();
+    }
+
+    let doc = &harness.state().state.doc;
+    assert_eq!(doc.map.bounds(id), before, "leaving a rounded field keeps the stored position");
+    assert_eq!(doc.history.undo_labels().count(), steps);
+}
+
+#[test]
 fn inspector_types_the_position_and_size_of_the_selection() {
     let mut f = Fixture::new();
     let layer = f.state.doc.map.default_layer();

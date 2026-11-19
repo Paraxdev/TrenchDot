@@ -654,7 +654,7 @@ fn select_outliner_row(state: &mut EditorState, ps: &mut PanelState, order: &[No
 }
 
 fn xyz(v: DVec3, sep: &str) -> String {
-    [v.x, v.y, v.z].map(widgets::format_number).join(sep)
+    [v.x, v.y, v.z].map(widgets::format_display).join(sep)
 }
 
 fn outliner_tooltip(ui: &mut Ui, map: &td_doc::Map, id: NodeId, node: &td_doc::Node, open: bool) {
