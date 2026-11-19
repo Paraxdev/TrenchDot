@@ -15,9 +15,11 @@ editor you know, TrenchBroom is already marked, or **Skip** to keep it. That is 
 You can change your mind at any time with *File > Preferences > Keymap preset*, or with **Preset** at the top of
 *Help > Keyboard Shortcuts…*. Keys you set yourself there stay on top of any preset.
 
-The Hammer preset moves about a dozen actions to the keys Hammer uses, and an action that loses its key to one of
-them gets a new one, Close Tab moves to Ctrl+F4 so that Ctrl+W can be Move to World. The mouse works as it does for
-TrenchBroom whatever you pick.
+The Hammer preset gives you Hammer's mouse and keys. Shift+drag clones the selection, Shift+A opens the Texture tool,
+Ctrl+M opens Transform Selection, Ctrl+T ties brushes to an entity, and Ctrl+L and Ctrl+I flip along the view. An action
+that loses its key to one of them gets a new one, so Close Tab moves to Ctrl+F4 to leave Ctrl+W for Move to World. The
+TrenchBroom and Blender presets keep their own mouse and keys, [Keys](#keys) and [Mouse](#mouse) below show where the
+three differ.
 
 ## Where things are
 
@@ -26,8 +28,9 @@ TrenchBroom whatever you pick.
 | Block tool, a solid | Drag in a view | Drag in any view with the Select tool (Q) to draw a box [brush](brushes.md#draw-and-move), Ctrl+Shift+B for arches, stairs and cylinders |
 | Selection tool | Select | **Select** tool, Q |
 | worldspawn | worldspawn | The map's worldspawn holds the world brushes, select nothing to see its keys in the Inspector |
-| Tie to Entity | *Create Brush Entity* in the right click menu | Select the brushes, right click and pick a class under *Create Brush Entity*, or double click a brush entity card in the **Entities** panel, see [Brush entities](../gameplay/placing.md#brush-entities) |
+| Tie to Entity | *Create Brush Entity* in the right click menu | Select the brushes and pick *Brush > Tie to Entity*, Ctrl+T in the Hammer preset, see [below](#where-trenchdot-differs). Right click and *Create Brush Entity*, or double clicking a brush entity card in the **Entities** panel, work too, see [Brush entities](../gameplay/placing.md#brush-entities) |
 | Move to World | *Move brushes to Entity* in the right click menu | Ctrl+Shift+W, or Ctrl+W in the Hammer preset |
+| Transform (Ctrl+M) | The Rotate and Scale tools | *Brush > Transform > Transform Selection…*, Ctrl+M in the Hammer preset, see [below](#where-trenchdot-differs) |
 | Entity tool | Drag from the entity browser | Drag a card from the **Entities** panel into a view, see [Placing entities](../gameplay/placing.md#placing-entities) |
 | VisGroups | Layers | [Layers](organizing.md#layers) in the **Outliner**, the eye hides one and the lock stops edits, there are no automatic VisGroups |
 | Groups | Groups | [Groups](organizing.md#groups), Ctrl+G |
@@ -35,7 +38,7 @@ TrenchBroom whatever you pick.
 | Make Hollow | CSG hollow | *Brush > CSG > Hollow*, Ctrl+Shift+K |
 | Clipping tool | Clip tool | **Clip** tool, C |
 | Vertex Manipulation | Vertex tool | **Vertex** tool, V |
-| Texture Application tool, Face Edit Sheet | Face inspector, material browser | **Texture** tool (Shift+T), the **Alignment** section of the Inspector and the **Materials** panel, see [Texturing](texturing.md). The [UV Editor](uv-editor.md) draws faces flat |
+| Texture Application tool, Face Edit Sheet | Face inspector, material browser | **Texture** tool (Shift+T, or Shift+A in the Hammer preset), which shows the face panel in the Inspector with its **Alignment** section, and the **Materials** panel, see [Texturing](texturing.md). The [UV Editor](uv-editor.md) draws faces flat |
 | Displacements | n/a | The **Sculpt** tool shapes [displacements](brushes.md#displacements) and terrain |
 | FGD | Entity definition files | The entities of your Godot project, which the addon writes to `trenchdot_game.json` and the **Entities** panel lists |
 | Entity I/O | n/a | **Outputs** at the bottom of the Inspector, see [How entity I/O works](../gameplay/io.md) |
@@ -60,14 +63,17 @@ TrenchBroom keys are the defaults of TrenchBroom 2026.2. An empty cell means tha
 | Scale tool | T | T | T |
 | Shear tool | G | Shift+R | Shift+R |
 | Subtract, hollow | Ctrl+K, Ctrl+Shift+K | Ctrl+K, Ctrl+Shift+K | Ctrl+K, Ctrl+Shift+K |
+| Transform Selection | | | Ctrl+M |
+| Tie to Entity | | | Ctrl+T |
+| Flip horizontally, vertically | Ctrl+F, Ctrl+Alt+F | | Ctrl+L, Ctrl+I |
 | Convex merge | Ctrl+J | Ctrl+M | Ctrl+Shift+M |
 | Intersect | Ctrl+L | Ctrl+L | Ctrl+Shift+L |
 | Duplicate, duplicate linked | Ctrl+D, Ctrl+Shift+D | Ctrl+D, Ctrl+Shift+D | Ctrl+D, Ctrl+Shift+D |
 | Group, ungroup | Ctrl+G, Ctrl+Shift+G | Ctrl+G, Ctrl+Shift+G | Ctrl+G, Ctrl+Shift+G |
 | Select all | Ctrl+A | Ctrl+A | Ctrl+A |
 | Select none | Ctrl+Shift+A | Ctrl+Shift+A, Esc | Esc |
-| Invert selection | Ctrl+Alt+A | Ctrl+I | Ctrl+I |
-| Select touching | Ctrl+T | Ctrl+T | Ctrl+T |
+| Invert selection | Ctrl+Alt+A | Ctrl+I | Ctrl+Shift+I |
+| Select touching | Ctrl+T | Ctrl+T | Ctrl+Shift+T |
 | Select inside | Ctrl+E | Ctrl+E | Ctrl+E |
 | Hide selection | Ctrl+Alt+I | Ctrl+H | H |
 | Isolate selection | Ctrl+I | Ctrl+J | Ctrl+H |
@@ -78,50 +84,72 @@ TrenchBroom keys are the defaults of TrenchBroom 2026.2. An empty cell means tha
 | Maximize the view | Ctrl+Space | Shift+Space | Shift+Space |
 | Repeat the last action | Ctrl+R | Ctrl+R | Ctrl+R |
 
-Hammer's own key for Tie to Entity is Ctrl+T, TrenchDot has none, see [below](#where-trenchdot-differs). The full list of
-keys is on [Shortcuts](shortcuts.md).
+Transform Selection, Tie to Entity and the two flips have no key outside the Hammer preset, they sit in the *Brush* menu
+and the command palette, and you can bind them on the **Keys** tab of *Help > Keyboard Shortcuts…*. In the Hammer
+preset, Rotate Y 90 moved to Ctrl+Shift+R, because Ctrl+L flips. The full list of keys is on
+[Shortcuts](shortcuts.md).
 
 ## Mouse
 
-Hammer lets you pick its camera controls in its options, so this table compares TrenchBroom, whose gestures TrenchDot
-follows.
+Hammer lets you pick its camera controls in its options, so the camera rows compare TrenchBroom, whose gestures TrenchDot
+follows. The Hammer preset changes how the Select tool picks faces and what a drag does, and a cell that says "Same" is
+what the TrenchDot column says.
 
-| Gesture | TrenchBroom | TrenchDot |
-| --- | --- | --- |
-| Look around in 3D | Right drag | Right drag |
-| Fly in 3D | WASD while the right button is held | WASD while the right button is held, Q and E go down and up, Shift is faster |
-| Move forward and back in 3D | Wheel | Wheel |
-| Pan in 3D | Middle drag | Middle drag |
-| Orbit | Alt+right drag | Alt+left drag |
-| Pan in a 2D view | Middle or right drag | Middle or right drag |
-| Zoom in a 2D view | Wheel | Wheel |
-| Select | Click | Click |
-| Add to or remove from the selection | Ctrl+click | Ctrl+click |
-| Select a group | Click selects the group, double click opens it | Click selects the group, double click opens it |
-| Pick what lies behind | Ctrl+wheel | Click again at the same spot, or Alt+click, in the Top, Front and Side views |
-| Select a face | Shift+click | Shift+click |
-| Add a face | Ctrl+Shift+click | Ctrl+Shift+click |
-| Select every face of a brush | Shift+double click | *Edit > Select > Brush Faces*, Ctrl+Shift+A in the Hammer preset |
-| Move on the grid | Drag the selection | Drag the selection |
-| Move vertically in 3D | Alt+drag | Alt+drag |
-| Lock the move to one axis | Shift while dragging | Shift while dragging |
-| Duplicate while dragging | Ctrl+drag | Ctrl+drag |
-| Push or pull a face | Shift+drag | Shift+drag a selected face in 3D |
-| Extrude a new brush | Ctrl+Shift+drag | Ctrl+Shift+drag a selected face in 3D |
-| Change the grid size | Ctrl+Alt+wheel | `[` and `]` |
-| Open the context menu | Right click | Right click |
+| Gesture | TrenchBroom | TrenchDot | Hammer preset |
+| --- | --- | --- | --- |
+| Look around in 3D | Right drag | Right drag | Same |
+| Fly in 3D | WASD while the right button is held | WASD while the right button is held, Q and E go down and up, Shift is faster | Same |
+| Move forward and back in 3D | Wheel | Wheel | Same |
+| Pan in 3D | Middle drag | Middle drag | Same |
+| Orbit | Alt+right drag | Alt+left drag | Same |
+| Pan in a 2D view | Middle or right drag | Middle or right drag | Same |
+| Zoom in a 2D view | Wheel | Wheel | Same |
+| Select | Click | Click | Same |
+| Add to or remove from the selection | Ctrl+click | Ctrl+click | Same |
+| Select a group | Click selects the group, double click opens it | Click selects the group, double click opens it | Same |
+| Pick what lies behind | Ctrl+wheel | Click again at the same spot, or Alt+click, in the Top, Front and Side views | Same |
+| Select a face | Shift+click | Shift+click | Click in the Texture tool (Shift+A) |
+| Add a face | Ctrl+Shift+click | Ctrl+Shift+click | Ctrl+click in the Texture tool |
+| Select every face of a brush | Shift+double click | *Edit > Select > Brush Faces*, Ctrl+Shift+A in the Hammer preset | Same, or Ctrl+A in the Texture tool |
+| Move on the grid | Drag the selection | Drag the selection | Same |
+| Move vertically in 3D | Alt+drag | Alt+drag | Same |
+| Lock the move to one axis | Shift while dragging | Shift while dragging | Drag a gizmo arrow, Shift does not lock |
+| Duplicate while dragging | Ctrl+drag | Ctrl+drag | Shift+drag or Ctrl+drag |
+| Push or pull a face | Shift+drag | Shift+drag a selected face in 3D | None, Shift+drag copies |
+| Extrude a new brush | Ctrl+Shift+drag | Ctrl+Shift+drag a selected face in 3D | None, Ctrl+Shift+drag copies |
+| Change the grid size | Ctrl+Alt+wheel | `[` and `]` | Same |
+| Open the context menu | Right click | Right click | Same |
 
 ## Where TrenchDot differs
 
 * **Alt+left drag orbits**, where TrenchBroom uses Alt+right drag. In the Select tool a drag that starts on the
   selection or its gizmo moves it vertically instead.
-* **Hammer's Ctrl+T, Tie to Entity, has no key.** Right click the selected brushes and pick *Create Brush Entity*, or
-  double click a card in the **Entities** panel. Ctrl+T selects what the selection touches, as in TrenchBroom.
-* **There is no Transform dialog.** Type a position or size into the Inspector, drag the gizmo, use the Rotate tool
-  (R) or *Brush > Transform* for flips, mirrors and alignment.
+* **Tie to Entity opens a class list.** Select the brushes and press Ctrl+T in the Hammer preset, or pick *Brush > Tie
+  to Entity* in any preset. The command palette comes up with only the brush entity classes of your game, `func_detail`
+  already highlighted, so Ctrl+T then Enter makes the brushes one detail entity. Type to filter the list, Esc closes it
+  and changes nothing. Brushes that already are one whole entity are selected instead, change their class in the
+  Inspector, so a tie never strips a door of its properties. In the other presets Ctrl+T selects what the selection
+  touches, as in TrenchBroom, and that action sits on Ctrl+Shift+T in the Hammer preset.
+
+  ![The command palette opened by Ctrl+T, titled Tie to Entity, listing brush entity classes with func_detail highlighted](../assets/coming-from-hammer-trenchbroom/tie-to-entity.png)
+
+* **Transform Selection is a small window.** Press Ctrl+M in the Hammer preset, or pick *Brush > Transform > Transform
+  Selection…*. Choose **Move**, **Rotate** or **Scale**, type X, Y and Z, and click **Apply**. Move takes map units
+  and goes exactly where you type, with no grid snap. Rotate takes degrees about the center of the selection. Scale
+  takes factors about that center, and a negative factor mirrors. The window stays open so you can apply the same step
+  again, and each Apply is one undo step. The shape generator stays on Ctrl+Shift+B in every preset.
+* **Flip follows your view in the Hammer preset.** Ctrl+L flips the selection left to right and Ctrl+I top to bottom as
+  the view under the pointer shows it, so Ctrl+L in the Top view flips X and Ctrl+I there flips Z. In the other presets
+  *Brush > Transform* flips along a world axis you name.
 * **Ctrl+Shift+A is Select None**, as in TrenchBroom. The Hammer preset gives it to Select Brush Faces, which picks every face of the selected brushes to texture them one by one, and Esc clears the selection there.
-* **The Hammer preset only moves keys.** Mouse gestures stay as above, and the tools Hammer has no key for keep the
-  TrenchBroom ones.
+* **The Hammer preset changes the Select tool's mouse too.** Shift+drag copies the selection, in every view, and a drag
+  never locks to an axis, drag a gizmo arrow for that. Shift+click picks an object like a plain click, because Shift
+  belongs to cloning, so faces are picked in the Texture tool (Shift+A) and nothing pushes or pulls a face with Shift. The
+  camera and the tools Hammer has no key for keep the TrenchBroom ones. **Help > Keyboard Shortcuts…** shows the mouse of
+  the preset you are on.
+
+  ![The Mouse tab of Keyboard Shortcuts with the Hammer preset chosen, listing Shift+drag as the copy gesture](../assets/coming-from-hammer-trenchbroom/mouse-tab-hammer.png)
+
 * **There is no compile.** Textures, entities and lighting come from your Godot project, see
   [Build your first room](../getting-started.md).
 
