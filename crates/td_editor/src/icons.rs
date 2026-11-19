@@ -33,6 +33,7 @@ macro_rules! icons {
 
 icons! {
     SELECT = "mouse-pointer-2",
+    BLOCK = "square-plus",
     CLIP = "scissors",
     POLYGON = "pentagon",
     VERTEX = "vector-square",
@@ -119,6 +120,7 @@ pub fn install(ctx: &egui::Context) {
 pub fn tool(tool: ToolKind) -> Icon {
     match tool {
         ToolKind::Select => SELECT,
+        ToolKind::Block => BLOCK,
         ToolKind::Clip => CLIP,
         ToolKind::Polygon => POLYGON,
         ToolKind::Vertex => VERTEX,

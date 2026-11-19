@@ -20,6 +20,12 @@ Untick *New brush depth from selection* in *File > Preferences* to always use th
 
 ![The four views while a box is drawn in 3D, the new box is 144 by 144 units and one grid step, 16 units, thick](../assets/brushes/draw-box-3d.png)
 
+A drag that starts on the selection moves it instead. To draw a new box over it, pick the **Block** tool right of
+Select in the toolbar, Shift+B in the Hammer preset. Every drag then draws, a click still selects, and in a 2D view a
+drag on an edge of the selection still resizes it.
+
+![The Block tool button right of Select in the toolbar, hovered, with its tooltip](../assets/brushes/toolbar-block.png)
+
 Once a brush is selected you can move it around:
 
 | Input | Result |

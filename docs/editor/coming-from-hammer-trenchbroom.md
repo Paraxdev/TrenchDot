@@ -25,7 +25,7 @@ three differ.
 
 | Hammer | TrenchBroom | TrenchDot |
 | --- | --- | --- |
-| Block tool, a solid | Drag in a view | Drag in any view with the Select tool (Q) to draw a box [brush](brushes.md#draw-and-move), Ctrl+Shift+B for arches, stairs and cylinders |
+| Block tool, a solid | Drag in a view | Drag in any view with the Select tool (Q) to draw a box [brush](brushes.md#draw-and-move), or with the **Block** tool (Shift+B in the Hammer preset) to draw over the selection too. Ctrl+Shift+B for arches, stairs and cylinders |
 | Selection tool | Select | **Select** tool, Q |
 | worldspawn | worldspawn | The map's worldspawn holds the world brushes, select nothing to see its keys in the Inspector |
 | Tie to Entity | *Create Brush Entity* in the right click menu | Select the brushes and pick *Brush > Tie to Entity*, Ctrl+T in the Hammer preset, see [below](#where-trenchdot-differs). Right click and *Create Brush Entity*, or double clicking a brush entity card in the **Entities** panel, work too, see [Brush entities](../gameplay/placing.md#brush-entities) |
@@ -56,6 +56,7 @@ TrenchBroom keys are the defaults of TrenchBroom 2026.2. An empty cell means tha
 | Action | TrenchBroom | TrenchDot | Hammer preset |
 | --- | --- | --- | --- |
 | Select tool | Shift+Esc leaves the current tool | Q | Shift+S |
+| Block tool | | | Shift+B |
 | Clip tool | C | C | Shift+X |
 | Vertex tool | V | V | Shift+V |
 | Texture tool | | Shift+T | Shift+A |
@@ -85,9 +86,9 @@ TrenchBroom keys are the defaults of TrenchBroom 2026.2. An empty cell means tha
 | Repeat the last action | Ctrl+R | Ctrl+R | Ctrl+R |
 
 Transform Selection, Tie to Entity and the two flips have no key outside the Hammer preset, they sit in the *Brush* menu
-and the command palette, and you can bind them on the **Keys** tab of *Help > Keyboard Shortcuts…*. In the Hammer
-preset, Rotate Y 90 moved to Ctrl+Shift+R, because Ctrl+L flips. The full list of keys is on
-[Shortcuts](shortcuts.md).
+and the command palette, and you can bind them on the **Keys** tab of *Help > Keyboard Shortcuts…*. The Block tool
+sits right of Select in the toolbar. In the Hammer preset, Rotate Y 90 moved to Ctrl+Shift+R, because Ctrl+L flips.
+The full list of keys is on [Shortcuts](shortcuts.md).
 
 ## Mouse
 

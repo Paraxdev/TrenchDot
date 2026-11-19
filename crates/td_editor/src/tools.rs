@@ -6,6 +6,8 @@ use crate::i18n::en;
 pub enum ToolKind {
     /// Selection, moving, brush drawing, face dragging and entity gizmo handles (TrenchBroom default tool).
     Select,
+    /// Draws box brushes, also over the selection, the Hammer Block tool.
+    Block,
     Clip,
     /// Draws an outline of corners and extrudes it into a brush, or several for a concave one.
     Polygon,
@@ -38,6 +40,7 @@ impl ToolKind {
     pub fn label(&self) -> &'static str {
         match self {
             ToolKind::Select => en!("Select"),
+            ToolKind::Block => en!("Block"),
             ToolKind::Clip => en!("Clip"),
             ToolKind::Polygon => en!("Polygon"),
             ToolKind::Vertex => en!("Vertex"),
@@ -56,9 +59,10 @@ impl ToolKind {
         }
     }
 
-    pub fn all() -> [ToolKind; 16] {
+    pub fn all() -> [ToolKind; 17] {
         [
             ToolKind::Select,
+            ToolKind::Block,
             ToolKind::Polygon,
             ToolKind::Clip,
             ToolKind::Vertex,
@@ -110,7 +114,7 @@ impl ToolFamily {
 
 /// Brush editing, then surfaces, meshes and the gameplay helpers. Sub groups are split by a small gap in the toolbar and a separator in the Tools menu.
 pub const BRUSH_TOOLS: &[&[ToolKind]] = &[
-    &[ToolKind::Select, ToolKind::Polygon, ToolKind::Clip, ToolKind::Vertex, ToolKind::Rotate, ToolKind::Scale, ToolKind::Shear],
+    &[ToolKind::Select, ToolKind::Block, ToolKind::Polygon, ToolKind::Clip, ToolKind::Vertex, ToolKind::Rotate, ToolKind::Scale, ToolKind::Shear],
     &[ToolKind::Texture],
     &[ToolKind::Mesh],
     &[ToolKind::Volume, ToolKind::Path, ToolKind::Measure],
@@ -206,7 +210,7 @@ mod tests {
     fn brush_tools_come_first_and_terrain_tools_are_their_own_family() {
         assert_eq!(FAMILIES[0], BRUSH_TOOLS);
         assert_eq!(FAMILIES[1], TERRAIN_TOOLS);
-        assert_eq!(BRUSH_TOOLS[0][0], ToolKind::Select);
+        assert_eq!(BRUSH_TOOLS[0][..2], [ToolKind::Select, ToolKind::Block]);
         assert!(BRUSH_TOOLS.iter().any(|g| g.contains(&ToolKind::Texture)));
         let terrain: Vec<ToolKind> = TERRAIN_TOOLS.iter().flat_map(|g| g.iter().copied()).collect();
         assert_eq!(terrain, [ToolKind::Sculpt, ToolKind::Blend, ToolKind::Paint, ToolKind::Scatter]);
@@ -214,5 +218,11 @@ mod tests {
             let want = if terrain.contains(&t) { ToolFamily::Terrain } else { ToolFamily::Brush };
             assert_eq!(t.family(), want, "{}", t.label());
         }
+    }
+
+    #[test]
+    fn the_block_tool_is_found_by_name() {
+        assert_eq!(ToolKind::from_name("block"), Some(ToolKind::Block));
+        assert_eq!(ToolKind::from_name("BLOCK"), Some(ToolKind::Block));
     }
 }

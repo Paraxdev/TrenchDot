@@ -11,7 +11,7 @@ The menus are at the top. A command sits under the kind of object it changes, so
 sculpting under *Terrain*.
 
 The toolbar under the menus starts with New, Open, Save, Undo and Redo, then the tools in two families. The brush
-tools come first: Select, Polygon, Clip, Vertex, Rotate, Scale and Shear, then Texture and Mesh, then Volume, Path and
+tools come first: Select, Block, Polygon, Clip, Vertex, Rotate, Scale and Shear, then Texture and Mesh, then Volume, Path and
 Measure. After a divider come the terrain and paint tools, Sculpt, Blend, Paint and Scatter. Grid, Snap, the CSG
 buttons and the shading toggles follow. The *Tools* menu lists the same tools in the same order.
 

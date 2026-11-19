@@ -97,7 +97,7 @@ impl Viewport {
             // A tool picked mid drag (a shortcut, the toolbar) stops the select handling below, so close its edit here.
             // A drag whose transaction was closed elsewhere (undo, a tab switch) must not go on editing outside it.
             // The Shape Generator's box has none, it ends with the box (a selection took the dialog over).
-            let switched = cx.state.tool != ToolKind::Select;
+            let switched = !draws_like_select(cx.state.tool);
             let orphaned = if matches!(self.drag, Some(Drag::ShapeBounds { .. })) { cx.state.shape_bounds.is_none() } else { !cx.state.doc.in_transaction() };
             if switched || orphaned {
                 self.drag = None;
@@ -116,7 +116,7 @@ impl Viewport {
         let extruding = cx.tools.extrude.active();
         if !closing_menu && extruding && !self.is_camera_drag() {
             cx.tools.extrude.input(ui, &response, &self.camera, rect, cx.state);
-        } else if !closing_menu && (cx.state.tool == ToolKind::Select || self.is_camera_drag()) {
+        } else if !closing_menu && (draws_like_select(cx.state.tool) || self.is_camera_drag()) {
             self.handle_select_tool(ui, &response, cx);
         } else if !closing_menu {
             let hover = response.hover_pos();
@@ -283,7 +283,7 @@ impl Viewport {
     /// Alt+drag in the 3D view orbits. Only a drag in the Select tool that starts on the selection or one of its gizmos
     /// moves the selection vertically instead, and other tools keep Alt+drag for themselves while something is selected.
     fn alt_drag_orbits(&self, origin: Option<Pos2>, cx: &ViewCtx) -> bool {
-        if cx.state.doc.selection.is_empty() {
+        if cx.state.doc.selection.is_empty() || cx.state.tool == ToolKind::Block {
             return true;
         }
 
@@ -305,7 +305,7 @@ impl Viewport {
     }
 
     fn handle_keys(&mut self, ui: &Ui, cx: &mut ViewCtx) {
-        if !self.hovered || ui.ctx().egui_wants_keyboard_input() || cx.state.tool != ToolKind::Select {
+        if !self.hovered || ui.ctx().egui_wants_keyboard_input() || !draws_like_select(cx.state.tool) {
             return;
         }
 
@@ -601,14 +601,16 @@ impl Viewport {
     }
 
     fn begin_primary_drag(&mut self, origin: Pos2, modifiers: egui::Modifiers, cx: &mut ViewCtx) -> Option<Drag> {
-        if let Some(handle) = crate::gizmos::handle_at(cx.state, &self.camera, self.rect, origin)
+        let block = cx.state.tool == ToolKind::Block;
+        if !block
+            && let Some(handle) = crate::gizmos::handle_at(cx.state, &self.camera, self.rect, origin)
             && let Some(start) = crate::gizmos::handle_position(cx.state, handle)
         {
             cx.state.doc.begin(en!("Edit Gizmo"));
             return Some(Drag::Gizmo { handle, start });
         }
 
-        if let Some(drag) = crate::transform_gizmo::begin(cx.state, &self.camera, self.rect, origin) {
+        if !block && let Some(drag) = crate::transform_gizmo::begin(cx.state, &self.camera, self.rect, origin) {
             return Some(Drag::Transform(drag));
         }
 
@@ -642,7 +644,7 @@ impl Viewport {
             picking::pick(state, &ray)
         };
 
-        if let Some(h) = hit {
+        if let Some(h) = hit.filter(|_| !block) {
             let face = if self.camera.kind == ViewKind::Perspective && selected(h.node) { h.face.zip(map.brush(h.node)) } else { None };
             let grabbed = if face.is_some() { DragHit::SelectedFace3d } else { DragHit::Selected };
             let action = selection_drag(&preset, Chord::new(Button::Drag, modifiers), grabbed);
@@ -1495,6 +1497,10 @@ fn nearest_side(pos: Pos2, sides: &[FaceSide]) -> Option<usize> {
     }
 
     best.map(|(i, _)| i)
+}
+
+fn draws_like_select(tool: ToolKind) -> bool {
+    matches!(tool, ToolKind::Select | ToolKind::Block)
 }
 
 /// Whether a press with `modifiers` on a side of the selection resizes it, or lets the press copy the selection.

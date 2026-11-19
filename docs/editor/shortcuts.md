@@ -161,7 +161,7 @@ A preset only changes the keys and mouse gestures below, everything else stays a
 | Key | Hammer preset |
 | --- | --- |
 | Ctrl+Shift+A | Select Brush Faces, swap the selected brushes and meshes for all their faces. Select None has no key here, Esc clears in two presses at most |
-| Shift+S, Shift+X, Shift+V, Shift+A | Select, clip, vertex, texture tool |
+| Shift+S, Shift+B, Shift+X, Shift+V, Shift+A | Select, block, clip, vertex, texture tool |
 | H, Ctrl+H, U | Hide, isolate, show all |
 | Ctrl+W | Move brushes to world |
 | Ctrl+T, Ctrl+Shift+T | Tie to Entity, and Select Touching, which moved to Ctrl+Shift+T. Ctrl+T opens the class list with `func_detail` highlighted, so Ctrl+T then Enter makes the selected brushes one detail entity. Type to filter, Esc cancels. A selection that already is a whole brush entity is selected instead, change its class in the Inspector. Also under Brush > Tie to Entity |

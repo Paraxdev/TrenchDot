@@ -720,6 +720,7 @@ pub fn preset_bindings(preset: &str) -> Vec<(KeyboardShortcut, Action)> {
         "hammer" => vec![
             (sc(CTRL_SHIFT, Key::A), Action::SelectBrushFaces),
             (sc(SHIFT, Key::S), Action::SetTool(ToolKind::Select)),
+            (sc(SHIFT, Key::B), Action::SetTool(ToolKind::Block)),
             (sc(SHIFT, Key::X), Action::SetTool(ToolKind::Clip)),
             (sc(SHIFT, Key::V), Action::SetTool(ToolKind::Vertex)),
             (sc(CTRL, Key::W), Action::MoveToWorld),
@@ -3608,6 +3609,8 @@ mod tests {
             assert_eq!(has(Action::FlipHorizontal, sc(CTRL, Key::L)), hammer, "{preset}");
             assert_eq!(has(Action::FlipVertical, sc(CTRL, Key::I)), hammer, "{preset}");
             assert_eq!(has(Action::Rotate { axis: 1, degrees: 90.0 }, sc(CTRL_SHIFT, Key::R)), hammer, "{preset}");
+            assert_eq!(has(Action::SetTool(ToolKind::Block), sc(SHIFT, Key::B)), hammer, "{preset}");
+            assert_eq!(bindings.iter().any(|(_, a)| *a == Action::SetTool(ToolKind::Block)), hammer, "{preset}: only Hammer binds the Block tool");
             assert_eq!(has(Action::ShowTransformDialog, sc(CTRL, Key::M)), hammer, "{preset}");
             assert_eq!(bindings.iter().any(|(_, a)| *a == Action::ShowTransformDialog), hammer, "{preset}: only Hammer binds Transform Selection");
             assert!(has(Action::ShowShapeDialog, sc(CTRL_SHIFT, Key::B)), "{preset}: the Shape Generator keeps its base key");
@@ -4424,6 +4427,17 @@ mod tests {
         });
         state.expire_selection_status();
         assert_eq!(state.status, "Saved", "other news outlasts a selection change");
+    }
+
+    #[test]
+    fn the_block_tool_key_toggles_back_to_select() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        execute(&mut state, Action::SetTool(ToolKind::Block), &ctx);
+        assert_eq!(state.tool, ToolKind::Block);
+        assert_eq!(state.status, "Block tool");
+        execute(&mut state, Action::SetTool(ToolKind::Block), &ctx);
+        assert_eq!(state.tool, ToolKind::Select);
     }
 
     #[test]

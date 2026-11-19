@@ -4402,6 +4402,68 @@ fn ctrl_a_in_the_hammer_texture_tool_selects_faces() {
     assert_eq!(selection_of(&ed), (vec![a, wedge, c, light], vec![]), "Hammer outside the Texture tool selects objects");
 }
 
+/// The Block tool draws a box wherever a drag starts, also on the selection the Select tool would move. A drag on a 2D
+/// edge of the selection still resizes it, and Alt+drag in 3D orbits even when it starts on the selection.
+#[test]
+#[ignore]
+fn the_block_tool_draws_over_the_selection() {
+    let ed = Editor::launch("block_tool");
+    let a = ed.box_brush([40.0, 8.0, -72.0], [104.0, 72.0, -20.0]);
+    ed.call("set_editor", json!({ "grid": 8, "snap": true, "keymap": "hammer" }));
+    ed.call("set_camera", json!({ "view": "top", "center": [72, 0, -46], "zoom": 1.5 }));
+    let bounds = || -> Vec<[[i64; 3]; 2]> {
+        let nodes = ed.call("list_nodes", json!({ "type": "brush" }));
+        let mut all: Vec<_> = nodes["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|n| ["min", "max"].map(|end| [0, 1, 2].map(|i| n["bounds"][end][i].as_f64().unwrap().round() as i64)))
+            .collect();
+        all.sort();
+        all
+    };
+    let tool = || ed.state()["editor"]["tool"].clone();
+    let undo = || ed.call("run_action", json!({ "action": "undo" }));
+    let shift_b = || ed.input("top", json!([{ "type": "move" }, { "type": "key", "key": "B", "modifiers": ["shift"] }]));
+    let drag = |from: [i64; 3], to: [i64; 3]| {
+        ed.call("select", json!({ "ids": [a] }));
+        ed.input("top", json!([{ "type": "drag", "world": from, "to_world": to }]));
+    };
+    let home = [[40, 8, -72], [104, 72, -20]];
+
+    shift_b();
+    assert_eq!(tool(), "Block");
+    drag([60, 0, -50], [97, 0, -29]);
+    let after = bounds();
+    assert_eq!(after.len(), 2, "{after:?}");
+    assert!(after.contains(&home), "the selection stays put {after:?}");
+    let drawn = after.iter().find(|b| **b != home).unwrap();
+    assert_eq!((drawn[0][1], drawn[1][1]), (8, 72), "the box takes the selection's depth {drawn:?}");
+    assert_eq!(ed.state()["undo"][0], "Create Brush");
+    undo();
+
+    drag([104, 0, -46], [120, 0, -46]);
+    assert_eq!(bounds(), vec![[[40, 8, -72], [120, 72, -20]]], "a 2D edge drag still resizes");
+    undo();
+
+    shift_b();
+    assert_eq!(tool(), "Select", "Shift+B again goes back to Select");
+    drag([60, 0, -50], [97, 0, -29]);
+    assert_eq!(bounds(), vec![[[80, 8, -48], [144, 72, 4]]], "the Select tool moves the selection instead");
+    undo();
+
+    ed.call("run_action", json!({ "action": "set_tool", "args": { "tool": "block" } }));
+    let slab = ed.box_brush([-384.0, 112.0, -384.0], [384.0, 128.0, 384.0]);
+    ed.call("select", json!({ "ids": [slab] }));
+    ed.call("set_camera", json!({ "view": "3d", "position": [-300, 250, 300], "look_at": [0, 64, 0] }));
+    let camera = || ed.state()["cameras"].as_array().unwrap().iter().find(|c| c["view"] == "3d").unwrap()["position"].clone();
+    let before = camera();
+    ed.input("3d", json!([{ "type": "drag", "world": [-200, 128, 200], "to_world": [-200, 200, 200], "modifiers": ["alt"], "steps": 12 }]));
+    assert_ne!(camera(), before, "Alt+drag on the selection orbits");
+    assert_eq!(ed.brushes(), 2);
+    assert!(bounds().contains(&[[-384, 112, -384], [384, 128, 384]]), "the slab stays put {:?}", bounds());
+}
+
 /// The Hammer preset clones on Shift+drag, Ctrl+drag too, and has no Shift axis lock. TrenchBroom keeps Shift as the
 /// axis lock and as the face push in 3D.
 #[test]

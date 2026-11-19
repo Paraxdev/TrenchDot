@@ -200,7 +200,7 @@ pub fn view_hint(
 
     if kind.is_2d() {
         // With the Shape Generator's box showing, a drag draws that box rather than a brush.
-        if state.tool == ToolKind::Select && state.shape_bounds.is_none() && rect.width() > 160.0 && rect.height() > 80.0 {
+        if matches!(state.tool, ToolKind::Select | ToolKind::Block) && state.shape_bounds.is_none() && rect.width() > 160.0 && rect.height() > 80.0 {
             let start = start_view == Some(kind);
             let (text, color) = if start {
                 (tr("Drag here to draw your first box"), theme::colors().yellow)
@@ -250,7 +250,7 @@ pub fn view_hint(
                 Some(ViewKind::Side) => tr("in the Side view"),
                 _ => tr("in this view"),
             };
-            let first = if state.tool == ToolKind::Select {
+            let first = if matches!(state.tool, ToolKind::Select | ToolKind::Block) {
                 trf!("To start, drag {place} to draw your first box.", place)
             } else {
                 match crate::commands::shortcut_text(ui.ctx(), &state.prefs, &Action::SetTool(ToolKind::Select)) {

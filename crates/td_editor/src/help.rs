@@ -34,6 +34,7 @@ use Topic::{Menu, Panel, Section, Tool};
 /// dropped and underscores kept.
 pub const PAGES: &[(Topic<'static>, &str, &str)] = &[
     (Tool(ToolKind::Select), "editor/brushes", "draw-and-move"),
+    (Tool(ToolKind::Block), "editor/brushes", "draw-and-move"),
     (Tool(ToolKind::Polygon), "editor/brushes", "polygon-brush"),
     (Tool(ToolKind::Clip), "editor/brushes", "reshape"),
     (Tool(ToolKind::Vertex), "editor/brushes", "reshape"),
@@ -220,6 +221,7 @@ pub fn hint(ui: &mut Ui, hint: &str) {
 pub fn tool_line(tool: ToolKind) -> &'static str {
     match tool {
         ToolKind::Select => en!("Click picks, a group whole, double click opens it, drag empty space to draw a brush"),
+        ToolKind::Block => en!("Drag draws a box brush, a 2D edge of the selection still resizes"),
         ToolKind::Clip => en!("Click two or three points, Tab picks the side to keep, Enter clips"),
         ToolKind::Polygon => en!("Click the corners of an outline, Enter or the first corner closes it"),
         ToolKind::Vertex => en!("Drag corners and midpoints, Delete removes vertices"),

@@ -539,7 +539,7 @@ impl ToolSet {
             ToolKind::Path => self.path.input(response, cam, rect, state),
             ToolKind::Measure => self.measure.input(ui, response, cam, rect, state),
             ToolKind::Texture => self.texture.input(ui, response, cam, rect, hover, state),
-            ToolKind::Select => {}
+            ToolKind::Select | ToolKind::Block => {}
         }
     }
 
@@ -1566,7 +1566,7 @@ impl ToolSet {
                     Color32::from_rgb(255, 170, 230),
                 );
             }
-            ToolKind::Select => {}
+            ToolKind::Select | ToolKind::Block => {}
         }
     }
 }
