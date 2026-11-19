@@ -260,7 +260,11 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
                     return;
                 }
 
-                let resp = ui.selectable_label(selected, label).interact(Sense::drag());
+                // Justified so the label takes the rest of the row, the empty part right of the text is a target too.
+                let resp = ui
+                    .with_layout(egui::Layout::left_to_right(egui::Align::Center).with_main_justify(true), |ui| ui.selectable_label(selected, label))
+                    .inner
+                    .interact(Sense::drag());
                 if resp.hovered() {
                     hovered = Some(*id);
                 }

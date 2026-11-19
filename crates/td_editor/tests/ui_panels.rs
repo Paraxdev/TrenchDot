@@ -3382,3 +3382,64 @@ fn the_override_item_is_german() {
     let shown = harness.state().state.status_shown().to_string();
     assert!(shown.contains("func_button") && shown.contains("überschrieben"), "{shown}");
 }
+
+/// A primary click with the pointer at `pos`, which `Node::click` cannot do for a point off the label.
+fn left_click_at(harness: &mut Harness<'_, Fixture>, pos: egui::Pos2, modifiers: egui::Modifiers) {
+    harness.hover_at(pos);
+    harness.run();
+    for pressed in [true, false] {
+        harness.event_modifiers(egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers }, modifiers);
+    }
+
+    harness.step();
+}
+
+/// The point at the far right of a row's label, inside the panel but well past the text.
+fn row_far_right(harness: &Harness<'_, Fixture>, id: NodeId) -> egui::Pos2 {
+    let rect = harness.get_all_by_label(&row_label(harness, id)).last().unwrap().rect();
+    egui::pos2(harness.ctx.content_rect().right() - 30.0, rect.center().y)
+}
+
+#[test]
+fn outliner_click_far_right_of_a_row_selects_it_and_ctrl_click_toggles() {
+    let mut f = Fixture::new();
+    let layer = f.state.doc.map.default_layer();
+    let ids: Vec<NodeId> = f.state.doc.edit("add", |m, _| {
+        (0..3)
+            .map(|i| {
+                let min = DVec3::new(i as f64 * 128.0 + 16.0, 8.0, -24.0);
+                m.insert(layer, NodeKind::Brush(Brush::from_aabb(&Aabb::new(min, min + DVec3::new(64.0, 48.0, 32.0)), "dev/grey").unwrap()))
+            })
+            .collect()
+    });
+    let mut harness = outliner_harness(f);
+    harness.run();
+    reveal_rows(&mut harness, &ids);
+    let selected = |h: &Harness<Fixture>| ids.iter().map(|id| h.state().state.doc.selection.nodes.contains(id)).collect::<Vec<_>>();
+
+    let at = row_far_right(&harness, ids[1]);
+    assert!(at.x > 250.0, "the point is far right of the short brush names");
+    left_click_at(&mut harness, at, egui::Modifiers::NONE);
+    assert_eq!(selected(&harness), [false, true, false], "a click right of the label selects the row");
+
+    let at = row_far_right(&harness, ids[2]);
+    left_click_at(&mut harness, at, egui::Modifiers::COMMAND);
+    assert_eq!(selected(&harness), [false, true, true], "Ctrl+click adds the row");
+    let at = row_far_right(&harness, ids[1]);
+    left_click_at(&mut harness, at, egui::Modifiers::COMMAND);
+    assert_eq!(selected(&harness), [false, false, true], "and takes one out");
+}
+
+#[test]
+fn outliner_double_click_far_right_of_a_group_row_opens_it() {
+    let (f, r) = linked_rows_fixture();
+    let mut harness = outliner_harness(f);
+    harness.run();
+    reveal_rows(&mut harness, &[r.left_brushes[0], r.right_brushes[0]]);
+    harness.run_steps(40);
+    let at = row_far_right(&harness, r.right);
+    left_click_at(&mut harness, at, egui::Modifiers::NONE);
+    left_click_at(&mut harness, at, egui::Modifiers::NONE);
+    harness.run();
+    assert_eq!(harness.state().state.open_groups, [r.right], "a double click right of the label opens the group");
+}
