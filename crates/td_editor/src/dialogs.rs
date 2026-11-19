@@ -960,7 +960,7 @@ impl ShapeDialog {
 
         let mut open = self.open;
         let (sources, mut bounds) = self.sources_and_bounds(state);
-        widgets::centered_window(en!("Shape Generator"), ctx).open(&mut open).resizable(false).show(ctx, |ui| {
+        widgets::top_window(en!("Shape Generator"), ctx).open(&mut open).resizable(false).show(ctx, |ui| {
             egui::ComboBox::new("shape_kind", tr("Shape")).selected_text(tr(self.kind.label())).show_ui(ui, |ui| {
                 for k in ShapeKind::ALL {
                     ui.selectable_value(&mut self.kind, k, tr(k.label()));

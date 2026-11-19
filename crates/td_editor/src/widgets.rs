@@ -269,6 +269,13 @@ pub fn centered_window<'a>(title: &'a str, ctx: &egui::Context) -> egui::Window<
     window(title).pivot(egui::Align2::CENTER_CENTER).default_pos(ctx.content_rect().center())
 }
 
+/// A window that opens a little above the middle of the editor, about where a centered one of usual height starts, and
+/// grows downward, so the rows above a row that comes or goes stay under the pointer.
+pub fn top_window<'a>(title: &'a str, ctx: &egui::Context) -> egui::Window<'a> {
+    let rect = ctx.content_rect();
+    window(title).pivot(egui::Align2::CENTER_TOP).default_pos(egui::pos2(rect.center().x, rect.top() + rect.height() * 0.35))
+}
+
 /// Where a tool's hint goes at the bottom left of a viewport, and its text. It wraps at the viewport width and grows
 /// upward, so a long translation stays inside the view.
 fn corner_hint_galley(painter: &egui::Painter, rect: Rect, text: String, color: Color32) -> (Pos2, std::sync::Arc<egui::Galley>) {

@@ -6047,7 +6047,8 @@ fn fake_release(asset: &'static str, bytes: Vec<u8>) -> String {
     url
 }
 
-/// Dialogs open in the middle of the editor window instead of at its top left corner over the menu bar.
+/// Dialogs open in the middle of the editor window instead of at its top left corner over the menu bar. The Shape
+/// Generator keeps its top in place as its rows change, so it opens with its top a little above the middle instead.
 #[test]
 #[ignore]
 fn dialogs_open_in_the_middle_of_the_window() {
@@ -6072,7 +6073,8 @@ fn dialogs_open_in_the_middle_of_the_window() {
         let window = windows.iter().find(|w| w["title"] == title).unwrap_or_else(|| panic!("{title} is not open: {:?}", window_titles(&ed)));
         let r: Vec<f64> = window["rect"].as_array().unwrap().iter().map(|v| v.as_f64().unwrap()).collect();
         let center = ((r[0] + r[2]) / 2.0, (r[1] + r[3]) / 2.0);
-        assert!((center.0 - screen.0).abs() < 3.0 && (center.1 - screen.1).abs() < 3.0, "{title} at {r:?} is not centered on {screen:?}");
+        let middle = if title == "Shape Generator" { (r[1] - screen.1 * 0.7).abs() } else { (center.1 - screen.1).abs() };
+        assert!((center.0 - screen.0).abs() < 3.0 && middle < 3.0, "{title} at {r:?} is not centered on {screen:?}");
     }
 }
 
