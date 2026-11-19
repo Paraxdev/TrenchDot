@@ -86,6 +86,11 @@ as a whole when you drag it near the middle. In the Hammer preset only the strai
 selection are handles, as in Hammer's wireframe views, and a slanted side moves the whole brush. A drag that would
 leave a brush with no volume or a dent stops at the last shape that worked, drag back to get closer.
 
+A press only turns into a drag once the pointer has moved 6 pixels, more on a scaled display. A shorter drag counts as
+a click and selects what lies under the cursor instead, which may be another brush. Zoomed far out, 6 pixels can be
+more than a grid step, so zoom in for a small change, or type the size in the Inspector, see
+[Exact position and size](#exact-position-and-size).
+
 ### Extrude faces with E
 
 Blender users know E as extrude. In the Blender preset it pulls a new brush out of each selected brush face, and the
