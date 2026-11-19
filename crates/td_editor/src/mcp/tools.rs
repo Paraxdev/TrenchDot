@@ -1385,7 +1385,7 @@ impl App {
             },
             "mirror_planes": td_doc::mirror::selection_planes(map, sel)
                 .iter()
-                .map(|m| json!({ "axis": axis_letter(m.plane.axis), "at": round3(m.plane.at), "group": m.group.0, "partner": m.partner.0, "gap": td_doc::mirror::gap(map, m) }))
+                .map(|m| json!({ "axis": axis_letter(m.plane.axis), "at": round3(m.plane.at), "group": m.group.0, "partner": m.partner.0, "gap": round3(td_doc::mirror::gap(map, m)) }))
                 .collect::<Vec<_>>(),
             "mirror_slides": td_doc::mirror::drifted(map, sel)
                 .iter()

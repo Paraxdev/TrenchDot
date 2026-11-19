@@ -7019,7 +7019,13 @@ fn mirror_linked_copies_follow_edits_mirrored() {
     let (min, max) = ed.selection_bounds();
     assert!(min.iter().chain(&max).all(|v| thousandths(*v)), "bounds drop the slack {min:?} {max:?}");
     let state = ed.state();
-    assert!(state["mirror_planes"][0]["at"].as_f64().is_some_and(thousandths), "{}", state["mirror_planes"]);
+    for key in ["at", "gap"] {
+        assert!(state["mirror_planes"][0][key].as_f64().is_some_and(thousandths), "{key}: {}", state["mirror_planes"]);
+    }
+
+    ed.call("run_action", json!({ "action": "set_mirror_gap", "args": { "gap": 0.3 } }));
+    assert_eq!(ed.state()["mirror_planes"][0]["gap"], json!(0.3), "a fractional gap reads back without drift");
+    ed.call("run_action", json!({ "action": "undo" }));
     ed.call("run_action", json!({ "action": "undo" }));
 
     let before = ed.state()["undo"].as_array().unwrap().len();
