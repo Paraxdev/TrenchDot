@@ -2343,6 +2343,8 @@
   "Mirror Again": "Отразить снова",
   "Moves the partner of a half that was slid along the mirror plane back across from it": "Возвращает напротив пару половины, сдвинутой вдоль плоскости отражения",
   "Nothing selected was slid along its mirror plane": "Ничто из выделенного не сдвинуто вдоль своей плоскости отражения",
+  "{name} is locked, unlock it to change the mirror gap": "{name} заблокирован, разблокируйте его, чтобы изменить зазор зеркала",
+  "{name} is locked, unlock it to mirror again": "{name} заблокирован, разблокируйте его, чтобы отразить снова",
   "{name} is slid {distance} units along the mirror plane {axis} = {at}": "{name} сдвинута на {distance} ед. вдоль плоскости отражения {axis} = {at}",
   "Mirror": "Отражение",
   "The mirror plane of the selected linked half and the gap to its partner": "Плоскость отражения выбранной связанной половины и зазор до её пары",

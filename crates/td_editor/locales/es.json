@@ -2343,6 +2343,8 @@
   "Mirror Again": "Reflejar de nuevo",
   "Moves the partner of a half that was slid along the mirror plane back across from it": "Devuelve la pareja de una mitad deslizada a lo largo del plano de simetría a su lado opuesto",
   "Nothing selected was slid along its mirror plane": "Nada de lo seleccionado se deslizó a lo largo de su plano de simetría",
+  "{name} is locked, unlock it to change the mirror gap": "{name} está bloqueado, desbloquéalo para cambiar la separación del espejo",
+  "{name} is locked, unlock it to mirror again": "{name} está bloqueado, desbloquéalo para volver a reflejar",
   "{name} is slid {distance} units along the mirror plane {axis} = {at}": "{name} está deslizado {distance} unidades a lo largo del plano de simetría {axis} = {at}",
   "Mirror": "Espejo",
   "The mirror plane of the selected linked half and the gap to its partner": "El plano de simetría de la mitad vinculada seleccionada y la separación con su pareja",

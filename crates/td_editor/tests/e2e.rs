@@ -7147,6 +7147,37 @@ fn mirror_again_puts_a_slid_half_back() {
 
 #[test]
 #[ignore]
+fn mirror_gap_and_again_refuse_a_locked_copy_and_move_a_hidden_one() {
+    let ed = Editor::launch("mirror_locked");
+    let source = ed.box_brush([8.0, 2.0, -4.0], [40.0, 34.0, 20.0]);
+    ed.call("select", json!({ "ids": [source] }));
+    ed.call("run_action", json!({ "action": "mirror_linked", "args": { "axis": "x", "plane": "max" } }));
+    let copy = ed.state()["selection"]["nodes"][0].clone();
+    // A hidden or locked copy cannot be selected, so its bounds come from the node list.
+    let x_of_copy = |ed: &Editor| {
+        let groups = ed.call("list_nodes", json!({ "type": "group" }));
+        groups["nodes"].as_array().unwrap().iter().find(|n| n["id"] == copy).unwrap()["bounds"]["min"][0].as_f64().unwrap()
+    };
+    let start = x_of_copy(&ed);
+
+    ed.call("run_action", json!({ "action": "hide_selected" }));
+    ed.call("select", json!({ "ids": [source] }));
+    ed.call("run_action", json!({ "action": "set_mirror_gap", "args": { "gap": 10 } }));
+    assert_eq!(x_of_copy(&ed) - start, 5.0, "a hidden copy moved with its half");
+
+    ed.call("run_action", json!({ "action": "unhide_all" }));
+    ed.call("select", json!({ "ids": [copy] }));
+    ed.call("run_action", json!({ "action": "lock_selected" }));
+    ed.call("select", json!({ "ids": [source] }));
+    let undo = ed.state()["undo"].as_array().unwrap().len();
+    let text = ed.call_err("run_action", json!({ "action": "set_mirror_gap", "args": { "gap": 30 } }));
+    assert!(text.contains("is locked") && text.contains("unlock it"), "{text}");
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), undo, "a refused call leaves no undo step");
+    assert_eq!(x_of_copy(&ed) - start, 5.0, "nothing moved");
+}
+
+#[test]
+#[ignore]
 fn edits_across_two_linked_copies_are_refused() {
     let ed = Editor::launch("linked_conflict");
     let source = ed.box_brush([8.0, 2.0, -4.0], [40.0, 34.0, 20.0]);

@@ -2061,7 +2061,7 @@ fn apply_mirror_greys_out_while_the_halves_are_apart() {
     assert!(is_disabled(&harness, "Apply Mirror"), "a gap of 144 keeps it off");
     for (gap, disabled) in [(0.6, true), (0.5, false), (0.0, false), (-8.0, false), (0.75, true)] {
         let plane = first_plane(&harness);
-        harness.state_mut().state.doc.edit("gap", |m, _| td_doc::mirror::set_gap(m, &plane, gap));
+        harness.state_mut().state.doc.edit("gap", |m, _| td_doc::mirror::set_gap(m, &plane, gap).unwrap());
         harness.run();
         assert_eq!(is_disabled(&harness, "Apply Mirror"), disabled, "gap {gap}");
         let (mut map, mut sel) = (harness.state().state.doc.map.clone(), harness.state().state.doc.selection.clone());
@@ -2070,7 +2070,7 @@ fn apply_mirror_greys_out_while_the_halves_are_apart() {
     }
 
     let plane = first_plane(&harness);
-    harness.state_mut().state.doc.edit("gap", |m, _| td_doc::mirror::set_gap(m, &plane, 0.0));
+    harness.state_mut().state.doc.edit("gap", |m, _| td_doc::mirror::set_gap(m, &plane, 0.0).unwrap());
     harness.run();
     harness.get_by_label("Apply Mirror").click();
     harness.run();

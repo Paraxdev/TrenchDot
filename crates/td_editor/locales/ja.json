@@ -2343,6 +2343,8 @@
   "Mirror Again": "もう一度ミラー",
   "Moves the partner of a half that was slid along the mirror plane back across from it": "ミラー平面に沿ってずらされた半分の相方を、反対側の位置に戻します",
   "Nothing selected was slid along its mirror plane": "選択中のものはミラー平面に沿ってずれていません",
+  "{name} is locked, unlock it to change the mirror gap": "{name} はロックされています。ミラーの間隔を変えるにはロックを解除してください",
+  "{name} is locked, unlock it to mirror again": "{name} はロックされています。もう一度ミラーするにはロックを解除してください",
   "{name} is slid {distance} units along the mirror plane {axis} = {at}": "{name} はミラー平面 {axis} = {at} に沿って {distance} ユニット ずれています",
   "Mirror": "ミラー",
   "The mirror plane of the selected linked half and the gap to its partner": "選択したリンクされた半分のミラー平面と、相手との間隔",

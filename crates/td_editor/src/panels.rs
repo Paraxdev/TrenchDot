@@ -1251,12 +1251,17 @@ fn mirror_section(ui: &mut Ui, state: &mut EditorState, actions: &mut Vec<Action
                 ui.label(tr("Gap")).on_hover_text(tr("Space between the two halves, in map units. Both move, the plane stays"));
                 if widgets::drag_field(ui, &mut gap, 64.0, 1.0, false) {
                     let (limited, moves) = td_doc::mirror::gap_target(&state.doc.map, m, gap);
-                    if moves {
-                        state.doc.edit_coalesced("Set Mirror Gap", |map, _| td_doc::mirror::set_gap(map, m, gap));
-                    }
+                    if let Some(locked) = td_doc::mirror::gap_locked(&state.doc.map, m, gap) {
+                        let name = state.doc.map.get(locked).map(|n| n.name()).unwrap_or_default();
+                        state.fail_status(msg!("{name} is locked, unlock it to change the mirror gap", name));
+                    } else {
+                        if moves {
+                            let _ = state.doc.edit_coalesced("Set Mirror Gap", |map, _| td_doc::mirror::set_gap(map, m, gap));
+                        }
 
-                    if limited != gap {
-                        state.set_status(msg!("Gap limited to {gap}", gap = crate::gizmos::fmt_num(limited)));
+                        if limited != gap {
+                            state.set_status(msg!("Gap limited to {gap}", gap = crate::gizmos::fmt_num(limited)));
+                        }
                     }
                 }
 

@@ -1356,20 +1356,25 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             let targets: Vec<(f64, bool)> = planes.iter().map(|p| td_doc::mirror::gap_target(map, p, gap)).collect();
             match targets.first() {
                 Some(&(first, _)) => {
-                    if targets.iter().any(|(_, moves)| *moves) {
-                        state.doc.edit("Set Mirror Gap", |m, _| {
-                            for p in &planes {
-                                td_doc::mirror::set_gap(m, p, gap);
-                            }
-                        });
-                    }
+                    if let Some(locked) = planes.iter().find_map(|p| td_doc::mirror::gap_locked(&state.doc.map, p, gap)) {
+                        let name = state.doc.map.get(locked).map(|n| n.name()).unwrap_or_default();
+                        state.fail_status(msg!("{name} is locked, unlock it to change the mirror gap", name));
+                    } else {
+                        if targets.iter().any(|(_, moves)| *moves) {
+                            state.doc.edit("Set Mirror Gap", |m, _| {
+                                for p in &planes {
+                                    let _ = td_doc::mirror::set_gap(m, p, gap);
+                                }
+                            });
+                        }
 
-                    state.set_status(msg!("Set the gap between the mirrored halves to {gap} units", gap = crate::gizmos::fmt_num(first)));
+                        state.set_status(msg!("Set the gap between the mirrored halves to {gap} units", gap = crate::gizmos::fmt_num(first)));
+                    }
                 }
                 None => state.fail_status(msg!("Select one half of a mirrored pair to set the gap")),
             }
         }
-        Action::MirrorAgain => match state.doc.try_edit("Mirror Again", |m, s| td_doc::mirror::mirror_again(m, s).ok_or(())) {
+        Action::MirrorAgain => match state.doc.try_edit("Mirror Again", |m, s| td_doc::mirror::mirror_again(m, s)) {
             Ok((moved, distance, plane)) => {
                 state.set_status(msg_n!(
                     moved,
@@ -1381,7 +1386,11 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
                 ));
                 state.mirrored_again = Some((moved, distance, plane));
             }
-            Err(()) => state.fail_status(msg!("Nothing selected was slid along its mirror plane")),
+            Err(td_doc::mirror::AgainError::NotSlid) => state.fail_status(msg!("Nothing selected was slid along its mirror plane")),
+            Err(td_doc::mirror::AgainError::Locked(locked)) => {
+                let name = state.doc.map.get(locked).map(|n| n.name()).unwrap_or_default();
+                state.fail_status(msg!("{name} is locked, unlock it to mirror again", name));
+            }
         },
         Action::ApplyMirror { distance } => match state.doc.try_edit("Apply Mirror", |m, s| td_doc::mirror::apply_mirror(m, s, distance)) {
             Ok(mut applied) => {
@@ -5056,6 +5065,66 @@ mod tests {
         assert_eq!(state.doc.history.undo_labels().count(), steps + 1);
         assert_eq!(state.doc.history.undo_labels().next(), Some("Mirror Again"));
         assert_eq!(td_doc::mirror::selection_planes(&state.doc.map, &state.doc.selection).len(), 1);
+    }
+
+    #[test]
+    fn mirror_gap_and_again_move_a_hidden_copy_and_refuse_a_locked_one() {
+        let ctx = egui::Context::default();
+        let flag = |state: &mut EditorState, id, hidden, locked| {
+            state.doc.edit("flags", |m, _| {
+                ops::set_hidden(m, &[id], hidden);
+                ops::set_locked(m, &[id], locked);
+            });
+        };
+        let mut state = EditorState::new(Default::default());
+        let brush = slanted_brush(&mut state);
+        state.doc.select(|_, s| s.select_node(brush));
+        execute(&mut state, Action::MirrorLinked { axis: 0, gap: 0.0 }, &ctx);
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_node(brush);
+        });
+        let (half, copy) = (state.mirror_pairs().0[0].group, state.mirror_pairs().0[0].partner);
+        let left = |state: &EditorState| state.doc.map.solid_bounds(copy).min.x;
+        let start = left(&state);
+
+        flag(&mut state, copy, true, false);
+        execute(&mut state, Action::SetMirrorGap { axis: Some(0), gap: 24.0 }, &ctx);
+        assert!(!state.status_failed(), "{}", state.status);
+        assert_eq!(left(&state) - start, 12.0, "a hidden copy moves with its half");
+
+        flag(&mut state, copy, false, true);
+        let (nodes, steps) = (state.doc.map.nodes.clone(), state.doc.history.undo_labels().count());
+        let name = state.doc.map.get(copy).unwrap().name();
+        for gap in [-6.0, 48.0] {
+            execute(&mut state, Action::SetMirrorGap { axis: Some(0), gap }, &ctx);
+            assert!(state.status_failed() && state.status.contains(&name) && state.status.contains("locked"), "{}", state.status);
+            assert!(state.doc.map.nodes == nodes && state.doc.history.undo_labels().count() == steps, "gap {gap}: nothing moves");
+        }
+
+        execute(&mut state, Action::SetMirrorGap { axis: Some(0), gap: 24.0 }, &ctx);
+        assert!(!state.status_failed(), "a gap already set moves nothing and so passes: {}", state.status);
+
+        flag(&mut state, copy, false, false);
+        state.doc.select(|_, s| s.select_node(half));
+        execute(&mut state, Action::SetMirrorGap { axis: Some(0), gap: 0.0 }, &ctx);
+        let moved_to = left(&state);
+        state.doc.edit("move", |m, s| ops::translate_selection(m, s, DVec3::new(0.0, 5.0, 12.0), ops::EditOptions::default()));
+
+        flag(&mut state, copy, false, true);
+        let (nodes, steps) = (state.doc.map.nodes.clone(), state.doc.history.undo_labels().count());
+        execute(&mut state, Action::MirrorAgain, &ctx);
+        assert!(state.status_failed() && state.status.contains(&name) && state.status.contains("locked"), "{}", state.status);
+        assert!(state.mirrored_again.is_none());
+        assert!(state.doc.map.nodes == nodes && state.doc.history.undo_labels().count() == steps, "nothing moves");
+
+        flag(&mut state, copy, true, false);
+        state.doc.select(|_, s| s.select_node(half));
+        execute(&mut state, Action::MirrorAgain, &ctx);
+        assert!(!state.status_failed(), "{}", state.status);
+        assert_eq!(state.mirrored_again.map(|a| a.0), Some(1));
+        assert_eq!(left(&state), moved_to, "the hidden copy came back across");
+        assert_eq!(state.doc.map.solid_bounds(copy).min.z - state.doc.map.solid_bounds(half).min.z, 0.0);
     }
 
     #[test]

@@ -310,14 +310,24 @@ fn in_line(relation: &DMat4, drift: &Drift) -> bool {
     })
 }
 
+/// Why [`mirror_again`] moved nothing.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum AgainError {
+    /// Nothing around the selection was slid along its mirror plane.
+    NotSlid,
+    /// A member that would move is locked, or sits in a locked group or layer.
+    Locked(NodeId),
+}
+
 /// Moves the partner of each [`drifted`] pair back across its plane from the half that stays, with every member of its
 /// link set slid the same way, so a facade row follows as a whole while a copy placed elsewhere stays. Returns how many
-/// groups moved, how far the first partner moved and its plane, or None when nothing around the selection drifted.
-pub fn mirror_again(map: &mut Map, sel: &Selection) -> Option<(usize, f64, AxisPlane)> {
+/// groups moved, how far the first partner moved and its plane. Hidden members move with their half, a locked one
+/// refuses the whole move before anything is touched.
+pub fn mirror_again(map: &mut Map, sel: &Selection) -> Result<(usize, f64, AxisPlane), AgainError> {
     let drifts = drifted(map, sel);
-    let first = *drifts.first()?;
-    let (mut sets, mut moved) = (BTreeSet::new(), 0);
-    let opts = EditOptions { uv_lock: true, ..EditOptions::default() };
+    let first = *drifts.first().ok_or(AgainError::NotSlid)?;
+    let mut sets = BTreeSet::new();
+    let mut plan = Vec::new();
     for drift in drifts {
         let Some(link) = link_of(map, drift.group).filter(|l| sets.insert(*l)) else { continue };
         let mut moving = Selection::default();
@@ -327,11 +337,21 @@ pub fn mirror_again(map: &mut Map, sel: &Selection) -> Option<(usize, f64, AxisP
             }
         }
 
+        plan.push((drift, moving));
+    }
+
+    if let Some(locked) = plan.iter().flat_map(|(_, moving)| &moving.nodes).find(|m| map.is_locked(**m)) {
+        return Err(AgainError::Locked(*locked));
+    }
+
+    let opts = EditOptions { uv_lock: true, ..EditOptions::default() };
+    let mut moved = 0;
+    for (drift, moving) in plan {
         moved += moving.nodes.len();
         ops::translate_selection(map, &moving, -drift.slide, opts);
     }
 
-    Some((moved, first.slide.length(), first.plane))
+    Ok((moved, first.slide.length(), first.plane))
 }
 
 /// The halves of `mirror` with their solid bounds, the one lower on the axis first, the group on a tie.
@@ -365,23 +385,44 @@ fn gap_offset(sides: &[(NodeId, Aabb); 2], axis: usize, gap: f64) -> (f64, f64) 
     (gap, if offset.abs() < 1e-9 { 0.0 } else { offset })
 }
 
+/// The members of the link set of `mirror` that [`set_gap`] moves, the halves themselves when it has no set.
+fn gap_members(map: &Map, mirror: &MirrorPlane) -> Vec<NodeId> {
+    let [(low, _), (high, _)] = sides(map, mirror);
+    link_of(map, mirror.group).map(|link| linked::members(map, link)).unwrap_or_else(|| vec![low, high])
+}
+
+/// The first locked member [`set_gap`] would have to move to reach `gap`, none when the halves already are that far
+/// apart. A member in a locked group or layer counts as locked.
+pub fn gap_locked(map: &Map, mirror: &MirrorPlane, gap: f64) -> Option<NodeId> {
+    if !gap_target(map, mirror, gap).1 {
+        return None;
+    }
+
+    gap_members(map, mirror).into_iter().find(|m| map.is_locked(*m))
+}
+
 /// Moves the halves of `mirror` evenly apart or together until they are `gap` apart, so the plane stays. The rest of
-/// the link set moves with the half on its side, which keeps every other mirror plane of the set a pure reflection.
-/// The gap stops at [`MAX_GAP`] and at minus the narrower half's width, where one half covers the other, less
+/// the link set moves with the half on its side, which keeps every other mirror plane of the set a pure reflection,
+/// hidden members included. A locked member refuses the move, nothing moves and it is returned as the error. The gap
+/// stops at [`MAX_GAP`] and at minus the narrower half's width, where one half covers the other, less
 /// [`COVER_SLACK`]. Returns the gap it set.
-pub fn set_gap(map: &mut Map, mirror: &MirrorPlane, gap: f64) -> f64 {
+pub fn set_gap(map: &mut Map, mirror: &MirrorPlane, gap: f64) -> Result<f64, NodeId> {
     let axis = mirror.plane.axis;
     let sides = sides(map, mirror);
     let [(low, _), (high, _)] = sides;
     let (gap, by) = gap_offset(&sides, axis, gap);
     if by == 0.0 {
-        return gap;
+        return Ok(gap);
+    }
+
+    let members = gap_members(map, mirror);
+    if let Some(locked) = members.iter().find(|m| map.is_locked(**m)) {
+        return Err(*locked);
     }
 
     let mut offset = DVec3::ZERO;
     offset[axis] = by;
     let (mut lows, mut highs) = (Selection::default(), Selection::default());
-    let members = link_of(map, mirror.group).map(|link| linked::members(map, link)).unwrap_or_else(|| vec![low, high]);
     for m in members {
         let below = m == low || (m != high && map.solid_bounds(m).center()[axis] < mirror.plane.at);
         let side = if below { &mut lows } else { &mut highs };
@@ -391,7 +432,7 @@ pub fn set_gap(map: &mut Map, mirror: &MirrorPlane, gap: f64) -> f64 {
     let opts = EditOptions { uv_lock: true, ..EditOptions::default() };
     ops::translate_selection(map, &lows, -offset, opts);
     ops::translate_selection(map, &highs, offset, opts);
-    gap
+    Ok(gap)
 }
 
 /// What [`apply_mirror`] did.
@@ -1183,7 +1224,7 @@ mod tests {
     }
 
     fn set(doc: &mut Document, mirror: &MirrorPlane, to: f64) -> f64 {
-        let set = doc.edit("Set Mirror Gap", |m, _| set_gap(m, mirror, to));
+        let set = doc.edit("Set Mirror Gap", |m, _| set_gap(m, mirror, to)).unwrap();
         assert!(!doc.take_link_conflict(), "moving whole halves leaves the copies alike");
         set
     }
@@ -1330,6 +1371,102 @@ mod tests {
     }
 
     #[test]
+    fn setting_the_gap_moves_a_hidden_member_and_refuses_a_locked_one() {
+        let mut doc = Document::new();
+        let group = group_of(&mut doc, wedge(), "half");
+        let copy = mirror(&mut doc, &[group], 0, PlaneAt::Max).0[0];
+        let pair = the_plane(&doc, &[group], 0);
+        with_flags(&mut doc, copy, true, false);
+        let before = (doc.map.solid_bounds(group), doc.map.solid_bounds(copy));
+        assert_eq!(gap_locked(&doc.map, &pair, 9.0), None);
+        assert_eq!(set(&mut doc, &pair, 9.0), 9.0);
+        assert_bounds(doc.map.solid_bounds(group), shifted_box(WEDGE, 0, -4.5));
+        assert_eq!(doc.map.solid_bounds(copy).min.x - before.1.min.x, 4.5, "a hidden copy moves with its half");
+        assert_eq!(doc.map.solid_bounds(group).min.x - before.0.min.x, -4.5);
+
+        with_flags(&mut doc, copy, false, true);
+        let (nodes, undo) = (doc.map.nodes.clone(), steps(&doc));
+        assert_eq!(gap_locked(&doc.map, &pair, 20.0), Some(copy));
+        assert_eq!(doc.try_edit("Set Mirror Gap", |m, _| set_gap(m, &pair, 20.0)), Err(copy));
+        assert!(doc.map.nodes == nodes && steps(&doc) == undo, "nothing moves and no undo step is added");
+
+        assert_eq!(gap_locked(&doc.map, &pair, 9.0), None, "a gap already set moves nothing, so the lock does not matter");
+        assert_eq!(doc.try_edit("Set Mirror Gap", |m, _| set_gap(m, &pair, 9.0)), Ok(9.0));
+        assert!(doc.map.nodes == nodes);
+    }
+
+    #[test]
+    fn setting_the_gap_refuses_when_only_the_original_or_a_far_copy_is_locked() {
+        let mut doc = Document::new();
+        let group = group_of(&mut doc, wedge(), "half");
+        let copy = mirror(&mut doc, &[group], 0, PlaneAt::Max).0[0];
+        let far = shifted(&mut doc, &[group], DVec3::new(0.0, 0.0, 300.0))[0];
+        let pair = the_plane(&doc, &[group], 0);
+        let undo = steps(&doc);
+
+        for locked in [group, far] {
+            with_flags(&mut doc, locked, false, true);
+            let (nodes, undo) = (doc.map.nodes.clone(), steps(&doc));
+            assert_eq!(doc.try_edit("Set Mirror Gap", |m, _| set_gap(m, &pair, 12.0)), Err(locked));
+            assert!(doc.map.nodes == nodes && steps(&doc) == undo);
+            with_flags(&mut doc, locked, false, false);
+        }
+
+        assert!(steps(&doc) > undo);
+        assert_eq!(set(&mut doc, &pair, 12.0), 12.0);
+        assert_eq!(gap(&doc.map, &pair), 12.0);
+        assert!(doc.map.solid_bounds(copy).min.x > doc.map.solid_bounds(group).max.x);
+    }
+
+    #[test]
+    fn mirror_again_moves_a_hidden_member_and_refuses_a_locked_one() {
+        let slide = DVec3::new(0.0, -5.0, 12.0);
+        for (hidden, locked) in [(true, false), (false, true)] {
+            let mut doc = Document::new();
+            let group = group_of(&mut doc, wedge(), "half");
+            let copy = mirror(&mut doc, &[group], 0, PlaneAt::Max).0[0];
+            moved(&mut doc, &[group], slide);
+            with_flags(&mut doc, copy, hidden, locked);
+            let (nodes, undo) = (doc.map.nodes.clone(), steps(&doc));
+            let at = doc.map.solid_bounds(copy);
+            let result = again_result(&mut doc, &[group]);
+            if locked {
+                assert_eq!(result, Err(AgainError::Locked(copy)));
+                assert!(doc.map.nodes == nodes && steps(&doc) == undo, "nothing moves and no undo step is added");
+                assert!(!drifted(&doc.map, &doc.selection).is_empty(), "the half is still slid");
+            } else {
+                assert_eq!(result.map(|r| r.0), Ok(1));
+                assert_eq!(doc.map.solid_bounds(copy).min - at.min, slide, "a hidden copy moves with its half");
+                assert_eq!(steps(&doc), undo + 1);
+            }
+        }
+    }
+
+    #[test]
+    fn mirror_again_checks_only_the_members_it_moves() {
+        let mut doc = Document::new();
+        let group = group_of(&mut doc, wedge(), "half");
+        let copy = mirror(&mut doc, &[group], 0, PlaneAt::Max).0[0];
+        let far = shifted(&mut doc, &[group], DVec3::new(0.0, 0.0, 300.0))[0];
+        moved(&mut doc, &[group], DVec3::new(0.0, 7.0, 3.0));
+        with_flags(&mut doc, far, false, true);
+        assert_eq!(again(&mut doc, &[group]).unwrap().0, 1, "a locked copy placed elsewhere stays and does not block");
+        assert!(doc.map.get(far).unwrap().locked);
+
+        moved(&mut doc, &[group], DVec3::new(0.0, 7.0, 3.0));
+        with_flags(&mut doc, group, false, true);
+        assert_eq!(again(&mut doc, &[group]).unwrap().0, 1, "the half that stays may be locked");
+
+        with_flags(&mut doc, group, false, false);
+        with_flags(&mut doc, far, false, false);
+        moved(&mut doc, &[copy], DVec3::new(0.0, 7.0, 3.0));
+        with_flags(&mut doc, group, false, true);
+        let (nodes, undo) = (doc.map.nodes.clone(), steps(&doc));
+        assert_eq!(again_result(&mut doc, &[copy]), Err(AgainError::Locked(group)));
+        assert!(doc.map.nodes == nodes && steps(&doc) == undo);
+    }
+
+    #[test]
     fn setting_the_gap_keeps_the_other_planes_of_quarters() {
         let mut doc = Document::new();
         let a = group_of(&mut doc, wedge(), "quarter");
@@ -1419,8 +1556,23 @@ mod tests {
     }
 
     fn again(doc: &mut Document, ids: &[NodeId]) -> Option<(usize, f64, AxisPlane)> {
+        again_result(doc, ids).ok()
+    }
+
+    fn again_result(doc: &mut Document, ids: &[NodeId]) -> Result<(usize, f64, AxisPlane), AgainError> {
         select(doc, ids);
-        doc.try_edit("Mirror Again", |m, s| mirror_again(m, s).ok_or(())).ok()
+        doc.try_edit("Mirror Again", |m, s| mirror_again(m, s))
+    }
+
+    fn steps(doc: &Document) -> usize {
+        doc.history.undo_labels().count()
+    }
+
+    fn with_flags(doc: &mut Document, id: NodeId, hidden: bool, locked: bool) {
+        doc.edit("flags", |m, _| {
+            ops::set_hidden(m, &[id], hidden);
+            ops::set_locked(m, &[id], locked);
+        });
     }
 
     #[test]

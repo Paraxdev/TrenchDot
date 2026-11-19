@@ -2343,6 +2343,8 @@
   "Mirror Again": "再次镜像",
   "Moves the partner of a half that was slid along the mirror plane back across from it": "把沿镜像平面滑开的一半的另一半移回对面",
   "Nothing selected was slid along its mirror plane": "所选内容都没有沿镜像平面滑动",
+  "{name} is locked, unlock it to change the mirror gap": "{name} 已锁定，请先解锁再更改镜像间隙",
+  "{name} is locked, unlock it to mirror again": "{name} 已锁定，请先解锁再重新镜像",
   "{name} is slid {distance} units along the mirror plane {axis} = {at}": "{name} 沿镜像平面 {axis} = {at} 滑动了 {distance} 单位",
   "Mirror": "镜像",
   "The mirror plane of the selected linked half and the gap to its partner": "所选链接半边的镜像平面以及与另一半的间距",
