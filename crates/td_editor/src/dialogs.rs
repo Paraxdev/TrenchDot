@@ -1379,6 +1379,8 @@ impl KeymapWindow {
 
         let mut open = self.open;
         widgets::centered_window(en!("Keyboard Shortcuts"), ctx).open(&mut open).default_size([520.0, 520.0]).show(ctx, |ui| {
+            let columns = KeyColumns::measure(ui, &state.prefs);
+            ui.set_min_width(columns.width(ui).ceil());
             ui.horizontal(|ui| {
                 ui.selectable_value(&mut self.tab, KeymapTab::Keys, tr("Keys"));
                 ui.selectable_value(&mut self.tab, KeymapTab::Mouse, tr("Mouse"));
@@ -1405,14 +1407,15 @@ impl KeymapWindow {
 
                 self.search_controls(ui);
             });
-            if self.recording.is_some() {
-                ui.label(RichText::new(tr("Press the new shortcut (Esc cancels)")).color(crate::theme::colors().yellow));
-            }
-
-            if self.searching {
-                ui.label(RichText::new(tr("Press the key to look up (Esc cancels)")).color(crate::theme::colors().yellow));
-            }
-
+            let prompt = if self.recording.is_some() {
+                tr("Press the new shortcut (Esc cancels)")
+            } else if self.searching {
+                tr("Press the key to look up (Esc cancels)")
+            } else {
+                ""
+            };
+            // The line stays while empty, so the rows below do not move under the pointer when a prompt shows.
+            ui.label(RichText::new(prompt).color(crate::theme::colors().yellow));
             ui.separator();
             let active = commands::shortcuts(&state.prefs);
             egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| match self.key_search {
@@ -1422,25 +1425,14 @@ impl KeymapWindow {
                         ui.label(tr("Nothing uses this key"));
                     }
 
-                    self.keys_grid(ui, state, &actions, &active);
-                    if !tool_rows.is_empty() {
-                        ui.label(RichText::new(tr("Tool keys")).strong());
-                        egui::Grid::new("key_search_tools").striped(true).num_columns(3).show(ui, |ui| {
-                            for row in tool_rows {
-                                ui.label(RichText::new(row.chord()).monospace());
-                                ui.label(tr(row.tool.label()));
-                                ui.label(describe(row));
-                                ui.end_row();
-                            }
-                        });
-                    }
+                    self.keys_grid(ui, state, &actions, &tool_rows, &active);
                 }
                 None => {
                     let actions: Vec<Action> = commands::bindable_actions()
                         .into_iter()
                         .filter(|a| self.filter.is_empty() || fuzzy_score(&self.filter, &a.title()).or_else(|| fuzzy_score(&self.filter, &a.label())).is_some())
                         .collect();
-                    self.keys_grid(ui, state, &actions, &active);
+                    self.keys_grid(ui, state, &actions, &[], &active);
                 }
             });
         });
@@ -1461,15 +1453,19 @@ impl KeymapWindow {
     }
 
     fn search_controls(&mut self, ui: &mut egui::Ui) {
+        // The filter and the key chip differ in height, so both sit in a slot of fixed size that the row is laid out
+        // around, or swapping them would nudge the Press a key button.
+        let (slot, _) = ui.allocate_exact_size(egui::vec2(160.0, ui.spacing().interact_size.y), egui::Sense::hover());
+        let mut slot_ui = ui.new_child(egui::UiBuilder::new().max_rect(slot).layout(egui::Layout::left_to_right(egui::Align::Center)));
         match self.key_search {
             Some(chord) => {
-                ui.label(RichText::new(commands::shortcut_to_text(&chord)).monospace());
-                if ui.small_button("x").on_hover_text(tr("Clear the key search")).clicked() {
+                slot_ui.label(RichText::new(commands::shortcut_to_text(&chord)).monospace());
+                if slot_ui.small_button("x").on_hover_text(tr("Clear the key search")).clicked() {
                     self.key_search = None;
                 }
             }
             None => {
-                ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text(tr("filter")).desired_width(160.0));
+                slot_ui.add(egui::TextEdit::singleline(&mut self.filter).hint_text(tr("filter")).desired_width(f32::INFINITY));
             }
         }
 
@@ -1480,41 +1476,88 @@ impl KeymapWindow {
         }
     }
 
-    fn keys_grid(&mut self, ui: &mut egui::Ui, state: &mut EditorState, actions: &[Action], active: &[(egui::KeyboardShortcut, Action)]) {
+    /// The command rows, then the tool rows of a key search. The prompt for a taken chord sits between two grids so it
+    /// can use the full width, and every column keeps the width of its widest entry over all commands.
+    fn keys_grid(
+        &mut self,
+        ui: &mut egui::Ui,
+        state: &mut EditorState,
+        actions: &[Action],
+        tools: &[&ToolKeyRow],
+        active: &[(egui::KeyboardShortcut, Action)],
+    ) {
+        let columns = KeyColumns::measure(ui, &state.prefs);
+        let what_width = (ui.available_width() - columns.title - columns.keys - 2.0 * ui.spacing().item_spacing.x).max(columns.buttons);
+        let taken_at = self.taken.as_ref().and_then(|t| actions.iter().position(|a| a.binding_id() == t.id));
+        let (above, below) = actions.split_at(taken_at.map_or(actions.len(), |i| i + 1));
         egui::Grid::new("keymap").striped(true).num_columns(3).show(ui, |ui| {
-            for action in actions {
-                let id = action.binding_id();
-                let keys: Vec<String> = active.iter().filter(|(_, a)| a == action).map(|(s, _)| commands::shortcut_to_text(s)).collect();
-                let title = ui.label(action.title());
-                if let Some(help) = action.help() {
-                    title.on_hover_text(tr(help));
-                }
-
-                ui.label(RichText::new(if keys.is_empty() { tr("unbound").to_string() } else { keys.join(", ") }).monospace());
-                ui.horizontal(|ui| {
-                    if ui.small_button(if self.recording.as_deref() == Some(id.as_str()) { "…" } else { tr("Set") }).clicked() {
-                        self.recording = Some(id.clone());
-                        self.searching = false;
-                        self.taken = None;
-                    }
-
-                    if ui.small_button(tr("Clear")).clicked() {
-                        state.prefs.key_overrides.insert(id.clone(), String::new());
-                        self.taken = None;
-                    }
-
-                    if commands::differs_from_preset(&state.prefs, action) && ui.small_button(tr("Default")).clicked() {
-                        commands::restore_default(&mut state.prefs, action);
-                        self.taken = None;
-                    }
-                });
-                ui.end_row();
-                if self.taken.as_ref().is_some_and(|t| t.id == id) {
-                    self.taken_row(ui, state);
-                    ui.end_row();
-                }
+            for action in above {
+                self.key_row(ui, state, action, active, &columns);
             }
         });
+        if taken_at.is_some() {
+            self.taken_row(ui, state);
+        }
+
+        if below.is_empty() && tools.is_empty() {
+            return;
+        }
+
+        egui::Grid::new("keymap_below").striped(true).num_columns(3).start_row(above.len()).show(ui, |ui| {
+            for action in below {
+                self.key_row(ui, state, action, active, &columns);
+            }
+
+            if !tools.is_empty() {
+                ui.label(RichText::new(tr("Tool keys")).strong());
+                ui.end_row();
+            }
+
+            for row in tools {
+                fixed_cell(ui, columns.title, |ui| {
+                    ui.label(tr(row.tool.label()));
+                });
+                fixed_cell(ui, columns.keys, |ui| {
+                    ui.label(RichText::new(row.chord()).monospace());
+                });
+                ui.allocate_ui(egui::vec2(what_width, 0.0), |ui| {
+                    ui.add(egui::Label::new(describe(row)).wrap());
+                });
+                ui.end_row();
+            }
+        });
+    }
+
+    fn key_row(&mut self, ui: &mut egui::Ui, state: &mut EditorState, action: &Action, active: &[(egui::KeyboardShortcut, Action)], columns: &KeyColumns) {
+        let id = action.binding_id();
+        fixed_cell(ui, columns.title, |ui| {
+            let title = ui.label(action.title());
+            if let Some(help) = action.help() {
+                title.on_hover_text(tr(help));
+            }
+        });
+        fixed_cell(ui, columns.keys, |ui| {
+            ui.label(RichText::new(keys_text(active, action)).monospace());
+        });
+        fixed_cell(ui, columns.buttons, |ui| {
+            let recording = self.recording.as_deref() == Some(id.as_str());
+            if ui.add(egui::Button::new(tr("Set")).small().selected(recording)).clicked() {
+                self.recording = Some(id.clone());
+                self.searching = false;
+                self.taken = None;
+            }
+
+            if ui.small_button(tr("Clear")).clicked() {
+                state.prefs.key_overrides.insert(id.clone(), String::new());
+                self.taken = None;
+            }
+
+            if commands::differs_from_preset(&state.prefs, action) && ui.small_button(tr("Default")).clicked() {
+                commands::restore_default(&mut state.prefs, action);
+                self.taken = None;
+            }
+        });
+        ui.end_row();
     }
 
     fn taken_row(&mut self, ui: &mut egui::Ui, state: &mut EditorState) {
@@ -1523,7 +1566,6 @@ impl KeymapWindow {
         let chord = commands::shortcut_to_text(&taken.chord);
         let mut lines: Vec<String> = taken.holder.iter().map(|a| trf!("{chord} is used by {action}.", chord = chord.as_str(), action = a.title())).collect();
         lines.extend(taken.tools.iter().map(|t| trf!("While the {tool} tool is active it takes {chord} first.", tool = tr(t.label()), chord = chord.as_str())));
-        ui.label("");
         ui.label(RichText::new(lines.join("\n")).color(crate::theme::colors().yellow));
         let mut resolve = None;
         ui.horizontal(|ui| {
@@ -1558,6 +1600,7 @@ impl KeymapWindow {
         ui.add(egui::TextEdit::singleline(&mut self.tool_filter).hint_text(tr("filter")).desired_width(160.0));
         ui.label(RichText::new(tr("Keys a tool reads while it is the active tool. They are fixed and cannot be rebound.")).weak());
         ui.separator();
+        let chord_width = tool_key_rows().iter().chain(preset_rows(preset)).map(|r| text_width(ui, r.chord(), egui::TextStyle::Monospace)).fold(0.0, f32::max);
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             for tool in ToolKind::all() {
                 let rows: Vec<&ToolKeyRow> = tool_key_rows()
@@ -1576,7 +1619,9 @@ impl KeymapWindow {
                 ui.label(RichText::new(tr(tool.label())).strong());
                 egui::Grid::new(("tool_keys", tool.label())).striped(true).num_columns(2).show(ui, |ui| {
                     for row in rows {
-                        ui.label(RichText::new(row.chord()).monospace());
+                        fixed_cell(ui, chord_width, |ui| {
+                            ui.label(RichText::new(row.chord()).monospace());
+                        });
                         ui.label(describe(row));
                         ui.end_row();
                     }
@@ -1585,6 +1630,55 @@ impl KeymapWindow {
             }
         });
     }
+}
+
+/// Column widths of the Keys tab, taken over every command and tool key of every preset so a filter, a key search, a
+/// prompt or another preset leaves the buttons where they were. Every tab is as wide as these columns, so switching
+/// tabs leaves the window as it is.
+struct KeyColumns {
+    title: f32,
+    keys: f32,
+    buttons: f32,
+}
+
+impl KeyColumns {
+    fn measure(ui: &egui::Ui, prefs: &crate::state::Prefs) -> Self {
+        let widest = |texts: Vec<String>, style: egui::TextStyle| texts.into_iter().map(|t| text_width(ui, t, style.clone())).fold(0.0, f32::max);
+        let actions = commands::bindable_actions();
+        let titles: Vec<String> = actions.iter().map(|a| a.title()).chain(ToolKind::all().iter().map(|t| tr(t.label()).to_string())).collect();
+        let mut keys: Vec<String> = tool_key_rows().iter().map(|r| r.chord()).collect();
+        for preset in commands::PRESETS.iter().copied().chain([prefs.keymap_preset.as_str()]) {
+            let active = commands::shortcuts(&crate::state::Prefs { keymap_preset: preset.to_string(), ..prefs.clone() });
+            keys.extend(actions.iter().map(|a| keys_text(&active, a)));
+            keys.extend(preset_rows(preset).iter().map(|r| r.chord()));
+        }
+
+        let padding = 2.0 * ui.spacing().button_padding.x;
+        let buttons = [tr("Set"), tr("Clear"), tr("Default")].iter().map(|t| text_width(ui, t.to_string(), egui::TextStyle::Body) + padding).sum::<f32>()
+            + 2.0 * ui.spacing().item_spacing.x;
+        Self { title: widest(titles, egui::TextStyle::Body), keys: widest(keys, egui::TextStyle::Monospace), buttons }
+    }
+
+    fn width(&self, ui: &egui::Ui) -> f32 {
+        self.title + self.keys + self.buttons + 2.0 * ui.spacing().item_spacing.x
+    }
+}
+
+fn text_width(ui: &egui::Ui, text: String, style: egui::TextStyle) -> f32 {
+    ui.painter().layout_no_wrap(text, style.resolve(ui.style()), egui::Color32::WHITE).size().x
+}
+
+/// A grid cell at least `width` wide, so its column does not change width with the rows shown.
+fn fixed_cell(ui: &mut egui::Ui, width: f32, add: impl FnOnce(&mut egui::Ui)) {
+    ui.horizontal(|ui| {
+        ui.set_min_width(width);
+        add(ui);
+    });
+}
+
+fn keys_text(active: &[(egui::KeyboardShortcut, Action)], action: &Action) -> String {
+    let keys: Vec<String> = active.iter().filter(|(_, a)| a == action).map(|(s, _)| commands::shortcut_to_text(s)).collect();
+    if keys.is_empty() { tr("unbound").to_string() } else { keys.join(", ") }
 }
 /// Connects an output of one selected entity to an input of the other.
 #[derive(Default)]
@@ -2921,6 +3015,59 @@ mod tests {
         h.run();
         assert!(h.query_by_label("Click on something without faces (Face mode)").is_some());
         assert_eq!(rect(&h), full, "long gestures wrap instead of widening the window");
+    }
+
+    #[test]
+    fn the_set_buttons_stay_put_through_a_filter_a_recording_and_a_prompt() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        let window =
+            |h: &egui_kittest::Harness<'static, (KeymapWindow, EditorState)>| h.ctx.memory(|m| m.area_rect(egui::Id::new(Some("Keyboard Shortcuts")))).unwrap();
+        let full = window(&h);
+        let column: Vec<f32> = h.get_all_by_label("Set").map(|n| n.rect().min.x).collect();
+        assert!(column.iter().all(|x| *x == column[0]), "{column:?}");
+
+        h.state_mut().0.filter = Action::CsgSubtract.title();
+        h.run();
+        let (set, clear) = (h.get_by_label("Set").rect(), h.get_by_label("Clear").rect());
+        assert_eq!(set.min.x, column[0], "a short list keeps the column widths");
+
+        h.get_by_label("Set").click();
+        h.run();
+        h.get_by_label("Keys").hover();
+        h.run();
+        assert!(h.state().0.recording.is_some());
+        assert_eq!((h.get_by_label("Set").rect(), h.get_by_label("Clear").rect()), (set, clear), "the button keeps its label and the row its place");
+
+        h.key_press_modifiers(egui::Modifiers::COMMAND, Key::E);
+        h.run();
+        assert!(h.query_by_label("Replace").is_some());
+        assert_eq!(h.get_by_label("Set").rect(), set, "the prompt opens below the row");
+        assert_eq!(window(&h), full, "the prompt wraps instead of widening the window");
+    }
+
+    #[test]
+    fn a_key_search_lines_its_tool_rows_up_with_the_command_rows() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        let press = h.get_by_label("Press a key").rect();
+        press_key_search(&mut h, Key::A);
+        assert_eq!(h.get_by_label("Press a key").rect(), press, "the key chip takes the filter's place");
+        let mesh = h.get_all_by_label("Mesh").next().unwrap().rect();
+        assert_eq!(h.get_by_label(Action::SelectAll.title().as_str()).rect().min.x, mesh.min.x);
+        let chords: Vec<f32> = h.get_all_by_label("Ctrl+A").map(|n| n.rect().min.x).collect();
+        assert!(chords.len() >= 2 && chords.iter().all(|x| *x == chords[0]), "{chords:?}");
+    }
+
+    #[test]
+    fn the_tool_keys_tab_gives_every_tool_the_same_chord_column() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        h.get_by_label("Tool keys").click();
+        h.run();
+        let vertex = h.get_by_label("Bevel vertices (with vertices, edges or faces selected)").rect();
+        let polygon = h.get_by_label("Close the outline and extrude it").rect();
+        assert_eq!(vertex.min.x, polygon.min.x);
     }
 
     fn chord(modifiers: egui::Modifiers, key: Key) -> egui::KeyboardShortcut {
