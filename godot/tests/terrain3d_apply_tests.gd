@@ -34,6 +34,7 @@ static func run(t) -> void:
 	await _test_cli_instances(t)
 	await _test_cli_settings(t)
 	await _test_settings_refusals(t)
+	await _test_scene_spacing(t)
 	_test_new_folder_settings(t)
 	await _test_lost_settings(t)
 	await _test_spacing_sources(t)
@@ -629,6 +630,47 @@ static func _test_settings_refusals(t) -> void:
 	t.check(cli.refusal(PackedStringArray(["settings", wide, "2048", "100"])) == "", "it takes the largest size and spacing")
 	var wrong := Export._cli(["settings", wide, "100", "2.5"])
 	t.check(wrong[0] == 1 and wrong[1].get("ok") == false and str(wrong[1].get("error")).contains("no region size 100") and _tree(wide) == untouched, "a wrong size exits with 1 and names it, got %s" % [wrong])
+
+## A scene's Terrain3D on [param folder] at the spacing the test worlds have, in a slot under a map node.
+static func _reopened(t, folder: String) -> TrenchDotTerrain3D:
+	var terrain := ClassDB.instantiate(&"Terrain3D") as Node3D
+	terrain.set(&"vertex_spacing", SPACING)
+	terrain.set(&"data_directory", folder)
+	t.root.add_child(terrain)
+	await t.process_frame
+	return await _slot(t, terrain)
+
+## The spacing a change made with Godot closed leaves for the scene reaches the scene's Terrain3D when the map is built
+## over it or the scene opens in the editor, and exports name it until the scene is saved.
+static func _test_scene_spacing(t) -> void:
+	var folder := WORK.path_join("scene_spacing")
+	(await _world(t, "scene_spacing")).free()
+	var changed := Export._cli(["settings", folder, str(SIZE), "1.0"])
+	var hashes := _hashes(folder)
+	var slot := await _reopened(t, folder)
+	var terrain := slot.get_terrain()
+	t.check(changed[0] == 0 and is_equal_approx(float(terrain.get(&"vertex_spacing")), SPACING), "a game leaves the spacing of the scene alone, got %s" % [terrain.get(&"vertex_spacing")])
+	var report := TrenchDotBuildReport.new("")
+	TrenchDotTerrain3D.build(slot.get_parent(), [{ "data": { "data_directory": folder } }], report)
+	t.check(is_equal_approx(float(terrain.get(&"vertex_spacing")), 1.0) and report.terrain3d_problems.is_empty(), "a build over the scene's Terrain3D gives it the spacing, got %s and %s" % [terrain.get(&"vertex_spacing"), report.terrain3d_problems])
+	t.check(is_equal_approx(float(TrenchDotTerrain3DCache.read_manifest(folder).get("scene_vertex_spacing", 0.0)), 1.0), "and a game leaves the cache as it was")
+	slot.get_parent().free()
+
+	TrenchDotTerrain3D.export_outside_editor = true
+	slot = await _reopened(t, folder)
+	terrain = slot.get_terrain()
+	await t.process_frame
+	var manifest := TrenchDotTerrain3DCache.read_manifest(folder)
+	t.check(is_equal_approx(float(terrain.get(&"vertex_spacing")), 1.0) and _hashes(folder) == hashes, "an opened scene takes the spacing and keeps every region, got %s" % [terrain.get(&"vertex_spacing")])
+	t.check(is_equal_approx(float(manifest.get("vertex_spacing", 0.0)), 1.0) and is_equal_approx(float(manifest.get("scene_vertex_spacing", 0.0)), 1.0), "its exports name the spacing for the scene until it is saved, got %s and %s" % [manifest.get("vertex_spacing"), manifest.get("scene_vertex_spacing")])
+	slot.notification(Node.NOTIFICATION_EDITOR_POST_SAVE)
+	manifest = TrenchDotTerrain3DCache.read_manifest(folder)
+	t.check(not manifest.has("scene_vertex_spacing") and is_equal_approx(float(manifest.get("vertex_spacing", 0.0)), 1.0), "the export after a save drops it, got %s" % [manifest])
+	TrenchDotTerrain3D.export_outside_editor = false
+	terrain.set(&"vertex_spacing", 3.0)
+	TrenchDotTerrain3D.build(slot.get_parent(), [{ "data": { "data_directory": folder } }], report)
+	t.check(is_equal_approx(float(terrain.get(&"vertex_spacing")), 3.0), "without it a build keeps the spacing the scene has")
+	slot.get_parent().free()
 
 ## What TrenchDot writes when it links a folder with no regions yet: a manifest with the size and spacing the new
 ## terrain should get, and no region file.

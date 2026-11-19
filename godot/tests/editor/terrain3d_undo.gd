@@ -2,13 +2,16 @@
 extends Node
 ## Checks in a headless Godot editor that TrenchDot edits sent over the live link land in the Terrain3D of the edited
 ## scene as one undo step, that undo and redo put the regions back and the cache follows each step, and that the
-## Terrain3D settings event and the other events behave. res://tests/terrain3d_apply_tests.gd starts it with
+## Terrain3D settings event and the other events behave, and that a scene opened after TrenchDot changed the vertex
+## spacing with Godot closed takes it. res://tests/terrain3d_apply_tests.gd starts it with
 ## godot --headless --editor --path godot res://tests/editor/terrain3d_undo.tscn -- --td-terrain3d-undo
 ## and it does nothing when the scene is opened any other way.
 
 const FLAG := "--td-terrain3d-undo"
 const Apply := preload("res://tests/terrain3d_apply_tests.gd")
 const NAME := "editor_undo"
+## Inside the project, since the editor opens no scene outside it, and in .godot, which git and the file scan skip.
+const SPACING_SCENE := "res://.godot/td_tests/terrain3d_spacing.tscn"
 
 func _ready() -> void:
 	if not Engine.is_editor_hint() or not FLAG in OS.get_cmdline_user_args():
@@ -82,6 +85,7 @@ class Runner extends Node:
 		await _check_other_events()
 		slot.queue_free()
 		await frames(5)
+		await _check_scene_spacing()
 		get_tree().quit(1 if failures > 0 else 0)
 
 	func _check_apply_undo_redo(slot: TrenchDotTerrain3D, terrain: Node3D) -> void:
@@ -234,3 +238,46 @@ class Runner extends Node:
 		check(reply.get("ok") == true, "hello still answers, got %s" % reply)
 		reply = await send({ "event": "terrain3d_sculpt", "dir": dir })
 		check(reply.get("ok") == false and reply.get("error") == "unknown event", "an unknown event is still refused, got %s" % reply)
+
+	func _check_scene_spacing() -> void:
+		var spaced := Apply.WORK.path_join("editor_spacing")
+		var world: Node3D = await Apply._world(get_tree(), "editor_spacing")
+		var changed := TrenchDotTerrain3DCache.rewrite_settings(world, spaced, Apply.SIZE, 1.5)
+		world.free()
+		check(changed.ok, "the folder changes its spacing to 1.5, got %s" % [changed])
+		var root := Node3D.new()
+		root.name = "SpacingMap"
+		var holder := TrenchDotTerrain3D.new()
+		holder.name = TrenchDotTerrain3D.NODE_NAME
+		root.add_child(holder)
+		holder.owner = root
+		var old: Node3D = ClassDB.instantiate(&"Terrain3D")
+		old.name = "Terrain3D"
+		old.set(&"vertex_spacing", Apply.SPACING)
+		old.set(&"data_directory", spaced)
+		holder.add_child(old)
+		old.owner = root
+		var pack := PackedScene.new()
+		pack.pack(root)
+		root.free()
+		DirAccess.make_dir_recursive_absolute(SPACING_SCENE.get_base_dir())
+		check(ResourceSaver.save(pack, SPACING_SCENE) == OK, "the scene at the old spacing is saved")
+
+		EditorInterface.open_scene_from_path(SPACING_SCENE)
+		await frames(5)
+		var opened := EditorInterface.get_edited_scene_root()
+		var terrain: Node3D = opened.get_node("%s/Terrain3D" % TrenchDotTerrain3D.NODE_NAME) if opened and opened.scene_file_path == SPACING_SCENE else null
+		check(terrain != null and is_equal_approx(float(terrain.get(&"vertex_spacing")), 1.5), "the opened scene's Terrain3D takes the spacing, got %s" % [terrain.get(&"vertex_spacing") if terrain else "no scene"])
+		check(SPACING_SCENE in EditorInterface.get_unsaved_scenes(), "as an unsaved change, got %s" % [EditorInterface.get_unsaved_scenes()])
+		var manifest := TrenchDotTerrain3DCache.read_manifest(spaced)
+		check(is_equal_approx(float(manifest.get("vertex_spacing", 0.0)), 1.5) and is_equal_approx(float(manifest.get("scene_vertex_spacing", 0.0)), 1.5), "the cache names the spacing for the scene until it is saved, got %s and %s" % [manifest.get("vertex_spacing"), manifest.get("scene_vertex_spacing")])
+		# The headless editor has no viewport texture for the scene thumbnail, so this saves without one.
+		EditorInterface.save_scene_as(SPACING_SCENE, false)
+		await frames(5)
+		manifest = TrenchDotTerrain3DCache.read_manifest(spaced)
+		check(not manifest.has("scene_vertex_spacing") and is_equal_approx(float(manifest.get("vertex_spacing", 0.0)), 1.5), "a save drops it, got %s" % [manifest.get("scene_vertex_spacing")])
+		check(not SPACING_SCENE in EditorInterface.get_unsaved_scenes() and FileAccess.get_file_as_string(SPACING_SCENE).contains("vertex_spacing = 1.5"), "and the scene file holds the spacing")
+		EditorInterface.close_scene()
+		await frames(5)
+		DirAccess.remove_absolute(SPACING_SCENE)
+		DirAccess.remove_absolute(SPACING_SCENE.get_base_dir())
