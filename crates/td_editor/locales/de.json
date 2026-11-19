@@ -2582,5 +2582,9 @@
   "Select objects to transform": "Objekte zum Transformieren auswählen",
   "A scale factor cannot be 0": "Ein Skalierungsfaktor darf nicht 0 sein",
   "The values change nothing": "Die Werte ändern nichts",
-  "Moves, turns or scales the selection by typed numbers": "Verschiebt, dreht oder skaliert die Auswahl um eingegebene Zahlen"
+  "Moves, turns or scales the selection by typed numbers": "Verschiebt, dreht oder skaliert die Auswahl um eingegebene Zahlen",
+  "Tie to Entity": "Mit Entität verbinden",
+  "Turns the selected brushes into a brush entity picked from a list, like a door or a trigger": "Macht die ausgewählten Brushes zu einer Brush-Entität aus der Liste, etwa Tür oder Trigger",
+  "Already a {class}, change its class in the Inspector": "Bereits {class}, ändere die Klasse im Inspektor",
+  "Type a class…": "Klasse eingeben…"
 }

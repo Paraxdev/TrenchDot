@@ -50,6 +50,8 @@ pub struct CommandPalette {
     pub open: bool,
     query: String,
     selected: usize,
+    /// Lists the brush entity classes instead of the commands, for Tie to Entity.
+    class_picker: bool,
 }
 
 /// A command listed as "Category: Name", `category` and `name` are English keys. `en` keeps the English label for
@@ -136,6 +138,7 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
         entry(en!("Brush"), en!("CSG Intersect"), Action::CsgIntersect),
         entry(en!("Brush"), en!("Hollow"), Action::CsgHollow),
         entry(en!("Brush"), en!("Snap Vertices to Grid"), Action::SnapVertices),
+        entry(en!("Brush"), en!("Tie to Entity"), Action::TieToEntity),
         entry(en!("Brush"), en!("Move to World"), Action::MoveToWorld),
         entry(en!("Brush"), en!("Shape Generator"), Action::ShowShapeDialog),
         entry(en!("Brush"), en!("Add Trim (baseboards, molding)"), Action::ShowTrimDialog),
@@ -325,8 +328,14 @@ fn aliases(action: &Action) -> &'static [&'static str] {
     match action {
         Action::UnlinkGroups => &["Make Unique", "Make Single User", "Unlink Groups"],
         Action::ShowTransformDialog => &["Transformations"],
+        Action::TieToEntity => &["tie", "Make Brush Entity"],
         _ => &[],
     }
+}
+
+/// The brush entity classes of the game config, each running Create Brush Entity on the selection.
+fn class_entries(state: &EditorState) -> Vec<(Msg, Action)> {
+    state.game.solid_entities().map(|d| (Msg { en: d.classname.clone(), shown: d.classname.clone() }, Action::CreateBrushEntity(d.classname.clone()))).collect()
 }
 
 fn ranked(query: &str, entries: Vec<(Msg, Action)>) -> Vec<(i32, Msg, Action)> {
@@ -346,6 +355,19 @@ impl CommandPalette {
         self.open = !self.open;
         self.query.clear();
         self.selected = 0;
+        self.class_picker = false;
+    }
+
+    /// Opens the list of brush entity classes with `default` highlighted.
+    pub fn open_class_picker(&mut self, state: &EditorState, default: &str) {
+        self.open = true;
+        self.query.clear();
+        self.class_picker = true;
+        self.selected = ranked("", class_entries(state)).iter().position(|(_, label, _)| label.en == default).unwrap_or(0);
+    }
+
+    fn entries(&self, state: &EditorState) -> Vec<(Msg, Action)> {
+        if self.class_picker { class_entries(state) } else { palette_entries(state) }
     }
 
     pub fn show(&mut self, ctx: &egui::Context, state: &EditorState, actions: &mut Vec<Action>) {
@@ -353,7 +375,7 @@ impl CommandPalette {
             return;
         }
 
-        let matches = ranked(&self.query, palette_entries(state));
+        let matches = ranked(&self.query, self.entries(state));
         self.selected = self.selected.min(matches.len().saturating_sub(1));
 
         let (up, down, enter, escape) = ctx.input_mut(|i| {
@@ -393,7 +415,13 @@ impl CommandPalette {
         let modal =
             egui::Modal::new(egui::Id::new("command_palette")).area(area).frame(frame).backdrop_color(egui::Color32::from_black_alpha(60)).show(ctx, |ui| {
                 ui.set_width(460.0);
-                let edit = ui.add(egui::TextEdit::singleline(&mut self.query).hint_text(tr("Type a command…")).desired_width(f32::INFINITY));
+                let hint = if self.class_picker {
+                    ui.label(RichText::new(tr("Tie to Entity")).strong());
+                    tr("Type a class…")
+                } else {
+                    tr("Type a command…")
+                };
+                let edit = ui.add(egui::TextEdit::singleline(&mut self.query).hint_text(hint).desired_width(f32::INFINITY));
                 edit.request_focus();
                 if edit.changed() {
                     self.selected = 0;
@@ -1784,6 +1812,57 @@ mod tests {
         palette.show(ctx, state, &mut actions);
         ctx.end_pass().drop_without_applying_deltas();
         actions
+    }
+
+    #[test]
+    fn the_class_picker_lists_brush_classes_runs_the_highlighted_one_and_never_leaks_into_the_palette() {
+        let class =
+            |name: &str, kind: &str| -> td_formats::EntityDef { serde_json::from_value(serde_json::json!({ "classname": name, "type": kind })).unwrap() };
+        let (ctx, mut state, mut time) = (egui::Context::default(), EditorState::new(Default::default()), 0.0);
+        state.game.entities = vec![class("trigger_once", "solid"), class("func_door", "solid"), class("light", "point"), class("func_detail", "solid")];
+        let key = |key| egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
+        let mut palette = CommandPalette::default();
+        let mut run = |palette: &mut CommandPalette, events: Vec<egui::Event>| {
+            for _ in 0..3 {
+                palette_frame(&ctx, palette, &state, &mut time, vec![]);
+            }
+
+            palette_frame(&ctx, palette, &state, &mut time, events)
+        };
+
+        palette.open_class_picker(&state, "trigger_once");
+        assert_eq!(
+            run(&mut palette, vec![key(egui::Key::Enter)]),
+            vec![Action::CreateBrushEntity("trigger_once".into())],
+            "the default is highlighted, not the first row"
+        );
+        assert!(!palette.open);
+
+        palette.open_class_picker(&state, "func_detail");
+        assert_eq!(
+            run(&mut palette, vec![key(egui::Key::ArrowDown), key(egui::Key::Enter)]),
+            vec![Action::CreateBrushEntity("func_door".into())],
+            "arrows move from it"
+        );
+
+        palette.open_class_picker(&state, "func_detail");
+        assert!(run(&mut palette, vec![egui::Event::Text("trig".into())]).is_empty());
+        assert_eq!(run(&mut palette, vec![key(egui::Key::Enter)]), vec![Action::CreateBrushEntity("trigger_once".into())], "typing filters the classes");
+
+        palette.open_class_picker(&state, "missing");
+        assert_eq!(
+            run(&mut palette, vec![key(egui::Key::Enter)]),
+            vec![Action::CreateBrushEntity("func_detail".into())],
+            "an unknown default falls back to the first row"
+        );
+
+        palette.open_class_picker(&state, "func_detail");
+        assert!(run(&mut palette, vec![key(egui::Key::Escape)]).is_empty() && !palette.open, "Escape runs nothing");
+        palette.toggle();
+        assert!(palette.open && !palette.class_picker, "the next palette lists commands again");
+        assert!(run(&mut palette, vec![egui::Event::Text("tie to".into())]).is_empty());
+        let ran = run(&mut palette, vec![key(egui::Key::Enter)]);
+        assert_eq!(ran, vec![Action::TieToEntity], "{ran:?}");
     }
 
     #[test]

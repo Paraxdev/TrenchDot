@@ -2582,5 +2582,9 @@
   "Select objects to transform": "Выберите объекты для преобразования",
   "A scale factor cannot be 0": "Коэффициент масштаба не может быть 0",
   "The values change nothing": "Эти значения ничего не меняют",
-  "Moves, turns or scales the selection by typed numbers": "Перемещает, поворачивает или масштабирует выделение по введённым числам"
+  "Moves, turns or scales the selection by typed numbers": "Перемещает, поворачивает или масштабирует выделение по введённым числам",
+  "Tie to Entity": "Привязать к сущности",
+  "Turns the selected brushes into a brush entity picked from a list, like a door or a trigger": "Превращает выбранные брашы в браш-сущность из списка, например дверь или триггер",
+  "Already a {class}, change its class in the Inspector": "Уже {class}, смените класс в инспекторе",
+  "Type a class…": "Введите класс…"
 }

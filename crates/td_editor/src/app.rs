@@ -1221,6 +1221,11 @@ impl App {
             Action::ShowSweepDialog => self.sweep_dialog.open = true,
             Action::ShowArrayDialog => self.array_dialog.open = true,
             Action::ShowTransformDialog => self.transform_dialog.open(),
+            Action::TieToEntity => {
+                if let Some(class) = commands::tie_to_entity_check(&mut self.state) {
+                    self.palette.open_class_picker(&self.state, &class);
+                }
+            }
             Action::FlipHorizontal | Action::FlipVertical => {
                 let view = self.view_to_maximize();
                 let axis = self.viewports.get(view).map_or(0, |v| v.camera.flip_axis(action == Action::FlipHorizontal));
@@ -1624,6 +1629,7 @@ impl App {
                         }
                     });
                 });
+                m.item(ui, None, en!("Tie to Entity"), Action::TieToEntity);
                 m.item(ui, None, en!("Move Brushes to World"), Action::MoveToWorld);
             });
             menu(ui, en!("Mesh"), |ui| {

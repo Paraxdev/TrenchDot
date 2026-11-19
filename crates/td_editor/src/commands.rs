@@ -130,6 +130,7 @@ pub enum Action {
         row: DVec3,
     },
     MoveToWorld,
+    TieToEntity,
     MoveToLayer(NodeId),
     AddLayer,
     SnapVertices,
@@ -373,6 +374,7 @@ impl Action {
                 };
             }
             Action::MoveToWorld => en!("Move Brushes to World"),
+            Action::TieToEntity => en!("Tie to Entity"),
             Action::MoveToLayer(_) => en!("Move Selection to Layer"),
             Action::AddLayer => en!("Add Layer"),
             Action::SnapVertices => en!("Snap Vertices to Grid"),
@@ -499,6 +501,7 @@ impl Action {
             Action::CsgHollow => en!("Turns a solid brush into a hollow room with walls of the set thickness"),
             Action::SnapVertices => en!("Moves every corner of the selected brushes to the nearest grid point"),
             Action::MoveToWorld => en!("Moves the selected brushes out of their brush entity into plain level geometry"),
+            Action::TieToEntity => en!("Turns the selected brushes into a brush entity picked from a list, like a door or a trigger"),
             Action::CreateBrushFromBounds => en!("Draws a box brush the size of the last selection"),
             Action::SelectTouching => en!("Uses the selected brushes as a selection box, selecting everything they touch and deleting the box"),
             Action::SelectInside => en!("Selects everything fully inside the selected brushes, then deletes them"),
@@ -715,6 +718,8 @@ pub fn preset_bindings(preset: &str) -> Vec<(KeyboardShortcut, Action)> {
             (sc(SHIFT, Key::X), Action::SetTool(ToolKind::Clip)),
             (sc(SHIFT, Key::V), Action::SetTool(ToolKind::Vertex)),
             (sc(CTRL, Key::W), Action::MoveToWorld),
+            (sc(CTRL, Key::T), Action::TieToEntity),
+            (sc(CTRL_SHIFT, Key::T), Action::SelectTouching),
             (sc(NONE, Key::H), Action::HideSelected),
             (sc(CTRL, Key::H), Action::IsolateSelected),
             (sc(NONE, Key::U), Action::UnhideAll),
@@ -1090,6 +1095,55 @@ fn runs_project(state: &EditorState, action: &Action) -> bool {
         Action::ToggleLiveMode => !state.prefs.live_mode,
         Action::ToggleWalkable => !state.walkable.on,
         _ => false,
+    }
+}
+
+/// The brush entity the whole selection already is, when tying it again would only drop that entity's properties.
+pub fn already_tied(state: &EditorState) -> Option<NodeId> {
+    let map = &state.doc.map;
+    let brushes = ops::brush_entity_geometry(map, &state.doc.selection);
+    let entity = map.owning_entity(*brushes.first()?)?;
+    let holds_only_these = map.descendants(entity).into_iter().filter(|id| map.get(*id).is_some_and(|n| n.kind.is_geometry())).all(|id| brushes.contains(&id));
+    (brushes.iter().all(|b| map.owning_entity(*b) == Some(entity)) && holds_only_these).then_some(entity)
+}
+
+/// The class Tie to Entity preselects, or why there is nothing to tie.
+pub fn tie_to_entity_class(state: &EditorState) -> Result<String, Msg> {
+    if ops::brush_entity_geometry(&state.doc.map, &state.doc.selection).is_empty() {
+        return Err(msg!("Select brushes first"));
+    }
+
+    let classes: Vec<&str> = state.game.solid_entities().map(|d| d.classname.as_str()).collect();
+    if classes.is_empty() {
+        return Err(msg!("No brush entities, open a Godot project with a game config"));
+    }
+
+    if let Some(entity) = already_tied(state) {
+        let class = state.doc.map.entity(entity).map(|e| e.classname.clone()).unwrap_or_default();
+        return Err(msg!("Already a {class}, change its class in the Inspector", class));
+    }
+
+    let default = classes.iter().find(|c| **c == "func_detail").or_else(|| classes.iter().find(|c| c.contains("detail"))).unwrap_or(&classes[0]);
+    Ok(default.to_string())
+}
+
+/// Checks a Tie to Entity request, reporting a refusal on the status line. Returns the class to preselect when the
+/// class picker should open.
+pub fn tie_to_entity_check(state: &mut EditorState) -> Option<String> {
+    match tie_to_entity_class(state) {
+        Ok(class) => Some(class),
+        Err(why) => {
+            let refused_as_tied = state.game.solid_entities().next().is_some();
+            if let Some(entity) = already_tied(state).filter(|_| refused_as_tied) {
+                state.doc.select(|_, s| {
+                    s.clear();
+                    s.select_node(entity);
+                });
+            }
+
+            state.fail_status(why);
+            None
+        }
     }
 }
 
@@ -1763,6 +1817,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         | Action::ShowSweepDialog
         | Action::ShowArrayDialog
         | Action::ShowTransformDialog
+        | Action::TieToEntity
         | Action::FlipHorizontal
         | Action::FlipVertical
         | Action::ShowFindDialog
@@ -3491,8 +3546,12 @@ mod tests {
             assert_eq!(has(Action::SelectBrushFaces, sc(CTRL_SHIFT, Key::A)), preset == "hammer", "{preset}");
             assert!(has(Action::SelectAll, sc(CTRL, Key::A)), "{preset}");
             assert!(has(Action::SelectInside, sc(CTRL, Key::E)), "{preset}");
-            assert!(has(Action::SelectTouching, sc(CTRL, Key::T)), "{preset}");
-            assert!(!bindings.iter().any(|(b, _)| *b == sc(CTRL_SHIFT, Key::T)), "{preset} still binds Ctrl+Shift+T");
+            assert_eq!(has(Action::SelectTouching, sc(CTRL, Key::T)), preset != "hammer", "{preset}");
+            assert_eq!(has(Action::SelectTouching, sc(CTRL_SHIFT, Key::T)), preset == "hammer", "{preset}");
+            assert_eq!(has(Action::TieToEntity, sc(CTRL, Key::T)), preset == "hammer", "{preset}");
+            assert_eq!(bindings.iter().any(|(_, a)| *a == Action::TieToEntity), preset == "hammer", "{preset}: only Hammer binds Tie to Entity");
+            assert_eq!(bindings.iter().filter(|(b, _)| *b == sc(CTRL_SHIFT, Key::T)).count(), usize::from(preset == "hammer"), "{preset}");
+            assert!(bindings.iter().any(|(_, a)| *a == Action::SelectTouching), "{preset} leaves Select Touching unbound");
             assert_eq!(bindings.iter().any(|(_, a)| *a == Action::SelectBrushFaces), preset == "hammer", "{preset}: only Hammer binds Brush Faces");
             let hammer = preset == "hammer";
             assert_eq!(has(Action::SelectInverse, sc(CTRL, Key::I)), !hammer, "{preset}");
@@ -3518,6 +3577,130 @@ mod tests {
                 assert!(bindings.iter().any(|(_, a)| *a == action), "{preset} leaves {action:?} unbound");
             }
         }
+    }
+
+    fn solid_class(name: &str) -> td_formats::EntityDef {
+        serde_json::from_value(serde_json::json!({ "classname": name, "type": "solid" })).unwrap()
+    }
+
+    fn point_class(name: &str) -> td_formats::EntityDef {
+        serde_json::from_value(serde_json::json!({ "classname": name, "type": "point" })).unwrap()
+    }
+
+    fn tie_state(classes: Vec<td_formats::EntityDef>) -> EditorState {
+        let mut state = EditorState::new(Default::default());
+        state.game.entities = classes;
+        state
+    }
+
+    #[test]
+    fn tie_to_entity_picks_func_detail_then_a_detail_class_then_the_first_solid_class() {
+        let default_class = |classes: Vec<td_formats::EntityDef>| {
+            let mut state = tie_state(classes);
+            let id = brush_at(&mut state, 40.0);
+            state.doc.select(|_, s| s.select_node(id));
+            tie_to_entity_class(&state).map_err(|m| m.en)
+        };
+        let ok = |name: &str| Ok(name.to_string());
+        let with_point_detail = vec![point_class("func_detail"), solid_class("worldspawn"), solid_class("func_door"), solid_class("trigger_once")];
+        assert_eq!(default_class(with_point_detail), ok("func_door"), "worldspawn and a point class of that name never win");
+        let both = vec![solid_class("func_door"), solid_class("my_detail_wall"), solid_class("func_detail")];
+        assert_eq!(default_class(both), ok("func_detail"));
+        let detail_only = vec![solid_class("func_door"), solid_class("my_detail_wall"), solid_class("trigger_detail")];
+        assert_eq!(default_class(detail_only), ok("my_detail_wall"));
+        assert_eq!(default_class(vec![solid_class("func_detail")]), ok("func_detail"), "one class");
+    }
+
+    #[test]
+    fn tie_to_entity_refuses_without_brushes_or_without_brush_classes() {
+        let mut state = tie_state(vec![solid_class("func_door")]);
+        assert_eq!(tie_to_entity_class(&state).unwrap_err().en, "Select brushes first", "nothing selected");
+
+        let a = brush_at(&mut state, 40.0);
+        state.doc.select(|_, s| s.select_node(a));
+        assert_eq!(tie_to_entity_class(&state).map_err(|m| m.en), Ok("func_door".to_string()), "one brush is enough");
+
+        let parent = state.insert_parent();
+        let point = state.doc.edit("Create Entity", |m, _| ops::create_point_entity(m, parent, "light", DVec3::new(8.0, 16.0, 24.0)));
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_node(point);
+        });
+        assert_eq!(tie_to_entity_class(&state).unwrap_err().en, "Select brushes first", "a point entity is no geometry");
+
+        state.doc.select(|_, s| s.select_node(a));
+        state.game.entities = vec![point_class("light"), solid_class("worldspawn")];
+        assert_eq!(tie_to_entity_class(&state).unwrap_err().en, "No brush entities, open a Godot project with a game config");
+    }
+
+    #[test]
+    fn tie_to_entity_stops_on_a_selection_that_is_already_one_whole_entity() {
+        let mut state = tie_state(vec![solid_class("func_detail"), solid_class("func_door")]);
+        let ctx = egui::Context::default();
+        let (a, b, c) = (brush_at(&mut state, 40.0), brush_at(&mut state, 104.0), brush_at(&mut state, -88.0));
+        state.doc.select(|_, s| s.nodes.extend([a, b]));
+        execute(&mut state, Action::CreateBrushEntity("func_door".into()), &ctx);
+        let door = state.doc.map.owning_entity(a).unwrap();
+        assert_eq!(state.doc.map.owning_entity(b), Some(door));
+
+        state.doc.select(|_, s| {
+            s.clear();
+            s.nodes.extend([a, b]);
+        });
+        assert_eq!(tie_to_entity_class(&state).unwrap_err().en, "Already a func_door, change its class in the Inspector", "both brushes");
+        assert_eq!(already_tied(&state), Some(door));
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_node(door);
+        });
+        assert_eq!(already_tied(&state), Some(door), "the entity itself");
+
+        let ties = |state: &EditorState| tie_to_entity_class(state).map_err(|m| m.en) == Ok("func_detail".to_string());
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_node(a);
+        });
+        assert!(ties(&state) && already_tied(&state).is_none(), "one of the door's two brushes leaves the other behind");
+        state.doc.select(|_, s| s.nodes.extend([b, c]));
+        assert!(ties(&state) && already_tied(&state).is_none(), "two brushes of the door plus a world brush");
+    }
+
+    #[test]
+    fn a_refused_tie_leaves_the_map_alone_and_selects_the_entity_it_already_is() {
+        let mut state = tie_state(vec![solid_class("func_door")]);
+        let ctx = egui::Context::default();
+        let (a, b) = (brush_at(&mut state, 40.0), brush_at(&mut state, 104.0));
+        state.doc.select(|_, s| s.nodes.extend([a, b]));
+        execute(&mut state, Action::CreateBrushEntity("func_door".into()), &ctx);
+        let door = state.doc.map.owning_entity(a).unwrap();
+        state.doc.select(|_, s| {
+            s.clear();
+            s.nodes.extend([b, a]);
+        });
+        state.doc.mark_saved();
+        let steps = state.doc.history.undo_labels().count();
+        assert_eq!(tie_to_entity_check(&mut state), None);
+        assert!(state.status_failed(), "{}", state.status);
+        assert_eq!(state.status, "Already a func_door, change its class in the Inspector");
+        assert_eq!(state.doc.selection.nodes.iter().copied().collect::<Vec<_>>(), vec![door]);
+        assert!(!state.doc.is_modified());
+        assert_eq!(state.doc.history.undo_labels().count(), steps);
+
+        state.doc.select(|_, s| s.clear());
+        assert_eq!(tie_to_entity_check(&mut state), None);
+        assert_eq!(state.status, "Select brushes first");
+        state.doc.select(|_, s| s.nodes.extend([a, b]));
+        state.game.entities.clear();
+        assert_eq!(tie_to_entity_check(&mut state), None);
+        assert!(state.status.starts_with("No brush entities"), "{}", state.status);
+        assert_eq!(state.doc.selection.nodes.len(), 2, "only the Already refusal swaps the selection for the entity");
+        state.doc.select(|_, s| {
+            s.clear();
+            s.select_node(a);
+        });
+
+        state.game.entities = vec![solid_class("func_door")];
+        assert_eq!(tie_to_entity_check(&mut state).as_deref(), Some("func_door"), "one of two brushes may be tied, it leaves the door");
     }
 
     #[test]

@@ -2582,5 +2582,9 @@
   "Select objects to transform": "请选择要变换的对象",
   "A scale factor cannot be 0": "缩放系数不能为 0",
   "The values change nothing": "这些数值不会改变任何东西",
-  "Moves, turns or scales the selection by typed numbers": "按输入的数值移动、旋转或缩放选区"
+  "Moves, turns or scales the selection by typed numbers": "按输入的数值移动、旋转或缩放选区",
+  "Tie to Entity": "绑定到实体",
+  "Turns the selected brushes into a brush entity picked from a list, like a door or a trigger": "将所选笔刷变成列表中的笔刷实体,例如门或触发器",
+  "Already a {class}, change its class in the Inspector": "已经是 {class},请在检查器中更改其类别",
+  "Type a class…": "输入类别…"
 }

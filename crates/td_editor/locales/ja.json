@@ -2582,5 +2582,9 @@
   "Select objects to transform": "変形するオブジェクトを選択してください",
   "A scale factor cannot be 0": "スケール係数は0にできません",
   "The values change nothing": "この値では何も変わりません",
-  "Moves, turns or scales the selection by typed numbers": "入力した数値で選択範囲を移動、回転、拡縮します"
+  "Moves, turns or scales the selection by typed numbers": "入力した数値で選択範囲を移動、回転、拡縮します",
+  "Tie to Entity": "エンティティに紐付け",
+  "Turns the selected brushes into a brush entity picked from a list, like a door or a trigger": "選択したブラシを、リストから選んだドアやトリガーなどのブラシエンティティにします",
+  "Already a {class}, change its class in the Inspector": "すでに{class}です。クラスはインスペクターで変更してください",
+  "Type a class…": "クラスを入力…"
 }

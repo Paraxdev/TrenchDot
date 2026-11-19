@@ -3938,6 +3938,76 @@ fn ctrl_m_opens_transform_selection_in_hammer_and_merges_in_trenchbroom() {
     assert!(ed.call_err("run_action", json!({ "action": "transform_selection" })).contains("transform {translate, rotate, scale}"));
 }
 
+/// Ctrl+T ties the selected brushes to a brush entity through the class picker in the Hammer preset, where Select
+/// Touching moved to Ctrl+Shift+T. TrenchBroom keeps Select Touching on Ctrl+T.
+#[test]
+#[ignore]
+fn hammer_ctrl_t_ties_brushes_to_an_entity_and_trenchbroom_keeps_select_touching() {
+    let ed = Editor::launch("hammer_tie");
+    let a = ed.box_brush([40.0, 8.0, -72.0], [104.0, 72.0, -20.0]);
+    let b = ed.box_brush([200.0, 8.0, -72.0], [232.0, 72.0, -20.0]);
+    ed.call("select", json!({ "ids": [a, b] }));
+    let press = |key: &str, mods: &[&str]| ed.input("top", json!([{ "type": "move" }, { "type": "key", "key": key, "modifiers": mods }]));
+    let entities = || ed.call("list_nodes", json!({ "type": "entity" }));
+    let parent_of = |id: u64| {
+        let brushes = ed.call("list_nodes", json!({ "type": "brush" }));
+        brushes["nodes"].as_array().unwrap().iter().find(|n| n["id"] == id).map(|n| n["parent"].as_u64().unwrap()).unwrap()
+    };
+    let layer = parent_of(a);
+
+    ed.call("set_editor", json!({ "keymap": "trenchbroom" }));
+    press("T", &["ctrl"]);
+    assert_eq!(entities()["total"], 0, "TrenchBroom Ctrl+T does not tie");
+    assert_eq!(ed.state()["map"]["brushes"], 0, "it selected touching, which deleted the two selecting brushes");
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(parent_of(a), layer);
+
+    ed.call("set_editor", json!({ "keymap": "hammer" }));
+    ed.call("select", json!({ "ids": [a, b] }));
+    press("T", &["ctrl"]);
+    ed.input("top", json!([{ "type": "key", "key": "Escape" }]));
+    assert_eq!((entities()["total"].as_u64(), parent_of(a), parent_of(b)), (Some(0), layer, layer), "Escape changes nothing");
+    assert_eq!(selected_sorted(&ed), vec![a, b]);
+
+    // The picker must not stay behind in the command palette.
+    ed.input(
+        "top",
+        json!([{ "type": "key", "key": "P", "modifiers": ["ctrl", "shift"] }, { "type": "text", "text": "grid larger" }, { "type": "key", "key": "Enter" }]),
+    );
+    assert_eq!(ed.state()["editor"]["grid"], 32.0, "the palette lists commands again");
+
+    press("T", &["ctrl"]);
+    ed.input("top", json!([{ "type": "key", "key": "Enter" }]));
+    let nodes = entities();
+    assert_eq!(nodes["total"], 1, "{nodes}");
+    assert_eq!(nodes["nodes"][0]["classname"], "func_detail");
+    let entity = nodes["nodes"][0]["id"].as_u64().unwrap();
+    assert_eq!((parent_of(a), parent_of(b)), (entity, entity));
+    assert_eq!(selected(&ed), vec![entity], "the new entity is selected");
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!((entities()["total"].as_u64(), parent_of(a), parent_of(b)), (Some(0), layer, layer), "one undo unties both");
+
+    ed.call("select", json!({ "ids": [a, b] }));
+    press("T", &["ctrl"]);
+    ed.input("top", json!([{ "type": "text", "text": "func_geo" }]));
+    ed.input("top", json!([{ "type": "key", "key": "Enter" }]));
+    let made = entities();
+    assert_eq!(made["nodes"][0]["classname"], "func_geo", "a typed class is the one that is made: {made}");
+    ed.call("select", json!({ "ids": [a, b] }));
+    press("T", &["ctrl"]);
+    assert_eq!(selected(&ed), vec![entity_of(&entities())], "tying a whole entity again selects it and changes nothing");
+
+    ed.call("select", json!({ "ids": [a] }));
+    press("T", &["ctrl", "shift"]);
+    assert_eq!(ed.state()["map"]["brushes"], 1, "Hammer Ctrl+Shift+T selects touching, which deletes the selecting brush");
+
+    assert!(ed.call_err("run_action", json!({ "action": "tie_to_entity" })).contains("create_brush_entity {classname}"));
+}
+
+fn entity_of(entities: &Value) -> u64 {
+    entities["nodes"][0]["id"].as_u64().unwrap()
+}
+
 #[test]
 #[ignore]
 fn the_mesh_tool_keeps_ctrl_l_for_select_linked_in_the_hammer_preset() {

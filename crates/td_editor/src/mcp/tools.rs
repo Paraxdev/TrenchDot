@@ -642,10 +642,11 @@ fn dialog_action(name: &str) -> Option<&'static str> {
     })
 }
 
-/// Actions that open a window of fields, with the MCP call that takes the same numbers.
+/// Actions that open a window or a picker for a person to fill in, with the MCP call that takes the same values.
 fn window_action(name: &str) -> Option<&'static str> {
     Some(match name {
         "transform_selection" => "transform {translate, rotate, scale}",
+        "tie_to_entity" => "create_brush_entity {classname}",
         _ => return None,
     })
 }
@@ -1378,7 +1379,7 @@ impl App {
         }
 
         if let Some(instead) = window_action(name) {
-            return err(format!("{name} opens a window to type numbers into, which MCP has no use for, use {instead} instead"));
+            return err(format!("{name} opens a window to fill in, which MCP has no use for, use {instead} instead"));
         }
 
         if let Some(instead) = view_action(name) {
@@ -3434,7 +3435,8 @@ mod tests {
         assert_eq!(view_action("flip_vertical"), Some("flip {axis}"));
         assert!(view_action("flip").is_none());
         assert_eq!(window_action("transform_selection"), Some("transform {translate, rotate, scale}"));
-        assert!(window_action("transform").is_none());
+        assert_eq!(window_action("tie_to_entity"), Some("create_brush_entity {classname}"));
+        assert!(window_action("transform").is_none() && window_action("create_brush_entity").is_none());
 
         // Commands report failures through fail_status, which run_action turns into errors whatever the wording.
         let ctx = egui::Context::default();
