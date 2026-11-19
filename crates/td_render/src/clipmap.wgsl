@@ -1,5 +1,6 @@
 // clipmap::wgsl_consts() puts MESH_SIZE, MAP_SIDE, LOC_MIN, NO_REGION, COARSE_ONLY and the control word shifts in
-// front of this file. Positions in cells are Terrain3D vertex grid coordinates, x along world x and y along world z.
+// front of this file, then ring.wgsl. Positions in cells are Terrain3D vertex grid coordinates, x along world x and y
+// along world z.
 
 struct Texture {
     // x: uv scale, y: detiling rotation, z: detiling shift
@@ -57,12 +58,6 @@ const NAVIGATION_WASH: vec3<f32> = vec3<f32>(0.5, 0.2, 0.5);
 const WET_WASH: vec3<f32> = vec3<f32>(0.4, 0.6, 1.0);
 const DRY_WASH: vec3<f32> = vec3<f32>(0.6, 0.4, 0.0);
 const AUTOSHADER_WASH: vec3<f32> = vec3<f32>(0.36, 0.2, 0.09);
-
-struct VIn {
-    @location(0) local: vec2<u32>,
-    @location(1) origin: vec2<i32>,
-    @location(2) level: u32,
-};
 
 struct VOut {
     @builtin(position) clip: vec4<f32>,
@@ -264,40 +259,29 @@ fn ground_normal(cell: vec2<i32>, step: i32, octaves: i32) -> vec3<f32> {
 
 struct RingVertex {
     world: vec3<f32>,
-    cell: vec2<i32>,
-    end: vec2<i32>,
-    scale: i32,
-    lerp: f32,
+    morph: RingMorph,
     octaves: i32,
 };
 
-// The twin of layout::Morph: odd vertices slide onto the next level's grid near the outer edge of their ring.
 fn ring_vertex(v: VIn) -> RingVertex {
-    let scale = 1 << v.level;
-    let cell = v.origin + vec2<i32>(v.local) * scale;
-    let target_cells = cam.eye.xz / clip.world.x;
-    let away = max(abs(f32(cell.x) - target_cells.x), abs(f32(cell.y) - target_cells.y)) / f32(scale);
-    let t = clamp((away - MESH_SIZE - 4.0) / (MESH_SIZE - 4.0), 0.0, 1.0);
-    let lerp = t * t * (3.0 - 2.0 * t);
-    let r = (cell >> vec2<u32>(v.level)) & vec2<i32>(3);
-    let shift = vec2<i32>(r == vec2<i32>(1)) - vec2<i32>(r == vec2<i32>(3));
-    let end = cell + shift * scale;
-    let pos = mix(vec2<f32>(cell), vec2<f32>(end), lerp);
-    let octaves = noise_octaves(cell);
-    var noise = noise_height(vec2<f32>(cell), octaves);
-    if (lerp > 0.0) {
-        noise = mix(noise, noise_height(vec2<f32>(end), octaves), lerp);
+    let m = ring_morph(v, cam.eye.xz / clip.world.x);
+    let pos = mix(vec2<f32>(m.cell), vec2<f32>(m.end), m.lerp);
+    let octaves = noise_octaves(m.cell);
+    var noise = noise_height(vec2<f32>(m.cell), octaves);
+    if (m.lerp > 0.0) {
+        noise = mix(noise, noise_height(vec2<f32>(m.end), octaves), m.lerp);
     }
-    let h = blended(pos, mix(raw_height(cell), raw_height(end), lerp)) + noise;
-    return RingVertex(vec3<f32>(pos.x * clip.world.x, h * clip.world.y, pos.y * clip.world.x), cell, end, scale, lerp, octaves);
+    let h = blended(pos, mix(raw_height(m.cell), raw_height(m.end), m.lerp)) + noise;
+    return RingVertex(vec3<f32>(pos.x * clip.world.x, h * clip.world.y, pos.y * clip.world.x), m, octaves);
 }
 
 @vertex
 fn vs_main(v: VIn) -> VOut {
     let r = ring_vertex(v);
-    var n = ground_normal(r.cell, r.scale, r.octaves);
-    if (r.lerp > 0.0) {
-        n = normalize(mix(n, ground_normal(r.end, r.scale * 2, r.octaves), r.lerp));
+    let m = r.morph;
+    var n = ground_normal(m.cell, m.scale, r.octaves);
+    if (m.lerp > 0.0) {
+        n = normalize(mix(n, ground_normal(m.end, m.scale * 2, r.octaves), m.lerp));
     }
 
     var o: VOut;
@@ -317,15 +301,6 @@ struct ShadowOut {
 fn vs_shadow(v: VIn) -> ShadowOut {
     let world = ring_vertex(v).world;
     return ShadowOut(cam.view_proj * vec4<f32>(world, 1.0), world);
-}
-
-// The corners of the triangle under `f` in cell `c`, which splits along the alternating diagonal like
-// layout::MeshKind::indices.
-fn triangle(c: vec2<i32>, f: vec2<f32>) -> array<vec2<i32>, 3> {
-    if (((c.x + c.y) & 1) == 0) {
-        return array<vec2<i32>, 3>(vec2<i32>(0, 0), vec2<i32>(1, 1), select(vec2<i32>(1, 0), vec2<i32>(0, 1), f.y >= f.x));
-    }
-    return array<vec2<i32>, 3>(vec2<i32>(0, 1), vec2<i32>(1, 0), select(vec2<i32>(1, 1), vec2<i32>(0, 0), f.x + f.y < 1.0));
 }
 
 // With no background drawn, whether the level 0 triangle under a pixel has a corner no region holds, so this drops exactly

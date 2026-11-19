@@ -216,8 +216,8 @@ pub fn ring(target: DVec2) -> Vec<Part> {
     parts
 }
 
-/// A ring vertex sliding onto the next level's grid near the outer edge of its ring, the CPU twin of the vertex
-/// shader. At the outer edge every vertex sits on a vertex of the next level, so the levels meet without cracks.
+/// A ring vertex sliding onto the next level's grid near the outer edge of its ring, the CPU twin of `ring_morph` in
+/// ring.wgsl. At the outer edge every vertex sits on a vertex of the next level, so the levels meet without cracks.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Morph {
     /// The vertex, in level 0 cells.

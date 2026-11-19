@@ -163,7 +163,7 @@ fn shape_shader() -> String {
 }
 
 fn clipmap_shader() -> String {
-    format!("{}\n{}\n{}\n{}", include_str!("common.wgsl"), ink::wgsl(), clipmap::wgsl_consts(), include_str!("clipmap.wgsl"))
+    format!("{}\n{}\n{}\n{}\n{}", include_str!("common.wgsl"), ink::wgsl(), clipmap::wgsl_consts(), include_str!("ring.wgsl"), include_str!("clipmap.wgsl"))
 }
 
 fn water_shader() -> String {
