@@ -549,8 +549,12 @@ fn height_range(heights: &[f32]) -> [f32; 2] {
 
 /// The pyramid of a region without its finest level, which is the region itself. A level holds the vertices the region
 /// owns and one byte per cell for holes, the seam row and column come from the neighbor's own level where two sit
-/// side by side. None for a region too small for any level.
+/// side by side. Heights and flag bits are the vertex's own, the color the average of the `stride` square around it,
+/// so a far tint does not hinge on the one pixel a vertex lands on. None for a region too small for any level.
 pub fn build_lod(grid: &Grid, region: &Region3D, hash: RegionHash) -> Option<Lod> {
+    const FLAG_BITS: u32 = 3;
+    let colored = region.color.len() == region.heights.len() * 4 && !region.color_is_blank();
+    let flagged = region.control.iter().any(|c| c & FLAG_BITS != 0);
     let levels: Vec<LodLevel> = terrain3d_tile::lod_strides(region.size)
         .into_iter()
         .filter(|&s| s > 1)
@@ -558,23 +562,49 @@ pub fn build_lod(grid: &Grid, region: &Region3D, hash: RegionHash) -> Option<Lod
             let tile = terrain3d_tile::tile(grid, region, |_| None, stride, |_| String::new())?;
             let side = region.size / stride;
             let n = side as usize + 1;
-            let (mut heights, mut splat, mut holes) = (Vec::new(), Vec::new(), Vec::new());
+            let (mut heights, mut splat, mut holes, mut colors, mut flags) = (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
             for j in 0..side {
                 for i in 0..side {
-                    heights.push(region.heights[((j * stride) * region.size + i * stride) as usize]);
+                    let k = ((j * stride) * region.size + i * stride) as usize;
+                    heights.push(region.heights[k]);
                     if !tile.terrain.splat.is_empty() {
                         let k = (j as usize * n + i as usize) * 4;
                         splat.extend_from_slice(&tile.terrain.splat[k..k + 4]);
                     }
 
                     holes.push(tile.terrain.holes.get((j * side + i) as usize).copied().unwrap_or(0));
+                    if colored {
+                        colors.extend(average_color(region, [i * stride, j * stride], stride));
+                    }
+
+                    if flagged {
+                        flags.push((region.control[k] & FLAG_BITS) as u8);
+                    }
                 }
             }
 
-            Some(LodLevel { stride, side, ids: tile.ids, heights, splat, holes })
+            Some(LodLevel { stride, side, ids: tile.ids, heights, splat, holes, colors, flags })
         })
         .collect();
     (!levels.is_empty()).then_some(Lod { loc: region.loc, region_size: region.size, hash, levels })
+}
+
+/// The mean color of the `stride` square of pixels centered on `at`, cut to the region.
+fn average_color(region: &Region3D, at: [u32; 2], stride: u32) -> [u8; 4] {
+    let span = |v: u32| v.saturating_sub(stride / 2)..(v + stride.div_ceil(2)).min(region.size);
+    let (mut sum, mut count) = ([0u32; 4], 0u32);
+    for z in span(at[1]) {
+        for x in span(at[0]) {
+            let k = (z * region.size + x) as usize * 4;
+            for (s, c) in sum.iter_mut().zip(&region.color[k..k + 4]) {
+                *s += *c as u32;
+            }
+
+            count += 1;
+        }
+    }
+
+    sum.map(|s| ((s + count / 2) / count) as u8)
 }
 
 /// True for a Terrain3D this editor was not tested with, which keeps working because Godot does every file access.
@@ -624,7 +654,7 @@ mod tests {
     use super::*;
     use td_doc::terrain3d::{ChangeKind, RegionEdit, Terrain3DLink};
     use td_formats::terrain3d_cache::{ManifestRegion, Refused};
-    use td_geom::terrain3d::Control;
+    use td_geom::terrain3d::{BLANK_COLOR, Control};
 
     const A: Loc = [-1, 2];
     const B: Loc = [3, -2];
@@ -720,6 +750,8 @@ mod tests {
             heights: vec![fill; (64 / stride).pow(2) as usize],
             splat: Vec::new(),
             holes: Vec::new(),
+            colors: Vec::new(),
+            flags: Vec::new(),
         };
         let mut lod = Lod { loc: A, region_size: 64, hash: hash(1), levels: vec![level(16, -400.0), level(4, 7.0)] };
         lod.levels[1].heights[5] = 12.5;
@@ -918,6 +950,61 @@ mod tests {
         again.want(&cache, &[], &[A]);
         settle(&mut again, &cache, |s| s.lod(&cache, A).is_some());
         assert_eq!(*again.lod(&cache, A).unwrap(), *lod);
+    }
+
+    #[test]
+    fn a_pyramid_keeps_each_vertex_flag_bits_and_averages_the_color_around_it() {
+        let grid = Grid { region_size: 64, spacing: 2.5, upm: 32.0 };
+        let plain = build_lod(&grid, &region(A, 3.0), hash(1)).unwrap();
+        assert!(plain.levels.iter().all(|l| l.colors.is_empty() && l.flags.is_empty()), "nothing to keep, nothing stored");
+
+        let mut r = region(A, 3.0);
+        let at = |x: usize, z: usize| z * 64 + x;
+        r.control[at(0, 0)] = Control(r.control[at(0, 0)]).with_auto(true).0;
+        r.control[at(8, 4)] = Control(r.control[at(8, 4)]).with_navigation(true).with_hole(true).0;
+        r.control[at(9, 4)] = Control(r.control[at(9, 4)]).with_auto(true).0;
+        r.fill_color();
+        let red = [200, 40, 90, 255];
+        for z in 2..6 {
+            for x in 6..12 {
+                r.color[at(x, z) * 4..at(x, z) * 4 + 4].copy_from_slice(&red);
+            }
+        }
+
+        let lod = build_lod(&grid, &r, hash(1)).unwrap();
+        let level = &lod.levels[0];
+        assert_eq!((level.stride, level.colors.len(), level.flags.len()), (4, 256 * 4, 256));
+        let v = |i: usize, j: usize| j * 16 + i;
+        assert_eq!((level.flags[v(0, 0)], level.flags[v(2, 1)]), (1, 2), "the vertex's own bits, the hole bit left out");
+        assert_eq!(level.flags.iter().filter(|f| **f != 0).count(), 2, "a bit beside a vertex does not count");
+        let color = |i, j| level.colors[v(i, j) * 4..v(i, j) * 4 + 4].to_vec();
+        assert_eq!(color(2, 1), red, "x 6 to 9 and z 2 to 5 are all red");
+        let half: Vec<u8> = (0..4).map(|c| ((red[c] as u32 * 2 + BLANK_COLOR[c] as u32 * 2 + 2) / 4) as u8).collect();
+        assert_eq!(color(3, 1), half, "x 10 and 11 red, 12 and 13 blank");
+        assert_eq!((color(0, 0), color(1, 1)), (BLANK_COLOR.to_vec(), BLANK_COLOR.to_vec()));
+    }
+
+    #[test]
+    fn a_pyramid_file_of_an_older_version_is_built_again_and_a_current_one_read() {
+        let grid = Grid { region_size: 64, spacing: 2.5, upm: 32.0 };
+        let (old_dir, new_dir) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let (old, new) = (cache_of(&old_dir), cache_of(&new_dir));
+        write_world(&old, &[(A, 1)]);
+        write_world(&new, &[(A, 1)]);
+        let built = load_lod(&old, A, 64, hash(1), &grid).unwrap();
+        let mut marked = built.clone();
+        marked.levels[0].heights[0] = -999.0;
+        for cache in [&old, &new] {
+            terrain3d_cache::write_lod(cache, &marked).unwrap();
+        }
+
+        let path = terrain3d_cache::lod_path(&old, A, hash(1)).unwrap();
+        let mut bytes = std::fs::read(&path).unwrap();
+        bytes[4..8].copy_from_slice(&1u32.to_le_bytes());
+        std::fs::write(&path, bytes).unwrap();
+        assert_eq!(load_lod(&new, A, 64, hash(1), &grid).unwrap(), marked, "a current file is read, not built");
+        assert_eq!(load_lod(&old, A, 64, hash(1), &grid).unwrap(), built, "a version 1 file is built again");
+        assert_eq!(terrain3d_cache::read_lod(&old, A, 64, hash(1)).unwrap(), built, "and written back at the current version");
     }
 
     #[test]

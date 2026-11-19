@@ -198,10 +198,11 @@ impl Held {
     }
 }
 
-/// The coarse texels of a pyramid level at the clipmap's stride, `region_size / stride` squared row by row. The splat
-/// weights become a control word: the strongest texture as base, the second as overlay blended by its share of the
-/// two, and the hole bit. None when the level is not at `stride`.
-pub fn coarse_from_level(level: &LodLevel, region_size: u32, stride: u32) -> Option<(Vec<f32>, Vec<u32>)> {
+/// The coarse texels of a pyramid level at the clipmap's stride, `region_size / stride` squared row by row: heights,
+/// control words and the RGBA8 color, empty when the level has none. The splat weights become a control word: the
+/// strongest texture as base, the second as overlay blended by its share of the two, the hole bit and the vertex's
+/// autoshader and navigation bits. None when the level is not at `stride`.
+pub fn coarse_from_level(level: &LodLevel, region_size: u32, stride: u32) -> Option<(Vec<f32>, Vec<u32>, Vec<u8>)> {
     if level.stride != stride || stride == 0 || !region_size.is_multiple_of(stride) || level.side < region_size / stride {
         return None;
     }
@@ -210,6 +211,7 @@ pub fn coarse_from_level(level: &LodLevel, region_size: u32, stride: u32) -> Opt
     let side = level.side as usize;
     let mut heights = Vec::with_capacity(cs * cs);
     let mut control = Vec::with_capacity(cs * cs);
+    let mut color = Vec::with_capacity(if level.colors.is_empty() { 0 } else { cs * cs * 4 });
     for j in 0..cs {
         for i in 0..cs {
             let k = j * side + i;
@@ -227,11 +229,14 @@ pub fn coarse_from_level(level: &LodLevel, region_size: u32, stride: u32) -> Opt
                 }
             }
 
-            control.push(c.with_hole(level.holes.get(k).is_some_and(|h| *h != 0)).0);
+            let flags = level.flags.get(k).copied().unwrap_or(0);
+            let c = c.with_hole(level.holes.get(k).is_some_and(|h| *h != 0)).with_auto(flags & 1 != 0).with_navigation(flags & 2 != 0);
+            control.push(c.0);
+            color.extend(level.colors.get(k * 4..k * 4 + 4).unwrap_or_default());
         }
     }
 
-    Some((heights, control))
+    Some((heights, control, color))
 }
 
 /// A rectangle of a region's cells, origin and size.
@@ -483,7 +488,7 @@ pub fn sync(
                 .terrain3d
                 .lod(cache, loc)
                 .and_then(|l| l.levels.iter().find(|v| v.stride == stride).and_then(|v| coarse_from_level(v, size, stride)))
-                .map(|(h, c)| node.clip.write_coarse(&renderer.queue, loc, &h, &c)),
+                .map(|(h, c, _)| node.clip.write_coarse(&renderer.queue, loc, &h, &c)),
             (Upload::Fine(_, layer), Some(region)) => {
                 let written = node.clip.write_fine(
                     &renderer.queue,
@@ -1028,7 +1033,16 @@ mod tests {
 
     fn level(stride: u32, side: u32) -> LodLevel {
         let n = (side * side) as usize;
-        LodLevel { stride, side, ids: vec![3, 9, 17], heights: (0..n).map(|k| k as f32 * 0.5 - 7.0).collect(), splat: vec![0; n * 4], holes: vec![0; n] }
+        LodLevel {
+            stride,
+            side,
+            ids: vec![3, 9, 17],
+            heights: (0..n).map(|k| k as f32 * 0.5 - 7.0).collect(),
+            splat: vec![0; n * 4],
+            holes: vec![0; n],
+            colors: Vec::new(),
+            flags: Vec::new(),
+        }
     }
 
     #[test]
@@ -1038,8 +1052,8 @@ mod tests {
         l.splat[4..8].copy_from_slice(&[0, 0, 255, 0]);
         l.splat[(17 + 2) * 4..(17 + 2) * 4 + 4].copy_from_slice(&[90, 90, 30, 0]);
         l.holes[17 * 3 + 5] = 1;
-        let (heights, control) = coarse_from_level(&l, 64, 4).unwrap();
-        assert_eq!((heights.len(), control.len()), (256, 256));
+        let (heights, control, color) = coarse_from_level(&l, 64, 4).unwrap();
+        assert_eq!((heights.len(), control.len(), color.len()), (256, 256, 0));
         assert_eq!(heights[16 * 3 + 5], l.heights[17 * 3 + 5], "the seam column is skipped");
 
         let c = |k: usize| Control(control[k]);
@@ -1055,10 +1069,32 @@ mod tests {
         let mut l = level(16, 64);
         l.splat.clear();
         l.holes.clear();
-        let (heights, control) = coarse_from_level(&l, 1024, 16).unwrap();
+        let (heights, control, _) = coarse_from_level(&l, 1024, 16).unwrap();
         assert_eq!(heights, l.heights);
         assert!(control.iter().all(|w| *w == Control(0).with_base(3).0));
         assert_eq!(coarse_from_level(&l, 1024, 4), None);
         assert_eq!(coarse_from_level(&level(16, 63), 1024, 16), None, "too few vertices");
+    }
+
+    #[test]
+    fn the_flag_bits_and_color_of_each_vertex_carry_over_and_the_seam_column_is_skipped() {
+        let mut l = level(4, 17);
+        l.flags = vec![0; 17 * 17];
+        l.colors = (0..17 * 17 * 4).map(|k| (k % 251) as u8).collect();
+        l.flags[0] = 1;
+        l.flags[17 + 2] = 2;
+        l.flags[17 * 4 + 6] = 3;
+        l.holes[17 + 2] = 1;
+        let (_, control, color) = coarse_from_level(&l, 64, 4).unwrap();
+        let c = |k: usize| Control(control[k]);
+        assert_eq!((c(0).auto(), c(0).navigation(), c(0).hole()), (true, false, false));
+        assert_eq!((c(16 + 2).auto(), c(16 + 2).navigation(), c(16 + 2).hole()), (false, true, true));
+        assert_eq!((c(16 * 4 + 6).auto(), c(16 * 4 + 6).navigation()), (true, true));
+        assert_eq!(control.iter().filter(|w| *w & 3 != 0).count(), 3);
+        assert_eq!(color.len(), 256 * 4);
+        for (i, j) in [(0, 0), (15, 0), (3, 7), (15, 15)] {
+            let (k, src) = ((j * 16 + i) * 4, (j * 17 + i) * 4);
+            assert_eq!(color[k..k + 4], l.colors[src..src + 4], "vertex {i}, {j}");
+        }
     }
 }

@@ -21,6 +21,8 @@ pub const VERSION: u32 = 1;
 pub const MANIFEST: &str = "manifest.json";
 pub const REGION_EXT: &str = "td3r";
 pub const LOD_EXT: &str = "td3l";
+/// LOD files carry their own version, a pyramid of an older one is rebuilt rather than read.
+pub const LOD_VERSION: u32 = 2;
 
 const REGION_MAGIC: [u8; 4] = *b"TD3R";
 const BASE_MAGIC: [u8; 4] = *b"BASE";
@@ -31,6 +33,8 @@ const PENDING_FORCE: u32 = 1;
 const PENDING_REMOVE: u32 = 2;
 const LOD_SPLAT: u8 = 1;
 const LOD_HOLES: u8 = 2;
+const LOD_COLOR: u8 = 4;
+const LOD_FLAGS: u8 = 8;
 const ZSTD_LEVEL: i32 = 3;
 
 #[derive(Debug, thiserror::Error)]
@@ -502,8 +506,9 @@ fn decode_maps(h: &Header, body: &[u8]) -> Result<Region3D> {
 }
 
 /// One level of a region's LOD pyramid: `side * side` vertices `stride` apart, heights in meters, `ids` the Terrain3D
-/// texture shown by each splat channel. `splat` (four bytes per vertex) and `holes` (one per vertex, or one per cell
-/// when `side` is the cell count, then laid out `side` wide) may be empty.
+/// texture shown by each splat channel. `splat` (four bytes per vertex), `holes` (one per vertex, or one per cell
+/// when `side` is the cell count, then laid out `side` wide), `colors` (RGBA8 per vertex) and `flags` (the autoshader
+/// and navigation bits of each vertex's control word, bit 0 and 1 as there) may be empty.
 #[derive(Clone, Debug, PartialEq)]
 pub struct LodLevel {
     pub stride: u32,
@@ -512,6 +517,8 @@ pub struct LodLevel {
     pub heights: Vec<f32>,
     pub splat: Vec<u8>,
     pub holes: Vec<u8>,
+    pub colors: Vec<u8>,
+    pub flags: Vec<u8>,
 }
 
 /// The LOD pyramid TrenchDot built from the region with `hash`, finest level first.
@@ -540,13 +547,16 @@ impl LodLevel {
         }
 
         let n = self.side as usize * self.side as usize;
-        if self.heights.len() != n || !(self.splat.is_empty() || self.splat.len() == n * 4) || !(self.holes.is_empty() || self.holes.len() == n) {
+        let fits = |bytes: &[u8], per: usize| bytes.is_empty() || bytes.len() == n * per;
+        if self.heights.len() != n || !fits(&self.splat, 4) || !fits(&self.holes, 1) || !fits(&self.colors, 4) || !fits(&self.flags, 1) {
             return Err(format!(
-                "LOD level of side {} holds {} heights, {} splat and {} hole bytes",
+                "LOD level of side {} holds {} heights, {} splat, {} hole, {} color and {} flag bytes",
                 self.side,
                 self.heights.len(),
                 self.splat.len(),
-                self.holes.len()
+                self.holes.len(),
+                self.colors.len(),
+                self.flags.len()
             ));
         }
 
@@ -570,7 +580,10 @@ pub fn encode_lod(lod: &Lod) -> Result<Vec<u8>> {
     lod.check()?;
     let mut raw = Vec::new();
     for l in &lod.levels {
-        let flags = if l.splat.is_empty() { 0 } else { LOD_SPLAT } | if l.holes.is_empty() { 0 } else { LOD_HOLES };
+        let flags = [(&l.splat, LOD_SPLAT), (&l.holes, LOD_HOLES), (&l.colors, LOD_COLOR), (&l.flags, LOD_FLAGS)]
+            .into_iter()
+            .filter(|(bytes, _)| !bytes.is_empty())
+            .fold(0, |flags, (_, bit)| flags | bit);
         raw.extend(l.stride.to_le_bytes());
         raw.extend(l.side.to_le_bytes());
         raw.push(l.ids.len() as u8);
@@ -579,11 +592,13 @@ pub fn encode_lod(lod: &Lod) -> Result<Vec<u8>> {
         raw.extend(l.heights.iter().flat_map(|h| h.to_le_bytes()));
         raw.extend(&l.splat);
         raw.extend(&l.holes);
+        raw.extend(&l.colors);
+        raw.extend(&l.flags);
     }
 
     let mut out = Vec::new();
     out.extend(LOD_MAGIC);
-    out.extend(VERSION.to_le_bytes());
+    out.extend(LOD_VERSION.to_le_bytes());
     out.extend(lod.loc[0].to_le_bytes());
     out.extend(lod.loc[1].to_le_bytes());
     out.extend(lod.region_size.to_le_bytes());
@@ -599,7 +614,12 @@ pub fn decode_lod(bytes: &[u8]) -> Result<Lod> {
         return Err(CacheError::Magic);
     }
 
-    check_version(r.u32()?)?;
+    match r.u32()? {
+        LOD_VERSION => {}
+        v if v > LOD_VERSION => return Err(CacheError::Newer(v)),
+        v => return Err(CacheError::Invalid(format!("LOD version {v}"))),
+    }
+
     let loc = [r.i32()?, r.i32()?];
     let region_size = r.u32()?;
     let hash = RegionHash(r.array()?);
@@ -611,7 +631,7 @@ pub fn decode_lod(bytes: &[u8]) -> Result<Lod> {
     }
 
     let side = region_size as usize + 1;
-    let cap = count * (10 + MAX_LAYERS + side * side * 9);
+    let cap = count * (10 + MAX_LAYERS + side * side * 14);
     let raw = zstd::bulk::decompress(r.rest(), cap).map_err(|e| CacheError::Invalid(format!("LOD levels: {e}")))?;
     let mut r = Reader::new(&raw);
     let mut levels = Vec::with_capacity(count);
@@ -626,11 +646,10 @@ pub fn decode_lod(bytes: &[u8]) -> Result<Lod> {
         }
 
         let n = side as usize * side as usize;
-        let level = LodLevel { stride, side, ids, heights: Vec::new(), splat: Vec::new(), holes: Vec::new() };
         let heights = r.take(n * 4)?.as_chunks::<4>().0.iter().map(|b| f32::from_le_bytes(*b)).collect();
-        let splat = if flags & LOD_SPLAT != 0 { r.take(n * 4)?.to_vec() } else { Vec::new() };
-        let holes = if flags & LOD_HOLES != 0 { r.take(n)?.to_vec() } else { Vec::new() };
-        let level = LodLevel { heights, splat, holes, ..level };
+        let mut part = |bit: u8, per: usize| if flags & bit != 0 { r.take(n * per).map(<[u8]>::to_vec) } else { Ok(Vec::new()) };
+        let (splat, holes, colors, flags) = (part(LOD_SPLAT, 4)?, part(LOD_HOLES, 1)?, part(LOD_COLOR, 4)?, part(LOD_FLAGS, 1)?);
+        let level = LodLevel { stride, side, ids, heights, splat, holes, colors, flags };
         level.check(region_size).map_err(CacheError::Invalid)?;
         levels.push(level);
     }

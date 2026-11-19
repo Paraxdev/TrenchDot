@@ -501,22 +501,29 @@ fn writers_refuse_bad_regions_and_leave_no_file() {
 }
 
 fn lod(hash: RegionHash, lift: f32) -> Lod {
-    let level = |stride: u32, side: u32, ids: Vec<u8>, splat: bool, holes: bool| {
+    let level = |stride: u32, side: u32, ids: Vec<u8>, [splat, holes, colors, flags]: [bool; 4]| {
         let n = (side * side) as usize;
+        let bytes = |on: bool, len: usize, f: fn(usize) -> u8| if on { (0..len).map(f).collect() } else { Vec::new() };
         LodLevel {
             stride,
             side,
             ids,
             heights: (0..n).map(|i| i as f32 * 0.5 - 3.0 + lift).collect(),
-            splat: if splat { (0..n * 4).map(|i| (i * 7) as u8).collect() } else { Vec::new() },
-            holes: if holes { (0..n).map(|i| (i % 5 == 0) as u8).collect() } else { Vec::new() },
+            splat: bytes(splat, n * 4, |i| (i * 7) as u8),
+            holes: bytes(holes, n, |i| (i % 5 == 0) as u8),
+            colors: bytes(colors, n * 4, |i| (i * 13 + 5) as u8),
+            flags: bytes(flags, n, |i| (i % 4) as u8),
         }
     };
     Lod {
         loc: [-2, 3],
         region_size: 256,
         hash,
-        levels: vec![level(1, 257, vec![0, 31, 4, 9], true, true), level(4, 64, vec![2], false, false), level(16, 17, vec![], false, true)],
+        levels: vec![
+            level(1, 257, vec![0, 31, 4, 9], [true, true, true, true]),
+            level(4, 64, vec![2], [false, false, true, false]),
+            level(16, 17, vec![], [false, true, false, true]),
+        ],
     }
 }
 
@@ -564,6 +571,8 @@ fn lod_levels_are_checked() {
     assert!(bad(&|l| l.levels[1].heights.truncate(10)).is_err());
     assert!(bad(&|l| l.levels[2].holes.push(0)).is_err());
     assert!(bad(&|l| l.levels[0].splat.truncate(4)).is_err());
+    assert!(bad(&|l| l.levels[1].colors.truncate(7)).is_err());
+    assert!(bad(&|l| l.levels[2].flags.push(0)).is_err());
     assert!(bad(&|l| l.levels.extend(good.levels.clone())).is_err(), "more levels than strides");
     assert!(bad(&|l| l.region_size = 100).is_err());
 
@@ -572,8 +581,11 @@ fn lod_levels_are_checked() {
     wrong[..4].copy_from_slice(b"TD3R");
     assert!(matches!(decode_lod(&wrong), Err(CacheError::Magic)));
     let mut newer = bytes.clone();
-    header(&mut newer, 4, 2);
-    assert!(matches!(decode_lod(&newer), Err(CacheError::Newer(2))));
+    header(&mut newer, 4, 3);
+    assert!(matches!(decode_lod(&newer), Err(CacheError::Newer(3))));
+    let mut first = bytes.clone();
+    header(&mut first, 4, 1);
+    assert!(matches!(decode_lod(&first), Err(CacheError::Invalid(m)) if m == "LOD version 1"), "a pyramid without color is built again");
     assert!(matches!(decode_lod(&bytes[..40]), Err(CacheError::Truncated)));
     assert!(decode_lod(&bytes[..bytes.len() - 10]).is_err());
 
@@ -594,6 +606,20 @@ fn lod_levels_are_checked() {
     assert!(matches!(raw(&extra), Err(CacheError::Invalid(m)) if m.contains("1 bytes after")));
     extra.pop();
     assert_eq!(raw(&extra).unwrap().levels[0].heights, vec![0.0; 256]);
+
+    let mut tinted = 16u32.to_le_bytes().to_vec();
+    tinted.extend(16u32.to_le_bytes());
+    tinted.extend([0, 4 | 8]);
+    tinted.extend(vec![0u8; 16 * 16 * 4]);
+    tinted.extend(vec![9u8; 16 * 16 * 5]);
+    let level = raw(&tinted).unwrap().levels[0].clone();
+    assert_eq!((level.colors, level.flags, level.splat, level.holes), (vec![9; 1024], vec![9; 256], Vec::new(), Vec::new()));
+    tinted.pop();
+    assert!(matches!(raw(&tinted), Err(CacheError::Truncated)), "a flag byte short");
+    tinted.truncate(tinted.len() - 256);
+    assert!(matches!(raw(&tinted), Err(CacheError::Truncated)), "a color byte short");
+    let biggest = 10 + 4 + 257 * 257 * 14;
+    assert!(matches!(raw(&vec![0; biggest + 1]), Err(CacheError::Invalid(m)) if m.starts_with("LOD levels")), "more than the biggest level holds");
 }
 
 #[test]

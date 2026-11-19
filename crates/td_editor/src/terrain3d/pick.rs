@@ -154,7 +154,19 @@ mod tests {
         let region = source.region([0, 0]).unwrap();
         let mut lod = build_lod(&grid, &region, RegionHash([9; 32])).expect("a pyramid");
         assert_eq!(lod.levels.iter().map(|l| l.stride).collect::<Vec<_>>(), [4]);
-        lod.levels.insert(0, LodLevel { stride: 16, side: 4, ids: vec![3], heights: vec![-50.0; 16], splat: Vec::new(), holes: Vec::new() });
+        lod.levels.insert(
+            0,
+            LodLevel {
+                stride: 16,
+                side: 4,
+                ids: vec![3],
+                heights: vec![-50.0; 16],
+                splat: Vec::new(),
+                holes: Vec::new(),
+                colors: Vec::new(),
+                flags: Vec::new(),
+            },
+        );
         let lod = Arc::new(lod);
         let range = state.terrain3d.lod_range(&lod);
         let regions = PickRegions { grid, edge: None, locs: vec![[0, 0]], held: BTreeMap::from([([0, 0], (Held::Lod(lod), range))]) };
