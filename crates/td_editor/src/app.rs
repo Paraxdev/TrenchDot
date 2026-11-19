@@ -1274,6 +1274,7 @@ impl App {
 
                 return Some(action);
             }
+            Action::ExtrudeFaces => self.tools.extrude.start(&mut self.state),
             Action::MeshOp(op) => {
                 if self.state.tool != ToolKind::Mesh {
                     self.state.tool = ToolKind::Mesh;

@@ -2590,5 +2590,10 @@
   "Select every face of the selected brushes": "選択したブラシの全ての面を選択します",
   "Drag a selection edge (2D)": "選択範囲の辺をドラッグ (2D)",
   "Resize along it, slanted edges too. Ctrl copies instead": "辺に沿ってサイズ変更します。斜めの辺も対象です。Ctrl を押すとコピーします",
-  "Resize along it. Shift or Ctrl copies instead": "辺に沿ってサイズ変更します。Shift または Ctrl を押すとコピーします"
+  "Resize along it. Shift or Ctrl copies instead": "辺に沿ってサイズ変更します。Shift または Ctrl を押すとコピーします",
+  "Extrude Faces": "面を押し出し",
+  "Pulls the selected brush faces out into new brushes, one per face": "選択したブラシの面を新しいブラシとして押し出します。面ごとに 1 つです",
+  "Extrude {dist}": "押し出し {dist}",
+  "Select brush faces to extrude": "押し出すブラシの面を選択してください",
+  "Extrude: move the mouse or type a length, click or Enter confirms, Esc or right click cancels": "押し出し：マウスを動かすか長さを入力、クリックか Enter で確定、Esc か右クリックで取消"
 }

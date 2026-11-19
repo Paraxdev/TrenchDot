@@ -190,6 +190,7 @@ moves the brush.
 | --- | --- |
 | 1, 3 | Object mode, Face mode. Face mode turns the selected brushes and meshes into their faces, Object mode turns selected faces back into their brushes and meshes |
 | A, Alt+A | Select all in the current mode (in Face mode every face of the visible, unlocked brushes and meshes), select none |
+| E | Extrude the selected brush faces into new brushes, in Face mode outside the Mesh tool |
 | X | Delete |
 | Shift+D, Alt+D | Duplicate, duplicate linked |
 | S | Scale tool |

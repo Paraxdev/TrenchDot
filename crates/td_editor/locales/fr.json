@@ -2590,5 +2590,10 @@
   "Select every face of the selected brushes": "Sélectionne chaque face des brushes sélectionnés",
   "Drag a selection edge (2D)": "Glisser un bord de la sélection (2D)",
   "Resize along it, slanted edges too. Ctrl copies instead": "Redimensionner le long du bord, bords obliques compris. Ctrl copie à la place",
-  "Resize along it. Shift or Ctrl copies instead": "Redimensionner le long du bord. Shift ou Ctrl copie à la place"
+  "Resize along it. Shift or Ctrl copies instead": "Redimensionner le long du bord. Shift ou Ctrl copie à la place",
+  "Extrude Faces": "Extruder les faces",
+  "Pulls the selected brush faces out into new brushes, one per face": "Tire les faces de brush sélectionnées en nouveaux brushes, un par face",
+  "Extrude {dist}": "Extruder {dist}",
+  "Select brush faces to extrude": "Sélectionnez des faces de brush à extruder",
+  "Extrude: move the mouse or type a length, click or Enter confirms, Esc or right click cancels": "Extrusion : bougez la souris ou saisissez une longueur, clic ou Enter valide, Esc ou clic droit annule"
 }

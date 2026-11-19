@@ -2590,5 +2590,10 @@
   "Select every face of the selected brushes": "选择所选 brush 的每个面",
   "Drag a selection edge (2D)": "拖动选择的边缘 (2D)",
   "Resize along it, slanted edges too. Ctrl copies instead": "沿边缘调整大小，斜边也可以。按住 Ctrl 则改为复制",
-  "Resize along it. Shift or Ctrl copies instead": "沿边缘调整大小。按住 Shift 或 Ctrl 则改为复制"
+  "Resize along it. Shift or Ctrl copies instead": "沿边缘调整大小。按住 Shift 或 Ctrl 则改为复制",
+  "Extrude Faces": "挤出面",
+  "Pulls the selected brush faces out into new brushes, one per face": "将选中的笔刷面挤出为新笔刷，每个面一个",
+  "Extrude {dist}": "挤出 {dist}",
+  "Select brush faces to extrude": "请选择要挤出的笔刷面",
+  "Extrude: move the mouse or type a length, click or Enter confirms, Esc or right click cancels": "挤出：移动鼠标或输入长度，点击或 Enter 确认，Esc 或右键取消"
 }

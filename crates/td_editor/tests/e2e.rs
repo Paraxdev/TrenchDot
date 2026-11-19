@@ -770,6 +770,110 @@ fn ctrl_or_hammer_shift_on_a_side_copies_instead_of_resizing() {
     expect_copy("blender", &["ctrl"]);
 }
 
+/// E in the Blender preset grows a new brush out of each selected brush face, by a typed or moved length. Esc and a
+/// right click put everything back, a length of zero or less makes nothing, and TrenchBroom leaves E unbound.
+#[test]
+#[ignore]
+fn blender_e_extrudes_selected_faces_into_new_brushes() {
+    let ed = Editor::launch("face_extrude");
+    let b = ed.box_brush([-56.0, 8.0, -24.0], [40.0, 72.0, 88.0]);
+    let w = ed.call("create_brush", json!({ "shape": "wedge", "min": [-40, 8, 24], "max": [24, 72, 152] }))["ids"][0].as_u64().unwrap();
+    ed.call("set_editor", json!({ "keymap": "blender", "grid": 16, "snap": true }));
+    ed.call("set_camera", json!({ "view": "front", "center": [0, 96, 0], "zoom": 1 }));
+    let brushes = || -> Vec<(u64, [[i64; 3]; 2])> {
+        let nodes = ed.call("list_nodes", json!({ "type": "brush" }));
+        let mut all: Vec<_> = nodes["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|n| (n["id"].as_u64().unwrap(), ["min", "max"].map(|end| [0, 1, 2].map(|i| n["bounds"][end][i].as_f64().unwrap().round() as i64))))
+            .collect();
+        all.sort();
+        all
+    };
+    let face_toward = |id: u64, count: usize, normal: [f64; 3]| -> u64 {
+        let faces = ed.call("texture", json!({ "op": "get", "faces": (0..count).map(|f| json!([id, f])).collect::<Vec<_>>() }));
+        let len = normal.iter().map(|v| v * v).sum::<f64>().sqrt();
+        let along = |f: &Value| (0..3).map(|i| f["normal"][i].as_f64().unwrap() * normal[i] / len).sum::<f64>();
+        faces["faces"].as_array().unwrap().iter().find(|f| along(f) > 0.999).unwrap()["face"][1].as_u64().unwrap()
+    };
+    let undo_len = || ed.state()["undo"].as_array().unwrap().len();
+    let keys = |events: Value| {
+        let mut all = vec![json!({ "type": "move", "world": [0, 110, 0] })];
+        all.extend(events.as_array().unwrap().iter().cloned());
+        ed.input("front", Value::Array(all));
+    };
+    let extrude = |length: &str| keys(json!([{ "type": "key", "key": "E" }, { "type": "text", "text": length }, { "type": "key", "key": "Enter" }]));
+    let top = face_toward(b, 6, [0.0, 1.0, 0.0]);
+    let slanted = face_toward(w, 5, [0.0, 2.0, 1.0]);
+    let home = brushes();
+
+    keys(json!([{ "type": "key", "key": "E" }]));
+    assert_eq!(brushes(), home);
+    assert_eq!(ed.state()["status"], "Select brush faces to extrude");
+
+    ed.call("select", json!({ "faces": [[b, top]] }));
+    let undo_before = undo_len();
+    extrude("32");
+    let after = brushes();
+    assert_eq!(after.len(), 3, "E, 32 and Enter add a brush {after:?}");
+    let first = after.iter().find(|n| !home.contains(n)).unwrap();
+    assert_eq!(first.1, [[-56, 72, -24], [40, 104, 88]]);
+    let state = ed.state();
+    assert_eq!(state["selection"]["nodes"], json!([]));
+    let selected = state["selection"]["faces"].as_array().unwrap().clone();
+    assert_eq!(selected.len(), 1);
+    assert_eq!(selected[0][0], first.0, "the new brush's far face is selected");
+    assert_eq!(state["editor"]["select_mode"], "face");
+    assert_eq!(state["undo"][0], "Extrude");
+    assert_eq!(undo_len(), undo_before + 1);
+
+    extrude("16");
+    let chained = brushes();
+    let second = *chained.iter().find(|n| !after.contains(n)).unwrap();
+    assert_eq!(second.1, [[-56, 104, -24], [40, 120, 88]], "a second E extrudes the far face again {chained:?}");
+    let far = ed.state()["selection"]["faces"].clone();
+    assert_eq!(far[0][0], second.0);
+
+    for (cancel, how) in
+        [(json!({ "type": "key", "key": "Escape" }), "Esc"), (json!({ "type": "click", "world": [0, 146, 0], "button": "right" }), "right click")]
+    {
+        keys(json!([{ "type": "key", "key": "E" }, { "type": "move", "world": [0, 146, 0] }]));
+        let state = ed.state();
+        assert!(state["status"].as_str().unwrap().starts_with("Extrude 32.000"), "{how}: {}", state["status"]);
+        assert_eq!(brushes().len(), chained.len() + 1, "{how}: the extrude shows while the mouse moves");
+        ed.input("front", json!([cancel]));
+        let state = ed.state();
+        assert_eq!(brushes(), chained, "{how} puts the map back");
+        assert_eq!(state["selection"]["faces"], far, "{how} puts the far face selection back");
+        assert_eq!(state["status"], "Cancelled", "{how}");
+        assert_eq!(undo_len(), undo_before + 2, "{how} leaves no undo step");
+    }
+
+    keys(json!([{ "type": "key", "key": "E" }, { "type": "key", "key": "Enter" }]));
+    extrude("-16");
+    extrude("0");
+    assert_eq!(brushes(), chained, "a length of zero or less makes nothing");
+    assert_eq!(undo_len(), undo_before + 2);
+
+    ed.call("select", json!({ "faces": [[b, top], [w, slanted]] }));
+    let undo_two = undo_len();
+    extrude("16");
+    let both = brushes();
+    assert_eq!(both.len(), chained.len() + 2, "one brush per face {both:?}");
+    assert!(both.iter().any(|n| n.1 == [[-56, 72, -24], [40, 88, 88]]), "{both:?}");
+    assert_eq!(undo_len(), undo_two + 1, "both brushes are one undo step");
+    assert_eq!(ed.state()["selection"]["faces"].as_array().unwrap().len(), 2);
+
+    ed.call("set_editor", json!({ "keymap": "trenchbroom" }));
+    ed.call("select", json!({ "faces": [[b, top]] }));
+    let (undo_tb, status) = (undo_len(), ed.state()["status"].clone());
+    keys(json!([{ "type": "key", "key": "E" }, { "type": "move", "world": [0, 146, 0] }]));
+    assert_eq!(brushes(), both, "TrenchBroom leaves E unbound");
+    assert_eq!(ed.state()["status"], status);
+    assert_eq!(undo_len(), undo_tb);
+}
+
 fn selected(ed: &Editor) -> Vec<u64> {
     ed.state()["selection"]["nodes"].as_array().unwrap().iter().map(|n| n.as_u64().unwrap()).collect()
 }

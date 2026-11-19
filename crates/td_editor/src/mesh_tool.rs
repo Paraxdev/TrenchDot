@@ -143,6 +143,23 @@ fn seg_dist(p: Pos2, a: Pos2, b: Pos2) -> (f32, f32) {
     ((a + ab * t - p).length(), t)
 }
 
+/// Adds the digits, dots and minus signs typed this frame to a modal's number, Backspace takes the last one off.
+pub(crate) fn type_number(ctx: &egui::Context, numeric: &mut String) {
+    let typed: String = ctx.input(|i| {
+        i.events
+            .iter()
+            .filter_map(|e| match e {
+                egui::Event::Text(t) => Some(t.chars().filter(|c| c.is_ascii_digit() || *c == '.' || *c == '-').collect::<String>()),
+                _ => None,
+            })
+            .collect()
+    });
+    numeric.push_str(&typed);
+    if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Backspace)) {
+        numeric.pop();
+    }
+}
+
 pub fn edit_meshes(state: &EditorState) -> Vec<NodeId> {
     state.doc.selection.meshes(&state.doc.map).into_iter().filter(|id| state.doc.map.is_editable(*id)).collect()
 }
@@ -304,20 +321,7 @@ impl MeshTool {
                     }
                 }
 
-                let typed: String = ctx.input(|i| {
-                    i.events
-                        .iter()
-                        .filter_map(|e| match e {
-                            egui::Event::Text(t) => Some(t.chars().filter(|c| c.is_ascii_digit() || *c == '.' || *c == '-').collect::<String>()),
-                            _ => None,
-                        })
-                        .collect()
-                });
-                numeric.push_str(&typed);
-                if pressed(ctx, Modifiers::NONE, Key::Backspace) {
-                    numeric.pop();
-                }
-
+                type_number(ctx, &mut numeric);
                 self.modal = Some(Modal::Transform { kind, constraint, start, center, numeric, view });
                 // Swallow remaining letters so they do not trigger tool shortcuts mid transform.
                 ctx.input_mut(|i| i.events.retain(|e| !matches!(e, egui::Event::Key { pressed: true, .. } | egui::Event::Text(_))));

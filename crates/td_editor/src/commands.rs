@@ -45,6 +45,8 @@ pub enum Action {
     ObjectMode,
     /// Blender preset: 3, turns the selected brushes and meshes into their faces and picks single faces from now on.
     FaceMode,
+    /// Blender preset: E, pulls the selected brush faces out into new brushes with a modal length.
+    ExtrudeFaces,
     /// Blender preset: A, selects every object in Object mode and every face in Face mode.
     SelectAllInMode,
     SelectTouching,
@@ -316,6 +318,7 @@ impl Action {
             Action::SelectBrushFaces => en!("Select Brush Faces"),
             Action::ObjectMode => en!("Object Mode"),
             Action::FaceMode => en!("Face Mode"),
+            Action::ExtrudeFaces => en!("Extrude Faces"),
             Action::SelectAllInMode => en!("Select All in Current Mode"),
             Action::SelectTouching => en!("Select Touching"),
             Action::SelectInside => en!("Select Inside"),
@@ -509,6 +512,7 @@ impl Action {
             Action::SelectBrushFaces => en!("Selects every face of the selected brushes and meshes instead of the objects"),
             Action::ObjectMode => en!("Clicks and A pick whole objects, selected faces become their brushes and meshes"),
             Action::FaceMode => en!("Clicks and A pick single faces, selected brushes and meshes become their faces"),
+            Action::ExtrudeFaces => en!("Pulls the selected brush faces out into new brushes, one per face"),
             Action::SelectAllInMode => en!("Selects every object, in Face mode every face of the visible brushes and meshes"),
             Action::IsolateSelected => en!("Hides everything except the selection, Show All brings it back"),
             Action::DuplicateLinked => en!("Copies the selection as a linked group, editing one copy changes every copy"),
@@ -738,6 +742,7 @@ pub fn preset_bindings(preset: &str) -> Vec<(KeyboardShortcut, Action)> {
             (sc(ALT, Key::A), Action::SelectNone),
             (sc(NONE, Key::Num1), Action::ObjectMode),
             (sc(NONE, Key::Num3), Action::FaceMode),
+            (sc(NONE, Key::E), Action::ExtrudeFaces),
             (sc(NONE, Key::X), Action::Delete),
             (sc(SHIFT, Key::D), Action::Duplicate),
             (sc(ALT, Key::D), Action::DuplicateLinked),
@@ -1828,6 +1833,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         | Action::ShowKeymap
         | Action::ShowUvEditor
         | Action::MeshOp(_)
+        | Action::ExtrudeFaces
         | Action::StoreCamera(_)
         | Action::RecallCamera(_) => {}
         Action::RunGodotProject => run_project(state),
@@ -3569,7 +3575,8 @@ mod tests {
             assert_eq!(has(Action::FaceMode, sc(NONE, Key::Num3)), blender, "{preset}");
             assert_eq!(has(Action::SelectAllInMode, sc(NONE, Key::A)), blender, "{preset}");
             assert_eq!(has(Action::SelectNone, sc(ALT, Key::A)), blender, "{preset}");
-            for key in [Key::A, Key::Num1, Key::Num3] {
+            assert_eq!(has(Action::ExtrudeFaces, sc(NONE, Key::E)), blender, "{preset}");
+            for key in [Key::A, Key::Num1, Key::Num3, Key::E] {
                 assert_eq!(bindings.iter().filter(|(b, _)| *b == sc(NONE, key)).count(), usize::from(blender), "{preset} {key:?}");
             }
 

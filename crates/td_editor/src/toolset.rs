@@ -227,6 +227,7 @@ pub struct ToolSet {
     pub path: crate::extra_tools::PathTool,
     pub measure: crate::extra_tools::MeasureTool,
     pub texture: crate::texture_tool::TextureTool,
+    pub extrude: crate::face_extrude::FaceExtrude,
     active: Option<ToolKind>,
     /// A tool was switched away from mid drag with its undo transaction open. `sync` cannot reach the document,
     /// so `settle` commits it on the next call that can.
@@ -350,6 +351,7 @@ impl ToolSet {
             }
 
             self.mesh.reset();
+            self.extrude.reset();
             self.path.finish();
             self.texture.reset();
             self.volume.reset();
@@ -359,7 +361,7 @@ impl ToolSet {
 
     /// A drag, stroke or mesh modal that edits inside an open undo transaction.
     fn holds_transaction(&self) -> bool {
-        self.holds_drag() || self.mesh.holds_transaction()
+        self.holds_drag() || self.mesh.holds_transaction() || self.extrude.holds_transaction()
     }
 
     fn holds_drag(&self) -> bool {
@@ -399,6 +401,8 @@ impl ToolSet {
             if self.mesh.holds_transaction() {
                 self.mesh.reset();
             }
+
+            self.extrude.reset();
         }
     }
 
@@ -415,6 +419,7 @@ impl ToolSet {
         self.stroke.hover = None;
         self.mesh.reset();
         self.mesh.selection.clear();
+        self.extrude.reset();
         self.path.finish();
         self.measure = Default::default();
         self.texture.reset();
@@ -430,6 +435,11 @@ impl ToolSet {
         }
 
         if flying {
+            if self.extrude.active() && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
+                self.extrude.cancel(state);
+                return true;
+            }
+
             // WASD, Q and E steer the camera during the right mouse look, so letters and other plain keys must not
             // reach tool shortcuts. Only Escape and Ctrl or Alt combinations get through.
             ctx.input_mut(|i| {
@@ -440,6 +450,10 @@ impl ToolSet {
                 })
             });
             return false;
+        }
+
+        if self.extrude.active() {
+            return self.extrude.keys(ctx, state);
         }
 
         if self.holds_drag() && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape)) {
@@ -1399,6 +1413,11 @@ impl ToolSet {
 
     pub fn paint_overlay(&self, ui: &Ui, cam: &Camera, rect: Rect, state: &EditorState) {
         let painter = ui.painter_at(rect);
+        if self.extrude.active() {
+            self.extrude.paint_overlay(&painter, rect);
+            return;
+        }
+
         let hover = ui.input(|i| i.pointer.hover_pos());
         let handle = |p: Pos2, color: Color32, hot: bool| {
             let r = if hot { 5.0 } else { 4.0 };
@@ -2777,6 +2796,40 @@ mod tests {
         assert!(!state.doc.in_transaction());
         assert_eq!(state.doc.map.brush(id), Some(&before), "the brush is back where it was");
         assert_eq!(state.tool, ToolKind::Rotate, "the tool stays, only the drag ends");
+    }
+
+    #[test]
+    fn escape_cancels_an_extrude_also_while_the_view_flies() {
+        for flying in [false, true] {
+            let (mut state, id) = state_with_brush();
+            state.doc.edit("select", |_, s| s.select_face(id, 0));
+            let mut tools = ToolSet::default();
+            tools.extrude.start(&mut state);
+            assert!(tools.extrude.active() && state.doc.in_transaction());
+            tools.flying = flying;
+            assert!(press(&mut tools, &mut state, Key::Escape), "flying {flying}: Escape is taken by the extrude");
+            assert!(!tools.extrude.active() && !state.doc.in_transaction(), "flying {flying}");
+            assert_eq!(state.doc.selection.faces, std::collections::BTreeSet::from([(id, 0)]), "flying {flying}");
+        }
+    }
+
+    #[test]
+    fn undo_or_a_tool_switch_mid_extrude_closes_it() {
+        let (mut state, id) = state_with_brush();
+        state.doc.edit("select", |_, s| s.select_face(id, 0));
+        let mut tools = ToolSet::default();
+        tools.sync(&state);
+        tools.extrude.start(&mut state);
+        state.doc.cancel();
+        tools.settle(&mut state);
+        assert!(!tools.extrude.active(), "the transaction was closed under it");
+
+        tools.extrude.start(&mut state);
+        state.tool = ToolKind::Clip;
+        tools.sync(&state);
+        assert!(!tools.extrude.active());
+        tools.settle(&mut state);
+        assert!(!state.doc.in_transaction());
     }
 
     #[test]

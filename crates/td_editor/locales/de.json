@@ -2590,5 +2590,10 @@
   "Select every face of the selected brushes": "Jede Fläche der ausgewählten Brushes auswählen",
   "Drag a selection edge (2D)": "Eine Auswahlkante ziehen (2D)",
   "Resize along it, slanted edges too. Ctrl copies instead": "Daran skalieren, auch schräge Kanten. Ctrl kopiert stattdessen",
-  "Resize along it. Shift or Ctrl copies instead": "Daran skalieren. Shift oder Ctrl kopiert stattdessen"
+  "Resize along it. Shift or Ctrl copies instead": "Daran skalieren. Shift oder Ctrl kopiert stattdessen",
+  "Extrude Faces": "Flächen extrudieren",
+  "Pulls the selected brush faces out into new brushes, one per face": "Zieht die ausgewählten Brush-Flächen zu neuen Brushes heraus, einen pro Fläche",
+  "Extrude {dist}": "Extrudieren {dist}",
+  "Select brush faces to extrude": "Brush-Flächen zum Extrudieren auswählen",
+  "Extrude: move the mouse or type a length, click or Enter confirms, Esc or right click cancels": "Extrudieren: Maus bewegen oder eine Länge eintippen, Klick oder Enter bestätigt, Esc oder Rechtsklick bricht ab"
 }

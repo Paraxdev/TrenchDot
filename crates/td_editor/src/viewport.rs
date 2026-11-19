@@ -113,7 +113,10 @@ impl Viewport {
         self.hover_edge = None;
         // While a menu is open a click in the view only closes it, like in most programs.
         let closing_menu = self.popup_open && self.drag.is_none();
-        if !closing_menu && (cx.state.tool == ToolKind::Select || self.is_camera_drag()) {
+        let extruding = cx.tools.extrude.active();
+        if !closing_menu && extruding && !self.is_camera_drag() {
+            cx.tools.extrude.input(ui, &response, &self.camera, rect, cx.state);
+        } else if !closing_menu && (cx.state.tool == ToolKind::Select || self.is_camera_drag()) {
             self.handle_select_tool(ui, &response, cx);
         } else if !closing_menu {
             let hover = response.hover_pos();
@@ -141,8 +144,8 @@ impl Viewport {
             flip_shapes(ui.ctx(), layer, overlay_start, pivot);
         }
 
-        // Right click applies materials in the texture tool.
-        if cx.state.tool != ToolKind::Texture {
+        // Right click applies materials in the texture tool. The right click that cancels an extrude opens no menu.
+        if cx.state.tool != ToolKind::Texture && !extruding {
             response.context_menu(|ui| context_menu(ui, cx.state, cx.actions));
         }
     }
@@ -572,8 +575,11 @@ impl Viewport {
                 }
             }
 
-            cx.state.drag_preview = None;
-            cx.state.doc.commit();
+            // An orbit around a face extrude must not commit the extrude's open transaction.
+            if !matches!(drag, Drag::Look | Drag::Pan | Drag::Orbit { .. }) {
+                cx.state.drag_preview = None;
+                cx.state.doc.commit();
+            }
         }
 
         if self.drag.is_none()

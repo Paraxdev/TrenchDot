@@ -2590,5 +2590,10 @@
   "Select every face of the selected brushes": "Выделяет каждую грань выбранных брашей",
   "Drag a selection edge (2D)": "Тянуть за ребро выделения (2D)",
   "Resize along it, slanted edges too. Ctrl copies instead": "Менять размер вдоль него, в том числе у наклонных рёбер. Ctrl вместо этого копирует",
-  "Resize along it. Shift or Ctrl copies instead": "Менять размер вдоль него. Shift или Ctrl вместо этого копирует"
+  "Resize along it. Shift or Ctrl copies instead": "Менять размер вдоль него. Shift или Ctrl вместо этого копирует",
+  "Extrude Faces": "Выдавить грани",
+  "Pulls the selected brush faces out into new brushes, one per face": "Выдавливает выбранные грани браша в новые браши, по одному на грань",
+  "Extrude {dist}": "Выдавить {dist}",
+  "Select brush faces to extrude": "Выберите грани браша для выдавливания",
+  "Extrude: move the mouse or type a length, click or Enter confirms, Esc or right click cancels": "Выдавливание: двигайте мышь или введите длину, щелчок или Enter подтверждает, Esc или правый щелчок отменяет"
 }
