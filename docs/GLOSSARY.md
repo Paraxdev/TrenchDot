@@ -57,6 +57,9 @@ A four sided brush face split into a grid of vertices that can each be raised or
 ## entity definition
 The description of one entity class in an FGD: its classname, keys, inputs and outputs, and what Godot builds for it, such as the node class and the script. In Godot it is a FuncGodotFGDPointClass or FuncGodotFGDSolidClass resource, listed under Entity Definitions of an FGD file.
 
+## Extrude
+Pulling a face out along its direction to make new geometry. In the Blender preset, E extrudes the selected brush faces, each one grows a new brush and the old brush stays as it was. In the Mesh tool, E extrudes mesh faces instead.
+
 ## Face mode
 The Blender preset's way of selecting single faces. In Face mode a click picks the face under the cursor and A selects every face, in Object mode they pick whole brushes and meshes. Press 3 for Face mode and 1 for Object mode. The TrenchBroom preset has no modes and uses Shift+click for a face, the Hammer preset picks faces with the Texture tool.
 

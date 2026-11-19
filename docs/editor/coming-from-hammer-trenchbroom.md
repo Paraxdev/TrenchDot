@@ -142,6 +142,10 @@ what the TrenchDot column says.
   the view under the pointer shows it, so Ctrl+L in the Top view flips X and Ctrl+I there flips Z. In the other presets
   *Brush > Transform* flips along a world axis you name.
 * **Ctrl+Shift+A is Select None**, as in TrenchBroom. The Hammer preset gives it to Select Brush Faces, which picks every face of the selected brushes to texture them one by one, and Esc clears the selection there.
+* **A side drag in 2D resizes, slanted sides included.** In the Top, Front and Side views, drag a side of the selected
+  brush to resize it along that side, as in TrenchBroom. Ctrl+drag copies the selection instead. The Hammer preset
+  grabs only the straight sides of the box around the selection, as Hammer's wireframe views do, and copies with
+  Shift+drag too.
 * **The Hammer preset changes the Select tool's mouse too.** Shift+drag copies the selection, in every view, and a drag
   never locks to an axis, drag a gizmo arrow for that. Shift+click picks an object like a plain click, because Shift
   belongs to cloning, so faces are picked in the Texture tool (Shift+A) and nothing pushes or pulls a face with Shift. The

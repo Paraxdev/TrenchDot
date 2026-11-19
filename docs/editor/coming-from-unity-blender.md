@@ -65,5 +65,9 @@ pointer and *View > Views* switches between one, two and four.
 In the Mesh tool the keys follow Blender: 1, 2 and 3 for vertices, edges and faces (outside it, 1 and 3 are the Object and Face modes of the Blender preset), G, R and S with X, Y or Z to lock
 an axis, E to extrude, Ctrl+R for a loop cut and Ctrl+B to bevel.
 
+E also extrudes brush faces. In Face mode (3), select some faces of a brush and press E to pull a new brush out of each
+one, see [Extrude faces with E](brushes.md#extrude-faces-with-e). Inside the Mesh tool, E stays the Mesh tool's own
+extrude.
+
 Right drag with WASD flies the 3D camera like Unity's scene view, and F frames the selection. Ctrl+Z and Ctrl+Shift+Z
 undo and redo, and F2 renames.

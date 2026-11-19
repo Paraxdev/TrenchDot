@@ -61,6 +61,9 @@ Eine vierseitige Brush-Fläche, die in ein Raster aus Vertices zerlegt ist, die 
 ## Entitätsdefinition { #entity-definition data-forms="Entitätsdefinitionen" }
 Die Beschreibung einer Entitätsklasse in einer FGD: ihr Classname, ihre Keys, Inputs und Outputs und was Godot dafür baut, etwa die Node-Klasse und das Skript. In Godot ist es eine Ressource vom Typ FuncGodotFGDPointClass oder FuncGodotFGDSolidClass, aufgelistet unter Entity Definitions einer FGD-Datei.
 
+## Extrudieren { #extrude }
+Eine Fläche entlang ihrer Richtung herausziehen, sodass neue Geometrie entsteht. Im Blender-Preset extrudiert E die ausgewählten Brush-Flächen, aus jeder wächst ein neuer Brush, und der alte bleibt, wie er war. Im Mesh-Werkzeug extrudiert E stattdessen Mesh-Flächen.
+
 ## Abfall { #falloff data-forms="Abfalls" }
 Wie ein Malpinsel, etwa der des Werkzeugs Mischen, von der Mitte zum Rand ausblendet. Ein weicher Abfall gibt weiche Ränder, ein konstanter malt die ganze Scheibe mit gleicher Stärke.
 

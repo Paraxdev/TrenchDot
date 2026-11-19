@@ -61,6 +61,9 @@ Una cara de brush de cuatro lados dividida en una rejilla de vértices que se pu
 ## definición de entidad { #entity-definition data-forms="definiciones de entidad" }
 La descripción de una clase de entidad en un FGD: su classname, claves, inputs y outputs, y lo que Godot construye para ella, como la clase de nodo y el script. En Godot es un recurso FuncGodotFGDPointClass o FuncGodotFGDSolidClass, listado en Entity Definitions de un archivo FGD.
 
+## extruir { #extrude }
+Estirar una cara en su dirección para crear geometría nueva. En el preset Blender, E extruye las caras de brush seleccionadas, cada una hace crecer un brush nuevo y el brush original queda como estaba. En la herramienta Mesh, E extruye caras de mesh en su lugar.
+
 ## Atenuación { #falloff data-forms="atenuaciones" }
 Cómo se desvanece un pincel, como el de la herramienta Mezcla, del centro al borde. Una atenuación suave da bordes blandos, una constante pinta todo el disco con la misma fuerza.
 

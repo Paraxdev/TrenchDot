@@ -61,6 +61,9 @@ Uma face de brush de quatro lados dividida em uma grade de vértices que podem s
 ## definição de entidade { #entity-definition data-forms="definições de entidade" }
 A descrição de uma classe de entidade em um FGD: seu classname, keys, inputs e outputs, e o que o Godot constrói para ela, como a classe do nó e o script. No Godot, é um recurso FuncGodotFGDPointClass ou FuncGodotFGDSolidClass, listado em Entity Definitions de um arquivo FGD.
 
+## extrudar { #extrude }
+Puxar uma face na direção dela para criar geometria nova. No preset Blender, E extruda as faces de brush selecionadas, cada uma faz crescer um brush novo e o brush original continua como estava. Na ferramenta Mesh, o E extruda faces de mesh.
+
 ## atenuação { #falloff data-forms="atenuações" }
 Como um pincel, como o da ferramenta Mistura, esmaece do centro até a borda. Uma atenuação suave dá bordas macias, uma constante pinta o disco todo com a mesma força.
 

@@ -61,6 +61,9 @@ Constructive Solid Geometry（構成的ソリッドジオメトリ）の略で�
 ## エンティティ定義 { #entity-definition }
 FGDの中の、エンティティクラス一つの記述です。classname、キー、インプットとアウトプット、そしてノードクラスやスクリプトなど、Godotがそのために作るものが入っています。GodotではFuncGodotFGDPointClassかFuncGodotFGDSolidClassのリソースで、FGDファイルのEntity Definitionsに並びます。
 
+## 押し出し { #extrude }
+面をその向きに引き出して、新しいジオメトリを作ることです。Blenderプリセットでは、E で選択したブラシの面を押し出し、面ごとに新しいブラシができて、元のブラシはそのままです。Meshツールでは、E はメッシュの面を押し出します。
+
 ## フォールオフ { #falloff }
 ブレンドツールなどのペイントブラシが、中心から端に向かってどう薄れるかのことです。なめらかなフォールオフだと縁がやわらかくなり、一定にすると円全体が同じ強さで塗られます。
 

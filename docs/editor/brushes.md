@@ -53,7 +53,8 @@ You can reshape a selected brush without leaving the Select tool:
 | --- | --- |
 | Shift+drag a selected face (3D), TrenchBroom preset | Push or pull that face |
 | Ctrl+Shift+drag a selected face (3D), TrenchBroom preset | Extrude a new brush out of it |
-| Drag a selection edge (2D) | Resize. The edge lights up yellow and the cursor changes where a drag resizes. Ctrl copies the selection instead, and so does Shift in the Hammer preset |
+| Drag a selection edge (2D) | Resize along that side. The side lights up yellow and the cursor changes where a drag resizes. Ctrl copies the selection instead, and so does Shift in the Hammer preset |
+| E, with brush faces selected | Extrude each selected face into a new brush, in the Blender preset, see [below](#extrude-faces-with-e) |
 
 In the Hammer preset Shift+drag copies the selection instead, so there is no push, pull or extrude on a face. Resize by
 the edges in a 2D view, or use the transform gizmo.
@@ -62,6 +63,49 @@ While snapping is on, a face you drag lands on a grid line, even when the brush 
 move in grid steps instead.
 
 ![Shift+dragging the side face of a selected box in the 3D view, the box stretches in grid steps](../assets/brushes/push-face.gif)
+
+In the Top, Front and Side views the sides of what you selected are handles, and what a drag grabs depends on the
+selection:
+
+* **One brush.** Any side you see edge on is a handle, slanted ones too. Drag the sloped side of a wedge and it moves
+  along its own direction, so the slope keeps its angle.
+* **Several brushes.** Only the box around the whole selection has handles, so the sides are always straight.
+* **Selected faces.** Select faces first (Shift+click, or key 3 in the Blender preset) and a drag only moves the faces
+  you selected. Selected faces that lie in one plane move together.
+
+![The Side view with a selected wedge, its slanted side lit yellow under the pointer](../assets/brushes/slanted-side-drag.png)
+
+A side only counts as a handle when it shows up as a line in that view, so a brush turned off the view axes still moves
+as a whole when you drag it near the middle. In the Hammer preset only the straight sides of the box around the
+selection are handles, as in Hammer's wireframe views, and a slanted side moves the whole brush. A drag that would
+leave a brush with no volume or a dent stops at the last shape that worked, drag back to get closer.
+
+### Extrude faces with E
+
+Blender users know E as extrude. In the Blender preset it pulls a new brush out of each selected brush face, and the
+old brush stays as it is. The steps:
+
+1. Press 3 for Face mode, or switch the toolbar to Face.
+2. Click a face of a brush in the 3D view. Ctrl+click adds more faces.
+3. Press E. The status bar reads **Extrude** and a hint in the corner of the view says how to finish.
+4. Move the mouse to set the length. It follows the grid while snapping is on, and Ctrl switches snapping off for the
+    moment. Or type a number and press Enter for an exact length, Backspace fixes a typo.
+5. Click or press Enter. You get one undo step called **Extrude**.
+
+![The 3D view while extruding the top face of a box, the new brush stands above it and the hint shows in the corner](../assets/brushes/extrude-faces-e.png)
+
+Esc or a right click cancels and puts everything back. Moving into the brush, or typing a length of zero or less, makes
+nothing. Afterwards the far face of each new brush is selected, still in Face mode, so pressing E again extrudes the
+next step.
+
+> [!NOTE]
+> Every face moves along its own direction by the same length and becomes its own brush. Faces that meet at a corner
+> therefore leave that corner open, a gap the size of the length. Fill it with a small box, or extrude one face at a
+> time.
+
+E is the same command in the **Brush** section of the command palette and at the top of the right click menu when
+faces are selected. In the Mesh tool E keeps extruding mesh faces, see [Meshes](meshes.md). TrenchBroom and Hammer
+leave E free.
 
 For slopes, ramps and angled walls, press C for the **Clip** tool:
 

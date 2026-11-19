@@ -61,6 +61,9 @@ Godot 在启动时加载一次、并在整个游戏期间一直保留的脚本�
 ## 实体定义 { #entity-definition }
 FGD 中对一个实体类的描述：它的 classname、键、输入和输出，以及 Godot 为它构建什么，比如节点类和脚本。在 Godot 中它是一个 FuncGodotFGDPointClass 或 FuncGodotFGDSolidClass 资源，列在 FGD 文件的 Entity Definitions 之下。
 
+## 挤出 { #extrude }
+沿着面的方向把它拉出去，生成新的几何体。在 Blender 预设中，E 会挤出选中的笔刷面，每个面长出一个新笔刷，原来的笔刷保持不变。在 Mesh 工具中，E 挤出的是网格面。
+
 ## 衰减 { #falloff }
 绘制用的画笔，比如混合工具的画笔，从中心到边缘如何渐隐。平滑的衰减会得到柔和的边界，恒定的衰减则让整个圆盘以同样的强度绘制。
 
