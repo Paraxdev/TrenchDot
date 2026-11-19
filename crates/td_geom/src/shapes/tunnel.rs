@@ -50,11 +50,27 @@ pub struct Tunnel {
     pub floor: bool,
     /// The slab over a square tunnel, without it the tunnel is an open trench.
     pub ceiling: bool,
+    /// Two raised walkways along the walls with a sunken channel between them.
+    pub walkway: bool,
+    /// How far each walkway reaches in from its wall, at most 40% of the opening.
+    pub walkway_width: f64,
+    /// How high the walkways stand, at most half the clear height.
+    pub walkway_height: f64,
 }
 
 impl Default for Tunnel {
     fn default() -> Self {
-        Self { profile: TunnelProfile::default(), sides: 12, thickness: 16.0, angle: 180.0, floor: false, ceiling: true }
+        Self {
+            profile: TunnelProfile::default(),
+            sides: 12,
+            thickness: 16.0,
+            angle: 180.0,
+            floor: false,
+            ceiling: true,
+            walkway: false,
+            walkway_width: 32.0,
+            walkway_height: 16.0,
+        }
     }
 }
 
@@ -66,7 +82,8 @@ impl Tunnel {
             TunnelProfile::Arched => arched_sweep(bounds.size(), thickness, self.angle),
             _ => self.angle,
         };
-        Tunnel { thickness, angle, ..*self }
+        let walkway = walkways(bounds, self, thickness).0;
+        Tunnel { thickness, angle, walkway_width: walkway.x, walkway_height: walkway.y, ..*self }
     }
 
     /// How thick an arched tunnel's arch is at its crown when it sweeps under 180 degrees.
@@ -93,8 +110,8 @@ pub fn tunnel_thickness(bounds: &Aabb, thickness: f64) -> f64 {
 }
 
 /// Tunnel with its length along Z and its cross section in the XY plane of the bounds. The side walls run the full
-/// height, the ceiling and floor sit between them, the floor last. An arched tunnel stands its walls up to where the
-/// arch begins, the arch rising at most `min(width, height) / 2`.
+/// height, the ceiling and floor sit between them, then come the walkways. An arched tunnel stands its walls up to
+/// where the arch begins, the arch rising at most `min(width, height) / 2`.
 pub fn tunnel(bounds: &Aabb, params: &Tunnel, material: &str) -> Vec<Brush> {
     section(bounds, params).iter().filter_map(|piece| place_straight(piece, bounds, material)).collect()
 }
@@ -105,7 +122,7 @@ fn section(bounds: &Aabb, params: &Tunnel) -> Vec<Piece> {
     let left = |top: f64| Piece::Rect(DVec2::new(a.x, a.y), DVec2::new(a.x + t, top));
     let right = |top: f64| Piece::Rect(DVec2::new(b.x - t, a.y), DVec2::new(b.x, top));
     let floor = || Piece::Rect(DVec2::new(a.x + t, a.y), DVec2::new(b.x - t, a.y + t));
-    match params.profile {
+    let mut pieces = match params.profile {
         TunnelProfile::Square => {
             let mut out = vec![left(b.y), right(b.y)];
             out.extend(params.ceiling.then(|| Piece::Rect(DVec2::new(a.x + t, b.y - t), DVec2::new(b.x - t, b.y))));
@@ -120,22 +137,101 @@ fn section(bounds: &Aabb, params: &Tunnel) -> Vec<Piece> {
             out
         }
         TunnelProfile::Round => {
-            let c = DVec2::new(bounds.center().x, bounds.center().y);
-            let inner_r = DVec2::new(bounds.size().x * 0.5 - t, bounds.size().y * 0.5 - t);
-            let outer = ring(c, DVec2::new(bounds.size().x * 0.5, bounds.size().y * 0.5), params.sides.max(3), 0.0);
-            // Each inner corner sits on the ray from the center through its outer corner, unlike pipe's, so every piece
-            // stays convex and inside its own wedge even when few sides span a narrow oval.
-            let inner: Vec<DVec2> = outer
-                .iter()
-                .map(|p| {
-                    let d = *p - c;
-                    c + d / (d / inner_r).length()
-                })
-                .collect();
+            let (outer, inner) = round_ring(bounds, params.sides, t);
             let n = outer.len();
             (0..n).map(|i| Piece::Poly(vec![outer[i], outer[(i + 1) % n], inner[i], inner[(i + 1) % n]])).collect()
         }
+    };
+    if params.walkway {
+        pieces.extend(walkways(bounds, params, t).1);
     }
+
+    pieces
+}
+
+/// The outer corners of a round tunnel's ring and the corners of its bore, counterclockwise.
+fn round_ring(bounds: &Aabb, sides: usize, t: f64) -> (Vec<DVec2>, Vec<DVec2>) {
+    let c = DVec2::new(bounds.center().x, bounds.center().y);
+    let inner_r = DVec2::new(bounds.size().x * 0.5 - t, bounds.size().y * 0.5 - t);
+    let outer = ring(c, DVec2::new(bounds.size().x * 0.5, bounds.size().y * 0.5), sides.max(3), 0.0);
+    // Each inner corner sits on the ray from the center through its outer corner, unlike pipe's, so every piece stays
+    // convex and inside its own wedge even when few sides span a narrow oval.
+    let inner = outer
+        .iter()
+        .map(|p| {
+            let d = *p - c;
+            c + d / (d / inner_r).length()
+        })
+        .collect();
+    (outer, inner)
+}
+
+/// The width and height a tunnel's walkways really get, and the walkways, left first. In a square or arched tunnel
+/// they are boxes against the walls, standing on the floor or the bottom of the box. In a round tunnel they fill the
+/// bottom of the bore out to the width, so they follow its curve.
+fn walkways(bounds: &Aabb, params: &Tunnel, t: f64) -> (DVec2, [Piece; 2]) {
+    let fit = |want: f64, room: f64| want.max(1.0).min(room);
+    let (a, b) = (bounds.min, bounds.max);
+    if params.profile == TunnelProfile::Round {
+        let bore = round_ring(bounds, params.sides, t).1;
+        let height = fit(params.walkway_height, bounds.size().y * 0.5 - t);
+        let top = bore.iter().map(|p| p.y).fold(f64::INFINITY, f64::min) + height;
+        // An odd number of sides is not mirror symmetric, so each side of the bore is found on its own.
+        let (left, right) = span_at(&bore, top);
+        let width = fit(params.walkway_width, (right - left) * 0.4);
+        let under = clip_convex(&bore, DVec2::Y, top);
+        let pieces = [Piece::Poly(clip_convex(&under, DVec2::X, left + width)), Piece::Poly(clip_convex(&under, -DVec2::X, width - right))];
+        return (DVec2::new(width, height), pieces);
+    }
+
+    let base = if params.floor { a.y + t } else { a.y };
+    let ceiling = match params.profile {
+        TunnelProfile::Arched => arched_top(bounds, params.sides, t, params.angle).0,
+        _ if params.ceiling => b.y - t,
+        _ => b.y,
+    };
+    let width = fit(params.walkway_width, (bounds.size().x - 2.0 * t) * 0.4);
+    let height = fit(params.walkway_height, (ceiling - base) * 0.5);
+    let pieces = [
+        Piece::Rect(DVec2::new(a.x + t, base), DVec2::new(a.x + t + width, base + height)),
+        Piece::Rect(DVec2::new(b.x - t - width, base), DVec2::new(b.x - t, base + height)),
+    ];
+    (DVec2::new(width, height), pieces)
+}
+
+/// The least and greatest x where the convex polygon `poly` crosses the line at height `y`.
+fn span_at(poly: &[DVec2], y: f64) -> (f64, f64) {
+    let n = poly.len();
+    (0..n)
+        .filter_map(|i| {
+            let (p, q) = (poly[i], poly[(i + 1) % n]);
+            ((p.y - y) * (q.y - y) <= 0.0 && p.y != q.y).then(|| p.x + (q.x - p.x) * ((y - p.y) / (q.y - p.y)))
+        })
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), x| (lo.min(x), hi.max(x)))
+}
+
+/// The part of the convex polygon `poly` where `p.dot(normal) <= offset`. Corners within a hair of the line count as on
+/// it, so a cut through a corner leaves no sliver of an edge beside it.
+fn clip_convex(poly: &[DVec2], normal: DVec2, offset: f64) -> Vec<DVec2> {
+    let hair = 1e-9 * normal.length();
+    let side = |p: DVec2| {
+        let d = p.dot(normal) - offset;
+        if d.abs() <= hair { 0.0 } else { d }
+    };
+    let mut out = Vec::with_capacity(poly.len() + 1);
+    for (i, &p) in poly.iter().enumerate() {
+        let q = poly[(i + 1) % poly.len()];
+        let (dp, dq) = (side(p), side(q));
+        if dp <= 0.0 {
+            out.push(p);
+        }
+
+        if dp * dq < 0.0 {
+            out.push(p + (q - p) * (dp / (dp - dq)));
+        }
+    }
+
+    out
 }
 
 /// The sweep in degrees an arched tunnel's arch really gets. Under 180 it is cut back to rise at most half the smaller
@@ -621,5 +717,176 @@ mod tests {
                 }
             }
         }
+    }
+
+    fn walkway(width: f64, height: f64) -> Tunnel {
+        Tunnel { walkway: true, walkway_width: width, walkway_height: height, ..Tunnel::default() }
+    }
+
+    #[test]
+    fn a_walkway_lines_both_walls() {
+        let bounds = off_origin();
+        let (a, b, c, t) = (bounds.min, bounds.max, bounds.center(), 16.0);
+        let (width, height) = (20.5, 12.25);
+        for (profile, floor, ceiling, count) in [
+            (TunnelProfile::Square, false, true, 3),
+            (TunnelProfile::Square, true, false, 3),
+            (TunnelProfile::Square, true, true, 4),
+            (TunnelProfile::Arched, false, true, 2 + 6),
+            (TunnelProfile::Arched, true, true, 2 + 6 + 1),
+        ] {
+            let what = format!("{profile:?} floor {floor} ceiling {ceiling}");
+            let plain = Tunnel { profile, floor, ceiling, sides: 6, angle: 120.0, ..Tunnel::default() };
+            let without = tunnel(&bounds, &plain, "m");
+            let with = tunnel(&bounds, &Tunnel { profile, floor, ceiling, sides: 6, angle: 120.0, ..walkway(width, height) }, "m");
+            assert_eq!(without.len(), count, "{what}");
+            assert_eq!(with.len(), count + 2, "{what}");
+            assert_eq!(format!("{:?}", &with[..count]), format!("{without:?}"), "{what} keeps the rest as it was");
+            let base = if floor { a.y + t } else { a.y };
+            let slab = |x0: f64, x1: f64| Aabb::new(DVec3::new(x0, base, a.z), DVec3::new(x1, base + height, b.z));
+            assert_eq!(with[count].bounds(), slab(a.x + t, a.x + t + width), "{what} left");
+            assert_eq!(with[count + 1].bounds(), slab(b.x - t - width, b.x - t), "{what} right");
+            assert_apart(&with, &what);
+            let filled = |p: DVec3| with.iter().any(|piece| piece.contains_point(p));
+            let mid = base + height * 0.5;
+            assert!(filled(DVec3::new(a.x + t + width - 0.5, mid, c.z - 31.0)), "{what} the left walkway is solid");
+            assert!(filled(DVec3::new(b.x - t - width + 0.5, mid, c.z + 17.0)), "{what} the right walkway is solid");
+            assert!(!filled(DVec3::new(a.x + t + width + 0.5, mid, c.z + 5.0)), "{what} the channel is empty");
+            assert!(!filled(DVec3::new(b.x - t - width - 0.5, mid, c.z - 9.0)), "{what} the channel is empty");
+            assert!(!filled(DVec3::new(a.x + t + 0.5, base + height + 0.5, c.z)), "{what} nothing stands on the walkway");
+        }
+    }
+
+    #[test]
+    fn the_walkway_is_clamped() {
+        let bounds = Aabb::new(DVec3::new(-21.5, 6.0, -40.0), DVec3::new(170.5, 102.0, 88.0));
+        let (a, b) = (bounds.min, bounds.max);
+        let floored = |width: f64, height: f64| Tunnel { floor: true, ..walkway(width, height) };
+        let fit = |params: Tunnel| {
+            let fitted = params.fitted(&bounds);
+            (fitted.walkway_width, fitted.walkway_height)
+        };
+        // The opening is 192 - 2 * 16 wide and 96 - 2 * 16 high between the floor and the ceiling.
+        for (want, got) in [
+            ((0.0, 0.0), (1.0, 1.0)),
+            ((-7.5, -3.0), (1.0, 1.0)),
+            ((1.0 - 1e-9, 1.0 - 1e-9), (1.0, 1.0)),
+            ((1.0, 1.0), (1.0, 1.0)),
+            ((1.0 + 1e-9, 1.0 + 1e-9), (1.0 + 1e-9, 1.0 + 1e-9)),
+            ((63.5, 31.75), (63.5, 31.75)),
+            ((64.0 - 1e-9, 32.0 - 1e-9), (64.0 - 1e-9, 32.0 - 1e-9)),
+            ((64.0, 32.0), (64.0, 32.0)),
+            ((64.0 + 1e-9, 32.0 + 1e-9), (64.0, 32.0)),
+            ((1e6, 1e6), (64.0, 32.0)),
+        ] {
+            assert_eq!(fit(floored(want.0, want.1)), got, "{want:?}");
+        }
+
+        for (params, high) in [
+            (Tunnel { floor: false, ..walkway(1e6, 1e6) }, 40.0),
+            (Tunnel { floor: true, ceiling: false, ..walkway(1e6, 1e6) }, 40.0),
+            (Tunnel { floor: false, ceiling: false, ..walkway(1e6, 1e6) }, 48.0),
+            (Tunnel { profile: TunnelProfile::Arched, floor: true, ..walkway(1e6, 1e6) }, 16.0),
+            (Tunnel { profile: TunnelProfile::Arched, floor: false, ..walkway(1e6, 1e6) }, 24.0),
+            (Tunnel { profile: TunnelProfile::Arched, floor: true, angle: 120.0, ..walkway(1e6, 1e6) }, 16.0),
+        ] {
+            let (width, height) = fit(params);
+            assert!(width == 64.0 && (height - high).abs() < 1e-9, "{params:?} stays under half of what is left under the top: {height}");
+        }
+
+        let thick = fit(Tunnel { thickness: 1e6, ..floored(1e6, 1e6) });
+        assert!((thick.0 - (192.0 - 2.0 * 38.4) * 0.4).abs() < 1e-9 && (thick.1 - (96.0 - 2.0 * 38.4) * 0.5).abs() < 1e-9, "{thick:?}");
+
+        let widest = tunnel(&bounds, &floored(1e6, 1e6), "m");
+        assert_eq!(widest.len(), 6);
+        assert_eq!(widest[4].bounds(), Aabb::new(DVec3::new(a.x + 16.0, a.y + 16.0, a.z), DVec3::new(a.x + 80.0, a.y + 48.0, b.z)));
+        assert_eq!(widest[5].bounds(), Aabb::new(DVec3::new(b.x - 80.0, a.y + 16.0, a.z), DVec3::new(b.x - 16.0, a.y + 48.0, b.z)));
+        assert_eq!(format!("{widest:?}"), format!("{:?}", tunnel(&bounds, &floored(1e6, 1e6).fitted(&bounds), "m")));
+        assert_apart(&widest, "the widest walkways");
+        assert!(!widest.iter().any(|p| p.contains_point(DVec3::new(bounds.center().x, a.y + 47.0, 3.0))), "a channel is left");
+
+        let off = Tunnel { walkway: false, ..floored(20.0, 10.0) };
+        let made = tunnel(&bounds, &off, "m");
+        assert_eq!(made.len(), 4, "no walkways when it is off");
+        assert_eq!(format!("{made:?}"), format!("{:?}", tunnel(&bounds, &Tunnel { floor: true, ..Tunnel::default() }, "m")));
+    }
+
+    #[test]
+    fn a_round_tunnel_walkway_sits_in_the_bore() {
+        let tall = Aabb::new(DVec3::new(13.5, -20.0, -64.0), DVec3::new(141.25, 300.0, 100.0));
+        for bounds in [off_origin(), tall] {
+            let t = 16.0;
+            for sides in [3, 7, 8] {
+                for (width, height) in [(9.5, 13.25), (0.0, 0.0), (1e6, 1e6)] {
+                    let what = format!("{sides} sides, {width} by {height} on {bounds:?}");
+                    let params = Tunnel { profile: TunnelProfile::Round, sides, ..walkway(width, height) };
+                    let pieces = section(&bounds, &params);
+                    assert_eq!(pieces.len(), sides + 2, "{what}");
+                    let bore: Vec<DVec2> = pieces[..sides].iter().map(|p| poly(p)[2]).collect();
+                    let edges = || (0..sides).map(|i| (bore[i], bore[(i + 1) % sides] - bore[i]));
+                    let low = bore.iter().map(|p| p.y).fold(f64::INFINITY, f64::min);
+                    let fitted = params.fitted(&bounds);
+                    let (fw, fh) = (fitted.walkway_width, fitted.walkway_height);
+                    assert!((fh - height.max(1.0).min(bounds.size().y * 0.5 - t)).abs() < 1e-9, "{what} height {fh}");
+                    let top = low + fh;
+                    let tops: Vec<(f64, f64)> = pieces[sides..]
+                        .iter()
+                        .map(|piece| {
+                            let points = poly(piece);
+                            assert!(points.iter().all(|&p| edges().all(|(q, d)| d.perp_dot(p - q) >= -1e-9)), "{what} stays in the bore");
+                            assert!(points.iter().all(|p| p.y <= top + 1e-9), "{what} stays under the top");
+                            let at_top: Vec<f64> = points.iter().filter(|p| (p.y - top).abs() < 1e-9).map(|p| p.x).collect();
+                            assert_eq!(at_top.len(), 2, "{what} has a flat top at {top}: {points:?}");
+                            (at_top[0].min(at_top[1]), at_top[0].max(at_top[1]))
+                        })
+                        .collect();
+                    let ((l0, l1), (r0, r1)) = (tops[0], tops[1]);
+                    for x in [l0, r1] {
+                        assert!(edges().any(|(q, d)| (d.perp_dot(DVec2::new(x, top) - q) / d.length()).abs() < 1e-9), "{what} {x} reaches the bore");
+                    }
+
+                    assert!((l1 - l0 - fw).abs() < 1e-9 && (r1 - r0 - fw).abs() < 1e-9, "{what} both tops are {fw} wide");
+                    assert!((fw - width.max(1.0).min((r1 - l0) * 0.4)).abs() < 1e-9, "{what} width {fw}");
+                    assert!(l1 < r0, "{what} leaves a channel");
+
+                    let made = tunnel(&bounds, &params, "m");
+                    assert_eq!(made.len(), sides + 2, "{what}");
+                    assert_apart(&made, &what);
+                    let filled = |x: f64, y: f64| made.iter().any(|p| p.contains_point(DVec3::new(x, y, bounds.center().z + 3.0)));
+                    assert!(!filled((l1 + r0) * 0.5, top - 0.01), "{what} the channel is empty");
+                    assert!(!filled((l0 + l1) * 0.5, top + 0.01) && !filled((r0 + r1) * 0.5, top + 0.01), "{what} nothing over the walkways");
+                    for (piece, side) in pieces[sides..].iter().zip(["left", "right"]) {
+                        let points = poly(piece);
+                        let mid = points.iter().copied().sum::<DVec2>() / points.len() as f64;
+                        assert!(filled(mid.x, mid.y), "{what} the {side} walkway is solid");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn clip_convex_keeps_the_inside() {
+        let quad = [DVec2::new(10.5, -3.0), DVec2::new(40.0, 2.5), DVec2::new(33.0, 21.0), DVec2::new(5.0, 14.5)];
+        assert_eq!(clip_convex(&quad, DVec2::Y, 21.0), quad, "all in, the top corner on the line");
+        assert_eq!(clip_convex(&quad, DVec2::new(0.6, 0.8), 100.0), quad, "all in, slanted");
+        assert!(clip_convex(&quad, DVec2::Y, -3.5).is_empty(), "all out");
+        assert!(clip_convex(&quad, DVec2::new(-0.6, -0.8), -40.0).is_empty(), "all out, slanted");
+        assert!(clip_convex(&[], DVec2::Y, 0.0).is_empty());
+
+        let cut = clip_convex(&quad, DVec2::X, 20.0);
+        let want = [quad[0], DVec2::new(20.0, -3.0 + 5.5 * 9.5 / 29.5), DVec2::new(20.0, 21.0 - 6.5 * 13.0 / 28.0), quad[3]];
+        assert_eq!(cut.len(), 4, "{cut:?}");
+        assert!(cut.iter().zip(want).all(|(got, want)| got.distance(want) < 1e-9), "through two edges: {cut:?}");
+
+        let slanted = clip_convex(&quad, DVec2::new(1.0, 1.0), 30.0);
+        assert_eq!(slanted.len(), 4, "{slanted:?}");
+        assert!(slanted.iter().all(|p| p.x + p.y <= 30.0 + 1e-9) && slanted.contains(&quad[0]) && slanted.contains(&quad[3]), "{slanted:?}");
+
+        // The edge from the last corner to the first lies on 17.5 x + 5.5 y = 167.25, the others on its far side.
+        assert_eq!(clip_convex(&quad, DVec2::new(-17.5, -5.5), -167.25), quad, "a cut along an edge adds no points");
+        assert_eq!(clip_convex(&quad, DVec2::new(17.5, 5.5), 167.25), vec![quad[0], quad[3]], "the far side keeps only the edge");
+        // The diagonal from the second corner to the last lies on 12 x + 35 y = 567.5.
+        assert_eq!(clip_convex(&quad, DVec2::new(12.0, 35.0), 567.5), vec![quad[0], quad[1], quad[3]], "a cut through two corners");
     }
 }
