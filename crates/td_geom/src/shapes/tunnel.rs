@@ -4,8 +4,9 @@ use std::f64::consts::FRAC_PI_2;
 
 use td_core::{Aabb, DVec2, DVec3};
 
-use super::{ARCH_MIN_ANGLE, arch_quads, arch_radius, arch_sweep, hull, ring};
+use super::{ARCH_MIN_ANGLE, Axis, arch_quads, arch_radius, arch_sweep, hull, ring};
 use crate::brush::Brush;
+use crate::uv::FaceUv;
 
 /// How a tunnel is cut across its length.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -56,6 +57,8 @@ pub struct Tunnel {
     pub walkway_width: f64,
     /// How high the walkways stand, at most half the clear height.
     pub walkway_height: f64,
+    /// The world axis the tunnel runs along. Along Y it is a shaft whose ceiling side faces -Z.
+    pub axis: Axis,
 }
 
 impl Default for Tunnel {
@@ -70,6 +73,7 @@ impl Default for Tunnel {
             walkway: false,
             walkway_width: 32.0,
             walkway_height: 16.0,
+            axis: Axis::Z,
         }
     }
 }
@@ -77,6 +81,7 @@ impl Default for Tunnel {
 impl Tunnel {
     /// This tunnel with every option brought into the range `bounds` allows, reading back what [`tunnel`] builds.
     pub fn fitted(&self, bounds: &Aabb) -> Tunnel {
+        let bounds = &Frame::new(bounds, self.axis).upright;
         let thickness = tunnel_thickness(bounds, self.thickness);
         let angle = match self.profile {
             TunnelProfile::Arched => arched_sweep(bounds.size(), thickness, self.angle),
@@ -86,11 +91,17 @@ impl Tunnel {
         Tunnel { thickness, angle, walkway_width: walkway.x, walkway_height: walkway.y, ..*self }
     }
 
+    /// The thickest wall [`tunnel`] builds in `bounds`, 40% of the smaller side of the cross section.
+    pub fn thickness_cap(&self, bounds: &Aabb) -> f64 {
+        tunnel_thickness(&Frame::new(bounds, self.axis).upright, f64::INFINITY)
+    }
+
     /// How thick an arched tunnel's arch is at its crown when it sweeps under 180 degrees.
     pub fn arch_crown(&self, bounds: &Aabb) -> Option<f64> {
         let fitted = self.fitted(bounds);
         (fitted.profile == TunnelProfile::Arched && fitted.angle < 180.0).then(|| {
-            let (radius, _, inner_radius) = segmental(bounds.size().x, fitted.thickness, fitted.angle);
+            let width = Frame::new(bounds, self.axis).upright.size().x;
+            let (radius, _, inner_radius) = segmental(width, fitted.thickness, fitted.angle);
             radius - inner_radius
         })
     }
@@ -109,11 +120,57 @@ pub fn tunnel_thickness(bounds: &Aabb, thickness: f64) -> f64 {
     thickness.max(1.0).min(size.x.min(size.y) * 0.4)
 }
 
-/// Tunnel with its length along Z and its cross section in the XY plane of the bounds. The side walls run the full
-/// height, the ceiling and floor sit between them, then come the walkways. An arched tunnel stands its walls up to
-/// where the arch begins, the arch rising at most `min(width, height) / 2`.
+/// Tunnel filling the bounds along its axis. The side walls run the full height, the ceiling and floor sit between
+/// them, then come the walkways. An arched tunnel stands its walls up to where the arch begins, the arch rising at
+/// most `min(width, height) / 2`.
 pub fn tunnel(bounds: &Aabb, params: &Tunnel, material: &str) -> Vec<Brush> {
-    section(bounds, params).iter().filter_map(|piece| place_straight(piece, bounds, material)).collect()
+    let frame = Frame::new(bounds, params.axis);
+    section(&frame.upright, params).iter().filter_map(|piece| place_straight(piece, &frame.upright, material)).map(|b| frame.lay(b)).collect()
+}
+
+/// The upright box a tunnel is built in, width along X, up along Y and length along Z, and the turn that lays it
+/// along its axis. Both turns only swap and negate offsets from the box center, so corners on the grid stay on it.
+/// Turning the finished pieces rather than their outlines keeps every corner exactly where the upright tunnel has it,
+/// a hull of turned points would cut its corners again and land a hair off.
+struct Frame {
+    axis: Axis,
+    center: DVec3,
+    upright: Aabb,
+}
+
+impl Frame {
+    fn new(bounds: &Aabb, axis: Axis) -> Frame {
+        let (center, h) = (bounds.center(), bounds.size() * 0.5);
+        let half = match axis {
+            Axis::X => DVec3::new(h.z, h.y, h.x),
+            Axis::Y => DVec3::new(h.x, h.z, h.y),
+            Axis::Z => return Frame { axis, center, upright: *bounds },
+        };
+        Frame { axis, center, upright: Aabb::new(center - half, center + half) }
+    }
+
+    fn world(&self, p: DVec3) -> DVec3 {
+        let d = p - self.center;
+        match self.axis {
+            Axis::X => self.center + DVec3::new(d.z, d.y, -d.x),
+            Axis::Y => self.center + DVec3::new(d.x, d.z, -d.y),
+            Axis::Z => p,
+        }
+    }
+
+    fn lay(&self, brush: Brush) -> Brush {
+        if self.axis == Axis::Z {
+            return brush;
+        }
+
+        let mut b = Brush { vertices: brush.vertices.iter().map(|v| self.world(*v)).collect(), faces: brush.faces };
+        b.update_planes();
+        for f in &mut b.faces {
+            f.data.uv = FaceUv::paraxial(f.plane.normal, f.data.uv.scale);
+        }
+
+        b
+    }
 }
 
 fn section(bounds: &Aabb, params: &Tunnel) -> Vec<Piece> {
@@ -402,6 +459,7 @@ mod tests {
 
     #[test]
     fn a_default_tunnel_matches_the_old_one() {
+        assert_eq!(Tunnel::default().axis, Axis::Z);
         for bounds in test_boxes() {
             let made = tunnel(&bounds, &Tunnel::default(), "m");
             assert_eq!(made.len(), 3, "{bounds:?}");
@@ -888,5 +946,87 @@ mod tests {
         assert_eq!(clip_convex(&quad, DVec2::new(17.5, 5.5), 167.25), vec![quad[0], quad[3]], "the far side keeps only the edge");
         // The diagonal from the second corner to the last lies on 12 x + 35 y = 567.5.
         assert_eq!(clip_convex(&quad, DVec2::new(12.0, 35.0), 567.5), vec![quad[0], quad[1], quad[3]], "a cut through two corners");
+    }
+
+    #[test]
+    fn a_tunnel_runs_along_its_axis() {
+        // 129 wide, 99 tall and 157 long, so the center sits on half units.
+        let bounds = Aabb::new(DVec3::new(-61.0, 13.0, 203.0), DVec3::new(68.0, 112.0, 360.0));
+        let (c, h) = (bounds.center(), bounds.size() * 0.5);
+        let lined = |profile: TunnelProfile, angle: f64, ceiling: bool| Tunnel { profile, sides: 7, angle, floor: true, ceiling, ..walkway(20.5, 12.25) };
+        let options = [
+            lined(TunnelProfile::Square, 180.0, true),
+            lined(TunnelProfile::Square, 180.0, false),
+            lined(TunnelProfile::Arched, 180.0, true),
+            lined(TunnelProfile::Arched, 120.0, true),
+            lined(TunnelProfile::Round, 180.0, true),
+        ];
+        type Turn = fn(DVec3) -> DVec3;
+        let turns: [(Axis, DVec3, Turn); 2] =
+            [(Axis::X, DVec3::new(h.z, h.y, h.x), |d| DVec3::new(d.z, d.y, -d.x)), (Axis::Y, DVec3::new(h.x, h.z, h.y), |d| DVec3::new(d.x, d.z, -d.y))];
+        for (axis, half, turn) in turns {
+            let upright = Aabb::new(c - half, c + half);
+            for params in options {
+                let what = format!("{axis:?} {:?} {} ceiling {}", params.profile, params.angle, params.ceiling);
+                let turned = Tunnel { axis, ..params };
+                let (got, want) = (tunnel(&bounds, &turned, "m"), tunnel(&upright, &params, "m"));
+                assert!(want.len() >= 5, "{what}");
+                assert_eq!(got.len(), want.len(), "{what}");
+                for (i, (piece, upright_piece)) in got.iter().zip(&want).enumerate() {
+                    let mapped: Vec<DVec3> = upright_piece.vertices.iter().map(|v| c + turn(*v - c)).collect();
+                    assert_eq!(piece.vertices, mapped, "{what} piece {i}");
+                    assert!(bounds.expanded(1e-9).contains(&piece.bounds()), "{what} piece {i} stays in the box");
+                    for f in &piece.faces {
+                        assert_eq!(f.data.uv, FaceUv::paraxial(f.plane.normal, DVec2::ONE), "{what} piece {i} keeps paraxial UVs");
+                    }
+                }
+
+                assert_apart(&got, &what);
+                assert_eq!(turned.fitted(&bounds), Tunnel { axis, ..params.fitted(&upright) }, "{what}");
+                assert_eq!(turned.arch_crown(&bounds), params.arch_crown(&upright), "{what}");
+                assert_eq!(turned.thickness_cap(&bounds), params.thickness_cap(&upright), "{what}");
+            }
+        }
+    }
+
+    #[test]
+    fn a_turned_tunnel_takes_its_thickness_from_its_cross_section() {
+        let bounds = Aabb::new(DVec3::new(-130.0, 12.0, -40.0), DVec3::new(170.0, 212.0, 24.0));
+        for (axis, cap) in [(Axis::X, 25.6), (Axis::Y, 25.6), (Axis::Z, 80.0)] {
+            let params = Tunnel { axis, thickness: 1e6, ..Tunnel::default() };
+            assert_eq!(params.thickness_cap(&bounds), cap, "{axis:?}");
+            assert_eq!(params.fitted(&bounds).thickness, cap, "{axis:?}");
+            assert_eq!(Tunnel { thickness: 7.5, ..params }.fitted(&bounds).thickness, 7.5, "{axis:?} a thin wall is kept");
+        }
+
+        let walls = tunnel(&bounds, &Tunnel { axis: Axis::X, thickness: 1e6, ..Tunnel::default() }, "m");
+        assert_eq!(walls.len(), 3);
+        let (a, b) = (bounds.min, bounds.max);
+        let near = |got: f64, want: f64| (got - want).abs() < 1e-9;
+        let size = |i: usize| walls[i].bounds().size();
+        assert!(near(walls[0].bounds().min.z, b.z - 25.6) && walls[0].bounds().max.z == b.z, "the left wall lines +Z: {:?}", walls[0].bounds());
+        assert!(walls[1].bounds().min.z == a.z && near(walls[1].bounds().max.z, a.z + 25.6), "the right wall lines -Z: {:?}", walls[1].bounds());
+        assert!(near(walls[2].bounds().min.y, b.y - 25.6) && walls[2].bounds().max.y == b.y, "the ceiling: {:?}", walls[2].bounds());
+        for i in 0..3 {
+            assert_eq!(size(i).x, 300.0, "piece {i} runs the full length");
+        }
+    }
+
+    #[test]
+    fn a_shaft_opens_toward_plus_z() {
+        let bounds = Aabb::new(DVec3::new(-20.5, -64.0, 8.0), DVec3::new(108.5, 320.0, 105.0));
+        let (a, b, c) = (bounds.min, bounds.max, bounds.center());
+        let slab = |x0: f64, x1: f64, z0: f64, z1: f64| Aabb::new(DVec3::new(x0, a.y, z0), DVec3::new(x1, b.y, z1));
+        let (left, right) = (slab(a.x, a.x + 16.0, a.z, b.z), slab(b.x - 16.0, b.x, a.z, b.z));
+        let (ceiling, floor) = (slab(a.x + 16.0, b.x - 16.0, a.z, a.z + 16.0), slab(a.x + 16.0, b.x - 16.0, b.z - 16.0, b.z));
+        for (has_floor, want) in [(false, vec![left, right, ceiling]), (true, vec![left, right, ceiling, floor])] {
+            let pieces = tunnel(&bounds, &Tunnel { axis: Axis::Y, floor: has_floor, ..Tunnel::default() }, "m");
+            assert_eq!(pieces.iter().map(Brush::bounds).collect::<Vec<_>>(), want, "floor {has_floor}");
+            assert_apart(&pieces, &format!("floor {has_floor}"));
+            let filled = |p: DVec3| pieces.iter().any(|piece| piece.contains_point(p));
+            assert!(filled(DVec3::new(c.x + 9.0, c.y + 50.0, a.z + 8.0)), "floor {has_floor} the ceiling side faces -Z");
+            assert_eq!(filled(DVec3::new(c.x - 7.0, c.y - 70.0, b.z - 8.0)), has_floor, "floor {has_floor} the open side faces +Z");
+            assert!(!filled(c), "floor {has_floor} leaves the middle empty");
+        }
     }
 }
