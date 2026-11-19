@@ -712,7 +712,8 @@ fn select_all_faces(state: &mut EditorState) {
 }
 
 /// Key bindings for a preset. Hammer and Blender presets take over some TrenchBroom chords, actions keep their other
-/// bindings, and the last entries of each preset rebind actions whose only chord was taken.
+/// bindings, and the last entries of each preset rebind actions whose only chord was taken. A preset's chord goes ahead
+/// of the action's other bindings, since menus and tooltips show the first one.
 pub fn preset_bindings(preset: &str) -> Vec<(KeyboardShortcut, Action)> {
     let mut base = trenchbroom_bindings();
     let replace: Vec<(KeyboardShortcut, Action)> = match preset {
@@ -762,7 +763,8 @@ pub fn preset_bindings(preset: &str) -> Vec<(KeyboardShortcut, Action)> {
     };
     for (shortcut, action) in replace {
         base.retain(|(s, _)| *s != shortcut);
-        base.push((shortcut, action));
+        let at = base.iter().position(|(_, a)| *a == action).unwrap_or(base.len());
+        base.insert(at, (shortcut, action));
     }
 
     base
@@ -3361,6 +3363,10 @@ mod tests {
         assert!(hammer.iter().any(|(s, a)| *a == Action::SetTool(ToolKind::Clip) && s.logical_key == Key::C), "moved actions keep their old key");
         assert!(hammer.iter().any(|(s, a)| *a == Action::MoveToWorld && *s == sc(CTRL, Key::W)));
         assert!(!hammer.iter().any(|(s, a)| *a == Action::CloseTab && *s == sc(CTRL, Key::W)), "a taken chord leaves its old action");
+        for (action, chord) in [(Action::SetTool(ToolKind::Texture), "Shift+A"), (Action::IsolateSelected, "Ctrl+H"), (Action::CloseTab, "Ctrl+F4")] {
+            assert_eq!(shortcut_hint(&prefs, &action).as_deref(), Some(chord), "menus show the preset's own chord");
+        }
+
         prefs.key_overrides.insert(Action::CsgSubtract.binding_id(), "Ctrl+Shift+Q".into());
         let custom = shortcuts(&prefs);
         let (s, _) = custom.iter().find(|(_, a)| *a == Action::CsgSubtract).unwrap();
