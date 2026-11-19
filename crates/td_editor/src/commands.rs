@@ -4899,7 +4899,7 @@ mod tests {
     fn apply_mirror_needs_the_halves_within_the_distance() {
         use td_doc::symmetry::{PlaneAt, PlaneChoice};
         let ctx = egui::Context::default();
-        for (distance, meets) in [(0.5, false), (0.74, false), (0.75, true), (16.0, true)] {
+        for (distance, meets) in [(0.5, false), (0.75, false), (1.49, false), (1.5, true), (16.0, true)] {
             let mut state = EditorState::new(Default::default());
             let half = offset_box(&mut state);
             state.doc.select(|_, s| s.select_node(half));

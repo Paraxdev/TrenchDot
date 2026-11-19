@@ -414,7 +414,7 @@ pub enum ApplyError {
     Apart,
 }
 
-/// Bakes the selected mirrored halves into plain geometry. Halves that meet at a plane within `dist` are gathered,
+/// Bakes the selected mirrored halves into plain geometry. Halves at most `dist` apart across a plane are gathered,
 /// transitively, into the lowest id one, which is unlinked and selected. Brushes at the same place in each half join
 /// where their union is convex, meshes are joined and welded along the planes, and the rest moves over as it is.
 pub fn apply_mirror(map: &mut Map, sel: &mut Selection, dist: f64) -> Result<Applied, ApplyError> {
@@ -487,9 +487,9 @@ fn follow(map: &Map, group: NodeId, planes: &mut Vec<AxisPlane>, seeds: &BTreeSe
     out
 }
 
-/// Mirror partners of `group` whose plane touches both halves within `dist`.
+/// Mirror partners of `group` at most `dist` apart across their plane, the gap the Inspector shows.
 fn meeting(map: &Map, group: NodeId, dist: f64) -> Vec<(NodeId, AxisPlane)> {
-    touching(map, group, partners(map, group), dist)
+    touching(map, group, partners(map, group), dist / 2.0)
 }
 
 /// Kind, depth and link of every descendant in depth-first order, which sync keeps equal across a link set.
@@ -1064,12 +1064,12 @@ mod tests {
         let gap = PlaneChoice { at: PlaneAt::Custom, custom: 40.5 };
         let copy = doc.edit("Mirror Linked", |m, s| mirror_linked(m, s, 0, &gap, 0.0)).unwrap().0[0];
         let before = doc.map.nodes.clone();
-        assert_eq!(apply(&mut doc, &[group], 0.49), Err(ApplyError::Apart));
+        assert_eq!(apply(&mut doc, &[group], 0.99), Err(ApplyError::Apart), "the halves are one unit apart");
         assert!(doc.map.nodes == before);
         assert_eq!(doc.history.undo_labels().next(), Some("Mirror Linked"), "a refused apply records no step");
 
         let brushes = [group, copy].map(|g| children(&doc.map, g)[0]);
-        let applied = apply(&mut doc, &[group], 0.5).unwrap();
+        let applied = apply(&mut doc, &[group], 1.0).unwrap();
         assert_eq!(applied, Applied { groups: vec![group], replaced: Replaced::from([(copy, vec![group])]), ..Applied::default() });
         assert_eq!(children(&doc.map, group), brushes, "a gap of one unit keeps the brushes apart");
 

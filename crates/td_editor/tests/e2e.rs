@@ -7181,13 +7181,13 @@ fn apply_mirror_joins_brushes_and_welds_meshes() {
     assert_eq!(ed.state()["undo"].as_array().unwrap().len(), undo_before, "a refused call leaves no undo step");
     assert_eq!(ed.brushes(), 2);
 
-    // The plane sits 1.5 units past the halves, so a distance of 1.4 misses and 1.5 meets.
+    // The plane sits 1.5 units past each half, so they are 3 apart and a distance of 2.9 misses and 3 meets.
     ed.call("run_action", json!({ "action": "undo" }));
     ed.call("select", json!({ "ids": [brush, mesh] }));
     ed.call("run_action", json!({ "action": "mirror_linked", "args": { "axis": "x", "at": 41.5 } }));
-    assert!(apply(json!({ "distance": 1.4 })).contains("do not meet"));
+    assert!(apply(json!({ "distance": 2.9 })).contains("do not meet"));
     assert_eq!(ed.brushes(), 2);
-    let near = ed.call("run_action", json!({ "action": "apply_mirror", "args": { "distance": 1.5 } }));
+    let near = ed.call("run_action", json!({ "action": "apply_mirror", "args": { "distance": 3 } }));
     assert_eq!(near["joined"], 0, "boxes with a gap stay apart {near}");
     assert_eq!(ed.brushes(), 2);
     ed.call("run_action", json!({ "action": "undo" }));

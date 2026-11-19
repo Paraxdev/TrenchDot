@@ -328,7 +328,7 @@ takes it out. If the halves do not meet, the status bar tells you so and nothing
 The MCP action `mirror_linked` takes `axis`, `plane` (center, max, min, world or custom), `at` and `gap`, and
 `set_mirror_gap` takes `gap` and an optional `axis`. `mirror_again` puts the partner back across from the selected half,
 `select_linked` selects every copy of the linked groups in the selection and `separate_linked_groups` frees them.
-`apply_mirror` takes `distance`, the weld tolerance in units. `get_state` lists the planes of the selection as
+`apply_mirror` takes `distance`, the largest gap it applies at and the weld tolerance at the seam, in units. `get_state` lists the planes of the selection as
 `mirror_planes`, each with its `gap`. A pair with a slid half has no plane, `get_state` lists it as `mirror_slides`
 instead, with the `slide` and its `distance`, the same distance `mirror_again` moves the partner back. `set_editor` takes
 `edit_symmetry` for the Vertex tool.

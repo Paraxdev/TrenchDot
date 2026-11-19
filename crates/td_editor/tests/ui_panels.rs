@@ -2064,6 +2064,9 @@ fn apply_mirror_greys_out_while_the_halves_are_apart() {
         harness.state_mut().state.doc.edit("gap", |m, _| td_doc::mirror::set_gap(m, &plane, gap));
         harness.run();
         assert_eq!(is_disabled(&harness, "Apply Mirror"), disabled, "gap {gap}");
+        let (mut map, mut sel) = (harness.state().state.doc.map.clone(), harness.state().state.doc.selection.clone());
+        let applies = td_doc::mirror::apply_mirror(&mut map, &mut sel, td_doc::symmetry::MIRROR_TOLERANCE).is_ok();
+        assert_eq!(applies, !disabled, "gap {gap}: the MCP action agrees with the button");
     }
 
     let plane = first_plane(&harness);
