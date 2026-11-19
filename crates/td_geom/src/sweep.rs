@@ -129,7 +129,8 @@ const CURVE_STEPS: usize = 32;
 
 /// A smooth curve that leaves its first point along a start direction and passes through each point in turn, as cubic
 /// Hermite spans whose tangents bisect the neighbouring chords. Each span scales its tangents to its own length, which
-/// keeps the curve from overshooting where the points are spaced unevenly.
+/// keeps the curve from overshooting where the points are spaced unevenly. The last point takes the last chord's
+/// direction, but a curve of one span bends as a circular arc, so a quarter turn to one point ends square.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Curve {
     /// Position, rotation from the start direction and share of the curve's length at each sample.
@@ -167,7 +168,8 @@ impl Curve {
             if i == 0 {
                 start
             } else if i == last {
-                (pts[i] - pts[i - 1]).normalize()
+                let chord = (pts[i] - pts[i - 1]).normalize();
+                if last == 1 { 2.0 * start.dot(chord) * chord - start } else { chord }
             } else {
                 ((pts[i] - pts[i - 1]).normalize() + (pts[i + 1] - pts[i]).normalize()).try_normalize().unwrap_or((pts[i + 1] - pts[i]).normalize())
             }
@@ -175,7 +177,10 @@ impl Curve {
         let mut samples: Vec<(DVec3, DVec3)> = vec![(pts[0], start)];
         for i in 0..last {
             let (a, b) = (pts[i], pts[i + 1]);
-            let len = a.distance(b);
+            let turn = direction(i).angle_between(direction(i + 1));
+            // Tangents this long make a span between mirrored directions match a circle to a few parts in 10000.
+            let arc = if last == 1 && turn > 1e-6 { 2.0 * (turn / 4.0).tan() / (turn / 2.0).sin() } else { 1.0 };
+            let len = a.distance(b) * arc;
             let (ma, mb) = (direction(i) * len, direction(i + 1) * len);
             for k in 1..=CURVE_STEPS {
                 let u = k as f64 / CURVE_STEPS as f64;
@@ -473,6 +478,24 @@ mod tests {
         assert!((total_volume(&out) - 64.0 * 64.0 * 128.0).abs() < 1e-3);
         let b = Aabb::from_points(out.iter().flat_map(|b| b.vertices.iter().copied()));
         assert!(b.min.distance(DVec3::new(64.0, 0.0, 0.0)) < 1e-6 && b.max.distance(DVec3::new(192.0, 64.0, 64.0)) < 1e-6, "{b:?}");
+    }
+
+    #[test]
+    fn a_quarter_turn_to_one_point_is_an_arc_that_ends_square_on_the_grid() {
+        let face = box_face(DVec3::ZERO, DVec3::new(128.0, 128.0, 256.0), DVec3::Z);
+        let end = DVec3::new(320.0, 64.0, 512.0);
+        let sweep = Sweep { path: SweepPath::Curve, segments: 8, ..Sweep::default() };
+        let frame = Frame::of(std::slice::from_ref(&face)).unwrap();
+        let path = Curve::new(&frame, &[end]).unwrap();
+        let pivot = DVec3::new(320.0, 64.0, 256.0);
+        assert!(path.samples.iter().all(|s| (s.0.distance(pivot) - 256.0).abs() < 0.1), "the curve keeps to the circle");
+        let m = sweep.transform_along(&frame, &path, 1.0);
+        assert!(m.transform_vector3(DVec3::Z).distance(DVec3::X) < 1e-9);
+
+        let cap: Vec<DVec3> = face.brush.face_points(face.face).iter().map(|p| snap_vec(m.transform_point3(*p))).collect();
+        assert!(cap.iter().all(|p| p.x == 320.0 && [0.0, 128.0].contains(&p.y) && [448.0, 576.0].contains(&p.z)), "{cap:?}");
+        let out = sweep.brushes_through(&[face], &[end]).unwrap();
+        assert!(out.iter().all(|b| b.validate().is_ok() && b.volume() > 0.0));
     }
 
     #[test]

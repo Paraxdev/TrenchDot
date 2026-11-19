@@ -522,6 +522,8 @@ For a path of your own shape:
 1. Place a few points ahead of the faces with the **Path** tool (Shift+P, see
    [Placing and wiring](../gameplay/placing.md#placing-entities)).
 2. Pick **Curve** in the dialog. The curve leaves the faces straight out and runs smoothly through the points in order.
+   With one point it bends as a circular arc, so a point as far to the side as it is ahead turns the run a quarter
+   and ends it square. With more points the run ends along the line from the second last point to the last.
    **Points** picks which chain to follow, by default the one that starts nearest the faces.
 3. Move a point or add one to the chain and the cyan outline follows, so you can shape the run before you click
    **Create**. A bend tighter than the faces are wide is refused, spread the points further apart then.
