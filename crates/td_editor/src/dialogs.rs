@@ -556,6 +556,8 @@ pub struct ShapeDialog {
     rock: Rock,
     /// The editor's grid step, so a tunnel's wall cap lands on it the way its field shows.
     grid: f64,
+    /// The span and angle a radius typed out of reach was cut back to, so the dialog says so until either changes.
+    radius_cut: Option<(f64, f64)>,
     /// The box kept while the dialog is open, used when nothing is selected.
     bounds: Option<Aabb>,
     /// The generated shape and its triangle count.
@@ -621,6 +623,7 @@ impl Default for ShapeDialog {
             text: TextShape::default(),
             rock: Rock::default(),
             grid: 0.0,
+            radius_cut: None,
             bounds: None,
             preview: None,
             made: Vec::new(),
@@ -867,15 +870,25 @@ impl ShapeDialog {
             ui.label(RichText::new(trf!("The arch rises {height} u", height = format!("{rise:.1}"))).weak());
         }
 
+        let (min, max) = (span * 0.5, shapes::arch_radius(span, shapes::ARCH_MIN_ANGLE).max(span * 0.5));
         ui.horizontal(|ui| {
-            let (min, max) = (span * 0.5, shapes::arch_radius(span, shapes::ARCH_MIN_ANGLE));
-            let mut radius = shapes::arch_radius(span, sweep).clamp(min, max.max(min));
+            let mut radius = shapes::arch_radius(span, sweep).clamp(min, max);
             ui.label(tr("Radius")).on_hover_text(tr("Radius of the arch circle in map units, linked to the angle"));
-            let field = ui.add(egui::DragValue::new(&mut radius).range(min..=max.max(min)).suffix(" u"));
+            // No range on the field, it would cut a typed radius back before the dialog could say so.
+            let field = ui.add(egui::DragValue::new(&mut radius).suffix(" u"));
             if field.on_hover_text(tr("At least half the span. At 180 the arch is a half ellipse and this shows half the span")).changed() {
-                self.angle = shapes::arch_angle_for_radius(span, radius);
+                self.angle = shapes::arch_angle_for_radius(span, radius.clamp(min, max));
+                self.radius_cut = (radius < min || radius > max).then_some((span, self.angle));
             }
         });
+        if self.radius_cut.is_some_and(|cut| cut != (span, self.angle)) {
+            self.radius_cut = None;
+        }
+
+        if self.radius_cut.is_some() {
+            let (min, max) = (format!("{min:.1}"), format!("{max:.1}"));
+            ui.label(RichText::new(trf!("The radius stays between {min} and {max} u", min = min, max = max)).weak());
+        }
     }
 
     fn tunnel_fields(&mut self, ui: &mut egui::Ui, bounds: &Aabb) {
@@ -3037,6 +3050,29 @@ mod tests {
 
             assert!((radius(harness.state()) - typed).abs() < 1e-6, "typed {typed}, got {}", radius(harness.state()));
         }
+    }
+
+    #[test]
+    fn a_radius_out_of_reach_says_where_it_stops() {
+        use egui_kittest::kittest::Queryable;
+        let bounds = box_of([0.0, 0.0, 0.0], [128.0, 96.0, 32.0]);
+        let dialog = ShapeDialog { kind: ShapeKind::Arch, angle: 90.0, ..Default::default() };
+        let mut harness =
+            egui_kittest::Harness::builder().with_size(egui::vec2(480.0, 200.0)).build_ui_state(|ui, d: &mut ShapeDialog| d.arch_fields(ui, &bounds), dialog);
+        harness.run();
+        let radius = harness.query_all_by_role(egui::accesskit::Role::SpinButton).count() - 1;
+        let note = |h: &egui_kittest::Harness<'_, ShapeDialog>| h.query_by_label_contains("The radius stays between 64.0 and").is_some();
+        type_into_field(&mut harness, radius, "10");
+        assert_eq!(harness.state().angle, 180.0, "a radius under half the span gives a half round");
+        assert!(note(&harness), "the cut radius is named");
+        type_into_field(&mut harness, radius, "100");
+        assert!(!note(&harness), "a radius in reach clears the note");
+        type_into_field(&mut harness, radius, "100000");
+        assert_eq!(harness.state().angle, shapes::ARCH_MIN_ANGLE);
+        assert!(note(&harness));
+        harness.state_mut().angle = 120.0;
+        harness.run();
+        assert!(!note(&harness), "moving the angle clears it too");
     }
 
     fn type_into_field(harness: &mut egui_kittest::Harness<'_, ShapeDialog>, index: usize, text: &str) {

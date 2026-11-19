@@ -2672,5 +2672,6 @@
   "Distance from the center of the turn to the inside wall": "从弯道中心到内侧墙壁的距离",
   "How far the far end climbs over the box length, negative runs downhill": "远端在方框长度内升高多少，负值向下",
   "Only 90° and 180° bends end on the grid": "只有 90° 和 180° 的弯曲会终止在网格上",
-  "The floor climbs at {angle}°": "地面以 {angle}° 上升"
+  "The floor climbs at {angle}°": "地面以 {angle}° 上升",
+  "The radius stays between {min} and {max} u": "半径保持在 {min} 到 {max} u 之间"
 }

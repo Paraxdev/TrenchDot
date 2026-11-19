@@ -2672,5 +2672,6 @@
   "Distance from the center of the turn to the inside wall": "Расстояние от центра поворота до внутренней стены",
   "How far the far end climbs over the box length, negative runs downhill": "Насколько дальний конец поднимается на длине бокса, отрицательное значение идёт вниз",
   "Only 90° and 180° bends end on the grid": "Только изгибы на 90° и 180° заканчиваются на сетке",
-  "The floor climbs at {angle}°": "Пол поднимается под углом {angle}°"
+  "The floor climbs at {angle}°": "Пол поднимается под углом {angle}°",
+  "The radius stays between {min} and {max} u": "Радиус остаётся между {min} и {max} u"
 }

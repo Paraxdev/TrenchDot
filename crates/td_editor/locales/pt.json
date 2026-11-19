@@ -2672,5 +2672,6 @@
   "Distance from the center of the turn to the inside wall": "Distância do centro da curva até a parede interna",
   "How far the far end climbs over the box length, negative runs downhill": "Quanto a extremidade distante sobe ao longo da caixa, negativo desce",
   "Only 90° and 180° bends end on the grid": "Só curvas de 90° e 180° terminam na grade",
-  "The floor climbs at {angle}°": "O piso sobe {angle}°"
+  "The floor climbs at {angle}°": "O piso sobe {angle}°",
+  "The radius stays between {min} and {max} u": "O raio fica entre {min} e {max} u"
 }

@@ -2672,5 +2672,6 @@
   "Distance from the center of the turn to the inside wall": "曲がりの中心から内側の壁までの距離",
   "How far the far end climbs over the box length, negative runs downhill": "ボックスの長さの間に奥の端がどれだけ上がるか。負の値だと下ります",
   "Only 90° and 180° bends end on the grid": "90° と 180° の曲がりだけがグリッドの上で終わります",
-  "The floor climbs at {angle}°": "床は {angle}° で上ります"
+  "The floor climbs at {angle}°": "床は {angle}° で上ります",
+  "The radius stays between {min} and {max} u": "半径は {min} から {max} u の間に収まります"
 }
