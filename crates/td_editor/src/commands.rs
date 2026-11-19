@@ -1490,7 +1490,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
                 state.doc.select(|_, s| s.faces.clear());
             } else if !state.doc.selection.nodes.is_empty() {
                 state.doc.select(|_, s| s.clear());
-            } else if state.tool != ToolKind::Select {
+            } else if state.tool != ToolKind::Select && !(state.tool == ToolKind::Block && state.prefs.keymap_preset == "hammer") {
                 state.tool = ToolKind::Select;
             } else if let Some(group) = state.close_innermost_group() {
                 let name = state.doc.map.get(group).map(|n| n.name()).unwrap_or_default();
@@ -3808,6 +3808,28 @@ mod tests {
         assert_eq!(state.tool, ToolKind::Select, "then the tool");
         execute(&mut state, Action::Cancel, &ctx);
         assert_eq!((selection(&state), state.tool), ((vec![], vec![]), ToolKind::Select), "with nothing left it does nothing");
+    }
+
+    #[test]
+    fn hammer_cancel_keeps_the_block_tool_once_nothing_is_selected() {
+        let ctx = egui::Context::default();
+        for (preset, kept) in [("hammer", ToolKind::Block), ("trenchbroom", ToolKind::Select)] {
+            let mut state = EditorState::new(Default::default());
+            state.prefs.keymap_preset = preset.into();
+            let a = brush_at(&mut state, 72.0);
+            state.doc.select(|_, s| s.select_node(a));
+            state.tool = ToolKind::Block;
+            execute(&mut state, Action::Cancel, &ctx);
+            assert_eq!((state.doc.selection.is_empty(), state.tool), (true, ToolKind::Block), "{preset}: the selection goes first");
+            execute(&mut state, Action::Cancel, &ctx);
+            assert_eq!(state.tool, kept, "{preset}");
+        }
+
+        let mut state = EditorState::new(Default::default());
+        state.prefs.keymap_preset = "hammer".into();
+        state.tool = ToolKind::Clip;
+        execute(&mut state, Action::Cancel, &ctx);
+        assert_eq!(state.tool, ToolKind::Select, "other tools still fall back to Select");
     }
 
     fn nested_groups(state: &mut EditorState) -> (NodeId, NodeId, NodeId) {
