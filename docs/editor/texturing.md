@@ -20,9 +20,16 @@ go.
 
 ![Dragging withered/mossy_plaster onto the front of a brick wall, then the same wall with the plaster on its front face only](../assets/texturing/drop-on-face.png)
 
-To texture one face without dragging, Shift+click it in a view first, then click the thumbnail. Ctrl+Shift+click adds
-or removes more faces. In the Blender preset, press **3** for Face mode first, then a click picks the face and
-Shift+click adds or removes more. While faces are selected the status bar counts them and the brushes they sit on, like "6 faces
+To texture one face without dragging, select it first, then click the thumbnail. Which click picks a face depends on
+the keymap preset:
+
+| Preset | Pick one face | Add or remove more |
+| --- | --- | --- |
+| TrenchBroom | Shift+click in a view | Ctrl+Shift+click |
+| Hammer | Open the [Texture tool](#the-texture-tool) with **Shift+A** and click | Ctrl+click |
+| Blender | Press **3** for Face mode, then click | Shift+click or Ctrl+click |
+
+Shift stays free for cloning in the Hammer preset, so Shift+click there selects the object like a plain click. While faces are selected the status bar counts them and the brushes they sit on, like "6 faces
 on 1 brush".
 
 ![The status bar showing 6 faces on 1 brush after Select Brush Faces on a box](../assets/texturing/status-face-chip.png)
@@ -64,9 +71,14 @@ sets its entity's origin with the texture the map settings name.
 ## The Texture tool
 
 A face's alignment is where its texture sits on it: the offset, scale and rotation. Press **Shift+T** for the Texture
-tool, which edits it in place, like Hammer's face edit mode. Click a face to select it. It is tinted red and shows a
-blue box around one repeat of the texture, plus two short lines for the U and V directions. The face under the cursor
-gets a yellow outline.
+tool (**Shift+A** in the Hammer preset), which edits it in place, like Hammer's face edit mode. Click a face to select
+it. It is tinted red and shows a blue box around one repeat of the texture, plus two short lines for the U and V
+directions. The face under the cursor gets a yellow outline.
+
+The Inspector opens on its own when you switch to the tool and shows the face panel for the faces you are working on,
+with the material, the alignment fields and the face count, like "12 faces". With faces selected it lists those. With
+none selected it lists every face of the selected brushes and meshes, the same faces the tool's keys act on. In other
+tools the Inspector shows the face panel only for faces you picked.
 
 ![The Texture tool with the front face of a brick wall selected, a blue box marks one texture repeat](../assets/texturing/texture-tool-face.png)
 

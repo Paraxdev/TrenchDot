@@ -117,13 +117,17 @@ par-dessus n'importe quel préréglage, **Réinitialiser les remplacements** dan
 
 | Touche | Préréglage Hammer |
 | --- | --- |
+| Ctrl+Shift+A | Sélectionner les faces du brush : remplace les brushes et meshes sélectionnés par toutes leurs faces. Ne rien sélectionner n'a pas de touche ici, Échap efface la sélection |
 | Shift+S, Shift+X, Shift+V, Shift+A | Outil Sélectionner, Clip, Sommet, Texture |
 | H, Ctrl+H, U | Masquer, isoler, tout afficher |
 | Ctrl+W | Déplacer les brushes vers le monde |
-| Ctrl+M | Générateur de formes |
-| Ctrl+L | Rotation de 90° autour de l'axe vertical |
+| Ctrl+T, Ctrl+Shift+T | Lier à une entité, et Sélectionner les touchants, passé sur Ctrl+Shift+T. Ctrl+T ouvre la liste des classes avec `func_detail` en surbrillance, donc Ctrl+T puis Entrée fait des brushes sélectionnés une seule entité de détail. Tapez pour filtrer, Échap annule |
+| Ctrl+M | Transformer la sélection, une fenêtre qui déplace, fait pivoter ou met à l'échelle la sélection avec des nombres saisis. Le générateur de formes reste sur Ctrl+Shift+B |
+| Ctrl+L, Ctrl+I | Retourner horizontalement, retourner verticalement. Ils reflètent la sélection par rapport à son centre selon les axes d'écran de la vue sous le pointeur, comme dans Hammer. Dans l'outil Mesh, Ctrl+L sélectionne toujours les éléments liés |
+| Ctrl+Shift+I, Ctrl+Shift+R | Inverser la sélection, rotation de 90° autour de l'axe vertical |
 | Ctrl+Shift+M, Ctrl+Shift+L | CSG fusion convexe, intersection |
 | Ctrl+F4 | Fermer l'onglet |
+| Shift+glisser | Copie la sélection et déplace la copie, dans toutes les vues. Shift+clic ne choisit pas de faces, c'est le rôle de l'outil texture (Shift+A) |
 
 | Touche | Préréglage Blender |
 | --- | --- |

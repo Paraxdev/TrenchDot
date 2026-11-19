@@ -1,6 +1,6 @@
 # Shortcuts
 
-These are the default keys, the TrenchBroom preset.
+These are the default keys and mouse gestures, the TrenchBroom preset.
 
 Want other keys? *Help > Keyboard Shortcuts…* lists every binding on its **Keys** tab. Type in the filter to find
 one, press **Set** and then the new shortcut. The **Preset** row at the top of that window, or *File > Preferences >
@@ -148,7 +148,7 @@ mode.
 
 ## Other presets
 
-A preset only changes the keys below, everything else stays as above. Your own bindings sit on top of any preset,
+A preset only changes the keys and mouse gestures below, everything else stays as above. Your own bindings sit on top of any preset,
 **Reset overrides** in the shortcuts window clears them.
 
 | Key | Hammer preset |

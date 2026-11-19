@@ -77,8 +77,9 @@ Clicking something outside the open group closes it, so a new brush never ends u
 groups inside groups, each double click opens one level and each double click on empty space or Esc press closes one.
 Esc only does this once nothing is selected and the Select tool is active, see [Shortcuts](shortcuts.md#tools).
 *Edit > Groups > Open Group* opens the selected group, and *Close Group* closes the open one and selects it.
-Shift+click still picks a single face inside a closed group. The Blender preset differs here, Shift+click and
-Ctrl+click both add or remove the whole group in Object mode, and you pick a single face in Face mode, see
+Shift+click still picks a single face inside a closed group. The Hammer preset differs here, Shift+click selects the
+group like a plain click and you pick a face with the Texture tool. So does the Blender preset, where Shift+click and
+Ctrl+click both add or remove the whole group in Object mode and you pick a single face in Face mode, see
 [Other presets](shortcuts.md#other-presets).
 
 You can also group in the Outliner by dragging. A tip next to the pointer says what the drop does before you let go, and

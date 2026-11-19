@@ -109,13 +109,17 @@ source: c1ad5f7b4051d96e108a3133de3b683670efbf64
 
 | 按键 | Hammer 预设 |
 | --- | --- |
+| Ctrl+Shift+A | 选择笔刷的面：把选中的笔刷和网格换成它们的全部面。取消选择在这里没有按键，按 Esc 就会清空选择 |
 | Shift+S、Shift+X、Shift+V、Shift+A | 选择、裁切、顶点、纹理工具 |
 | H、Ctrl+H、U | 隐藏、孤立、显示全部 |
 | Ctrl+W | 把笔刷移到世界 |
-| Ctrl+M | 形状生成器 |
-| Ctrl+L | 绕竖直轴旋转 90° |
+| Ctrl+T、Ctrl+Shift+T | 绑定到实体，以及移到 Ctrl+Shift+T 的选择接触的。Ctrl+T 会打开类列表并高亮 `func_detail`，所以按 Ctrl+T 再按 Enter 就能把选中的笔刷变成一个细节实体。输入可过滤，Esc 取消 |
+| Ctrl+M | 变换选区，一个按输入的数字移动、旋转或缩放选区的窗口。形状生成器仍在 Ctrl+Shift+B |
+| Ctrl+L、Ctrl+I | 水平翻转、垂直翻转。它们沿指针下视图的屏幕轴，以选区中心为准镜像选区，和 Hammer 一样。在网格工具里 Ctrl+L 仍然选择相连的部分 |
+| Ctrl+Shift+I、Ctrl+Shift+R | 反向选择、绕垂直轴旋转 90° |
 | Ctrl+Shift+M、Ctrl+Shift+L | CSG 凸包合并、求交 |
 | Ctrl+F4 | 关闭标签页 |
+| Shift+拖动 | 复制选区并移动副本，在任何视图中都可以。Shift+点击不会选面，选面请用纹理工具（Shift+A） |
 
 | 按键 | Blender 预设 |
 | --- | --- |

@@ -109,13 +109,17 @@ Un preajuste solo cambia las teclas de abajo, todo lo demás sigue como arriba. 
 
 | Tecla | Preajuste de Hammer |
 | --- | --- |
+| Ctrl+Shift+A | Seleccionar caras de brush: cambia los brushes y mallas seleccionados por todas sus caras. Deseleccionar todo no tiene tecla aquí, Esc borra la selección |
 | Shift+S, Shift+X, Shift+V, Shift+A | Herramienta Seleccionar, clip, vértice, textura |
 | H, Ctrl+H, U | Ocultar, aislar, mostrar todo |
 | Ctrl+W | Mover brushes al mundo |
-| Ctrl+M | Generador de formas |
-| Ctrl+L | Girar 90° en torno al eje vertical |
+| Ctrl+T, Ctrl+Shift+T | Vincular a entidad y Seleccionar los que tocan, que pasó a Ctrl+Shift+T. Ctrl+T abre la lista de clases con `func_detail` resaltada, así que Ctrl+T y luego Enter convierte los brushes seleccionados en una entidad de detalle. Escribe para filtrar, Esc cancela |
+| Ctrl+M | Transformar selección, una ventana que mueve, gira o escala la selección con números escritos. El generador de formas sigue en Ctrl+Shift+B |
+| Ctrl+L, Ctrl+I | Voltear horizontalmente, voltear verticalmente. Reflejan la selección respecto a su centro a lo largo de los ejes de pantalla de la vista bajo el puntero, como en Hammer. En la herramienta Malla, Ctrl+L sigue seleccionando lo enlazado |
+| Ctrl+Shift+I, Ctrl+Shift+R | Invertir selección, girar 90° en torno al eje vertical |
 | Ctrl+Shift+M, Ctrl+Shift+L | Fusión convexa CSG, intersección |
 | Ctrl+F4 | Cerrar pestaña |
+| Shift+arrastrar | Copia la selección y mueve la copia, en cualquier vista. Shift+clic no elige caras, para eso está la herramienta de textura (Shift+A) |
 
 | Tecla | Preajuste de Blender |
 | --- | --- |

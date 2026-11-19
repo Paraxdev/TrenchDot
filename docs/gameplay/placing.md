@@ -33,6 +33,11 @@ Doors, buttons and triggers are brush entities, they take their shape from brush
 
 ![The right click menu of a view with Create Brush Entity open and trigger_once hovered](../assets/placing/context-create-brush-entity.png)
 
+*Brush > Tie to Entity* (Ctrl+T in the Hammer preset) does the same from a searchable list. It opens the command palette
+on the solid classes with `func_detail` highlighted, so Ctrl+T then Enter turns the selected brushes into one detail
+entity. Type to filter, Esc cancels. If the selection already is one brush entity, it is only selected, change its class in
+the Inspector.
+
 The common ones have quicker routes:
 
 | Tool or menu | What it makes |

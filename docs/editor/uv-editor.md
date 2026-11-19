@@ -10,7 +10,8 @@ The UV Editor starts closed. *Texture > UV Editor*, or *View > Panels > UV Edito
 panel, next to the Inspector. It works on what you have selected: the faces, or when no face is selected, every face of
 the selected brushes and meshes, the same rule as the [Texture tool](texturing.md#the-texture-tool). Opening the tab
 never changes your selection. To pick single faces, Shift+click one in a view or click it with the Texture tool. In the
-Blender preset, press **3** for Face mode first, a click in a view then picks the face. The top line names the material
+Hammer preset, Shift+click selects the object, so use the Texture tool (Shift+A). In the Blender preset, press **3** for
+Face mode first, a click in a view then picks the face. The top line names the material
 and how many faces you have.
 
 The tab draws one material at a time. When the selected faces use several materials, it shows only the faces with the

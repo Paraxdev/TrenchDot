@@ -24,8 +24,8 @@ Once a brush is selected you can move it around:
 
 | Input | Result |
 | --- | --- |
-| Drag the selection | Move it, Shift locks to the main axis |
-| Ctrl+drag the selection | Move a copy, the original stays |
+| Drag the selection | Move it, Shift locks to the main axis. The Hammer preset has no axis lock |
+| Ctrl+drag the selection | Move a copy, the original stays. The Hammer preset also copies with Shift+drag |
 | Alt+drag the selection (3D) | Move vertically. Started off the selection, Alt+drag orbits the camera |
 | Arrow keys, Page Up, Page Down | Nudge by one grid step |
 | `[` and `]` | Halve and double the grid |
@@ -51,9 +51,12 @@ You can reshape a selected brush without leaving the Select tool:
 
 | Input | Result |
 | --- | --- |
-| Shift+drag a selected face (3D) | Push or pull that face |
-| Ctrl+Shift+drag a selected face (3D) | Extrude a new brush out of it |
+| Shift+drag a selected face (3D), TrenchBroom preset | Push or pull that face |
+| Ctrl+Shift+drag a selected face (3D), TrenchBroom preset | Extrude a new brush out of it |
 | Drag a selection edge (2D) | Resize. The edge lights up yellow and the cursor changes where a drag resizes |
+
+In the Hammer preset Shift+drag copies the selection instead, so there is no push, pull or extrude on a face. Resize by
+the edges in a 2D view, or use the transform gizmo.
 
 While snapping is on, a face you drag lands on a grid line, even when the brush was off the grid before. Slanted faces
 move in grid steps instead.
@@ -146,6 +149,22 @@ arbitrary `normal`, and the thickness as `height`.
 | **Measure** (M) | Drag, or click two points | Shows the distance in units and meters, and at the bottom of the view its X, Y, Z and horizontal parts |
 
 ![The Measure tool in the 3D view, a line labelled 230.76 u (7.21 m) and the X, Y and Z parts at the bottom](../assets/brushes/measure.png)
+
+### Transform by numbers
+
+For an exact move, turn or resize, select the objects and open *Brush > Transform > Transform Selection…*. In the Hammer
+preset **Ctrl+M** opens it too. It is also in the command palette (Ctrl+Shift+P).
+
+![The Transform Selection window with Move chosen, X, Y and Z fields in units and an Apply button](../assets/brushes/transform-dialog.png)
+
+1. Pick **Move**, **Rotate** or **Scale**. Each keeps its own X, Y and Z values until you quit the editor, also after you close the window.
+2. Type the numbers. **Move** is in units, **Rotate** in degrees and **Scale** is a factor, so 2 doubles the size and
+    0.5 halves it.
+3. Press **Apply** or Enter. The selection changes as one undo step.
+
+Rotate and Scale work around the selection's center, snapped to the grid like the other tools. A line below the fields
+tells you why Apply is greyed out: nothing is selected, a scale factor is 0, or the values would change nothing. A
+negative scale factor mirrors the selection on that axis.
 
 ## Align and distribute
 
@@ -409,8 +428,9 @@ That is a step a 1.8 m tall character cannot walk up. When you chain profiles in
 To carry a corridor, pipe or trim on round a corner, sweep the faces at its end. Each face is pushed along a path
 and leaves a run of brushes behind it, with the materials of the brush it came from.
 
-1. Shift+click a face at the end of the run in the 3D view, then Ctrl+Shift+click the others, for example the floor
-   and both walls of a corridor.
+1. Select the faces at the end of the run in the 3D view, for example the floor and both walls of a corridor.
+   Shift+click picks the first and Ctrl+Shift+click adds the others, or use the Texture tool and click and Ctrl+click,
+   which also works in the Hammer preset.
 2. Open *Brush > Sweep Faces…*. A cyan outline shows the brushes it would make.
 3. Pick **Straight**, **Arc** or **S-bend** and set the path. **Radius** is measured from the center of the turn to the
    middle of the faces, and **Direction** is seen looking at the faces.
@@ -509,7 +529,8 @@ unless you tick *Carved faces keep the target's material* in the same menu.
 
 For uneven ground inside a brush level, like a rubble slope, you can turn a face into a displacement and sculpt it.
 
-1. Shift+click a four sided face, or select the brush to use its top face.
+1. Select a four sided face with Shift+click (in the Hammer preset, with the Texture tool), or select the brush to use
+   its top face.
 2. Open *Brush > Displacement* and pick one of the **Create** entries. A higher power gives a finer grid.
 3. The **Sculpt** tool (G) switches on by itself, drag over the face to shape it.
 

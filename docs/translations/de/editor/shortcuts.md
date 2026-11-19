@@ -109,13 +109,17 @@ Eine Voreinstellung ändert nur die Tasten unten, alles andere bleibt wie oben. 
 
 | Taste | Voreinstellung Hammer |
 | --- | --- |
+| Ctrl+Shift+A | Brush-Flächen auswählen: tauscht die gewählten Brushes und Meshes gegen alle ihre Flächen. Nichts auswählen hat hier keine Taste, Esc löscht die Auswahl |
 | Shift+S, Shift+X, Shift+V, Shift+A | Auswählen, Clip, Vertex, Textur-Werkzeug |
 | H, Ctrl+H, U | Verbergen, isolieren, alles anzeigen |
 | Ctrl+W | Brushes in die Welt verschieben |
-| Ctrl+M | Formgenerator |
-| Ctrl+L | Um 90° um die vertikale Achse drehen |
+| Ctrl+T, Ctrl+Shift+T | Mit Entität verbinden und Berührende auswählen, das auf Ctrl+Shift+T gewandert ist. Ctrl+T öffnet die Klassenliste mit `func_detail` vorgewählt, Ctrl+T und Enter macht die gewählten Brushes also zu einer Detail-Entität. Tippen filtert, Esc bricht ab |
+| Ctrl+M | Auswahl transformieren, ein Fenster, das die Auswahl um getippte Zahlen verschiebt, dreht oder skaliert. Der Formgenerator bleibt auf Ctrl+Shift+B |
+| Ctrl+L, Ctrl+I | Horizontal spiegeln, Vertikal spiegeln. Sie spiegeln die Auswahl an ihrer Mitte entlang der Bildschirmachsen der Ansicht unter dem Zeiger, wie in Hammer. Im Mesh-Werkzeug wählt Ctrl+L weiterhin Verbundenes aus |
+| Ctrl+Shift+I, Ctrl+Shift+R | Auswahl umkehren, um 90° um die vertikale Achse drehen |
 | Ctrl+Shift+M, Ctrl+Shift+L | CSG konvex verschmelzen, Schnittmenge |
 | Ctrl+F4 | Tab schließen |
+| Shift+Ziehen | Kopiert die Auswahl und verschiebt die Kopie, in jeder Ansicht. Shift+Klick wählt keine Flächen, dafür gibt es das Textur-Werkzeug (Shift+A) |
 
 | Taste | Voreinstellung Blender |
 | --- | --- |

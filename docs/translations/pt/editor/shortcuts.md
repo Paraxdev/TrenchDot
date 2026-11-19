@@ -109,13 +109,17 @@ Uma predefinição só muda as teclas abaixo, todo o resto continua como acima. 
 
 | Tecla | Predefinição Hammer |
 | --- | --- |
+| Ctrl+Shift+A | Selecionar faces do brush: troca os brushes e meshes selecionados por todas as suas faces. Selecionar nada não tem tecla aqui, Esc limpa a seleção |
 | Shift+S, Shift+X, Shift+V, Shift+A | Ferramentas Selecionar, Clip, Vértice, Textura |
 | H, Ctrl+H, U | Ocultar, isolar, mostrar tudo |
 | Ctrl+W | Mover brushes para o mundo |
-| Ctrl+M | Gerador de formas |
-| Ctrl+L | Girar 90° em torno do eixo vertical |
+| Ctrl+T, Ctrl+Shift+T | Vincular a entidade e Selecionar os que tocam, que passou para Ctrl+Shift+T. Ctrl+T abre a lista de classes com `func_detail` em destaque, então Ctrl+T e depois Enter transforma os brushes selecionados numa entidade de detalhe. Digite para filtrar, Esc cancela |
+| Ctrl+M | Transformar seleção, uma janela que move, gira ou escala a seleção com números digitados. O gerador de formas continua em Ctrl+Shift+B |
+| Ctrl+L, Ctrl+I | Espelhar na horizontal, espelhar na vertical. Espelham a seleção em torno do seu centro ao longo dos eixos de tela da vista sob o ponteiro, como no Hammer. Na ferramenta Mesh, Ctrl+L ainda seleciona os ligados |
+| Ctrl+Shift+I, Ctrl+Shift+R | Inverter seleção, girar 90° em torno do eixo vertical |
 | Ctrl+Shift+M, Ctrl+Shift+L | Mesclagem convexa de CSG, interseção |
 | Ctrl+F4 | Fechar aba |
+| Shift+arrastar | Copia a seleção e move a cópia, em qualquer vista. Shift+clique não escolhe faces, para isso existe a ferramenta de textura (Shift+A) |
 
 | Tecla | Predefinição Blender |
 | --- | --- |

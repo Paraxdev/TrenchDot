@@ -51,7 +51,8 @@ the Mesh tool.
 It also brings Blender's select modes. Press **1** for Object mode and **3** for Face mode, or use the **Object** and
 **Face** buttons that show up after the tool buttons in the toolbar with this preset. A click and Shift+click then pick and
 toggle objects or single faces, the way they do in Blender, and A selects all in the current mode. The other presets
-have no modes: Shift+click picks a face and a plain click an object. The
+have no modes: a plain click picks an object, and Shift+click picks a face in the TrenchBroom preset. The Hammer preset
+keeps Shift for cloning and picks faces with the Texture tool instead. The
 [Texture tool](texturing.md#the-texture-tool) clicks the same in every preset, a click selects a face, Ctrl+click adds
 or removes one, and with this preset the toolbar switches to Face. The full list is under
 [Other presets](shortcuts.md#other-presets).
