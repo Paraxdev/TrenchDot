@@ -62,7 +62,8 @@ const AUTOSHADER_WASH: vec3<f32> = vec3<f32>(0.36, 0.2, 0.09);
 struct VOut {
     @builtin(position) clip: vec4<f32>,
     @location(0) world: vec3<f32>,
-    @location(1) normal: vec3<f32>,
+    // How far the noise background falls one cell along x and z, in meters.
+    @location(1) noise_fall: vec2<f32>,
 };
 
 fn floor_div(a: vec2<i32>, b: i32) -> vec2<i32> {
@@ -246,15 +247,42 @@ fn noise_height(pos: vec2<f32>, octaves: i32) -> f32 {
     return smoothstep(0.5, 1.0, weight) * h;
 }
 
-fn ground(cell: vec2<i32>, octaves: i32) -> f32 {
-    return blended(vec2<f32>(cell), raw_height(cell)) + noise_height(vec2<f32>(cell), octaves);
+fn noise_fall(cell: vec2<f32>, octaves: i32) -> vec2<f32> {
+    let h = noise_height(cell, octaves);
+    return h - vec2<f32>(noise_height(cell + vec2<f32>(1.0, 0.0), octaves), noise_height(cell + vec2<f32>(0.0, 1.0), octaves));
 }
 
-// Normal from the heights `step` cells around a vertex, in map units.
-fn ground_normal(cell: vec2<i32>, step: i32, octaves: i32) -> vec3<f32> {
-    let dx = ground(cell + vec2<i32>(step, 0), octaves) - ground(cell - vec2<i32>(step, 0), octaves);
-    let dz = ground(cell + vec2<i32>(0, step), octaves) - ground(cell - vec2<i32>(0, step), octaves);
-    return normalize(vec3<f32>(-dx * clip.world.y, 2.0 * f32(step) * clip.world.x, -dz * clip.world.y));
+fn surface(cell: vec2<f32>) -> f32 {
+    return blended(cell, raw_height(vec2<i32>(cell)));
+}
+
+// Terrain3D's fragment normal: each corner of the pixel's cell takes the slope toward the next vertex along x and z at
+// full resolution whatever the lod. Where a pixel spans 16 cells or more, or no region holds a corner, the first corner
+// alone gives it, otherwise the four mix bilinearly without normalizing, which is the normal its auto shader reads.
+// `ddx` and `ddy` are the screen derivatives of the position in meters.
+fn pixel_normal(world: vec3<f32>, fall: vec2<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> vec3<f32> {
+    let p = world.xz / clip.world.x;
+    let c = floor(p);
+    let f = p - c;
+    let s = clip.world.x / clip.world.y;
+    let h00 = surface(c);
+    let h10 = surface(c + vec2<f32>(1.0, 0.0));
+    let h01 = surface(c + vec2<f32>(0.0, 1.0));
+    let n00 = normalize(vec3<f32>(h00 - h10 + fall.x, s, h00 - h01 + fall.y));
+    let k = vec2<i32>(c);
+    let held = present(k) || present(k + vec2<i32>(1, 0)) || present(k + vec2<i32>(0, 1)) || present(k + vec2<i32>(1, 1));
+    if (!held || max(length(ddx), length(ddy)) >= 16.0 * s) {
+        return n00;
+    }
+    let h11 = surface(c + vec2<f32>(1.0, 1.0));
+    let h20 = surface(c + vec2<f32>(2.0, 0.0));
+    let h21 = surface(c + vec2<f32>(2.0, 1.0));
+    let h02 = surface(c + vec2<f32>(0.0, 2.0));
+    let h12 = surface(c + vec2<f32>(1.0, 2.0));
+    let n10 = normalize(vec3<f32>(h10 - h20 + fall.x, s, h10 - h11 + fall.y));
+    let n01 = normalize(vec3<f32>(h01 - h11 + fall.x, s, h01 - h02 + fall.y));
+    let n11 = normalize(vec3<f32>(h11 - h21 + fall.x, s, h11 - h12 + fall.y));
+    return mix(mix(n00, n10, f.x), mix(n01, n11, f.x), f.y);
 }
 
 struct RingVertex {
@@ -279,15 +307,15 @@ fn ring_vertex(v: VIn) -> RingVertex {
 fn vs_main(v: VIn) -> VOut {
     let r = ring_vertex(v);
     let m = r.morph;
-    var n = ground_normal(m.cell, m.scale, r.octaves);
+    var fall = noise_fall(vec2<f32>(m.cell), r.octaves);
     if (m.lerp > 0.0) {
-        n = normalize(mix(n, ground_normal(m.end, m.scale * 2, r.octaves), m.lerp));
+        fall = mix(fall, noise_fall(vec2<f32>(m.end), r.octaves), m.lerp);
     }
 
     var o: VOut;
     o.world = r.world;
     o.clip = cam.view_proj * vec4<f32>(r.world, 1.0);
-    o.normal = n;
+    o.noise_fall = fall;
     return o;
 }
 
@@ -593,11 +621,12 @@ fn fs_main(f: VOut) -> @location(0) vec4<f32> {
     if (dropped(f.world)) {
         discard;
     }
-    let n = normalize(f.normal);
+    let w = pixel_normal(f.world, f.noise_fall, ddx, ddy);
+    let n = normalize(w);
     let flat_mode = step(0.5, cam.params.z) * step(cam.params.z, 1.5);
     var base = vec3<f32>(0.8);
     if (flat_mode < 0.5) {
-        base = ground_albedo(f.world, n, ddx, ddy);
+        base = ground_albedo(f.world, w, ddx, ddy);
     }
     base = paint_overlay(base, f.world);
     base = selection_tint(base, clip.look.y);

@@ -1349,7 +1349,7 @@ mod tests {
         let [w, h] = [144u32, 144];
         let eye = Vec3::new(160.1 * cell, 2000.0, -160.2 * cell);
         let view_proj = top_down(eye, [36.0 * cell, 36.0 * cell]);
-        let fragment = "@fragment fn fs_test(f: VOut) -> @location(0) vec4<f32> { let m = f.world.xz / clip.world.y; let ddx = dpdx(m); let ddy = dpdy(m); if (dropped(f.world)) { discard; } return vec4<f32>(ground_albedo(f.world, normalize(f.normal), ddx, ddy), 1.0); }";
+        let fragment = "@fragment fn fs_test(f: VOut) -> @location(0) vec4<f32> { let m = f.world.xz / clip.world.y; let ddx = dpdx(m); let ddy = dpdy(m); if (dropped(f.world)) { discard; } return vec4<f32>(ground_albedo(f.world, pixel_normal(f.world, f.noise_fall, ddx, ddy), ddx, ddy), 1.0); }";
         let pixels = draw(&device, &queue, &layout, &clip, eye, view_proj, [w, h], fragment);
 
         let linear = |rgb: [u8; 3], tint: [f32; 3]| [0, 1, 2].map(|i| crate::srgb_to_linear(rgb[i] as f32 / 255.0) * tint[i]);
@@ -1475,7 +1475,7 @@ mod tests {
         let [w, h] = [144u32, 144];
         let eye = Vec3::new(160.1 * cell, 2000.0, -160.2 * cell);
         let view_proj = top_down(eye, [36.0 * cell, 36.0 * cell]);
-        let fragment = "@fragment fn fs_test(f: VOut) -> @location(0) vec4<f32> { let m = f.world.xz / clip.world.y; let ddx = dpdx(m); let ddy = dpdy(m); if (dropped(f.world)) { discard; } return vec4<f32>(ground_albedo(f.world, normalize(f.normal), ddx, ddy), 1.0); }";
+        let fragment = "@fragment fn fs_test(f: VOut) -> @location(0) vec4<f32> { let m = f.world.xz / clip.world.y; let ddx = dpdx(m); let ddy = dpdy(m); if (dropped(f.world)) { discard; } return vec4<f32>(ground_albedo(f.world, pixel_normal(f.world, f.noise_fall, ddx, ddy), ddx, ddy), 1.0); }";
         let mut tall_share = Vec::new();
         for blend_sharpness in [0.5, 0.0] {
             clip.set_params(&queue, &ClipmapParams { cell, upm, heights: [0.0, 300.0], blend_sharpness, ..Default::default() });
@@ -1520,6 +1520,63 @@ mod tests {
         assert!(tall_share[0] > 0.99 && (0.9..0.98).contains(&tall_share[1]), "at an even blend the tall texture covers {tall_share:?}");
     }
 
+    /// Ridges one cell apart with the auto shader on everywhere. Terrain3D takes the slope at each corner from the next
+    /// vertex along x and z, so every pixel sees the steep sides that a normal from the vertices around a corner misses.
+    /// The slope still lowers the overlay where the base texture is drawn at its dual scale.
+    #[test]
+    #[ignore = "needs a GPU"]
+    fn gpu_auto_shader_reads_the_slope_per_pixel_like_terrain3d() {
+        let (device, queue) = device(false);
+        let layout = bind_group_layout(&device);
+        let desc = ClipmapDesc { region_size: 64, layers: 1, coarse_stride: 4, atlas: [[2, -3], [2, -3]] };
+        let mut clip = GpuClipmap::new(&device, &queue, &layout, &desc).unwrap();
+        let origin = [128i64, -192];
+        let heights: Vec<f32> = (0..64 * 64).map(|k| if k % 2 == 0 { 2.0 } else { 3.5 }).collect();
+        clip.write_fine(&queue, 0, [0, 0], [64, 64], &heights, &vec![1; 64 * 64], &vec![[255u8; 4]; 64 * 64]).unwrap();
+        clip.set_slots(&queue, &[([2, -3], Slot::Fine(0))]).unwrap();
+        // Note: heights where the overlay, lowered by the slope, about evens out with the base, so a missed slope tips
+        // the mix far toward the overlay.
+        let (base_height, overlay_height) = (26u8, 98u8);
+        let solid = |rgb: [u8; 3], height| look::Albedo::Thumbnail(image::RgbaImage::from_pixel(64, 64, image::Rgba([rgb[0], rgb[1], rgb[2], height])));
+        let textures = [
+            look::ClipmapTexture { id: 0, albedo: solid([200, 40, 40], base_height), color: [1.0; 3], uv_scale: 0.1, detiling: [0.0; 2] },
+            look::ClipmapTexture { id: 1, albedo: solid([30, 60, 220], overlay_height), color: [1.0; 3], uv_scale: 0.1, detiling: [0.0; 2] },
+        ];
+        clip.set_textures(&device, &queue, &layout, &textures);
+        let (cell, upm) = (48.0f32, 32.0f32);
+        let auto_shader = Some(AutoShader { slope: 1.0, height_reduction: 0.0, base: 0, overlay: 1 });
+        let [w, h] = [144u32, 144];
+        let eye = Vec3::new(160.1 * cell, 2000.0, -160.2 * cell);
+        let view_proj = top_down(eye, [36.0 * cell, 36.0 * cell]);
+        let fragment = "@fragment fn fs_test(f: VOut) -> @location(0) vec4<f32> { let m = f.world.xz / clip.world.y; let ddx = dpdx(m); let ddy = dpdy(m); if (dropped(f.world)) { discard; } return vec4<f32>(ground_albedo(f.world, pixel_normal(f.world, f.noise_fall, ddx, ddy), ddx, ddy), 1.0); }";
+
+        // Every corner rises or falls 1.5 m over its 1.5 m cell.
+        let up = std::f32::consts::FRAC_1_SQRT_2;
+        let blend = (2.0 * (up - 1.0) + 1.0).clamp(0.0, 1.0);
+        let control = (1 << 22) | (((blend * 255.0 + 0.5) as u32) << 14);
+        let linear = |rgb: [u8; 3]| rgb.map(|v| crate::srgb_to_linear(v as f32 / 255.0));
+        let layers = [(linear([200, 40, 40]), base_height as f32 / 255.0), (linear([30, 60, 220]), overlay_height as f32 / 255.0)];
+        let far_base = Some(DualScale { texture: 0, reduction: 0.3, near: 0.0, far: 0.0 });
+        for (case, dual_scale) in [("near", None), ("base at its dual scale", far_base)] {
+            clip.set_params(&queue, &ClipmapParams { cell, upm, heights: [0.0, 300.0], auto_shader, dual_scale, ..Default::default() });
+            let pixels = draw(&device, &queue, &layout, &clip, eye, view_proj, [w, h], fragment);
+            let mut seen = 0;
+            for (i, (p, [x, z])) in pixels.iter().zip(pixel_cells(view_proj, [w, h], cell)).enumerate() {
+                let c = [x.floor() as i64 - origin[0], z.floor() as i64 - origin[1]];
+                if !(1..61).contains(&c[0]) || !(1..61).contains(&c[1]) {
+                    continue;
+                }
+
+                let want = terrain3d_mix(&bilinear([x - x.floor(), z - z.floor()]).map(|(_, w)| (w, control)), &layers, 0.5, up);
+                let off = (0..3).map(|k| (p[k] - want[k]).abs()).fold(0.0, f32::max);
+                assert!(p[3] == 1.0 && off < 0.004, "{case}: pixel {i} at cell {x} {z}: {p:?}, want {want:?}");
+                seen += 1;
+            }
+
+            assert!(seen > 2000, "{case}: {seen} pixels checked");
+        }
+    }
+
     /// One texture whose halves differ, at a uv scale where the near sample stays in the left half and the dual scale
     /// sample in the right one, seen from above so the distance to the eye grows from the middle to the corners.
     #[test]
@@ -1549,7 +1606,7 @@ mod tests {
         let [w, h] = [144u32, 144];
         let eye = Vec3::new(160.1 * cell, 2000.0, -160.2 * cell);
         let view_proj = top_down(eye, [20.0 * cell, 20.0 * cell]);
-        let fragment = "@fragment fn fs_test(f: VOut) -> @location(0) vec4<f32> { let m = f.world.xz / clip.world.y; let ddx = dpdx(m); let ddy = dpdy(m); if (dropped(f.world)) { discard; } return vec4<f32>(ground_albedo(f.world, normalize(f.normal), ddx, ddy), distance(f.world, cam.eye.xyz) / clip.world.y); }";
+        let fragment = "@fragment fn fs_test(f: VOut) -> @location(0) vec4<f32> { let m = f.world.xz / clip.world.y; let ddx = dpdx(m); let ddy = dpdy(m); if (dropped(f.world)) { discard; } return vec4<f32>(ground_albedo(f.world, pixel_normal(f.world, f.noise_fall, ddx, ddy), ddx, ddy), distance(f.world, cam.eye.xyz) / clip.world.y); }";
         let dual = |texture, near, far| Some(DualScale { texture, reduction: 0.3, near, far });
         let cases = [("fading", dual(0, 64.0, 70.0)), ("off", None), ("on another texture", dual(1, 64.0, 70.0)), ("at one distance", dual(0, 66.0, 66.0))];
         for (case, dual_scale) in cases {
@@ -1618,7 +1675,7 @@ mod tests {
         let eye = Vec3::new(64.1 * cell, 2000.0, 32.2 * cell);
         let view_proj = top_down(eye, [68.0 * cell, 34.0 * cell]);
         let cells = pixel_cells(view_proj, [w, h], cell);
-        let albedo = "@fragment fn fs_test(f: VOut) -> @location(0) vec4<f32> { let m = f.world.xz / clip.world.y; let ddx = dpdx(m); let ddy = dpdy(m); if (dropped(f.world)) { discard; } return vec4<f32>(ground_albedo(f.world, normalize(f.normal), ddx, ddy), 1.0); }";
+        let albedo = "@fragment fn fs_test(f: VOut) -> @location(0) vec4<f32> { let m = f.world.xz / clip.world.y; let ddx = dpdx(m); let ddy = dpdy(m); if (dropped(f.world)) { discard; } return vec4<f32>(ground_albedo(f.world, pixel_normal(f.world, f.noise_fall, ddx, ddy), ddx, ddy), 1.0); }";
         let washed = "@fragment fn fs_test(f: VOut) -> @location(0) vec4<f32> { if (dropped(f.world)) { discard; } return vec4<f32>(paint_overlay(vec3<f32>(0.8), f.world), 1.0); }";
         // Whether a pixel's cell has all its corners in the fine region, or in the coarse one, None near their edges.
         let ground = |[x, z]: [f64; 2]| {
