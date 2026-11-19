@@ -2330,6 +2330,34 @@ fn the_browsers_say_nothing_matches_in_german() {
 }
 
 #[test]
+fn the_face_inspector_leaves_the_material_blank_for_mixed_faces() {
+    let mut f = Fixture::new();
+    let layer = f.state.doc.map.default_layer();
+    let mut brush = Brush::from_aabb(&Aabb::new(DVec3::ZERO, DVec3::splat(64.0)), "dev/grey").unwrap();
+    brush.faces[2].data.material = "dev/red".into();
+    let id = f.state.doc.edit("add", |m, s| {
+        let id = m.insert(layer, NodeKind::Brush(brush));
+        s.select_face(id, 0);
+        s.select_face(id, 2);
+        id
+    });
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(420.0, 700.0))
+        .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+    harness.run();
+    let material_field = |h: &Harness<'_, Fixture>| h.get_all_by_role(egui::accesskit::Role::TextInput).any(|n| n.value().as_deref() == Some("dev/grey"));
+    assert!(!material_field(&harness), "two materials show as mixed");
+
+    harness.state_mut().state.doc.select(|_, s| {
+        s.clear();
+        s.select_face(id, 0);
+        s.select_face(id, 1);
+    });
+    harness.run();
+    assert!(material_field(&harness), "faces sharing a material name it");
+}
+
+#[test]
 fn the_face_inspector_counts_faces_in_german() {
     let _german = td_editor::i18n::scope(td_editor::i18n::Lang::De);
     let mut f = Fixture::new();

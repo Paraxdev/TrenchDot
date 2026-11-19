@@ -2604,5 +2604,7 @@
   "Select a group to open it": "Selecione um grupo para abri-lo",
   "Closed groups {names}": "Grupos {names} fechados",
   "Nothing inside, deleted {n} selecting brush": { "one": "Nada dentro, {n} brush de seleção apagado", "other": "Nada dentro, {n} brushes de seleção apagados" },
-  "Nothing touching, deleted {n} selecting brush": { "one": "Nada encostando, {n} brush de seleção apagado", "other": "Nada encostando, {n} brushes de seleção apagados" }
+  "Nothing touching, deleted {n} selecting brush": { "one": "Nada encostando, {n} brush de seleção apagado", "other": "Nada encostando, {n} brushes de seleção apagados" },
+  "mixed": "misto",
+  "The faces use different materials, a name typed here goes on all of them": "As faces usam materiais diferentes, um nome digitado aqui vale para todas"
 }

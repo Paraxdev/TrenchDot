@@ -2604,5 +2604,7 @@
   "Select a group to open it": "開くグループを選択してください",
   "Closed groups {names}": "グループ {names} を閉じました",
   "Nothing inside, deleted {n} selecting brush": { "other": "内側には何もありません。選択に使ったブラシ {n} 個を削除しました" },
-  "Nothing touching, deleted {n} selecting brush": { "other": "接触するものはありません。選択に使ったブラシ {n} 個を削除しました" }
+  "Nothing touching, deleted {n} selecting brush": { "other": "接触するものはありません。選択に使ったブラシ {n} 個を削除しました" },
+  "mixed": "混在",
+  "The faces use different materials, a name typed here goes on all of them": "面ごとにマテリアルが異なります。ここに入力した名前がすべての面に付きます"
 }

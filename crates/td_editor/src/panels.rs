@@ -1778,14 +1778,25 @@ fn face_inspector(ui: &mut Ui, state: &mut EditorState, faces: &[(NodeId, usize)
     let Some(info) = crate::texture_ops::face_info(&state.doc.map, bid, fi) else { return };
     let is_mesh = state.doc.map.mesh(bid).is_some();
     ui.heading(if is_mesh { tr_n!(faces.len(), "{n} mesh face", "{n} mesh faces") } else { tr_n!(faces.len(), "{n} face", "{n} faces") });
-    let mut material = info.material.clone();
+    let map = &state.doc.map;
+    let material_of = |(id, f): &(NodeId, usize)| {
+        map.brush(*id).and_then(|b| b.faces.get(*f)).map(|f| &f.data.material).or_else(|| map.mesh(*id).and_then(|m| m.faces.get(*f)).map(|f| &f.data.material))
+    };
+    let mixed = faces[1..].iter().any(|face| material_of(face).is_some_and(|m| *m != info.material));
+    let shown = if mixed { String::new() } else { info.material.clone() };
+    let mut material = shown.clone();
     ui.horizontal(|ui| {
         ui.label(tr("material"));
-        if ui.text_edit_singleline(&mut material).lost_focus() && material != info.material {
+        let mut field = ui.add(egui::TextEdit::singleline(&mut material).hint_text(tr("mixed")));
+        if mixed {
+            field = field.on_hover_text(tr("The faces use different materials, a name typed here goes on all of them"));
+        }
+
+        if field.lost_focus() && material != shown {
             actions.push(Action::ApplyMaterial(material.clone()));
         }
     });
-    if let Some(size) = state.materials.size_label(&info.material) {
+    if let Some(size) = state.materials.size_label(&info.material).filter(|_| !mixed) {
         let details = state.materials.info(&info.material).map(|m| material_summary_with(&m, tr)).unwrap_or_default();
         ui.label(RichText::new(format!("{size}{details}")).weak());
     }

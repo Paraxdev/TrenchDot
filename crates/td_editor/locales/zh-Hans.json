@@ -2604,5 +2604,7 @@
   "Select a group to open it": "请先选择一个组再打开",
   "Closed groups {names}": "已关闭组 {names}",
   "Nothing inside, deleted {n} selecting brush": { "other": "内部没有对象，已删除 {n} 个用于选择的笔刷" },
-  "Nothing touching, deleted {n} selecting brush": { "other": "没有接触的对象，已删除 {n} 个用于选择的笔刷" }
+  "Nothing touching, deleted {n} selecting brush": { "other": "没有接触的对象，已删除 {n} 个用于选择的笔刷" },
+  "mixed": "混合",
+  "The faces use different materials, a name typed here goes on all of them": "这些面使用不同的材质，在此输入的名称会应用到所有面"
 }
