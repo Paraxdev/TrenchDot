@@ -133,6 +133,7 @@ See [Reviewing changes](editor/reviewing.md) for keeping maps in git.
 | --- | --- |
 | Browsers | The HTTP server refuses any request with an `Origin` header and any POST that is not `application/json`, so web pages cannot reach it, not even ones served from localhost |
 | Errors | A tool that could not do its job returns `isError`, including a failed `run_action` |
+| Unknown arguments | A tool still runs when it gets an argument it does not take, and its reply lists those under `unknown_arguments`, so a misspelt name does not pass for its default. `run_script` lists them per step |
 | File dialogs | Actions that open one are refused, use `map_file` with a path. `run_action save` needs a map that already has a file |
 | Unsaved tabs | `run_action close_tab` refuses unsaved changes unless `args.discard` is true. `args.close_others` closes every tab but the active one instead |
 | File paths | `res://` and relative paths in `map_file`, `run_script`, `import_model`, `changes_since` and `validate_map` start at the open project, or at the editor's working directory without one. `map_file open` and `open_tab` resolve the path to an absolute one before opening, so a later `save` cannot land somewhere else |

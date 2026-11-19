@@ -2062,6 +2062,7 @@ impl App {
         // Only results of steps follow replaced brushes, variables passed in stay as written.
         let mut saved_results: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
         let mut errors = Vec::new();
+        let mut ignored = Vec::new();
         let mut ran = 0;
         self.state.fence_script(Some(super::script::Fence::new(folders.clone())));
         for (i, step) in steps.iter().enumerate() {
@@ -2092,6 +2093,11 @@ impl App {
                 }
             };
             ran += 1;
+            let unknown = super::protocol::unknown_args(&step.tool, &resolved);
+            if !unknown.is_empty() {
+                ignored.push(json!({ "step": i, "tool": step.tool, "unknown_arguments": unknown }));
+            }
+
             let mut result = self.run_tool(&step.tool, resolved, ctx);
             if self.state.report_link_conflict() {
                 result = err(self.state.status.clone());
@@ -2147,6 +2153,10 @@ impl App {
             json!({ "steps": steps.len(), "notes": notes, "ran": ran, "errors": errors, "undo": undo, "vars": saved, "state": self.state_summary()["map"] });
         if !unread.is_empty() {
             summary["unread_textures"] = json!(unread);
+        }
+
+        if !ignored.is_empty() {
+            summary["unknown_arguments"] = json!(ignored);
         }
 
         if errors.is_empty() || continue_on_error { ok(summary) } else { ToolResult::Error(serde_json::to_string_pretty(&summary).unwrap_or_default()) }

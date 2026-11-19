@@ -52,7 +52,8 @@ pub fn handle(msg: Value, exec: &dyn ToolExecutor) -> Option<Value> {
             }
 
             let args = params.get("arguments").cloned().unwrap_or_else(|| json!({}));
-            result(&id, tool_result_json(exec.call(name, args)))
+            let unknown = unknown_args(name, &args);
+            result(&id, tool_result_json(with_unknown_args(exec.call(name, args), name, &unknown)))
         }
         "resources/list" => result(&id, json!({ "resources": [] })),
         "prompts/list" => result(&id, json!({ "prompts": [] })),
@@ -70,6 +71,49 @@ pub fn refuse(msg: &Value, message: &str) -> Option<Value> {
     let id = msg.get("id")?;
     msg.get("method").and_then(|m| m.as_str())?;
     Some(error(id, -32000, message))
+}
+
+/// The top level arguments each tool takes, built once since the definitions are large.
+fn known_args() -> &'static std::collections::HashMap<String, Vec<String>> {
+    static KNOWN: std::sync::OnceLock<std::collections::HashMap<String, Vec<String>>> = std::sync::OnceLock::new();
+    KNOWN.get_or_init(|| {
+        let definitions = tool_definitions();
+        let props = |t: &Value| t["inputSchema"]["properties"].as_object().map(|p| p.keys().cloned().collect()).unwrap_or_default();
+        definitions.iter().filter_map(|t| Some((t["name"].as_str()?.to_string(), props(t)))).collect()
+    })
+}
+
+/// The arguments given to `tool` that it does not take. Tools read their arguments by name, so a misspelt one would
+/// otherwise leave its default in place without a word.
+pub fn unknown_args(tool: &str, args: &Value) -> Vec<String> {
+    let (Some(known), Some(given)) = (known_args().get(tool), args.as_object()) else { return Vec::new() };
+    given.keys().filter(|k| !known.contains(k)).cloned().collect()
+}
+
+pub fn with_unknown_args(r: ToolResult, tool: &str, unknown: &[String]) -> ToolResult {
+    if unknown.is_empty() {
+        return r;
+    }
+
+    let warning = format!("{tool} does not take {}, so it ignored them", unknown.join(", "));
+    match r {
+        ToolResult::Json(Value::Object(mut v)) => {
+            v.insert("unknown_arguments".into(), json!(unknown));
+            ToolResult::Json(Value::Object(v))
+        }
+        ToolResult::Image { png, note } => ToolResult::Image {
+            png,
+            note: format!(
+                "{note}
+{warning}"
+            ),
+        },
+        ToolResult::Error(e) => ToolResult::Error(format!(
+            "{e}
+{warning}"
+        )),
+        r => r,
+    }
 }
 
 pub fn tool_result_json(r: ToolResult) -> Value {
@@ -257,6 +301,7 @@ pub fn tool_definitions() -> Vec<Value> {
                     "bend_toward": { "type": "string", "enum": ["+x", "-x", "+y", "-y", "+z", "-z"], "description": "tunnel: the world direction the bend turns toward, one of the four that cross the tunnel, +x by default (+z on an x tunnel)" },
                     "bend_radius": { "type": "number", "description": "tunnel: distance from the bend's pivot to the inside wall, 64 by default" },
                     "bend_segments": { "type": "integer", "description": "tunnel: pieces in the bend, 8 by default, at least one per quarter turn and at most 64" },
+                    "ridge_x": { "type": "boolean", "description": "gable: ridge along X instead of Z" },
                     "ridge_z": { "type": "boolean", "description": "gable: ridge along Z (the default), the create_mesh name for the opposite of ridge_x" },
                     "axis": { "type": "string", "enum": ["x", "y", "z"], "description": "cylinder, cone and tunnel: the axis they run along inside the bounds, y (upright) by default for a cylinder or cone, the cone's tip at the max end, and z for a tunnel" },
                     "text": { "type": "string" }, "standing": { "type": "boolean" }, "spacing": { "type": "number" },
@@ -264,6 +309,7 @@ pub fn tool_definitions() -> Vec<Value> {
                     "sides": { "type": "integer", "description": "segments around a round shape, 12 by default, at least 2 for an arch" },
                     "thickness": { "type": "number", "description": "arch, tunnel and pipe wall width, spiral_stairs inner radius, 16 by default. A tunnel keeps it between 1 and 40 percent of the smaller of its width and height, an arch under 180 degrees between 1 and 90 percent of its rise while a 180 degree arch takes any thickness above 0, and the reply carries thickness and a note when it differs" },
                     "steps": { "type": "integer" },
+                    "turns": { "type": "number", "description": "spiral_stairs: how many times the stairs wind around, 1 by default" },
                     "parent": { "type": "integer", "description": "layer, group or brush entity id, unlocked" }
                 }, "required": ["min", "max"] }
             }),
@@ -452,7 +498,8 @@ pub fn tool_definitions() -> Vec<Value> {
                 "textured": { "type": "boolean", "description": "older switch between textured and flat shading, shade wins when both are given" },
                 "shade": { "type": "string", "enum": ["textured", "flat", "lit", "baked", "wireframe"] },
                 "mesh_component": { "type": "string", "enum": ["vertex", "edge", "face"] },
-                "scatter_items": { "type": "array", "items": { "type": "string" }, "description": "model paths, sprinkle_items is an older alias" },
+                "scatter_items": { "type": "array", "items": { "type": "string" }, "description": "model paths" },
+                "sprinkle_items": { "type": "array", "items": { "type": "string" }, "description": "older name of scatter_items" },
                 "brush_radius": { "type": "number" },
                 "sculpt_mode": { "type": "string" },
                 "symmetry": symmetry_schema(),
@@ -752,6 +799,36 @@ mod tests {
         let batch = refuse(&json!([{"jsonrpc":"2.0","id":3,"method":"tools/list"}, {"jsonrpc":"2.0","method":"notifications/x"}]), "off").unwrap();
         assert_eq!(batch.as_array().map(Vec::len), Some(1));
         assert!(refuse(&json!([{"jsonrpc":"2.0","method":"notifications/x"}]), "off").is_none());
+    }
+
+    #[test]
+    fn unknown_arguments_are_named_in_the_reply() {
+        let call =
+            |args: Value| handle(json!({"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"create_brush","arguments":args}}), &Echo).unwrap();
+        let r = call(json!({"shape": "arch", "min": [0, 0, 0], "max": [64, 64, 64], "segments": 1}));
+        assert_eq!(r["result"]["structuredContent"]["unknown_arguments"], json!(["segments"]));
+        let r = call(json!({"shape": "arch", "min": [0, 0, 0], "max": [64, 64, 64], "sides": 1}));
+        assert!(r["result"]["structuredContent"].get("unknown_arguments").is_none());
+        let error = with_unknown_args(ToolResult::Error("no".into()), "create_brush", &["segments".into()]);
+        assert!(matches!(error, ToolResult::Error(e) if e == "no
+create_brush does not take segments, so it ignored them"));
+        assert!(unknown_args("get_state", &json!({"x": 1})) == ["x"] && unknown_args("not_a_tool", &json!({"x": 1})).is_empty());
+    }
+
+    #[test]
+    fn the_example_scripts_pass_only_known_arguments() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../examples/mcp");
+        let mut unknown = Vec::new();
+        for entry in std::fs::read_dir(&dir).unwrap() {
+            let path = entry.unwrap().path();
+            let doc: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            for step in super::super::script::parse(&doc).unwrap() {
+                let name = path.file_name().unwrap().to_string_lossy().into_owned();
+                unknown.extend(unknown_args(&step.tool, &step.args).into_iter().map(|a| format!("{name} {} {a}", step.tool)));
+            }
+        }
+
+        assert!(unknown.is_empty(), "{unknown:#?}");
     }
 
     #[test]
