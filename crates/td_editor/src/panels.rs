@@ -1249,8 +1249,15 @@ fn mirror_section(ui: &mut Ui, state: &mut EditorState, actions: &mut Vec<Action
             ui.horizontal_wrapped(|ui| {
                 ui.label(RichText::new(trf!("Mirror plane {axis} = {at}", axis, at)).weak());
                 ui.label(tr("Gap")).on_hover_text(tr("Space between the two halves, in map units. Both move, the plane stays"));
-                if widgets::drag_field(ui, &mut gap, 64.0, 1.0, false) && td_doc::mirror::gap_target(&state.doc.map, m, gap).1 {
-                    state.doc.edit_coalesced("Set Mirror Gap", |map, _| td_doc::mirror::set_gap(map, m, gap));
+                if widgets::drag_field(ui, &mut gap, 64.0, 1.0, false) {
+                    let (limited, moves) = td_doc::mirror::gap_target(&state.doc.map, m, gap);
+                    if moves {
+                        state.doc.edit_coalesced("Set Mirror Gap", |map, _| td_doc::mirror::set_gap(map, m, gap));
+                    }
+
+                    if limited != gap {
+                        state.set_status(msg!("Gap limited to {gap}", gap = crate::gizmos::fmt_num(limited)));
+                    }
                 }
 
                 ui.label(RichText::new(tr("units")).weak());

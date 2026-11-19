@@ -2339,6 +2339,7 @@
   "Moves the two mirrored halves apart or together, the mirror plane stays where it is": "ミラーされた2つの半分を離すか近づけます。ミラー平面はそのままです",
   "Set the gap between the mirrored halves to {gap} units": "ミラーされた半分の間隔を {gap} ユニット に設定しました",
   "Select one half of a mirrored pair to set the gap": "間隔を設定するには、ミラーされたペアの片方を選択してください",
+  "Gap limited to {gap}": "ギャップを {gap} に制限しました",
   "Mirror Again": "もう一度ミラー",
   "Moves the partner of a half that was slid along the mirror plane back across from it": "ミラー平面に沿ってずらされた半分の相方を、反対側の位置に戻します",
   "Nothing selected is off its mirror plane": "選択中のものはミラー平面からずれていません",

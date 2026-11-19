@@ -2339,6 +2339,7 @@
   "Moves the two mirrored halves apart or together, the mirror plane stays where it is": "Раздвигает или сдвигает две отражённые половины, плоскость отражения остаётся на месте",
   "Set the gap between the mirrored halves to {gap} units": "Зазор между отражёнными половинами задан: {gap} ед.",
   "Select one half of a mirrored pair to set the gap": "Выберите половину отражённой пары, чтобы задать зазор",
+  "Gap limited to {gap}": "Зазор ограничен до {gap}",
   "Mirror Again": "Отразить снова",
   "Moves the partner of a half that was slid along the mirror plane back across from it": "Возвращает напротив пару половины, сдвинутой вдоль плоскости отражения",
   "Nothing selected is off its mirror plane": "Ничто из выделенного не смещено от своей плоскости отражения",

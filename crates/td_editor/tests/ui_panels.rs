@@ -1996,6 +1996,34 @@ fn the_inspector_gap_moves_both_halves_and_keeps_the_plane() {
 }
 
 #[test]
+fn a_typed_gap_that_clamps_says_so_in_the_status_line() {
+    let (f, rows) = linked_rows_fixture();
+    let mut harness = gap_harness(f, rows.left);
+    let gap_field = number_fields(&harness) - 1;
+    let status = |harness: &Harness<'_, Fixture>| harness.state().state.status.clone();
+
+    harness.state_mut().state.set_status("untouched");
+    type_number(&mut harness, gap_field, "24");
+    assert_eq!(status(&harness), "untouched", "a gap inside the limits needs no notice");
+
+    type_number(&mut harness, gap_field, "-1000");
+    let limit = td_doc::mirror::gap(&harness.state().state.doc.map, &first_plane(&harness));
+    assert!(limit < 0.0 && limit > -1000.0);
+    assert_eq!(status(&harness), format!("Gap limited to {limit}"));
+
+    harness.state_mut().state.set_status("untouched");
+    type_number(&mut harness, gap_field, "-2000");
+    assert_eq!(status(&harness), format!("Gap limited to {limit}"), "a typed gap that clamps to the one already set still says so");
+
+    harness.state_mut().state.set_status("untouched");
+    type_number(&mut harness, gap_field, &format!("{limit}"));
+    assert_eq!(status(&harness), "untouched", "the exact limit is not clamped");
+
+    type_number(&mut harness, gap_field, "100000");
+    assert_eq!(status(&harness), format!("Gap limited to {}", td_doc::mirror::MAX_GAP));
+}
+
+#[test]
 fn apply_mirror_greys_out_while_the_halves_are_apart() {
     let (f, rows) = linked_rows_fixture();
     let mut harness = gap_harness(f, rows.left);

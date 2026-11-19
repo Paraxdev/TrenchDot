@@ -2339,6 +2339,7 @@
   "Moves the two mirrored halves apart or together, the mirror plane stays where it is": "Écarte ou rapproche les deux moitiés en miroir, le plan de miroir ne bouge pas",
   "Set the gap between the mirrored halves to {gap} units": "Écart entre les moitiés en miroir réglé à {gap} unités",
   "Select one half of a mirrored pair to set the gap": "Sélectionnez une moitié d'une paire en miroir pour régler l'écart",
+  "Gap limited to {gap}": "Écart limité à {gap}",
   "Mirror Again": "Refléter à nouveau",
   "Moves the partner of a half that was slid along the mirror plane back across from it": "Ramène en face la moitié jumelle d'une moitié glissée le long du plan de miroir",
   "Nothing selected is off its mirror plane": "Rien de la sélection n'est décalé de son plan de miroir",

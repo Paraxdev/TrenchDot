@@ -2339,6 +2339,7 @@
   "Moves the two mirrored halves apart or together, the mirror plane stays where it is": "把两个镜像的一半拉开或靠拢，镜像平面保持原位",
   "Set the gap between the mirrored halves to {gap} units": "已将镜像两半之间的间距设为 {gap} 单位",
   "Select one half of a mirrored pair to set the gap": "选择镜像对中的一半以设置间距",
+  "Gap limited to {gap}": "间隙已限制为 {gap}",
   "Mirror Again": "再次镜像",
   "Moves the partner of a half that was slid along the mirror plane back across from it": "把沿镜像平面滑开的一半的另一半移回对面",
   "Nothing selected is off its mirror plane": "所选内容都没有偏离镜像平面",
