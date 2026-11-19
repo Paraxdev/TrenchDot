@@ -153,7 +153,8 @@ what the TrenchDot column says.
   never locks to an axis, drag a gizmo arrow for that. Shift+click picks an object like a plain click, because Shift
   belongs to cloning, so faces are picked in the Texture tool (Shift+A) and nothing pushes or pulls a face with Shift. The
   camera keeps the TrenchBroom gestures and adds Hammer's Space+drag and Z for mouse look, and the tools Hammer has no
-  key for keep the TrenchBroom ones. **Help > Keyboard Shortcuts…** shows the mouse of the preset you are on.
+  key for keep the TrenchBroom ones. In the Vertex tool a drag on empty space in a 2D view selects the corners inside
+  the box. **Help > Keyboard Shortcuts…** shows the mouse of the preset you are on.
 
   ![The Mouse tab of Keyboard Shortcuts with the Hammer preset chosen, listing Shift+drag as the copy gesture](../assets/coming-from-hammer-trenchbroom/mouse-tab-hammer.png)
 

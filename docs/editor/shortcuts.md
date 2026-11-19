@@ -199,6 +199,8 @@ moves the brush.
 | Drag off the selection (3D) | Nothing. Pick the Block tool (Shift+B) to draw brushes |
 | Space+drag (2D) | Pan, like a middle drag. Binding plain Space to an action turns the Space camera off |
 | Space+drag (3D) | Look around, like a right drag. WASD flies while you hold it |
+| Drag off the corners in the Vertex tool (2D) | Select the corners of the selected brushes inside the box, the ones stacked behind each other too. A drag on a corner still moves it |
+| Ctrl+drag off the corners in the Vertex tool (2D) | Add the corners inside the box to the selected corners |
 
 | Key | Blender preset |
 | --- | --- |

@@ -4557,6 +4557,49 @@ fn hammer_space_drag_pans_and_looks() {
 
 #[test]
 #[ignore]
+fn hammer_vertex_tool_boxes_corners_in_2d() {
+    let ed = Editor::launch("hammer_vertex_box");
+    let w = ed.call("create_brush", json!({ "shape": "wedge", "min": [-40, 8, 24], "max": [24, 72, 152] }))["ids"][0].as_u64().unwrap();
+    ed.call("set_editor", json!({ "grid": 8, "snap": true, "keymap": "hammer", "tool": "vertex" }));
+    ed.call("select", json!({ "ids": [w] }));
+    ed.call("set_camera", json!({ "view": "front", "center": [-8, 40, 0], "zoom": 0.5 }));
+    let corners = || -> Vec<[i64; 3]> {
+        let mut all: Vec<[i64; 3]> =
+            ed.state()["editor"]["selected_vertices"].as_array().unwrap().iter().map(|v| [0, 1, 2].map(|i| v[i].as_f64().unwrap().round() as i64)).collect();
+        all.sort();
+        all
+    };
+    let drag = |view: &str, from: [i64; 3], to: [i64; 3], modifiers: Value| {
+        ed.input(view, json!([{ "type": "drag", "world": from, "to_world": to, "modifiers": modifiers }]));
+    };
+
+    drag("front", [-72, 48, 0], [40, 96, 0], json!([]));
+    assert_eq!(corners(), [[-40, 72, 24], [24, 72, 24]], "the box takes the top edge of the slope");
+    assert_eq!(ed.state()["status"], "Selected 2 corners");
+
+    drag("front", [-40, 72, 24], [-40, 88, 24], json!([]));
+    assert_eq!(corners(), [[-40, 88, 24], [24, 88, 24]], "a drag on one of them moves both");
+    let (_, max) = ed.selection_bounds();
+    assert!((max[1] - 88.0).abs() < 1e-3, "{max:?}");
+
+    drag("front", [-72, -24, 0], [-24, 24, 0], json!(["ctrl"]));
+    assert_eq!(corners(), [[-40, 8, 24], [-40, 8, 152], [-40, 88, 24], [24, 88, 24]], "Ctrl adds both stacked bottom corners");
+
+    drag("front", [80, 100, 0], [110, 130, 0], json!([]));
+    assert_eq!(corners().len(), 4, "an empty box keeps the corners");
+    assert_eq!(ed.state()["status"], "No corner lies inside the box");
+
+    ed.call("set_camera", json!({ "view": "3d", "position": [-300, 250, 300], "look_at": [0, 0, 0] }));
+    ed.input("3d", json!([{ "type": "drag", "world": [200, 0, -200], "to_world": [300, 0, -150] }]));
+    assert_eq!(corners().len(), 4, "the 3D view draws no box");
+
+    ed.call("set_editor", json!({ "keymap": "trenchbroom" }));
+    drag("front", [-72, 48, 0], [40, 96, 0], json!([]));
+    assert_eq!(corners().len(), 4, "TrenchBroom draws no box");
+}
+
+#[test]
+#[ignore]
 fn hammer_mouse_look_toggles_with_z() {
     let ed = Editor::launch("hammer_mouse_look");
     let a = ed.box_brush([0.0, 0.0, 0.0], [64.0, 64.0, 64.0]);

@@ -10,6 +10,7 @@ use crate::camera::{Camera, ViewKind};
 use crate::i18n::{Msg, en, msg, msg_n, tr, trf};
 use crate::picking;
 use crate::scene::v3;
+use crate::selection_box::SelectionBox;
 use crate::state::EditorState;
 use crate::theme::LINKED_EDGE;
 use crate::tools::ToolKind;
@@ -71,6 +72,8 @@ pub struct VertexTool {
     gizmo_drag: Option<VGizmoDrag>,
     /// Where the running drag started and where the refused move would have put it, drawn as a red ghost.
     refused: Option<(DVec3, DVec3)>,
+    /// The Hammer preset's box over the corners, drawn by a drag off the handles in a 2D view.
+    boxing: Option<SelectionBox>,
 }
 
 struct VertexDrag {
@@ -379,6 +382,7 @@ impl ToolSet {
     fn end_drags(&mut self) {
         self.vertex.drag = None;
         self.vertex.gizmo_drag = None;
+        self.vertex.boxing = None;
         self.rotate.drag = None;
         self.scale.drag = None;
         self.shear.drag = None;
@@ -753,6 +757,28 @@ impl ToolSet {
         (verts, dots)
     }
 
+    /// Selects the corners of the selected brushes inside `b` at any depth, the edge and face dots aside. With none
+    /// inside the selected corners stay.
+    fn box_vertices(&mut self, state: &mut EditorState, b: &SelectionBox) {
+        let found: Vec<DVec3> = Self::vertex_handles(state).0.into_iter().filter(|v| b.contains_point(*v)).collect();
+        if found.is_empty() {
+            state.set_status(msg!("No corner lies inside the box"));
+            return;
+        }
+
+        if !b.add {
+            self.vertex.selected.clear();
+        }
+
+        for v in &found {
+            if !self.vertex.selected.iter().any(|q| (*q - *v).length() < 1e-6) {
+                self.vertex.selected.push(*v);
+            }
+        }
+
+        state.set_status(msg_n!(found.len(), "Selected {n} corner", "Selected {n} corners"));
+    }
+
     fn vertex_input(&mut self, ui: &Ui, response: &Response, cam: &Camera, rect: Rect, state: &mut EditorState) {
         let modifiers = ui.input(|i| i.modifiers);
         let (verts, dots) = Self::vertex_handles(state);
@@ -837,7 +863,23 @@ impl ToolSet {
                 let line = vertex_drag_line(cam, &h);
                 state.doc.begin(en!("Move Vertices"));
                 self.vertex.drag = Some(VertexDrag { start: v, plane, line, base: self.vertex.selected.clone(), is_dot });
+            } else if crate::mouse_map::vertex_box(&state.prefs.keymap_preset, cam.kind.is_2d()) {
+                let at = cam.screen_to_plane(rect, origin);
+                self.vertex.boxing = Some(SelectionBox { view: cam.kind, a: at, b: at, add: modifiers.command });
             }
+        }
+
+        if let Some(b) = self.vertex.boxing.as_mut()
+            && (response.dragged_by(PointerButton::Primary) || response.drag_stopped())
+            && let Some(pos) = ui.input(|i| i.pointer.interact_pos())
+        {
+            b.b = cam.screen_to_plane(rect, pos);
+        }
+
+        if (response.drag_stopped() || !ui.input(|i| i.pointer.primary_down()))
+            && let Some(b) = self.vertex.boxing.take()
+        {
+            self.box_vertices(state, &b);
         }
 
         if let Some(drag) = &self.vertex.drag {
@@ -1476,6 +1518,10 @@ impl ToolSet {
                     painter.circle_stroke(b, 6.0, Stroke::new(2.0, SELECTED_RED));
                 }
 
+                if let Some(b) = &self.vertex.boxing {
+                    crate::selection_box::paint_box(&painter, cam, rect, b);
+                }
+
                 if let Some(g) = self.vertex.gizmo.filter(|_| cam.kind == ViewKind::Perspective) {
                     let len = vgizmo_len(cam, rect, g);
                     let hot_axis = self.vertex.gizmo_drag.as_ref().map(|d| d.axis).or_else(|| hover.and_then(|p| vgizmo_axis_at(cam, rect, g, p)));
@@ -1899,6 +1945,41 @@ mod tests {
 
     fn view_rect() -> Rect {
         Rect::from_min_size(Pos2::ZERO, Vec2::new(900.0, 700.0))
+    }
+
+    #[test]
+    fn the_vertex_box_takes_the_corners_inside_at_any_depth() {
+        let (mut state, _) = state_with_wedge();
+        let mut tools = ToolSet::default();
+        let top = |a: [f64; 2], b: [f64; 2], add| SelectionBox { view: ViewKind::Top, a: DVec3::new(a[0], 0.0, a[1]), b: DVec3::new(b[0], 0.0, b[1]), add };
+        let corners = |tools: &ToolSet| {
+            let mut all: Vec<[i64; 3]> = tools.vertex.selected.iter().map(|v| v.to_array().map(|c| c.round() as i64)).collect();
+            all.sort();
+            all
+        };
+
+        tools.box_vertices(&mut state, &top([90.0, -160.0], [270.0, -140.0], false));
+        assert_eq!(corners(&tools), [[100, 64, -150], [100, 160, -150], [260, 64, -150], [260, 96, -150]], "both of each stacked pair, no dot");
+        assert_eq!(state.status, "Selected 4 corners");
+
+        tools.box_vertices(&mut state, &top([400.0, 0.0], [500.0, 100.0], false));
+        assert_eq!(corners(&tools).len(), 4, "an empty box keeps the corners");
+        assert_eq!(state.status, "No corner lies inside the box");
+
+        tools.box_vertices(&mut state, &top([270.0, -40.0], [290.0, -25.0], true));
+        assert_eq!(corners(&tools).len(), 6, "Ctrl adds");
+        assert_eq!(state.status, "Selected 2 corners");
+
+        tools.box_vertices(&mut state, &top([110.0, -20.0], [280.0, -30.0], false));
+        assert_eq!(corners(&tools), [[110, 64, -20], [110, 156, -20], [280, 64, -30], [280, 88, -30]], "corners on the edges count");
+
+        tools.vertex.boxing = Some(top([0.0, 0.0], [1.0, 1.0], false));
+        state.tool = ToolKind::Select;
+        tools.sync(&state);
+        assert!(tools.vertex.boxing.is_none(), "a tool switch drops the box");
+        tools.vertex.boxing = Some(top([0.0, 0.0], [1.0, 1.0], false));
+        tools.reset();
+        assert!(tools.vertex.boxing.is_none());
     }
 
     fn perspective() -> Camera {

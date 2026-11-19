@@ -224,6 +224,12 @@ pub fn empty_drag(preset: &str, tool: ToolKind, chord: Chord, in_2d: bool) -> Em
     }
 }
 
+/// Whether a drag off the handles in the Vertex tool draws a box that selects the corners inside. Hammer does it in the
+/// 2D views.
+pub fn vertex_box(preset: &str, in_2d: bool) -> bool {
+    preset == "hammer" && in_2d
+}
+
 /// What a left drag does while Space is held.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CameraDrag {
@@ -319,6 +325,8 @@ pub enum Bound {
     EmptyDrag(Chord, Option<bool>, EmptyDrag),
     /// A left drag with Space held, in a 2D view or the 3D view.
     Space(bool, CameraDrag),
+    /// A drag off the handles in the Vertex tool, in a 2D view.
+    VertexBox(Chord),
     Outliner(Chord, RowClick),
 }
 
@@ -375,6 +383,10 @@ pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
         ..fixed(VIEWS, gesture, what)
     };
     let space = |gesture: &'static str, what: &'static str, in_2d, d| MouseRow { bound: Some(Bound::Space(in_2d, d)), ..fixed(VIEWS, gesture, what) };
+    let corner_box = |mods: &str, gesture: &'static str, what: &'static str| MouseRow {
+        bound: Some(Bound::VertexBox(chord(Button::Drag, mods))),
+        ..fixed(VIEWS, gesture, what)
+    };
     let outliner = |mods: &str, gesture: &'static str, what: &'static str, g| MouseRow {
         bound: Some(Bound::Outliner(chord(Button::Click, mods), g)),
         ..fixed(OUTLINER, gesture, what)
@@ -418,6 +430,8 @@ pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
             drag("", en!("Drag a selection edge (2D)"), en!("Resize along it. Shift or Ctrl copies instead"), DragHit::Edge2d, SelectionDrag::Resize),
             space(en!("Space+drag (2D)"), en!("Pan"), true, CameraDrag::Pan),
             space(en!("Space+drag (3D)"), en!("Look around, WASD flies, Q and E go down and up"), false, CameraDrag::Look),
+            corner_box("", en!("Drag off the corners in the Vertex tool (2D)"), en!("Select the corners of the selected brushes inside the box")),
+            corner_box("c", en!("Ctrl+drag off the corners in the Vertex tool (2D)"), en!("Add the corners inside the box to the selected corners")),
         ]);
     } else {
         rows.extend([
@@ -701,6 +715,7 @@ mod tests {
                     assert!(row.gesture.starts_with(&chord_prefix(chord)), "{} is not {:?}", row.gesture, chord);
                 }
                 Some(Bound::Space(in_2d, d)) => assert_eq!(space_camera("trenchbroom", in_2d), Some(d), "{}", row.gesture),
+                Some(Bound::VertexBox(_)) => panic!("{} is a Hammer row", row.gesture),
                 Some(Bound::Outliner(chord, click)) => {
                     assert_eq!(row_click(chord.command, chord.shift), click, "{}", row.gesture);
                     assert!(row.gesture.starts_with(&chord_prefix(chord)), "{} is not {:?}", row.gesture, chord);
@@ -734,7 +749,8 @@ mod tests {
         }
 
         for preset in ["hammer", "blender"] {
-            let fixed = |r: &&MouseRow| r.bound.is_some() && !matches!(r.bound, Some(Bound::Drag(..) | Bound::EmptyDrag(..) | Bound::Space(..)));
+            let fixed =
+                |r: &&MouseRow| r.bound.is_some() && !matches!(r.bound, Some(Bound::Drag(..) | Bound::EmptyDrag(..) | Bound::Space(..) | Bound::VertexBox(..)));
             let other: Vec<_> = mouse_rows(preset).iter().filter(fixed).cloned().collect();
             assert_eq!(other, rows.iter().filter(fixed).cloned().collect::<Vec<_>>(), "{preset}");
         }
@@ -778,6 +794,26 @@ mod tests {
         for (gesture, in_2d, d) in rows {
             assert!(gesture.starts_with("Space+drag") && gesture.ends_with(if in_2d { "(2D)" } else { "(3D)" }), "{gesture}");
             assert_eq!(space_camera("hammer", in_2d), Some(d), "{gesture}");
+        }
+    }
+
+    #[test]
+    fn only_the_hammer_vertex_tool_boxes_corners_and_only_in_2d() {
+        for in_2d in [false, true] {
+            assert!(!vertex_box("trenchbroom", in_2d));
+            assert!(!vertex_box("blender", in_2d));
+            assert_eq!(vertex_box("hammer", in_2d), in_2d);
+        }
+
+        let rows: Vec<_> =
+            mouse_rows("hammer").into_iter().filter_map(|r| if let Some(Bound::VertexBox(c)) = r.bound { Some((r.gesture, c)) } else { None }).collect();
+        assert_eq!(rows.iter().map(|(_, c)| c.command).collect::<Vec<_>>(), [false, true], "a plain and an adding box");
+        for (gesture, c) in rows {
+            assert!(gesture.starts_with(&chord_prefix(c)) && gesture.ends_with("(2D)"), "{gesture}");
+        }
+
+        for preset in ["trenchbroom", "blender"] {
+            assert!(mouse_rows(preset).iter().all(|r| !matches!(r.bound, Some(Bound::VertexBox(_)))), "{preset}");
         }
     }
 

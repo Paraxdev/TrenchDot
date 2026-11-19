@@ -1,5 +1,6 @@
 //! The Hammer preset's selection box. A drag off the selection in a 2D view draws it, it waits until Enter or a click
-//! inside it selects every object lying wholly inside on the view's two axes, at any depth.
+//! inside it selects every object lying wholly inside on the view's two axes, at any depth. The Vertex tool draws the
+//! same box over corners.
 
 use egui::{Color32, Painter, Rect, Stroke, StrokeKind};
 use td_core::{Aabb, DVec3, NodeId};
@@ -85,9 +86,18 @@ pub fn block_status(prefs: &Prefs) -> Msg {
     }
 }
 
-/// Draws the box in the view it was drawn in, with the Mesh tool's box colors.
 pub fn paint(painter: &Painter, cam: &Camera, rect: Rect, state: &EditorState) {
-    let Some(b) = state.selection_box.filter(|b| b.view == cam.kind) else { return };
+    if let Some(b) = &state.selection_box {
+        paint_box(painter, cam, rect, b);
+    }
+}
+
+/// Draws `b` in the view it was drawn in, with the Mesh tool's box colors.
+pub fn paint_box(painter: &Painter, cam: &Camera, rect: Rect, b: &SelectionBox) {
+    if b.view != cam.kind {
+        return;
+    }
+
     let (Some(p), Some(q)) = (cam.project(rect, b.a), cam.project(rect, b.b)) else { return };
     let r = Rect::from_two_pos(p, q);
     painter.rect_filled(r, 0.0, Color32::from_rgba_unmultiplied(255, 160, 60, 20));

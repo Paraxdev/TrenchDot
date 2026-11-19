@@ -128,6 +128,9 @@ and small blue dots on the edge midpoints and face centers.
 * Drag a handle to move that corner.
 * Click a dot to select it, or drag it away from the brush to add a corner there.
 * Press Delete to remove the selected vertices.
+* With the Hammer preset, drag across empty space in a 2D view to select every corner inside the box, Ctrl+drag adds
+  them to the selected ones. In the Top view that takes the top and bottom corners alike, so a drag on one of them then
+  moves the whole edge.
 
 In the 3D view a dot slides straight out of the brush, so look at its face or edge from a bit to the side, a dot
 pointing right at the camera does not move.
