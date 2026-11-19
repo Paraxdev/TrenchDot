@@ -1660,6 +1660,7 @@ fn context_menu(ui: &mut Ui, state: &EditorState, actions: &mut Vec<Action>) {
     if !td_doc::linked::sets_touched(&state.doc.map, &state.doc.selection).is_empty() {
         let at = entries.iter().position(|e| matches!(e, Some((_, Action::Ungroup)))).map_or(0, |i| i + 1);
         entries.insert(at, Some((en!("Select Linked Groups"), Action::SelectLinkedGroups)));
+        entries.insert(at + 1, Some((en!("Separate Linked Groups"), Action::UnlinkGroups)));
     }
 
     for entry in entries {
@@ -1791,6 +1792,7 @@ mod tests {
         harness.run();
         assert_eq!(harness.state().actions, [Action::Group]);
         assert!(harness.query_by_label("Verknüpfte Gruppen auswählen").is_none(), "only a linked selection offers it");
+        assert!(harness.query_by_label("Verknüpfte Gruppen trennen").is_none(), "only a linked selection offers it");
 
         let doc = &mut harness.state_mut().state.doc;
         doc.edit("Duplicate Linked", |m, s| {
@@ -1806,6 +1808,9 @@ mod tests {
         harness.get_by_label("Verknüpfte Gruppen auswählen").click();
         harness.run();
         assert_eq!(harness.state().actions, [Action::Group, Action::SelectLinkedGroups]);
+        harness.get_by_label("Verknüpfte Gruppen trennen").click();
+        harness.run();
+        assert_eq!(harness.state().actions, [Action::Group, Action::SelectLinkedGroups, Action::UnlinkGroups]);
     }
 
     #[test]

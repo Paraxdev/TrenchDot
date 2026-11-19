@@ -113,6 +113,9 @@ mode.
 | Ctrl+H, Ctrl+J, Ctrl+Shift+H | Hide the selection, isolate it by hiding everything else, show all |
 | Arrows, Page Up, Page Down | Nudge by one grid step |
 
+*Select Linked Groups* and *Separate Linked Groups* in the *Edit > Groups* menu have no default key. Use the menu, the
+right-click menu of the view, or bind a key to either one on the **Keys** tab.
+
 ## Brushes, meshes and textures
 
 | Key | Action |
