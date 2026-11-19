@@ -320,6 +320,10 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
         out.retain(|(_, a)| !matches!(a, Action::OpenGodotEditor) && (runs || !matches!(a, Action::RunGodotProject)));
     }
 
+    if td_doc::mirror::drifted(&state.doc.map, &state.doc.selection).is_empty() {
+        out.retain(|(_, a)| *a != Action::MirrorAgain);
+    }
+
     out
 }
 
@@ -2726,6 +2730,27 @@ mod tests {
         let apply = Action::ApplyMirror { distance: td_doc::symmetry::MIRROR_TOLERANCE };
         assert_eq!(label(apply), Some("Group: Apply Mirror".to_string()));
         assert!(!entries.iter().any(|(l, _)| l.en.starts_with("Transform: Mirror") || l.en == "Transform: Apply Mirror"));
+    }
+
+    #[test]
+    fn the_palette_offers_mirror_again_only_for_a_slid_half() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(crate::state::Prefs::default());
+        let offered = |state: &EditorState| palette_entries(state).iter().any(|(_, a)| *a == Action::MirrorAgain);
+        let first = |state: &EditorState| ranked("mirror", palette_entries(state))[0].1.en.clone();
+        let layer = state.doc.map.default_layer();
+        state.doc.edit("add", |m, s| {
+            let id = m.insert(layer, NodeKind::Brush(Brush::from_aabb(&Aabb::new(DVec3::new(8.0, 0.0, 0.0), DVec3::new(40.0, 32.0, 32.0)), "wall").unwrap()));
+            s.select_node(id);
+        });
+        assert!(!offered(&state), "nothing is mirrored");
+        assert!(first(&state).starts_with("Group: Mirror Linked"), "{}", first(&state));
+
+        commands::execute(&mut state, Action::MirrorLinked { axis: 0, gap: 0.0 }, &ctx);
+        assert!(!state.status_failed(), "{}", state.status);
+        assert!(!offered(&state), "the halves sit across their plane");
+        state.doc.edit("slide", |m, s| td_doc::ops::translate_selection(m, s, DVec3::new(0.0, 0.0, 12.0), td_doc::ops::EditOptions::default()));
+        assert!(offered(&state), "a slid half can be mirrored again");
     }
 
     #[test]
