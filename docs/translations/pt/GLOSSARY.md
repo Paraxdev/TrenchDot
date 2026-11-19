@@ -44,7 +44,7 @@ Uma entidade que tira sua forma de brushes que você construiu, como uma porta, 
 Um quadrado da grade de um terreno, entre quatro vértices vizinhos. Um terreno tem um número inteiro de células ao longo de X e de Z, e o tamanho da célula é a distância em unidades de mapa entre dois vértices. Redimensionar um terreno adiciona ou remove células inteiras.
 
 ## clipmap { #clipmap data-forms="clipmaps" }
-Uma forma de desenhar uma paisagem enorme: um conjunto fixo de anéis quadrados ao redor da câmera, em que cada anel tem metade do detalhe do anterior e o conjunto todo se move com a câmera. O chão próximo é desenhado com detalhe e o distante de forma grosseira, então o custo é o mesmo, seja qual for o tamanho do mundo. O TrenchDot desenha o Terrain3D com um, como o próprio Terrain3D.
+Uma forma de desenhar uma paisagem enorme: um conjunto fixo de anéis quadrados ao redor da câmera, em que cada anel tem metade do detalhe do anterior e o conjunto todo se move com a câmera. O chão próximo é desenhado com detalhe e o distante de forma grosseira, então o custo é o mesmo, seja qual for o tamanho do mundo. O TrenchDot desenha os próprios terrenos e o Terrain3D com um.
 
 ## mapa de cor { #color-map data-forms="mapas de cor" }
 Uma imagem que o Terrain3D guarda por região, com uma cor para cada vértice. A cor tinge as texturas do chão ali, assim um trecho de grama pode parecer mais seco, mais escuro ou mais lamacento sem uma textura própria. O seu alfa guarda a umidade.

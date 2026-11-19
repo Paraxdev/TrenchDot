@@ -44,7 +44,7 @@ Una entidad que toma su forma de brushes que construiste, como una puerta, un bo
 Un cuadrado de la cuadrícula de un terreno, entre cuatro vértices vecinos. Un terreno tiene un número entero de celdas a lo largo de X y de Z, y el tamaño de celda es la distancia en unidades de mapa entre dos vértices. Al cambiar el tamaño de un terreno se añaden o se quitan celdas enteras.
 
 ## clipmap { #clipmap data-forms="clipmaps" }
-Una forma de dibujar un paisaje enorme: un conjunto fijo de anillos cuadrados alrededor de la cámara, donde cada anillo tiene la mitad de detalle que el interior y todo el conjunto se mueve con la cámara. El suelo cercano se dibuja con detalle y el lejano de forma tosca, así que el coste es el mismo sea cual sea el tamaño del mundo. TrenchDot dibuja Terrain3D con uno, igual que el propio Terrain3D.
+Una forma de dibujar un paisaje enorme: un conjunto fijo de anillos cuadrados alrededor de la cámara, donde cada anillo tiene la mitad de detalle que el interior y todo el conjunto se mueve con la cámara. El suelo cercano se dibuja con detalle y el lejano de forma tosca, así que el coste es el mismo sea cual sea el tamaño del mundo. TrenchDot dibuja sus propios terrenos y Terrain3D con uno.
 
 ## mapa de color { #color-map data-forms="mapas de color" }
 Una imagen que Terrain3D guarda por región, con un color para cada vértice. El color tiñe las texturas del suelo en ese punto, así una zona de hierba puede verse más seca, más oscura o más embarrada sin una textura propia. Su alfa guarda la humedad.

@@ -44,7 +44,7 @@ Eine Entität, die ihre Form von Brushes bekommt, die du gebaut hast, etwa eine 
 Ein Quadrat im Raster eines Terrains, zwischen vier benachbarten Vertices. Ein Terrain hat entlang X und Z eine ganze Zahl von Zellen, und die Zellgröße ist der Abstand in Karteneinheiten zwischen zwei Vertices. Wenn du die Größe eines Terrains änderst, kommen ganze Zellen hinzu oder fallen weg.
 
 ## Clipmap { #clipmap data-forms="Clipmaps" }
-Eine Art, eine riesige Landschaft zu zeichnen: ein fester Satz quadratischer Ringe um die Kamera, wobei jeder Ring halb so fein ist wie der innere und der ganze Satz mit der Kamera wandert. Der Boden in der Nähe wird fein gezeichnet und der ferne grob, so bleibt der Aufwand gleich, egal wie groß die Welt ist. TrenchDot zeichnet Terrain3D mit einer, so wie Terrain3D selbst.
+Eine Art, eine riesige Landschaft zu zeichnen: ein fester Satz quadratischer Ringe um die Kamera, wobei jeder Ring halb so fein ist wie der innere und der ganze Satz mit der Kamera wandert. Der Boden in der Nähe wird fein gezeichnet und der ferne grob, so bleibt der Aufwand gleich, egal wie groß die Welt ist. TrenchDot zeichnet seine eigenen Terrains und Terrain3D mit einer.
 
 ## Farbkarte { #color-map data-forms="Farbkarten" }
 Ein Bild, das Terrain3D pro Region führt, mit einer Farbe für jeden Vertex. Die Farbe tönt dort die Texturen des Bodens, so kann ein Stück Gras trockener, dunkler oder schlammiger aussehen, ohne eine eigene Textur. Ihr Alphakanal hält die Nässe.

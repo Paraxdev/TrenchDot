@@ -77,8 +77,24 @@ big cells, a garden small ones.
 
 Picked wrong? You can [change the size](#changing-the-size) any time after creating the terrain.
 
-**Chunk cells** in the Inspector (32 by default) splits the terrain into square pieces for drawing and collision.
-Smaller chunks rebuild faster while sculpting, larger ones mean fewer nodes in Godot.
+**Chunk cells** in the Inspector (32 by default) splits the terrain into square pieces, and each piece becomes a mesh
+with its own collision in Godot. Larger chunks mean fewer nodes there. The editor draws the terrain in these pieces
+only while level of detail is off, see [Big terrains](#big-terrains).
+
+## Big terrains
+
+The editor draws far ground with fewer triangles than near ground, so even a terrain of 1025 by 1025 vertices stays
+quick to orbit around and sculpt. It does this with a clipmap, rings of ground around the camera that get coarser
+the farther out they are and follow the camera as it moves. Painted layers and holes stay sharp at any distance, only
+the outline of far hills gets a little simpler.
+
+To see every cell at full detail, untick **View > Terrain Level of Detail** in the menu bar. It is on by default and
+the editor remembers your choice. Turn it off when you want to check the exact shape of distant ground.
+
+![The View menu with Terrain Level of Detail ticked and its tooltip showing](../assets/terrain/view-terrain-lod.png)
+
+A terrain the graphics card cannot hold is drawn at full detail instead, and the status bar says so. Godot builds the
+same terrain either way, the setting only changes how the editor draws it.
 
 ## Changing the size
 
@@ -271,5 +287,9 @@ the result first. `fill` is `edge` or `zero` and `scatter` is `drop` or `keep`, 
 [MCP](../mcp.md) for the limits.
 
 Tiles are the `sculpt` op with `mode: "add_tile"` or `"remove_tile"` and a `center` on or beside the terrain.
+
+`terrain_edit` with `op: "info"` says how the editor draws a terrain: `drawn` is `clipmap`, `chunks` or `hidden`, and
+`fallback` says why a terrain is drawn in chunks while level of detail is on. `set_editor` with `terrain_lod` is the
+**View > Terrain Level of Detail** switch.
 
 </div>

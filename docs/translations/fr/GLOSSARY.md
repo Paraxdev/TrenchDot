@@ -44,7 +44,7 @@ Une entité dont la forme vient de brushes que vous avez construits, comme une p
 Un carré de la grille d'un terrain, entre quatre sommets voisins. Un terrain compte un nombre entier de cellules le long de X et de Z, et la taille de cellule est la distance en unités de carte entre deux sommets. Redimensionner un terrain ajoute ou retire des cellules entières.
 
 ## clipmap { #clipmap data-forms="clipmaps" }
-Une façon de dessiner un immense paysage: un ensemble fixe d'anneaux carrés autour de la caméra, où chaque anneau a deux fois moins de détail que celui qu'il entoure, le tout suivant la caméra. Le sol proche est dessiné finement et le sol lointain grossièrement, donc le coût reste le même quelle que soit la taille du monde. TrenchDot dessine Terrain3D avec une clipmap, comme Terrain3D lui-même.
+Une façon de dessiner un immense paysage: un ensemble fixe d'anneaux carrés autour de la caméra, où chaque anneau a deux fois moins de détail que celui qu'il entoure, le tout suivant la caméra. Le sol proche est dessiné finement et le sol lointain grossièrement, donc le coût reste le même quelle que soit la taille du monde. TrenchDot dessine ses propres terrains et Terrain3D avec une clipmap.
 
 ## carte de couleur { #color-map data-forms="cartes de couleur" }
 Une image que Terrain3D garde par région, avec une couleur pour chaque sommet. La couleur teinte les textures du sol à cet endroit, ainsi une zone d'herbe peut paraître plus sèche, plus sombre ou plus boueuse sans texture à elle. Son alpha contient l'humidité.

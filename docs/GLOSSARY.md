@@ -40,7 +40,7 @@ An entity that takes its shape from brushes you built, such as a door, a button 
 One square of a terrain's grid, between four neighboring vertices. A terrain is a whole number of cells along X and Z, and the cell size is the distance in map units between two vertices. Resizing a terrain adds or removes whole cells.
 
 ## clipmap
-A way to draw a huge landscape: a fixed set of square rings around the camera, where each ring has half the detail of the one inside it and the whole set moves with the camera. Near ground is drawn finely and far ground coarsely, so the cost stays the same however big the world is. TrenchDot draws Terrain3D with one, the way Terrain3D does.
+A way to draw a huge landscape: a fixed set of square rings around the camera, where each ring has half the detail of the one inside it and the whole set moves with the camera. Near ground is drawn finely and far ground coarsely, so the cost stays the same however big the world is. TrenchDot draws its own terrains and Terrain3D with one.
 
 ## color map
 An image Terrain3D keeps per region with one color for every vertex. The color tints the textures of the ground there, so a patch of grass can look drier, darker or muddier without a texture of its own. Its alpha holds the wetness.
