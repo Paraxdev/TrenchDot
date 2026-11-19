@@ -3,6 +3,7 @@
 
 pub mod layout;
 pub mod look;
+pub mod native;
 pub mod noise;
 
 use glam::{DVec2, I64Vec2, Mat4, Vec3};
@@ -642,7 +643,7 @@ impl ClipmapAlbedo {
     }
 }
 
-/// Every clipmap texture has 4 byte texels.
+/// `data` holds `h` rows of `w` texels.
 fn write(queue: &wgpu::Queue, texture: &wgpu::Texture, origin: wgpu::Origin3d, [w, h]: [u32; 2], data: &[u8]) {
     if w == 0 || h == 0 {
         return;
@@ -651,7 +652,7 @@ fn write(queue: &wgpu::Queue, texture: &wgpu::Texture, origin: wgpu::Origin3d, [
     queue.write_texture(
         wgpu::TexelCopyTextureInfo { texture, mip_level: 0, origin, aspect: wgpu::TextureAspect::All },
         data,
-        wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(w * 4), rows_per_image: Some(h) },
+        wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(data.len() as u32 / h), rows_per_image: Some(h) },
         wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
     );
 }
@@ -680,7 +681,7 @@ mod tests {
         }
     }
 
-    fn device(noop: bool) -> (wgpu::Device, wgpu::Queue) {
+    pub(super) fn device(noop: bool) -> (wgpu::Device, wgpu::Queue) {
         let descriptor = if noop {
             let mut d = wgpu::InstanceDescriptor::new_without_display_handle();
             d.backends = wgpu::Backends::NOOP;
@@ -694,7 +695,7 @@ mod tests {
         block_on(adapter.request_device(&wgpu::DeviceDescriptor::default())).unwrap()
     }
 
-    fn top_down(eye: Vec3, half: [f32; 2]) -> Mat4 {
+    pub(super) fn top_down(eye: Vec3, half: [f32; 2]) -> Mat4 {
         orthographic(-half[0], half[0], -half[1], half[1], 1.0, 100_000.0) * look_to_mat4(eye, Vec3::NEG_Y, Vec3::NEG_Z)
     }
 

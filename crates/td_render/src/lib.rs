@@ -627,6 +627,7 @@ pub struct Renderer {
     material_bgl: wgpu::BindGroupLayout,
     terrain_bgl: wgpu::BindGroupLayout,
     clipmap_bgl: wgpu::BindGroupLayout,
+    terrain_clip_bgl: wgpu::BindGroupLayout,
     lightmap_bgl: wgpu::BindGroupLayout,
     lightmap_bg: wgpu::BindGroup,
     lightmap_buffer: wgpu::Buffer,
@@ -743,6 +744,7 @@ impl Renderer {
             ],
         });
         let clipmap_bgl = clipmap::bind_group_layout(&device);
+        let terrain_clip_bgl = clipmap::native::bind_group_layout(&device);
         let lightmap_bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("light map"),
             entries: &[
@@ -1169,6 +1171,7 @@ impl Renderer {
             material_bgl,
             terrain_bgl,
             clipmap_bgl,
+            terrain_clip_bgl,
             lightmap_bgl,
             lightmap_bg,
             lightmap_buffer,
@@ -1711,6 +1714,15 @@ impl Renderer {
         }
 
         clipmap::GpuClipmap::new(&self.device, &self.queue, &self.clipmap_bgl, desc)
+    }
+
+    /// GPU textures for one native terrain of `resolution` vertices, Err when the GPU cannot hold it.
+    pub fn new_terrain_clipmap(&self, resolution: [u32; 2]) -> Result<clipmap::native::TerrainClipmap, String> {
+        if let Some(reason) = self.lost() {
+            return Err(format!("the GPU device was lost ({reason})"));
+        }
+
+        clipmap::native::TerrainClipmap::new(&self.device, &self.queue, &self.terrain_clip_bgl, resolution)
     }
 
     /// Triangles the clipmaps put on screen in the last view that drew any, after culling.
@@ -2383,6 +2395,7 @@ mod tests {
         assert_eq!(std::mem::size_of::<super::MaterialUniform>(), 80);
         assert_eq!(std::mem::size_of::<super::TerrainUniform>(), 176);
         assert_eq!(std::mem::size_of::<super::clipmap::ClipmapUniform>(), 11 * 16 + 256 * 16 + 32 * 48);
+        assert_eq!(std::mem::size_of::<super::clipmap::native::TerrainClipUniform>(), 64);
         assert_eq!(std::mem::size_of::<super::LightsUniform>(), 28 * 4 + 64 + super::MAX_LIGHTS * 48);
         assert_eq!(std::mem::size_of::<super::WaterUniform>(), 32);
     }
