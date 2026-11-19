@@ -2480,10 +2480,8 @@ impl App {
                 shapes::arch(&bounds, sides, thickness, angle, &material)
             }
             "tunnel" => {
-                let profile = match args["profile"].as_str().map(shapes::TunnelProfile::parse) {
-                    None => shapes::TunnelProfile::OpenBottom,
-                    Some(Some(profile)) => profile,
-                    Some(None) => return err("profile is open_bottom, closed, arched or round"),
+                let Some((profile, floor)) = shapes::TunnelProfile::parse(args["profile"].as_str().unwrap_or("square")) else {
+                    return err("profile is square, arched, round, open_bottom or closed");
                 };
                 if profile == shapes::TunnelProfile::Arched && sides < 2 {
                     return err("an arched tunnel needs at least 2 sides, one side would lie flat and leave no roof");
@@ -2495,7 +2493,8 @@ impl App {
                     adjusted.push(("thickness", wall, format!("thickness {thickness} {why}, the walls are {} thick", round2(wall))));
                 }
 
-                shapes::tunnel(&bounds, &shapes::Tunnel { profile, sides, thickness, ..Default::default() }, &material)
+                let (floor, ceiling) = (args["floor"].as_bool().unwrap_or(floor), args["ceiling"].as_bool().unwrap_or(true));
+                shapes::tunnel(&bounds, &shapes::Tunnel { profile, sides, thickness, floor, ceiling, ..Default::default() }, &material)
             }
             "pipe" => shapes::pipe(&bounds, sides, thickness, &material),
             "stairs" => shapes::stairs(&bounds, args["steps"].as_u64().unwrap_or(8) as usize, &material),

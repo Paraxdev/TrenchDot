@@ -3207,12 +3207,26 @@ fn a_tunnel_makes_its_pieces_for_every_profile() {
 
         args
     };
-    assert_eq!(count(tunnel(0, None)), Some(3), "open_bottom by default");
-    for (i, (profile, pieces)) in [("open_bottom", 3), ("closed", 4), ("arched", 8), ("round", 6)].into_iter().enumerate() {
+    assert_eq!(count(tunnel(0, None)), Some(3), "square without a floor by default");
+    for (i, (profile, pieces)) in [("open_bottom", 3), ("closed", 4), ("arched", 8), ("round", 6), ("square", 3)].into_iter().enumerate() {
         assert_eq!(count(tunnel(200 * (i as i32 + 1), Some(profile))), Some(pieces), "{profile}");
     }
 
-    assert!(ed.call_err("create_brush", tunnel(0, Some("triangle"))).contains("profile is"));
+    let toggled = |profile: &str, toggles: Value| {
+        let mut args = tunnel(-300, Some(profile));
+        args.as_object_mut().unwrap().extend(toggles.as_object().unwrap().clone());
+        count(args)
+    };
+    assert_eq!(toggled("closed", json!({ "floor": false })), Some(3), "an explicit floor overrides the profile");
+    assert_eq!(toggled("open_bottom", json!({ "floor": true })), Some(4));
+    assert_eq!(toggled("square", json!({ "ceiling": false })), Some(2), "an open trench");
+    assert_eq!(toggled("square", json!({ "floor": true, "ceiling": false })), Some(3));
+    assert_eq!(toggled("arched", json!({ "floor": true, "ceiling": false })), Some(9), "an arch keeps its roof");
+    assert_eq!(toggled("round", json!({ "floor": false, "ceiling": false })), Some(6), "a round tube ignores both");
+    for wrong in ["triangle", "tube", ""] {
+        assert!(ed.call_err("create_brush", tunnel(0, Some(wrong))).contains("profile is square, arched, round"), "{wrong:?}");
+    }
+
     for sides in [0, 1] {
         let mut flat = tunnel(0, Some("arched"));
         flat["sides"] = json!(sides);

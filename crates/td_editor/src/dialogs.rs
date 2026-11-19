@@ -622,8 +622,7 @@ impl Default for ShapeDialog {
 
 fn profile_label(profile: shapes::TunnelProfile) -> &'static str {
     match profile {
-        shapes::TunnelProfile::OpenBottom => en!("Open bottom"),
-        shapes::TunnelProfile::Closed => en!("Closed"),
+        shapes::TunnelProfile::Square => en!("Square"),
         shapes::TunnelProfile::Arched => en!("Arched"),
         shapes::TunnelProfile::Round => en!("Round"),
     }
@@ -826,6 +825,18 @@ impl ShapeDialog {
         });
     }
 
+    fn tunnel_fields(&mut self, ui: &mut egui::Ui) {
+        let square = self.tunnel.profile == shapes::TunnelProfile::Square;
+        if square || self.tunnel.profile == shapes::TunnelProfile::Arched {
+            ui.horizontal(|ui| {
+                ui.checkbox(&mut self.tunnel.floor, tr("Floor")).on_hover_text(tr("Closes the bottom with a slab as thick as the walls"));
+                if square {
+                    ui.checkbox(&mut self.tunnel.ceiling, tr("Ceiling")).on_hover_text(tr("Closes the top, without it a square tunnel is an open trench"));
+                }
+            });
+        }
+    }
+
     pub fn show(&mut self, ctx: &egui::Context, state: &mut EditorState) {
         if !self.open {
             if self.preview.take().is_some() {
@@ -890,6 +901,10 @@ impl ShapeDialog {
                         .prefix(format!("{} ", tr(if self.kind == ShapeKind::SpiralStairs { en!("inner radius") } else { en!("thickness") })))
                         .suffix(" u"),
                 );
+            }
+
+            if self.kind == ShapeKind::Tunnel {
+                self.tunnel_fields(ui);
             }
 
             if matches!(self.kind, ShapeKind::Cylinder | ShapeKind::Cone) {
@@ -2245,6 +2260,8 @@ mod tests {
         assert_eq!(key(ShapeKind::Wedge, 90.0, a), key(ShapeKind::Wedge, 180.0, b));
         assert_eq!(key(ShapeKind::Tunnel, 90.0, a), key(ShapeKind::Tunnel, 180.0, a));
         assert_ne!(key(ShapeKind::Tunnel, 90.0, a), key(ShapeKind::Tunnel, 90.0, b));
+        assert_ne!(key(ShapeKind::Tunnel, 90.0, a), key(ShapeKind::Tunnel, 90.0, shapes::Tunnel { floor: true, ..a }));
+        assert_ne!(key(ShapeKind::Tunnel, 90.0, a), key(ShapeKind::Tunnel, 90.0, shapes::Tunnel { ceiling: false, ..a }));
         for kind in [ShapeKind::Arch, ShapeKind::ArchWall] {
             assert_eq!(key(kind, 90.0, a), key(kind, 90.0, b));
             assert_ne!(key(kind, 90.0, a), key(kind, 180.0, a));
@@ -2810,12 +2827,20 @@ mod tests {
 
     #[test]
     fn shape_dialog_builds_a_tunnel_per_profile() {
-        let bounds = Aabb::new(DVec3::new(0.0, 0.0, 0.0), DVec3::new(128.0, 96.0, 256.0));
-        for (profile, count) in
-            [(shapes::TunnelProfile::OpenBottom, 3), (shapes::TunnelProfile::Closed, 4), (shapes::TunnelProfile::Arched, 10), (shapes::TunnelProfile::Round, 8)]
-        {
-            let d = ShapeDialog { kind: ShapeKind::Tunnel, tunnel: shapes::Tunnel { profile, ..Default::default() }, sides: 8, ..Default::default() };
-            assert_eq!(d.generate(&bounds, "m").len(), count, "{profile:?}");
+        let bounds = Aabb::new(DVec3::new(-24.0, 8.0, 40.0), DVec3::new(104.0, 104.0, 296.0));
+        for (profile, floor, ceiling, count) in [
+            (shapes::TunnelProfile::Square, false, false, 2),
+            (shapes::TunnelProfile::Square, false, true, 3),
+            (shapes::TunnelProfile::Square, true, false, 3),
+            (shapes::TunnelProfile::Square, true, true, 4),
+            (shapes::TunnelProfile::Arched, false, true, 10),
+            (shapes::TunnelProfile::Arched, true, false, 11),
+            (shapes::TunnelProfile::Round, false, true, 8),
+            (shapes::TunnelProfile::Round, true, false, 8),
+        ] {
+            let tunnel = shapes::Tunnel { profile, floor, ceiling, ..Default::default() };
+            let d = ShapeDialog { kind: ShapeKind::Tunnel, tunnel, sides: 8, ..Default::default() };
+            assert_eq!(d.generate(&bounds, "m").len(), count, "{profile:?} floor {floor} ceiling {ceiling}");
         }
 
         let arched = |angle| {
@@ -2823,6 +2848,32 @@ mod tests {
             ShapeDialog { kind: ShapeKind::Tunnel, tunnel, angle, ..Default::default() }.generate(&bounds, "m")
         };
         assert_eq!(arched(90.0), arched(180.0), "an arch angle left in the dialog does not reach the tunnel");
+    }
+
+    #[test]
+    fn the_tunnel_toggles_follow_the_profile() {
+        use egui_kittest::kittest::Queryable;
+        for (profile, floor, ceiling) in
+            [(shapes::TunnelProfile::Square, true, true), (shapes::TunnelProfile::Arched, true, false), (shapes::TunnelProfile::Round, false, false)]
+        {
+            let dialog = ShapeDialog { kind: ShapeKind::Tunnel, tunnel: shapes::Tunnel { profile, ..Default::default() }, ..Default::default() };
+            let mut harness =
+                egui_kittest::Harness::builder().with_size(egui::vec2(480.0, 80.0)).build_ui_state(|ui, d: &mut ShapeDialog| d.tunnel_fields(ui), dialog);
+            harness.run();
+            assert_eq!(harness.query_by_label("Floor").is_some(), floor, "{profile:?} Floor");
+            assert_eq!(harness.query_by_label("Ceiling").is_some(), ceiling, "{profile:?} Ceiling");
+            if floor {
+                harness.get_by_label("Floor").click();
+                harness.run();
+                assert!(harness.state().tunnel.floor, "{profile:?} Floor ticks the floor on");
+            }
+
+            if ceiling {
+                harness.get_by_label("Ceiling").click();
+                harness.run();
+                assert!(!harness.state().tunnel.ceiling, "{profile:?} Ceiling takes the ceiling off");
+            }
+        }
     }
 
     #[test]
