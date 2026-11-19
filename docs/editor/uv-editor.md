@@ -15,7 +15,8 @@ Face mode first, a click in a view then picks the face. The top line names the m
 and how many faces you have.
 
 The tab draws one material at a time. When the selected faces use several materials, it shows only the faces with the
-material the top line names, and that line then ends like "2 of 6 faces, other materials left out". Select faces that share a material to lay them out together.
+material the top line names. That line then ends like "2 of 6 faces", and a second line below it says "Other materials
+left out". Select faces that share a material to lay them out together.
 
 ![The UV Editor with one wall face selected, drawn as an orange rectangle over the tiled showcase/plaster texture](../assets/uv-editor/uv-editor-face.png)
 
