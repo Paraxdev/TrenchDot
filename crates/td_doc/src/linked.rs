@@ -934,10 +934,8 @@ pub(crate) mod tests {
         assert_uv_edits_stay(&mut doc, [group, mirrored]);
     }
 
-    #[test]
-    fn a_carve_across_the_mirror_joint_is_not_a_conflict() {
-        let mut doc = Document::new();
-        let (group, mirrored) = mirrored_pair(&mut doc, NodeKind::Brush(wedge()));
+    /// Carves a box straddling the mirror joint out of both halves.
+    fn carve_across_the_joint(doc: &mut Document) -> (usize, NodeId) {
         let layer = doc.map.default_layer();
         let cutter = doc.edit("cutter", |m, s| {
             let id = m.insert(layer, NodeKind::Brush(Brush::from_aabb(&Aabb::new(DVec3::new(30.0, 8.0, 8.0), DVec3::new(50.0, 24.0, 16.0)), "cut").unwrap()));
@@ -946,11 +944,48 @@ pub(crate) mod tests {
             id
         });
         let (cut, _) = doc.edit("carve", |m, s| ops::csg_subtract(m, s, td_geom::csg::CarveMaterial::Target));
+        (cut, cutter)
+    }
+
+    #[test]
+    fn a_carve_across_the_mirror_joint_is_not_a_conflict() {
+        let mut doc = Document::new();
+        let (group, mirrored) = mirrored_pair(&mut doc, NodeKind::Brush(wedge()));
+        let (cut, cutter) = carve_across_the_joint(&mut doc);
         assert_eq!(cut, 2);
         assert!(!doc.take_link_conflict(), "the carve was refused");
         assert!(!doc.map.contains(cutter));
         let (a, b) = (&doc.map.get(group).unwrap().children, &doc.map.get(mirrored).unwrap().children);
         assert_eq!(a.len(), b.len());
         assert!(a.len() > 1);
+    }
+
+    /// Paints every corner of the brushes in `groups` by where it sits in the shared space of the set.
+    fn paint_by_position(doc: &mut Document, groups: &[NodeId]) {
+        doc.edit("paint", |m, _| {
+            for g in groups {
+                let shared = group_transform(m, *g).inverse();
+                for id in m.get(*g).unwrap().children.clone() {
+                    let b = m.brush_mut(id).unwrap();
+                    let vertices = b.vertices.clone();
+                    for f in &mut b.faces {
+                        let corner = |i: &u32| shared.transform_point3(vertices[*i as usize]).as_vec3() / 64.0;
+                        f.data.colors = f.indices.iter().map(corner).map(|p| [p.x, p.y, p.z, 1.0]).collect();
+                    }
+                }
+            }
+        });
+    }
+
+    #[test]
+    fn painting_both_halves_and_carving_them_are_not_conflicts() {
+        let mut doc = Document::new();
+        let (group, mirrored) = mirrored_pair(&mut doc, NodeKind::Brush(wedge()));
+        paint_by_position(&mut doc, &[group, mirrored]);
+        assert!(!doc.take_link_conflict(), "painting both halves was refused");
+        assert_eq!(carve_across_the_joint(&mut doc).0, 2);
+        assert!(!doc.take_link_conflict(), "the carve of a painted pair was refused");
+        paint_by_position(&mut doc, &[group, mirrored]);
+        assert!(!doc.take_link_conflict(), "painting both carved halves was refused");
     }
 }
