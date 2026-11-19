@@ -2469,6 +2469,7 @@ impl App {
 
         if let Some(k) = keymap {
             self.state.prefs.keymap_preset = k.into();
+            self.settle_keymap_change();
         }
 
         if let Some(scale) = args["ui_scale"].as_f64() {

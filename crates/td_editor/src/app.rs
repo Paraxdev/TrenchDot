@@ -106,6 +106,8 @@ pub struct App {
     confirm_close: bool,
     offscreen: bool,
     mouse_look: Option<MouseLook>,
+    /// The keymap preset the last frame ran with, see `App::settle_keymap_change`.
+    keymap_seen: String,
     /// Presses that ended mouse look, held back from the UI until their buttons come up.
     held_presses: usize,
     /// Asking whether to save the active map before its tab closes.
@@ -1097,6 +1099,7 @@ impl App {
             confirm_close: false,
             offscreen: args.offscreen,
             mouse_look: None,
+            keymap_seen: String::new(),
             held_presses: 0,
             confirm_tab_close: false,
             allow_close: false,
@@ -1394,6 +1397,21 @@ impl App {
         // A key pressed in the frame the pointer arrives comes before the view has seen it hover.
         let under = |v: &crate::viewport::Viewport| under_pointer(v.hovered, v.rect, self.pointer, self.pointer_over_window);
         open_views(&self.dock).into_iter().find(|i| self.viewports.get(*i).is_some_and(under))
+    }
+
+    /// Ends the selection box and mouse look once the keymap preset changed, by any of the Preferences, the Keyboard
+    /// Shortcuts window, the first start card or MCP. The keys that would end them may not exist in the new preset.
+    pub(crate) fn settle_keymap_change(&mut self) {
+        if self.keymap_seen == self.state.prefs.keymap_preset {
+            return;
+        }
+
+        self.keymap_seen.clone_from(&self.state.prefs.keymap_preset);
+        self.state.drop_selection_box();
+        if self.viewports.iter().any(|v| v.mouse_look) {
+            self.viewports.iter_mut().for_each(|v| v.mouse_look = false);
+            self.state.clear_status();
+        }
     }
 
     /// Starts mouse look in the 3D view under the pointer, or the shown 3D view when the pointer is on no view, as from
@@ -3378,6 +3396,7 @@ impl eframe::App for App {
         self.state.refresh_instance_extents();
         self.state.validate_insert_context();
         self.tools.sync(&self.state);
+        self.settle_keymap_change();
         self.collect_input_actions(&ctx);
         // The click that closes a menu must not also select or draw in the view under it. Menus close as the frame
         // runs, so the views need to know whether one was open when it started.

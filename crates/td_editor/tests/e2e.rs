@@ -4522,6 +4522,33 @@ fn hammer_select_box_waits_for_enter_or_a_click_inside() {
 
 #[test]
 #[ignore]
+fn changing_the_keymap_ends_the_selection_box_and_mouse_look() {
+    let ed = Editor::launch("keymap_switch_ends");
+    ed.box_brush([0.0, 0.0, 0.0], [64.0, 64.0, 64.0]);
+    ed.call("set_editor", json!({ "keymap": "hammer" }));
+    ed.call("set_camera", json!({ "view": "top", "center": [0, 0, 0], "zoom": 1.0 }));
+    ed.call("run_action", json!({ "action": "select_none" }));
+    let editor = || ed.state()["editor"].clone();
+    let status = || ed.state()["status"].as_str().unwrap().to_string();
+
+    ed.input("top", json!([{ "type": "drag", "world": [-96, 0, -96], "to_world": [-40, 0, -40] }]));
+    assert!(!editor()["selection_box"].is_null());
+    assert!(status().starts_with("Press Enter or click inside the box"), "{}", status());
+    ed.call("set_editor", json!({ "keymap": "trenchbroom" }));
+    assert!(editor()["selection_box"].is_null(), "the box goes with the preset that drew it");
+    assert!(!status().starts_with("Press Enter"), "{}", status());
+
+    ed.call("set_editor", json!({ "keymap": "hammer" }));
+    ed.call("set_camera", json!({ "view": "3d", "position": [-300, 250, 300], "look_at": [32, 32, 32] }));
+    ed.input("3d", json!([{ "type": "move", "world": [32, 32, 32] }, { "type": "key", "key": "Z" }]));
+    assert_eq!(editor()["mouse_look"], true);
+    ed.call("set_editor", json!({ "keymap": "trenchbroom" }));
+    assert_eq!(editor()["mouse_look"], false, "TrenchBroom has no Z to stop it");
+    assert!(!status().starts_with("Mouse look:"), "{}", status());
+}
+
+#[test]
+#[ignore]
 fn hammer_space_drag_pans_and_looks() {
     let ed = Editor::launch("hammer_space_drag");
     let a = ed.box_brush([0.0, 0.0, 0.0], [64.0, 64.0, 64.0]);
