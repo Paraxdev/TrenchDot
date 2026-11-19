@@ -306,6 +306,7 @@ impl EditorState {
         self.terrain3d.upm = self.game.units_per_meter;
         self.terrain3d.recheck();
         self.terrain3d.refresh(&cache);
+        self.terrain3d.finish_scan(&cache, super::terrain3d_tools::SCAN_TIMEOUT)?;
         if self.terrain3d.source(&cache).is_none() {
             self.export_terrain3d_cache(&cache)?;
         }
@@ -398,6 +399,7 @@ impl App {
         Ok(json!({
             "id": id.0,
             "data_directory": link.data_directory,
+            "source": if state.terrain3d.from_files(&cache) { "region_files" } else { "cache" },
             "settings": { "region_size": grid.region_size, "vertex_spacing": grid.spacing },
             "regions": regions,
             "removed": link.removed.keys().collect::<Vec<_>>(),

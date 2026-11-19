@@ -362,7 +362,7 @@ impl crate::state::EditorState {
         let written = export(&self.terrain3d_export_request(cache)?)?;
         self.terrain3d.recheck();
         self.terrain3d.refresh(cache);
-        if self.terrain3d.manifest(cache).is_none() {
+        if self.terrain3d.manifest(cache).is_none() || self.terrain3d.from_files(cache) {
             return Err(self.terrain3d.error(cache).map_or_else(|| NOT_EXPORTED.to_string(), |e| format!("Godot exported the Terrain3D folder, but {e}")));
         }
 

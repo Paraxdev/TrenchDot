@@ -332,8 +332,19 @@ pub fn inspector(ui: &mut Ui, state: &mut EditorState, id: NodeId, actions: &mut
         ui.colored_label(theme::colors().warning(), error.to_string());
     }
 
-    if manifest.is_none() {
-        ui.colored_label(theme::colors().warning(), tr("Godot has not exported this folder yet, so TrenchDot shows none of it"));
+    let scanning = state.terrain3d.scanning(&cache);
+    if let Some((done, total)) = scanning {
+        ui.label(trf!("Reading region files {done} of {total}", done, total));
+    }
+
+    let from_files = state.terrain3d.from_files(&cache);
+    if manifest.is_none() || from_files {
+        if from_files {
+            ui.colored_label(theme::colors().warning(), tr("Read from the region files. Textures and the Look show once Godot exports this folder"));
+        } else if scanning.is_none() {
+            ui.colored_label(theme::colors().warning(), tr("Godot has not exported this folder yet, so TrenchDot shows none of it"));
+        }
+
         if ui.add_enabled(!state.restricted(), egui::Button::new(tr("Export from Godot"))).clicked()
             && let Err(e) = state.export_terrain3d_cache(&cache)
         {
@@ -343,10 +354,13 @@ pub fn inspector(ui: &mut Ui, state: &mut EditorState, id: NodeId, actions: &mut
 
     ui.separator();
     settings(ui, state, id, &cache);
-    super::look::block(ui, state, id, &cache);
+    if !from_files {
+        super::look::block(ui, state, id, &cache);
+    }
+
     regions(ui, state, id, &cache);
     ui.toggle_value(&mut state.terrain3d_edit_regions, tr("Edit Regions")).on_hover_text(tr("Click regions in the Top view to add or remove them"));
-    if let Some(manifest) = &manifest {
+    if let Some(manifest) = manifest.as_ref().filter(|_| !from_files) {
         ui.label(RichText::new(tr("Textures")).weak());
         if manifest.textures.is_empty() {
             ui.label(tr("No textures"));

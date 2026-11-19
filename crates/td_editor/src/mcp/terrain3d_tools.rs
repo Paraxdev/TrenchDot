@@ -19,6 +19,8 @@ use crate::terrain3d::brush::{color_hex, parse_color};
 
 /// How long a tool waits for the regions it edits to load from the cache.
 const LOAD_TIMEOUT: Duration = Duration::from_secs(20);
+/// How long a tool waits for the region files of a folder Godot has not exported to be read.
+pub(super) const SCAN_TIMEOUT: Duration = Duration::from_secs(30);
 
 fn err(msg: impl Into<String>) -> ToolResult {
     ToolResult::Error(msg.into())
@@ -214,6 +216,7 @@ impl EditorState {
         self.terrain3d.upm = self.game.units_per_meter;
         self.terrain3d.recheck();
         self.terrain3d.refresh(&cache);
+        self.terrain3d.finish_scan(&cache, SCAN_TIMEOUT)?;
         if self.terrain3d.grid(&cache).is_none() {
             self.export_terrain3d_cache(&cache)?;
         }

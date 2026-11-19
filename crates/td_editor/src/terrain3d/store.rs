@@ -1,17 +1,20 @@
 //! The editor's view of the Terrain3D caches Godot exports. Each manifest is polled once a second, regions load on a
 //! worker thread under a memory budget, and the LOD pyramids of regions too far away to load whole are built beside them.
+//! A data folder Godot has not exported yet is read from Terrain3D's own region files instead, writing nothing.
 
 use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Weak};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime};
 
 use td_doc::terrain3d::RegionSource;
-use td_formats::terrain3d_cache::{self, Applied, CachedRegion, Lod, LodLevel, Manifest, RegionHash};
-use td_geom::terrain3d::{EdgeBlend, Grid, Loc, Region3D};
+use td_formats::terrain3d_cache::{self, Applied, CacheError, CachedRegion, Lod, LodLevel, Manifest, ManifestRegion, RegionHash};
+use td_formats::terrain3d_res::{self, ResRegion};
+use td_geom::terrain3d::{EdgeBlend, Grid, Loc, Region3D, file_stem, parse_file_name};
 use td_geom::terrain3d_tile;
 
 const POLL: Duration = Duration::from_secs(1);
@@ -51,16 +54,31 @@ struct Folder {
     refused: BTreeMap<Loc, String>,
     /// The Godot editor that wrote the manifest is gone, so its list of unsaved regions and their hashes is dead.
     editor_gone: bool,
+    /// The manifest was built from the region files of a data folder with no cache.
+    from_files: bool,
+    /// The region files the last read of the data folder found.
+    listing: Listing,
+    scan: Option<Arc<Progress>>,
+}
+
+/// Region file names with their size and modification time.
+type Listing = BTreeMap<String, (u64, SystemTime)>;
+
+struct Progress {
+    done: AtomicUsize,
+    total: usize,
 }
 
 enum Job {
-    Region { cache: PathBuf, loc: Loc, size: u32, hash: RegionHash },
-    Lod { cache: PathBuf, loc: Loc, size: u32, hash: RegionHash, grid: Grid },
+    Region { cache: PathBuf, loc: Loc, size: u32, hash: RegionHash, from_files: bool },
+    Lod { cache: PathBuf, loc: Loc, size: u32, hash: RegionHash, grid: Grid, from_files: bool },
+    Scan { cache: PathBuf, listing: Listing, progress: Arc<Progress> },
 }
 
 enum Done {
     Region { cache: PathBuf, loc: Loc, size: u32, hash: RegionHash, result: Result<CachedRegion, String> },
     Lod { cache: PathBuf, loc: Loc, size: u32, hash: RegionHash, result: Result<Lod, String> },
+    Scan { cache: PathBuf, listing: Listing, progress: Arc<Progress>, manifest: Option<Box<Manifest>>, error: Option<String> },
 }
 
 /// Region data and its lowest and highest height in meters.
@@ -273,6 +291,32 @@ impl Terrain3DStore {
         self.folders.get(cache).is_some_and(|f| !f.inflight.is_empty())
     }
 
+    /// Whether the folder shows what its region files hold because Godot has not exported a cache for it.
+    pub fn from_files(&self, cache: &Path) -> bool {
+        self.folders.get(cache).is_some_and(|f| f.from_files && f.manifest.is_some())
+    }
+
+    /// The region files read so far and how many there are, while the folder's files are read.
+    pub fn scanning(&self, cache: &Path) -> Option<(usize, usize)> {
+        let progress = self.folders.get(cache)?.scan.as_ref()?;
+        Some((progress.done.load(Ordering::Relaxed), progress.total))
+    }
+
+    /// Waits for a read of the folder's region files to finish, so a tool sees the folder before it asks Godot for a cache.
+    pub fn finish_scan(&mut self, cache: &Path, timeout: Duration) -> Result<(), String> {
+        let start = Instant::now();
+        while let Some((done, total)) = self.scanning(cache) {
+            if start.elapsed() >= timeout {
+                return Err(format!("the Terrain3D region files are still being read, {done} of {total} after {} s", timeout.as_secs()));
+            }
+
+            std::thread::sleep(Duration::from_millis(5));
+            self.refresh(cache);
+        }
+
+        Ok(())
+    }
+
     /// Bytes of the regions held whole across every folder.
     pub fn loaded_bytes(&self) -> usize {
         self.folders.values().flat_map(|f| f.regions.values()).map(|l| bytes_of(&l.region)).sum()
@@ -294,18 +338,11 @@ impl Terrain3DStore {
         let text = match std::fs::read_to_string(terrain3d_cache::manifest_path(cache)) {
             Ok(text) => text,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-                if folder.manifest.take().is_some() {
-                    folder.text.clear();
-                    folder.error = None;
-                    folder.changed.extend(folder.regions.keys().copied());
-                    folder.regions.clear();
-                    folder.lods.clear();
-                    folder.inflight.clear();
-                    // The reads failed against files that went with the manifest, and a re-export brings back the same hashes.
-                    folder.failed.clear();
-                    folder.generation += 1;
+                if !folder.from_files {
+                    clear(folder);
                 }
 
+                self.poll_files(cache);
                 return;
             }
             Err(e) => {
@@ -326,10 +363,40 @@ impl Terrain3DStore {
                     folder.failed.clear();
                 }
 
+                if std::mem::take(&mut folder.from_files) {
+                    folder.listing.clear();
+                }
+
+                folder.scan = None;
                 apply_manifest(folder, manifest);
             }
             Err(e) => folder.error = Some(e.to_string()),
         }
+    }
+
+    /// Reads the region files of a data folder without a cache again whenever their names, sizes or times change.
+    fn poll_files(&mut self, cache: &Path) {
+        let folder = self.folders.get_mut(cache).expect("folder");
+        if folder.scan.is_some() {
+            return;
+        }
+
+        let listing = cache.parent().map(region_files).unwrap_or_default();
+        if listing == folder.listing {
+            return;
+        }
+
+        if listing.is_empty() {
+            folder.listing.clear();
+            folder.from_files = false;
+            clear(folder);
+            return;
+        }
+
+        let progress = Arc::new(Progress { done: AtomicUsize::new(0), total: listing.len() });
+        folder.scan = Some(progress.clone());
+        folder.generation += 1;
+        let _ = self.sender().send(Job::Scan { cache: cache.to_path_buf(), listing, progress });
     }
 
     fn sender(&mut self) -> Sender<Job> {
@@ -350,11 +417,12 @@ impl Terrain3DStore {
         let Some(folder) = self.folders.get_mut(cache) else { return };
         let Some(manifest) = folder.manifest.as_ref() else { return };
         let hashes: HashMap<Loc, RegionHash> = manifest.regions.iter().map(|r| (r.loc, r.hash)).collect();
+        let from_files = folder.from_files;
         let mut jobs = Vec::new();
         for &loc in &folder.want_full {
             let Some(&hash) = hashes.get(&loc) else { continue };
             if !folder.regions.contains_key(&loc) && folder.failed.get(&(loc, true)) != Some(&hash) && folder.inflight.insert((loc, true)) {
-                jobs.push(Job::Region { cache: cache.to_path_buf(), loc, size: grid.region_size, hash });
+                jobs.push(Job::Region { cache: cache.to_path_buf(), loc, size: grid.region_size, hash, from_files });
             }
         }
 
@@ -362,7 +430,7 @@ impl Terrain3DStore {
             let Some(&hash) = hashes.get(&loc) else { continue };
             let current = folder.lods.get(&loc).is_some_and(|(h, _)| *h == hash);
             if !current && folder.failed.get(&(loc, false)) != Some(&hash) && folder.inflight.insert((loc, false)) {
-                jobs.push(Job::Lod { cache: cache.to_path_buf(), loc, size: grid.region_size, hash, grid });
+                jobs.push(Job::Lod { cache: cache.to_path_buf(), loc, size: grid.region_size, hash, grid, from_files });
             }
         }
 
@@ -381,9 +449,19 @@ impl Terrain3DStore {
         let results: Vec<Done> = done.try_iter().collect();
         let mut repump = BTreeSet::new();
         for result in results {
-            let (cache, loc, full) = match &result {
-                Done::Region { cache, loc, .. } => (cache.clone(), *loc, true),
-                Done::Lod { cache, loc, .. } => (cache.clone(), *loc, false),
+            let (cache, loc, full) = match result {
+                Done::Region { ref cache, loc, .. } => (cache.clone(), loc, true),
+                Done::Lod { ref cache, loc, .. } => (cache.clone(), loc, false),
+                Done::Scan { cache, listing, progress, manifest, error } => {
+                    if let Some(folder) = self.folders.get_mut(&cache)
+                        && folder.scan.as_ref().is_some_and(|p| Arc::ptr_eq(p, &progress))
+                    {
+                        take_scan(folder, listing, manifest, error);
+                        repump.insert(cache);
+                    }
+
+                    continue;
+                }
             };
             let Some(folder) = self.folders.get_mut(&cache) else { continue };
             folder.inflight.remove(&(loc, full));
@@ -451,6 +529,34 @@ fn bytes_of(region: &Region3D) -> usize {
     region.heights.len() * 4 + region.control.len() * 4 + region.color.len()
 }
 
+/// Forgets the manifest and everything read under it.
+fn clear(folder: &mut Folder) {
+    if folder.manifest.take().is_some() {
+        folder.text.clear();
+        folder.error = None;
+        folder.changed.extend(folder.regions.keys().copied());
+        folder.regions.clear();
+        folder.lods.clear();
+        folder.inflight.clear();
+        // The reads failed against files that went with the manifest, and a re-export brings back the same hashes.
+        folder.failed.clear();
+        folder.generation += 1;
+    }
+}
+
+/// Takes in what a read of the region files found. A read that found no region keeps the last good manifest.
+fn take_scan(folder: &mut Folder, listing: Listing, manifest: Option<Box<Manifest>>, error: Option<String>) {
+    folder.scan = None;
+    folder.listing = listing;
+    folder.error = error;
+    folder.failed.clear();
+    folder.generation += 1;
+    if let Some(manifest) = manifest {
+        folder.from_files = true;
+        apply_manifest(folder, *manifest);
+    }
+}
+
 /// Takes the new manifest in: what changed drops out of memory, Godot's report of what it applied is read once.
 fn apply_manifest(folder: &mut Folder, manifest: Manifest) {
     let old: HashMap<Loc, RegionHash> = folder.manifest.iter().flat_map(|m| m.regions.iter().map(|r| (r.loc, r.hash))).collect();
@@ -498,15 +604,18 @@ fn apply_manifest(folder: &mut Folder, manifest: Manifest) {
 fn worker(jobs: Receiver<Job>, done: Sender<Done>, repaint: Option<egui::Context>) {
     for job in jobs {
         let result = match job {
-            Job::Region { cache, loc, size, hash } => {
-                let result = terrain3d_cache::read_region(&cache, loc, size)
-                    .map_err(|e| e.to_string())
+            Job::Region { cache, loc, size, hash, from_files } => {
+                let result = read_region(&cache, loc, size, from_files)
                     .and_then(|r| if r.hash == hash { Ok(r) } else { Err(format!("region {loc:?} changed while loading")) });
                 Done::Region { cache, loc, size, hash, result }
             }
-            Job::Lod { cache, loc, size, hash, grid } => {
-                let result = load_lod(&cache, loc, size, hash, &grid);
+            Job::Lod { cache, loc, size, hash, grid, from_files } => {
+                let result = load_lod(&cache, loc, size, hash, &grid, from_files);
                 Done::Lod { cache, loc, size, hash, result }
+            }
+            Job::Scan { cache, listing, progress } => {
+                let (manifest, error) = scan(&cache, &listing, &progress, repaint.as_ref());
+                Done::Scan { cache, listing, progress, manifest: manifest.map(Box::new), error }
             }
         };
 
@@ -520,23 +629,135 @@ fn worker(jobs: Receiver<Job>, done: Sender<Done>, repaint: Option<egui::Context
     }
 }
 
-/// The cached pyramid of the region, or one built from its file and kept in the cache for the next time.
-fn load_lod(cache: &Path, loc: Loc, size: u32, hash: RegionHash, grid: &Grid) -> Result<Lod, String> {
-    if let Ok(lod) = terrain3d_cache::read_lod(cache, loc, size, hash) {
+/// The cached pyramid of the region, or one built from its file and kept in the cache for the next time. A folder read
+/// from its region files has no cache to keep it in.
+fn load_lod(cache: &Path, loc: Loc, size: u32, hash: RegionHash, grid: &Grid, from_files: bool) -> Result<Lod, String> {
+    if !from_files && let Ok(lod) = terrain3d_cache::read_lod(cache, loc, size, hash) {
         return Ok(lod);
     }
 
-    let cached = terrain3d_cache::read_region(cache, loc, size).map_err(|e| e.to_string())?;
+    let cached = read_region(cache, loc, size, from_files)?;
     if cached.hash != hash {
         return Err(format!("region {loc:?} changed while loading"));
     }
 
     let lod = build_lod(grid, &cached.region, hash).ok_or_else(|| format!("region {loc:?} has no LOD for size {size}"))?;
-    if terrain3d_cache::write_lod(cache, &lod).is_ok() {
+    if !from_files && terrain3d_cache::write_lod(cache, &lod).is_ok() {
         let _ = terrain3d_cache::prune_lod(cache, loc, hash);
     }
 
     Ok(lod)
+}
+
+/// Region `loc` from the cache, or from Terrain3D's own file in the data folder the cache would sit in.
+fn read_region(cache: &Path, loc: Loc, size: u32, from_files: bool) -> Result<CachedRegion, String> {
+    if !from_files {
+        return terrain3d_cache::read_region(cache, loc, size).map_err(|e| e.to_string());
+    }
+
+    let name = format!("{}.res", file_stem(loc).ok_or_else(|| format!("region {loc:?} is outside the region map"))?);
+    let read = terrain3d_res::read_region_res(&data_dir(cache).join(&name)).map_err(|e| file_error(&name, e))?;
+    Ok(read.cached)
+}
+
+fn data_dir(cache: &Path) -> &Path {
+    cache.parent().unwrap_or(cache)
+}
+
+fn file_error(name: &str, e: CacheError) -> String {
+    let why = match e {
+        CacheError::RegionFile(why) => why,
+        e => e.to_string(),
+    };
+    format!("Terrain3D region file {name}: {why}")
+}
+
+/// The `.res` region files of a data folder, the ones Terrain3D loads.
+fn region_files(dir: &Path) -> Listing {
+    let Ok(entries) = std::fs::read_dir(dir) else { return Listing::new() };
+    entries
+        .flatten()
+        .filter_map(|entry| {
+            let name = entry.file_name().into_string().ok()?;
+            let res = Path::new(&name).extension().is_some_and(|e| e == "res") && parse_file_name(&name).is_some();
+            let meta = entry.metadata().ok().filter(|m| res && m.is_file())?;
+            Some((name, (meta.len(), meta.modified().unwrap_or(SystemTime::UNIX_EPOCH))))
+        })
+        .collect()
+}
+
+/// What `scan` keeps of a region file. The maps are dropped as soon as they are measured, a folder can hold gigabytes.
+struct Scanned {
+    region: ManifestRegion,
+    size: u32,
+    data_version: f64,
+    vertex_spacing: f32,
+}
+
+/// Reads every region file of `listing` and builds the manifest the addon would export for them. The spacing and data
+/// version come from the newest file, the first by name among equals, as the addon takes them. A file that does not
+/// read is left out and named in the error. No manifest when no region read or the regions differ in size.
+fn scan(cache: &Path, listing: &Listing, progress: &Progress, repaint: Option<&egui::Context>) -> (Option<Manifest>, Option<String>) {
+    let mut errors = Vec::new();
+    let mut read: Vec<Scanned> = Vec::new();
+    let mut newest: Option<(SystemTime, usize)> = None;
+    for (name, (_, modified)) in listing {
+        match terrain3d_res::read_region_res(&data_dir(cache).join(name)) {
+            Ok(ResRegion { cached, data_version }) => {
+                if newest.is_none_or(|(at, _)| *modified > at) {
+                    newest = Some((*modified, read.len()));
+                }
+
+                let region = ManifestRegion { loc: cached.region.loc, hash: cached.hash, height_range: height_range(&cached.region.heights) };
+                read.push(Scanned { region, size: cached.region.size, data_version, vertex_spacing: cached.vertex_spacing });
+            }
+            Err(e) => errors.push(file_error(name, e)),
+        }
+
+        progress.done.fetch_add(1, Ordering::Relaxed);
+        if let Some(ctx) = repaint {
+            ctx.request_repaint();
+        }
+    }
+
+    let Some((_, at)) = newest else { return (None, joined(errors)) };
+    let size = read[at].size;
+    if read.iter().any(|r| r.size != size) {
+        errors.insert(0, "the region files have different sizes, open the folder in Godot once to make them match".into());
+        return (None, joined(errors));
+    }
+
+    let manifest = Manifest {
+        format: terrain3d_cache::FORMAT.into(),
+        version: terrain3d_cache::VERSION,
+        terrain3d: String::new(),
+        godot: String::new(),
+        data_version: read[at].data_version,
+        region_size: size,
+        vertex_spacing: read[at].vertex_spacing as f64,
+        material: Default::default(),
+        map_transform_identity: true,
+        editor_open: false,
+        regions: read.into_iter().map(|r| r.region).collect(),
+        dirty: Vec::new(),
+        textures: Vec::new(),
+        applied: Vec::new(),
+        ocean: None,
+        resources: None,
+    };
+    (Some(manifest), joined(errors))
+}
+
+/// The first few errors in one line.
+fn joined(mut errors: Vec<String>) -> Option<String> {
+    const SHOWN: usize = 3;
+    if errors.len() > SHOWN {
+        let more = errors.len() - SHOWN;
+        errors.truncate(SHOWN);
+        errors.push(format!("{more} more did not read"));
+    }
+
+    (!errors.is_empty()).then(|| errors.join(", "))
 }
 
 pub fn finest(lod: &Lod) -> Option<&LodLevel> {
@@ -724,7 +945,7 @@ mod tests {
         dir.path().join("data").join(terrain3d_cache::DIR_NAME)
     }
 
-    fn settle(store: &mut Terrain3DStore, cache: &Path, done: impl Fn(&Terrain3DStore) -> bool) {
+    fn settle(store: &mut Terrain3DStore, cache: &Path, mut done: impl FnMut(&Terrain3DStore) -> bool) {
         let start = Instant::now();
         while !done(store) {
             assert!(start.elapsed() < Duration::from_secs(10), "the worker did not finish");
@@ -1009,7 +1230,7 @@ mod tests {
         let (old, new) = (cache_of(&old_dir), cache_of(&new_dir));
         write_world(&old, &[(A, 1)]);
         write_world(&new, &[(A, 1)]);
-        let built = load_lod(&old, A, 64, hash(1), &grid).unwrap();
+        let built = load_lod(&old, A, 64, hash(1), &grid, false).unwrap();
         let mut marked = built.clone();
         marked.levels[0].heights[0] = -999.0;
         for cache in [&old, &new] {
@@ -1020,8 +1241,8 @@ mod tests {
         let mut bytes = std::fs::read(&path).unwrap();
         bytes[4..8].copy_from_slice(&1u32.to_le_bytes());
         std::fs::write(&path, bytes).unwrap();
-        assert_eq!(load_lod(&new, A, 64, hash(1), &grid).unwrap(), marked, "a current file is read, not built");
-        assert_eq!(load_lod(&old, A, 64, hash(1), &grid).unwrap(), built, "a version 1 file is built again");
+        assert_eq!(load_lod(&new, A, 64, hash(1), &grid, false).unwrap(), marked, "a current file is read, not built");
+        assert_eq!(load_lod(&old, A, 64, hash(1), &grid, false).unwrap(), built, "a version 1 file is built again");
         assert_eq!(terrain3d_cache::read_lod(&old, A, 64, hash(1)).unwrap(), built, "and written back at the current version");
     }
 
@@ -1286,5 +1507,247 @@ mod tests {
         assert!(!of("1.0.0") && !of("1.0.2") && !of("1.1.0") && !of("1.1.9"));
         assert!(of("0.9.3") && of("1.2.0") && of("2.0.0") && of("0.99.0"));
         assert!(!of("") && !of("dev") && !of("1"), "a version nobody can read is not called untested");
+    }
+
+    fn godot_dir(path: &str) -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../godot").join(path)
+    }
+
+    /// The cache Godot exported for the valley's region files.
+    fn valley_cache() -> PathBuf {
+        godot_dir("terrain3d_valley").join(terrain3d_cache::DIR_NAME)
+    }
+
+    /// Copies `files` into `dir/data` and returns the cache path of that folder, which has no cache.
+    fn data_folder(dir: &tempfile::TempDir, files: &[PathBuf]) -> PathBuf {
+        let data = dir.path().join("data");
+        std::fs::create_dir_all(&data).unwrap();
+        for file in files {
+            std::fs::copy(file, data.join(file.file_name().unwrap())).unwrap();
+        }
+
+        data.join(terrain3d_cache::DIR_NAME)
+    }
+
+    fn valley_files(dir: &tempfile::TempDir) -> PathBuf {
+        let files: Vec<PathBuf> = std::fs::read_dir(godot_dir("terrain3d_valley"))
+            .unwrap()
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.extension().is_some_and(|e| e == "res"))
+            .collect();
+        assert_eq!(files.len(), 6);
+        data_folder(dir, &files)
+    }
+
+    fn set_modified(path: &Path, modified: SystemTime) {
+        std::fs::File::options().write(true).open(path).unwrap().set_modified(modified).unwrap();
+    }
+
+    #[test]
+    fn a_folder_without_a_cache_shows_its_region_files_beside_a_cached_one() {
+        let (files_dir, cached_dir) = (tempfile::tempdir().unwrap(), tempfile::tempdir().unwrap());
+        let (files, cached) = (valley_files(&files_dir), cache_of(&cached_dir));
+        write_world(&cached, &[(A, 1)]);
+        let mut store = Terrain3DStore::default();
+        store.refresh(&files);
+        store.refresh(&cached);
+        assert!(store.manifest(&files).is_none(), "the files are read in the background");
+        settle(&mut store, &files, |s| s.manifest(&files).is_some());
+        assert!(store.from_files(&files) && !store.from_files(&cached));
+        assert!(store.error(&files).is_none(), "{:?}", store.error(&files));
+
+        let exported = terrain3d_cache::read_manifest(&valley_cache()).unwrap();
+        let read = store.manifest(&files).unwrap();
+        assert_eq!((read.region_size, read.vertex_spacing), (exported.region_size, exported.vertex_spacing));
+        assert!((read.data_version - exported.data_version).abs() < 1e-6, "{} {}", read.data_version, exported.data_version);
+        assert!(read.textures.is_empty() && read.material.world_background == 0);
+        let sorted = |m: &Manifest| {
+            let mut regions: Vec<_> = m.regions.iter().map(|r| (r.loc, r.hash, r.height_range)).collect();
+            regions.sort_by_key(|r| r.0);
+            regions
+        };
+        assert_eq!(sorted(read), sorted(&exported), "the hashes and height ranges Godot exported");
+
+        let (near, far) = ([0, 0], [1, -1]);
+        store.want(&files, &[near], &[far]);
+        store.want(&cached, &[A], &[]);
+        settle(&mut store, &files, |s| s.region(&files, near).is_some() && s.lod(&files, far).is_some() && s.region(&cached, A).is_some());
+        assert_eq!(*store.region(&files, near).unwrap(), terrain3d_cache::read_region(&valley_cache(), near, 256).unwrap().region);
+        let far_region = terrain3d_cache::read_region(&valley_cache(), far, 256).unwrap();
+        assert_eq!(*store.lod(&files, far).unwrap(), build_lod(&store.grid(&files).unwrap(), &far_region.region, far_region.hash).unwrap());
+        assert_eq!(*store.region(&cached, A).unwrap(), region(A, -7.0 + 6.0 + 1.0));
+        assert!(!files.exists(), "nothing is written to a folder without a cache");
+    }
+
+    #[test]
+    fn the_region_files_are_read_with_progress_and_shown_once_all_are_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let files = valley_files(&dir);
+        let mut store = Terrain3DStore::default();
+        store.refresh(&files);
+        let mut seen = Vec::new();
+        settle(&mut store, &files, |s| {
+            if let Some(progress) = s.scanning(&files) {
+                assert!(s.manifest(&files).is_none(), "no half read folder shows");
+                seen.push(progress);
+            }
+
+            s.manifest(&files).is_some()
+        });
+        assert!(!seen.is_empty() && seen.iter().all(|&(done, total)| total == 6 && done <= 6), "{seen:?}");
+        assert!(seen.windows(2).all(|w| w[0].0 <= w[1].0), "{seen:?}");
+        assert_eq!(store.manifest(&files).unwrap().regions.len(), 6);
+        assert!(store.scanning(&files).is_none());
+
+        store.recheck();
+        assert!(!store.refresh(&files), "files that did not change are not read again");
+        assert!(store.scanning(&files).is_none());
+        assert_eq!(store.finish_scan(&files, Duration::ZERO), Ok(()));
+
+        set_modified(&dir.path().join("data/terrain3d_00_00.res"), SystemTime::now() + Duration::from_secs(60));
+        store.recheck();
+        store.refresh(&files);
+        let late = store.finish_scan(&files, Duration::ZERO).unwrap_err();
+        assert!(late.starts_with("the Terrain3D region files are still being read, ") && late.ends_with(" of 6 after 0 s"), "{late}");
+        store.finish_scan(&files, Duration::from_secs(10)).unwrap();
+        assert_eq!(store.manifest(&files).unwrap().regions.len(), 6);
+        assert!(store.take_news(&files).is_empty(), "a file saved again with the same data is no news");
+    }
+
+    #[test]
+    fn a_damaged_region_file_leaves_out_that_region_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let files = valley_files(&dir);
+        std::fs::write(dir.path().join("data/terrain3d_00_00.res"), b"RSRC broken").unwrap();
+        let mut store = Terrain3DStore::default();
+        store.refresh(&files);
+        settle(&mut store, &files, |s| s.manifest(&files).is_some());
+        let locs: BTreeSet<Loc> = store.manifest(&files).unwrap().regions.iter().map(|r| r.loc).collect();
+        assert_eq!(locs, BTreeSet::from([[-1, -1], [-1, 0], [0, -1], [1, -1], [1, 0]]));
+        let error = store.error(&files).unwrap();
+        assert!(error.starts_with("Terrain3D region file terrain3d_00_00.res: ") && !error.contains("Terrain3D region file:"), "{error}");
+        store.want(&files, &[[1, 0]], &[]);
+        settle(&mut store, &files, |s| s.region(&files, [1, 0]).is_some());
+
+        let broken = tempfile::tempdir().unwrap();
+        let none = data_folder(&broken, &[dir.path().join("data/terrain3d_00_00.res")]);
+        store.refresh(&none);
+        settle(&mut store, &none, |s| s.scanning(&none).is_none());
+        assert!(store.manifest(&none).is_none() && !store.from_files(&none));
+        assert!(store.error(&none).unwrap().starts_with("Terrain3D region file terrain3d_00_00.res: "));
+    }
+
+    #[test]
+    fn a_region_file_that_comes_or_goes_reads_the_folder_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let files = valley_files(&dir);
+        let data = dir.path().join("data");
+        let mut store = Terrain3DStore::default();
+        store.refresh(&files);
+        settle(&mut store, &files, |s| s.manifest(&files).is_some());
+        assert!(store.take_news(&files).is_empty(), "the first read is no news");
+
+        std::fs::remove_file(data.join("terrain3d_01_00.res")).unwrap();
+        std::fs::write(data.join("terrain3d_01_00.res.import"), "").unwrap();
+        std::fs::write(data.join("terrain3d_assets.res"), "").unwrap();
+        store.recheck();
+        store.refresh(&files);
+        assert_eq!(store.scanning(&files).map(|p| p.1), Some(5), "only region files count");
+        settle(&mut store, &files, |s| s.scanning(&files).is_none());
+        assert_eq!(store.manifest(&files).unwrap().regions.len(), 5);
+        assert_eq!(store.take_news(&files), vec![[1, 0]]);
+        assert!(store.error(&files).is_none());
+
+        for entry in std::fs::read_dir(&data).unwrap().flatten() {
+            if entry.file_name().to_string_lossy().starts_with("terrain3d_0") {
+                std::fs::remove_file(entry.path()).unwrap();
+            }
+        }
+
+        store.recheck();
+        store.refresh(&files);
+        assert_eq!(store.manifest(&files).unwrap().regions.len(), 5, "the last read shows while the files are read again");
+        settle(&mut store, &files, |s| s.scanning(&files).is_none());
+        assert_eq!(store.manifest(&files).unwrap().regions.iter().map(|r| r.loc).collect::<Vec<_>>(), vec![[-1, -1], [-1, 0]]);
+
+        for loc in [[-1, -1], [-1, 0]] {
+            std::fs::remove_file(data.join(format!("{}.res", file_stem(loc).unwrap()))).unwrap();
+        }
+
+        store.recheck();
+        store.refresh(&files);
+        assert!(store.manifest(&files).is_none() && !store.from_files(&files) && store.scanning(&files).is_none());
+    }
+
+    #[test]
+    fn a_cache_godot_exports_later_takes_over_without_reading_a_region_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let files = valley_files(&dir);
+        let mut store = Terrain3DStore::default();
+        store.refresh(&files);
+        settle(&mut store, &files, |s| s.manifest(&files).is_some());
+        let (near, far) = ([0, 0], [1, -1]);
+        store.want(&files, &[near], &[far]);
+        settle(&mut store, &files, |s| s.region(&files, near).is_some() && s.lod(&files, far).is_some());
+        let (region, lod) = (store.region(&files, near).unwrap(), store.lod(&files, far).unwrap());
+
+        std::fs::create_dir_all(&files).unwrap();
+        std::fs::copy(terrain3d_cache::manifest_path(&valley_cache()), terrain3d_cache::manifest_path(&files)).unwrap();
+        store.recheck();
+        store.refresh(&files);
+        assert!(!store.from_files(&files));
+        assert_eq!(store.manifest(&files).unwrap().terrain3d, "1.1.0");
+        assert!(Arc::ptr_eq(&region, &store.region(&files, near).unwrap()), "the region read from its file stays");
+        assert!(Arc::ptr_eq(&lod, &store.lod(&files, far).unwrap()));
+        assert!(store.take_news(&files).is_empty(), "the same hashes are no news");
+
+        // A read of the files still running when the cache appears is dropped.
+        let racing_dir = tempfile::tempdir().unwrap();
+        let racing = valley_files(&racing_dir);
+        store.refresh(&racing);
+        assert!(store.scanning(&racing).is_some());
+        std::fs::create_dir_all(&racing).unwrap();
+        terrain3d_cache::write_manifest(&racing, &manifest(&[(A, 1)])).unwrap();
+        store.recheck();
+        store.refresh(&racing);
+        assert!(store.scanning(&racing).is_none());
+        std::thread::sleep(Duration::from_millis(300));
+        store.refresh(&racing);
+        assert!(!store.from_files(&racing));
+        assert_eq!(store.manifest(&racing).unwrap().regions.len(), 1);
+    }
+
+    #[test]
+    fn the_newest_region_file_gives_the_spacing_and_the_sizes_must_match() {
+        let fixtures = godot_dir("tests/terrain3d/res_fixtures");
+        let dir = tempfile::tempdir().unwrap();
+        let files = data_folder(&dir, &[fixtures.join("painted/terrain3d-03_02.res"), fixtures.join("instances/terrain3d_01_00.res")]);
+        let data = dir.path().join("data");
+        let (painted, instances) = (data.join("terrain3d-03_02.res"), data.join("terrain3d_01_00.res"));
+        let then = SystemTime::now() - Duration::from_secs(600);
+        set_modified(&painted, then);
+        set_modified(&instances, then);
+        let mut store = Terrain3DStore::default();
+        store.refresh(&files);
+        settle(&mut store, &files, |s| s.manifest(&files).is_some());
+        let m = store.manifest(&files).unwrap();
+        assert_eq!((m.region_size, m.vertex_spacing, m.regions.len()), (64, 2.5, 2), "the first file by name when both are as new");
+
+        store.want(&files, &[[-3, 2]], &[]);
+        settle(&mut store, &files, |s| s.region(&files, [-3, 2]).is_some());
+        set_modified(&instances, then + Duration::from_secs(1));
+        store.recheck();
+        store.refresh(&files);
+        settle(&mut store, &files, |s| s.scanning(&files).is_none());
+        assert_eq!(store.manifest(&files).unwrap().vertex_spacing, 1.0, "the newer file");
+        assert!(store.region(&files, [-3, 2]).is_none(), "a new spacing drops what was read");
+
+        std::fs::copy(godot_dir("terrain3d_valley/terrain3d_00_00.res"), data.join("terrain3d_00_00.res")).unwrap();
+        store.recheck();
+        store.refresh(&files);
+        settle(&mut store, &files, |s| s.scanning(&files).is_none());
+        assert!(store.error(&files).unwrap().starts_with("the region files have different sizes"), "{:?}", store.error(&files));
+        assert_eq!(store.manifest(&files).unwrap().regions.len(), 2, "the last good read stays");
     }
 }

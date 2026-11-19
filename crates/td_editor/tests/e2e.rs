@@ -8718,6 +8718,55 @@ fn terrain3d_send_action_sends_without_a_save() {
     assert!(events[0]["dir"].as_str().unwrap().ends_with("/terrain"), "{}", events[0]);
 }
 
+/// A data folder Godot never exported shows from its region files: info names them as the source, probe reads the heights
+/// Godot's own export holds, and a sculpt waits in a pending file made against Godot's hash, with nothing else written.
+#[test]
+#[ignore]
+fn terrain3d_folder_without_a_cache_is_read_from_its_region_files() {
+    use td_doc::terrain3d::Terrain3DLink;
+    use td_doc::{Map, NodeKind, format};
+    use td_formats::terrain3d_cache::{DIR_NAME, manifest_path, read_manifest, read_pending, read_region};
+
+    let valley = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../godot/terrain3d_valley");
+    let dir = linked_project("terrain3d_region_files", json!([]));
+    std::fs::create_dir_all(dir.join("terrain")).unwrap();
+    for entry in std::fs::read_dir(&valley).unwrap().flatten() {
+        if entry.path().extension().is_some_and(|e| e == "res") {
+            std::fs::copy(entry.path(), dir.join("terrain").join(entry.file_name())).unwrap();
+        }
+    }
+
+    let mut map = Map::new();
+    let layer = map.default_layer();
+    map.insert(layer, NodeKind::Terrain3D(Terrain3DLink::new("res://terrain")));
+    let path = dir.join("maps/world.tdm");
+    format::save(&map, &path).unwrap();
+
+    let ed = Editor::launch_with("terrain3d_region_files", &["--project", dir.to_str().unwrap()]);
+    ed.call("map_file", json!({ "op": "open", "path": path }));
+    let node = ed.call("list_nodes", json!({ "type": "terrain3d" }))["nodes"][0]["id"].clone();
+    let info = ed.call("terrain3d", json!({ "op": "info", "id": node }));
+    assert_eq!(info["source"], "region_files", "{info}");
+    assert_eq!(info["settings"], json!({ "region_size": 256, "vertex_spacing": 1.0 }));
+    assert_eq!(info["regions"].as_array().unwrap().len(), 6);
+    assert_eq!(info["error"], Value::Null);
+
+    let exported = read_region(&valley.join(DIR_NAME), [0, 0], 256).unwrap().region;
+    for (px, py) in [(40usize, 100usize), (201, 17)] {
+        let probe = ed.call("terrain_edit", json!({ "id": node, "probe": [px as f64 * 32.0, py as f64 * 32.0] }));
+        let want = exported.heights[py * 256 + px] as f64 * 32.0;
+        assert!((probe["probe_height"].as_f64().unwrap() - want).abs() < 0.01, "{px}, {py}: {probe} against {want}");
+    }
+
+    let sculpted = ed.call("terrain_edit", json!({ "id": node, "op": "sculpt", "center": [4096.0, 4096.0], "mode": "raise" }));
+    assert_eq!(sculpted["regions"], json!([[0, 0]]), "{sculpted}");
+    ed.call("run_action", json!({ "action": "send_terrain3d" }));
+    let cache = dir.join("terrain").join(DIR_NAME);
+    let hash = read_manifest(&valley.join(DIR_NAME)).unwrap().regions.iter().find(|r| r.loc == [0, 0]).unwrap().hash;
+    assert_eq!(read_pending(&cache, [0, 0], 256).unwrap().base, hash, "the edit was made against Godot's hash");
+    assert!(!manifest_path(&cache).exists() && !cache.join("lod").exists() && !cache.join("regions").exists());
+}
+
 /// The height in map units `terrain3d_world` gives the vertex at pixel `px`, `py` of region `loc`. Slanted and different
 /// on every region so a wrong region or a flipped axis shows.
 fn world_height(loc: [i32; 2], px: u32, py: u32) -> f64 {

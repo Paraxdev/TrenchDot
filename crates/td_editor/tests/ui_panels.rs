@@ -3775,6 +3775,37 @@ fn the_terrain3d_inspector_says_why_godot_is_out_of_reach() {
 }
 
 #[test]
+fn the_terrain3d_inspector_shows_a_folder_without_a_cache_read_from_its_region_files() {
+    let (f, _) = terrain3d_fixture("region_files");
+    let root = f.state.game.project_root.clone().unwrap();
+    let cache = root.join("terrain").join(td_formats::terrain3d_cache::DIR_NAME);
+    std::fs::remove_file(td_formats::terrain3d_cache::manifest_path(&cache)).unwrap();
+    let painted = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../godot/tests/terrain3d/res_fixtures/painted/terrain3d-03_02.res");
+    std::fs::copy(painted, root.join("terrain/terrain3d-03_02.res")).unwrap();
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(420.0, 600.0))
+        .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+    harness.run();
+    assert!(harness.query_by_label("Godot has not exported this folder yet, so TrenchDot shows none of it").is_none(), "not while the files are read");
+
+    let start = std::time::Instant::now();
+    while !harness.state().state.terrain3d.from_files(&cache) {
+        assert!(start.elapsed() < std::time::Duration::from_secs(10), "the region file was not read");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+        harness.state_mut().state.terrain3d.refresh(&cache);
+    }
+
+    harness.run();
+    harness.get_by_label("Read from the region files. Textures and the Look show once Godot exports this folder");
+    harness.get_by_label("Export from Godot");
+    harness.get_by_label("Edit Regions");
+    assert!(harness.query_by_label_contains("Reading region files").is_none());
+    for hidden in ["Textures", "Look", "1 rock"] {
+        assert!(harness.query_by_label(hidden).is_none(), "{hidden}");
+    }
+}
+
+#[test]
 fn the_terrain3d_inspector_fits_a_narrow_panel_in_every_language() {
     use egui::accesskit::Role;
     use egui_kittest::kittest::NodeT;

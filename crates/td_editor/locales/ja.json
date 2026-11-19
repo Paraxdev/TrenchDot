@@ -2870,6 +2870,8 @@
   "Terrain3D edits were not sent, the data in {folder} has not loaded yet, save again once it shows": "Terrain3Dの変更は送信されていません。{folder} のデータがまだ読み込まれていないため、表示されたらもう一度保存してください",
   "Terrain3D edits made after the last save are not in the autosave": "最後の保存以降の Terrain3D の編集は自動保存に含まれていません",
   "Godot has not exported this folder yet, so TrenchDot shows none of it": "Godot がまだこのフォルダーをエクスポートしていないため、TrenchDot には何も表示されません",
+  "Reading region files {done} of {total}": "リージョンファイルを読み込み中、{total} 個中 {done} 個",
+  "Read from the region files. Textures and the Look show once Godot exports this folder": "リージョンファイルから読み込みました。Godot がこのフォルダーをエクスポートすると、テクスチャと見た目が表示されます",
   "Export from Godot": "Godot からエクスポート",
   "Terrain3D regions": "Terrain3D リージョン",
   "Edit Terrain3D regions": "Terrain3D リージョンを編集",
