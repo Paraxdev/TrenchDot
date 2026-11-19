@@ -187,6 +187,7 @@ struct TransformSteps {
     translate: Option<DVec3>,
     rotate: Option<(usize, f64, Option<DVec3>)>,
     flip: Option<usize>,
+    scale: Option<DVec3>,
     scale_to: Option<Aabb>,
     shear: Option<(usize, bool, usize, f64)>,
 }
@@ -210,6 +211,11 @@ impl TransformSteps {
             if let Some(axis) = self.flip {
                 let center = ops::selection_center(m, s, grid);
                 ops::transform_selection(m, s, &ops::flip_about(center, axis), opts);
+            }
+
+            if let Some(factors) = self.scale {
+                let center = ops::selection_center(m, s, grid);
+                ops::transform_selection(m, s, &ops::scale_about(center, factors), opts);
             }
 
             if let Some(target) = self.scale_to {
@@ -241,6 +247,19 @@ impl TransformSteps {
 
         applied
     }
+}
+
+fn scale_arg(v: &Value) -> Result<Option<DVec3>, String> {
+    if v.is_null() {
+        return Ok(None);
+    }
+
+    let Some(factors) = vec3(v) else { return Err(format!("scale must be [x, y, z] factors, got {v}")) };
+    if factors.to_array().contains(&0.0) {
+        return Err(format!("a scale factor cannot be 0, got {v}"));
+    }
+
+    Ok(Some(factors))
 }
 
 fn view_kind(name: &str) -> Option<ViewKind> {
@@ -2660,8 +2679,8 @@ impl App {
         }
     }
 
-    /// Applied in order translate, rotate, flip, scale_to, shear as one undo step. rotate and flip pivot on the selection
-    /// center as it is at that step, so a translated selection flips in place at its new position. The pivot snaps to
+    /// Applied in order translate, rotate, flip, scale, scale_to, shear as one undo step. rotate, flip and scale pivot on
+    /// the selection center as it is at that step, so a translated selection flips in place at its new position. The pivot snaps to
     /// the grid only while snapping is on, and `snap` and `uv_lock` override the editor settings for this call.
     fn tool_transform(&mut self, args: &Value) -> ToolResult {
         if self.state.doc.selection.nodes.is_empty() {
@@ -2715,6 +2734,10 @@ impl App {
                 None => return err("flip must be x, y or z"),
             },
         };
+        let scale = match scale_arg(&args["scale"]) {
+            Ok(s) => s,
+            Err(e) => return err(e),
+        };
         let scale_to = match &args["scale_to"] {
             Value::Null => None,
             s => match (vec3(&s["min"]), vec3(&s["max"])) {
@@ -2726,11 +2749,11 @@ impl App {
             Ok(s) => s,
             Err(e) => return err(e),
         };
-        if translate.is_none() && rotate.is_none() && flip.is_none() && scale_to.is_none() && shear.is_none() {
-            return err("pass translate, rotate, flip, scale_to or shear");
+        if translate.is_none() && rotate.is_none() && flip.is_none() && scale.is_none() && scale_to.is_none() && shear.is_none() {
+            return err("pass translate, rotate, flip, scale, scale_to or shear");
         }
 
-        let steps = TransformSteps { translate, rotate, flip, scale_to, shear };
+        let steps = TransformSteps { translate, rotate, flip, scale, scale_to, shear };
 
         let (snap, uv_lock) = match (bool_arg(args, "snap"), bool_arg(args, "uv_lock")) {
             (Ok(s), Ok(u)) => (s.unwrap_or(self.state.snap), u.unwrap_or(self.state.uv_lock)),
@@ -3066,6 +3089,36 @@ mod tests {
         assert!(shear_arg(&json!({ "side": "+y", "along": "y", "amount": 1 })).unwrap_err().contains("shear.along"));
         assert!(shear_arg(&json!({ "side": "+y", "along": "x", "amount": "a" })).unwrap_err().contains("shear.amount"));
         assert!(shear_arg(&json!("+y")).is_err());
+    }
+
+    #[test]
+    fn scale_factors_are_three_numbers_and_never_0() {
+        assert_eq!(scale_arg(&Value::Null), Ok(None));
+        assert_eq!(scale_arg(&json!([2, 0.5, -1])), Ok(Some(DVec3::new(2.0, 0.5, -1.0))));
+        assert_eq!(scale_arg(&json!([1, 1, 1])), Ok(Some(DVec3::ONE)));
+        for zero in [json!([0, 1, 1]), json!([3, 2, 0.0]), json!([1, -0.0, 1]), json!([0, 0, 0])] {
+            assert!(scale_arg(&zero).unwrap_err().starts_with("a scale factor cannot be 0"), "{zero}");
+        }
+
+        for bad in [json!(2), json!([1, 2]), json!("2 2 2"), json!({ "x": 2 }), json!([1, "2", 3])] {
+            assert!(scale_arg(&bad).unwrap_err().starts_with("scale must be [x, y, z]"), "{bad}");
+        }
+    }
+
+    #[test]
+    fn scale_runs_after_rotate_about_the_turned_center_in_one_step() {
+        let mut state = state();
+        let layer = state.doc.map.default_layer();
+        let brush = Brush::from_aabb(&Aabb::new(DVec3::new(40.0, 8.0, -72.0), DVec3::new(104.0, 72.0, -20.0)), "a").unwrap();
+        state.doc.edit("brush", |m, s| s.select_node(ops::create_brush(m, layer, brush)));
+        let undo = state.doc.history.undo_labels().count();
+        let steps = TransformSteps { rotate: Some((1, 90.0, None)), scale: Some(DVec3::new(2.0, 0.5, -1.0)), ..Default::default() };
+        steps.apply(&mut state.doc, 0.0, ops::EditOptions { uv_lock: true, grid: 0.0 }).unwrap();
+
+        let got = state.doc.map.bounds_of(state.doc.selection.nodes.iter().copied());
+        assert!(got.min.distance(DVec3::new(20.0, 24.0, -78.0)) < 1e-6 && got.max.distance(DVec3::new(124.0, 56.0, -14.0)) < 1e-6, "{got:?}");
+        assert_eq!(state.doc.history.undo_labels().count(), undo + 1);
+        assert_eq!(state.doc.history.undo_labels().next(), Some("Transform"));
     }
 
     #[test]

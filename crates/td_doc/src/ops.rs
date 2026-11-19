@@ -143,10 +143,21 @@ pub fn rotation_about(center: DVec3, axis: DVec3, degrees: f64) -> DMat4 {
     DMat4::from_translation(center) * DMat4::from_quat(DQuat::from_axis_angle(axis.normalize(), degrees.to_radians())) * DMat4::from_translation(-center)
 }
 
+/// Turns about `center` by `degrees` about X, Y and Z, in Godot's YXZ order like entity angles.
+pub fn turn_about(center: DVec3, degrees: DVec3) -> DMat4 {
+    let q = DQuat::from_euler(td_core::EulerRot::YXZ, degrees.y.to_radians(), degrees.x.to_radians(), degrees.z.to_radians());
+    DMat4::from_translation(center) * DMat4::from_quat(q) * DMat4::from_translation(-center)
+}
+
+/// Scales by `factors` about `center`. A negative factor mirrors that axis.
+pub fn scale_about(center: DVec3, factors: DVec3) -> DMat4 {
+    DMat4::from_translation(center) * DMat4::from_scale(factors) * DMat4::from_translation(-center)
+}
+
 pub fn flip_about(center: DVec3, axis: usize) -> DMat4 {
     let mut s = DVec3::ONE;
     s[axis] = -1.0;
-    DMat4::from_translation(center) * DMat4::from_scale(s) * DMat4::from_translation(-center)
+    scale_about(center, s)
 }
 
 /// Scales from `old` bounds to `new` bounds.
@@ -1021,8 +1032,7 @@ impl ArraySpec {
     /// What turns the copy that was just moved, about `pivot` or, when there is none, `center` moved by `offset` times `step`.
     fn turn(&self, center: DVec3, step: usize) -> DMat4 {
         let p = self.pivot.unwrap_or(center + self.offset * step as f64);
-        let euler = DQuat::from_euler(td_core::EulerRot::YXZ, self.rotate.y.to_radians(), self.rotate.x.to_radians(), self.rotate.z.to_radians());
-        DMat4::from_translation(p) * DMat4::from_quat(euler) * DMat4::from_scale(self.scale) * DMat4::from_translation(-p)
+        turn_about(p, self.rotate) * scale_about(p, self.scale)
     }
 
     /// Where each copy sits relative to the original, for a selection centered on `center`.
@@ -1254,6 +1264,60 @@ mod tests {
             ArraySpec { count: 2, offset: DVec3::new(0.0, 16.0, 0.0), rotate: DVec3::new(0.0, 90.0, 0.0), pivot: Some(DVec3::ZERO), ..Default::default() };
         let m = spiral.matrices(DVec3::ZERO);
         assert!(near(m[1].transform_point3(DVec3::new(10.0, 0.0, 0.0)), DVec3::new(-10.0, 32.0, 0.0)));
+    }
+
+    #[test]
+    fn scale_about_keeps_the_center_and_mirrors_a_negative_factor() {
+        let mut m = Map::new();
+        let layer = m.default_layer();
+        let wedge = td_geom::shapes::wedge(&Aabb::new(DVec3::new(40.0, 8.0, -72.0), DVec3::new(104.0, 72.0, -20.0)), "a").unwrap();
+        let points = wedge.vertices.clone();
+        let id = create_brush(&mut m, layer, wedge);
+        let mut sel = Selection::default();
+        sel.nodes.insert(id);
+        let center = m.bounds(id).center();
+        let factors = DVec3::new(2.0, 0.5, -1.0);
+        let mat = scale_about(center, factors);
+        assert!(near(mat.transform_point3(center), center));
+        transform_selection(&mut m, &sel, &mat, EditOptions { uv_lock: true, grid: 0.0 });
+
+        let got = m.bounds(id);
+        assert!(near(got.min, DVec3::new(8.0, 24.0, -72.0)) && near(got.max, DVec3::new(136.0, 56.0, -20.0)), "{got:?}");
+        let mut expected: Vec<DVec3> =
+            points.iter().map(|p| DVec3::new(center.x + (p.x - center.x) * 2.0, center.y + (p.y - center.y) * 0.5, -92.0 - p.z)).collect();
+        let mut vertices = m.brush(id).unwrap().vertices.clone();
+        let order = |a: &DVec3, b: &DVec3| a.to_array().partial_cmp(&b.to_array()).unwrap();
+        expected.sort_by(order);
+        vertices.sort_by(order);
+        assert_eq!(vertices.len(), expected.len(), "the mirrored wedge keeps every corner, so its faces still point out");
+        assert!(vertices.iter().zip(&expected).all(|(a, b)| near(*a, *b)), "{vertices:?} vs {expected:?}");
+        assert!(vertices.iter().filter(|v| v.y > 55.0).all(|v| (v.z + 20.0).abs() < 1e-6), "the ridge moved from the low Z side to the high one");
+
+        assert_eq!(scale_about(center, DVec3::ONE), DMat4::IDENTITY);
+        let flipped = DVec3::new(40.0, 8.0, -72.0);
+        assert!(near(flip_about(center, 2).transform_point3(flipped), scale_about(center, DVec3::new(1.0, 1.0, -1.0)).transform_point3(flipped)));
+    }
+
+    #[test]
+    fn turn_about_matches_the_turn_arrays_always_made() {
+        let center = DVec3::new(-36.0, 20.0, 90.0);
+        assert!(turn_about(center, DVec3::ZERO).abs_diff_eq(DMat4::IDENTITY, 1e-12));
+        let quarter = turn_about(center, DVec3::new(0.0, 90.0, 0.0));
+        assert!(near(quarter.transform_point3(center + DVec3::X), center + DVec3::NEG_Z), "a quarter turn about Y sends +X to -Z");
+
+        let spec = ArraySpec {
+            count: 3,
+            offset: DVec3::new(48.0, -16.0, 24.0),
+            rotate: DVec3::new(30.0, -20.0, 75.0),
+            scale: DVec3::new(1.5, 0.75, 1.25),
+            ..Default::default()
+        };
+        for step in 1..=3 {
+            let p = center + spec.offset * step as f64;
+            let euler = DQuat::from_euler(td_core::EulerRot::YXZ, (-20.0f64).to_radians(), 30.0f64.to_radians(), 75.0f64.to_radians());
+            let old = DMat4::from_translation(p) * DMat4::from_quat(euler) * DMat4::from_scale(spec.scale) * DMat4::from_translation(-p);
+            assert!(spec.turn(center, step).abs_diff_eq(old, 1e-9), "step {step}");
+        }
     }
 
     #[test]

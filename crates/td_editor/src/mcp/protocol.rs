@@ -368,18 +368,19 @@ pub fn tool_definitions() -> Vec<Value> {
         }),
         json!({
             "name": "transform",
-            "description": "Transforms the selection as one undo step, applied in this order: translate, rotate about an axis (y and 90 degrees by default), flip, scale_to new bounds, shear. shear slides one side of the selection's bounds parallel to itself by amount units along an axis while the opposite side stays fixed, like the Shear tool: brushes and meshes slant, point entities and instances move without turning, terrains and scatters stay put: {side: +y (the face to move, a sign and its axis), along: x (the axis it slides along, not the side's own), amount: 32 (negative slides the other way)}. rotate (without center) and flip pivot on the selection center at that step, so after a translate they turn the selection in place. The pivot snaps to the grid only while snapping is on, and textures stay locked to the geometry while UV lock is on; both follow the editor settings (set_editor snap, uv_lock, grid) unless snap or uv_lock is passed for this call.",
+            "description": "Transforms the selection as one undo step, applied in this order: translate, rotate about an axis (y and 90 degrees by default), flip, scale by [x, y, z] factors (a negative factor mirrors, 0 is refused), scale_to new bounds, shear. shear slides one side of the selection's bounds parallel to itself by amount units along an axis while the opposite side stays fixed, like the Shear tool: brushes and meshes slant, point entities and instances move without turning, terrains and scatters stay put: {side: +y (the face to move, a sign and its axis), along: x (the axis it slides along, not the side's own), amount: 32 (negative slides the other way)}. rotate (without center), flip and scale pivot on the selection center at that step, so after a translate they turn the selection in place. The pivot snaps to the grid only while snapping is on, and textures stay locked to the geometry while UV lock is on; both follow the editor settings (set_editor snap, uv_lock, grid) unless snap or uv_lock is passed for this call.",
             "inputSchema": { "type": "object", "properties": {
                 "translate": vec3_schema("offset"),
                 "rotate": { "type": "object", "properties": { "axis": { "type": "string", "enum": ["x", "y", "z"], "default": "y" }, "degrees": { "type": "number", "default": 90 }, "center": vec3_schema("pivot") } },
                 "flip": { "type": "string", "enum": ["x", "y", "z"] },
+                "scale": vec3_schema("factors about the selection center"),
                 "scale_to": { "type": "object", "properties": { "min": vec3_schema("min"), "max": vec3_schema("max") } },
                 "shear": { "type": "object", "properties": {
                     "side": { "type": "string", "enum": ["+x", "-x", "+y", "-y", "+z", "-z"] },
                     "along": { "type": "string", "enum": ["x", "y", "z"] },
                     "amount": { "type": "number" }
                 }, "required": ["side", "along", "amount"] },
-                "snap": { "type": "boolean", "description": "snap the rotate and flip pivot to the grid, default the editor's snapping" },
+                "snap": { "type": "boolean", "description": "snap the rotate, flip and scale pivot to the grid, default the editor's snapping" },
                 "uv_lock": { "type": "boolean", "description": "keep textures locked to the geometry, default the editor's UV lock" }
             } }
         }),

@@ -450,6 +450,36 @@ fn shear_over_mcp_slides_a_side_and_keeps_the_brush_valid() {
 
 #[test]
 #[ignore]
+fn transform_scales_by_factors_about_the_center() {
+    let ed = Editor::launch("transform_scale");
+    ed.call("set_editor", json!({ "snap": false }));
+    let brush = ed.box_brush([40.0, 8.0, -72.0], [104.0, 72.0, -20.0]);
+    ed.call("select", json!({ "ids": [brush] }));
+    let undo_before = ed.state()["undo"].as_array().unwrap().len();
+    let reply = ed.call("transform", json!({ "rotate": { "axis": "y", "degrees": 90 }, "scale": [2, 0.5, -1] }));
+    let (min, max) = ed.selection_bounds();
+    assert!(approx(&min, &[20.0, 24.0, -78.0]) && approx(&max, &[124.0, 56.0, -14.0]), "turned, then scaled about the turned center {reply}");
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), undo_before + 1);
+    assert_eq!(ed.state()["undo"][0], "MCP: Transform");
+    assert_eq!(ed.call("validate_map", json!({}))["count"], 0, "the mirrored brush is still valid");
+
+    let undo_before = ed.state()["undo"].clone();
+    for zero in [json!([1, 0, 1]), json!([0, 0, 0])] {
+        let e = ed.call_err("transform", json!({ "translate": [32, 0, 0], "scale": zero }));
+        assert!(e.contains("a scale factor cannot be 0"), "{e}");
+    }
+
+    let (min, max) = ed.selection_bounds();
+    assert!(approx(&min, &[20.0, 24.0, -78.0]) && approx(&max, &[124.0, 56.0, -14.0]), "a refused scale moves nothing either");
+    assert_eq!(ed.state()["undo"], undo_before);
+
+    ed.call("transform", json!({ "scale": [0.5, 2, 1] }));
+    let (min, max) = ed.selection_bounds();
+    assert!(approx(&min, &[46.0, 8.0, -78.0]) && approx(&max, &[98.0, 72.0, -14.0]), "{min:?} {max:?}");
+}
+
+#[test]
+#[ignore]
 fn the_shear_tool_drags_a_side_as_one_undo_step() {
     let ed = Editor::launch("shear_drag");
     let brush = ed.box_brush([0.0, 0.0, 0.0], [64.0, 64.0, 64.0]);
