@@ -1,10 +1,13 @@
 //! Hashes the addon in godot/addons/func_godot, which the release zip is made of, so the editor knows the bytes of the
 //! addon and the Gameplay pack it installs, see `code_scan.rs`. On Windows it also embeds the exe icon.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 fn main() {
-    let addon = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../godot/addons/func_godot");
+    // Read at run time, since worktrees sharing a target dir share this script's binary and env! would bake in the path
+    // of whichever tree compiled it first.
+    let crate_dir = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR"));
+    let addon = crate_dir.join("../../godot/addons/func_godot");
     println!("cargo::rerun-if-changed={}", addon.display());
     let mut files = Vec::new();
     walk(&addon, &addon, &mut files);
@@ -18,7 +21,7 @@ fn main() {
     let path = Path::new(&std::env::var_os("OUT_DIR").expect("cargo sets OUT_DIR")).join("addon_files.rs");
     std::fs::write(&path, out).unwrap_or_else(|e| panic!("could not write {}: {e}", path.display()));
 
-    let site = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../zensical.toml");
+    let site = crate_dir.join("../../zensical.toml");
     println!("cargo::rerun-if-changed={}", site.display());
     let config = std::fs::read_to_string(&site).unwrap_or_else(|e| panic!("could not read {}: {e}", site.display()));
     let discord = config.lines().find_map(|l| l.strip_prefix("discord = \"")?.strip_suffix('"')).expect("zensical.toml sets discord under [project.extra]");
