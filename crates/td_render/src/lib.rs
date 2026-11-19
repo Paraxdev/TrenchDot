@@ -174,6 +174,10 @@ fn mesh_shader() -> String {
     format!("{}\n{}\n{}\n{}", include_str!("common.wgsl"), include_str!("lightmap.wgsl"), ink::wgsl(), include_str!("mesh.wgsl"))
 }
 
+fn terrain_shader() -> String {
+    format!("{}\n{}\n{}\n{}", include_str!("common.wgsl"), include_str!("lightmap.wgsl"), include_str!("terrain_look.wgsl"), include_str!("terrain.wgsl"))
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ShadeMode {
     Textured,
@@ -874,13 +878,10 @@ impl Renderer {
         });
 
         let common = include_str!("common.wgsl");
-        let baked = include_str!("lightmap.wgsl");
         let mesh_shader =
             device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("mesh"), source: wgpu::ShaderSource::Wgsl(mesh_shader().into()) });
-        let terrain_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("terrain"),
-            source: wgpu::ShaderSource::Wgsl(format!("{common}\n{baked}\n{}", include_str!("terrain.wgsl")).into()),
-        });
+        let terrain_shader =
+            device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("terrain"), source: wgpu::ShaderSource::Wgsl(terrain_shader().into()) });
         let shadow_shader = device
             .create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("shadow"), source: wgpu::ShaderSource::Wgsl(include_str!("shadow.wgsl").into()) });
         let line_shader =
@@ -2206,9 +2207,8 @@ mod tests {
     #[test]
     fn shaders_validate() {
         let common = include_str!("common.wgsl");
-        let baked = include_str!("lightmap.wgsl");
         validate("mesh", &super::mesh_shader());
-        validate("terrain", &format!("{common}\n{baked}\n{}", include_str!("terrain.wgsl")));
+        validate("terrain", &super::terrain_shader());
 
         validate("clipmap", &super::clipmap_shader());
         validate("sky", &format!("{common}\n{}", include_str!("sky.wgsl")));

@@ -475,7 +475,7 @@ static func _test_terrain_missing_layer_slots_use_first_layer(t) -> void:
 		terrain.free()
 
 ## An emissive material painted as a terrain layer glows like it does on a brush, weighted by the layer, the
-## same (color + texture) * energy the editor preview's terrain.wgsl adds.
+## same (color + texture) * energy the editor preview's terrain_look.wgsl adds.
 static func _test_terrain_emissive_layers_glow(t) -> void:
 	print("- terrain layers keep their material's emission")
 	var heights := PackedFloat32Array()
