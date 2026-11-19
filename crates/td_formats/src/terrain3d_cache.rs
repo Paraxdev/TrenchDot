@@ -51,11 +51,13 @@ pub enum CacheError {
     Invalid(String),
     #[error("Terrain3D cache manifest: {0}")]
     Json(#[from] serde_json::Error),
+    #[error("Terrain3D region file: {0}")]
+    RegionFile(String),
 }
 
 type Result<T> = std::result::Result<T, CacheError>;
 
-/// The sha256 Godot computes over a region's height, control and color bytes. TrenchDot only compares and echoes it.
+/// The sha256 Godot computes over a region's height, control and color bytes, see [`region_hash`].
 #[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub struct RegionHash(pub [u8; 32]);
 
@@ -399,6 +401,27 @@ pub struct PendingRegion {
     pub base: RegionHash,
     pub force: bool,
     pub remove: bool,
+}
+
+/// The hash the addon gives `region`, over its heights and control words and its color unless every pixel is blank. A
+/// region read from Terrain3D's own files gets it here, so an edit to it passes Godot's check on apply.
+pub fn region_hash(region: &Region3D) -> RegionHash {
+    let mut hash = ring::digest::Context::new(&ring::digest::SHA256);
+    let mut chunk = Vec::with_capacity(1 << 16);
+    for word in region.heights.iter().map(|h| h.to_le_bytes()).chain(region.control.iter().map(|c| c.to_le_bytes())) {
+        chunk.extend(word);
+        if chunk.len() == chunk.capacity() {
+            hash.update(&chunk);
+            chunk.clear();
+        }
+    }
+
+    hash.update(&chunk);
+    if !region.color_is_blank() {
+        hash.update(&region.color);
+    }
+
+    RegionHash(hash.finish().as_ref().try_into().expect("sha256 has 32 bytes"))
 }
 
 pub fn encode_region(r: &CachedRegion) -> Result<Vec<u8>> {

@@ -1,5 +1,6 @@
-## Writes the binary resources the Rust reader in td_formats/src/godot_res.rs is tested against. Run it by hand after a
-## Godot update and commit what changed:
+## Writes the binary resources the Rust readers in td_formats/src/godot_res.rs and terrain3d_res.rs are tested against,
+## with the [code].td3r[/code] the addon exports for each region. Run it by hand after a Godot or Terrain3D update and
+## commit what changed:
 ## godot --headless --path godot --script res://tests/terrain3d/make_res_fixtures.gd
 extends SceneTree
 
@@ -9,6 +10,7 @@ const OUT := "res://tests/terrain3d/res_fixtures"
 func _initialize() -> void:
 	DirAccess.make_dir_recursive_absolute(OUT)
 	var failed := _values()
+	failed = _regions() or failed
 	quit(1 if failed else 0)
 
 
@@ -71,3 +73,57 @@ func _values() -> bool:
 	failed = ResourceSaver.save(resource, OUT.path_join("values.res")) != OK or failed
 	failed = ResourceSaver.save(resource, OUT.path_join("values_compressed.res"), ResourceSaver.FLAG_COMPRESS) != OK or failed
 	return failed
+
+
+## Regions of 64 vertices: 16 bit heights with painted color away from the origin, and instances with a blank color
+## map. Note: headless Godot cannot compress a color map, the Rust tests build that case from these files.
+func _regions() -> bool:
+	if not ClassDB.class_exists(&"Terrain3DRegion"):
+		push_error("Terrain3D is not installed in this project")
+		return true
+	var instances := { 0: { Vector2i(0, 0): [[Transform3D(Basis.IDENTITY, Vector3(1, 2, 3))], PackedColorArray([Color.WHITE]), true] } }
+	var failed := _region("painted", Vector2i(-3, 2), 2.5, true, true, {})
+	return _region("instances", Vector2i(1, 0), 1.0, false, false, instances) or failed
+
+
+func _region(folder: String, loc: Vector2i, spacing: float, half: bool, painted: bool, instances: Dictionary) -> bool:
+	const SIZE := 64
+	var heights := PackedByteArray()
+	var control := PackedByteArray()
+	var color := PackedByteArray()
+	heights.resize(SIZE * SIZE * 4)
+	control.resize(SIZE * SIZE * 4)
+	color.resize(SIZE * SIZE * 4)
+	for y in SIZE:
+		for x in SIZE:
+			var i := (y * SIZE + x) * 4
+			heights.encode_float(i, sin(x * 0.3) * 12.34 + y * 0.517 - 3.0)
+			control.encode_u32(i, (x % 32) << 27 | (y % 32) << 22 | ((x * 7 + y) % 256) << 14 | (4 if (x + y) % 9 == 0 else 0) | x % 2)
+			if painted:
+				color.encode_u32(i, (x * 4) | (y * 4) << 8 | 128 << 16 | ((x + y) % 256) << 24)
+	var region: Resource = ClassDB.instantiate(&"Terrain3DRegion")
+	region.set(&"region_size", SIZE)
+	region.set(&"vertex_spacing", spacing)
+	region.set(&"location", loc)
+	region.call(&"set_map", 0, Image.create_from_data(SIZE, SIZE, false, Image.FORMAT_RF, heights))
+	region.call(&"set_map", 1, Image.create_from_data(SIZE, SIZE, false, Image.FORMAT_RF, control))
+	var color_map := Image.create_from_data(SIZE, SIZE, false, Image.FORMAT_RGBA8, color)
+	if not painted:
+		color_map.fill(Color(1, 1, 1, 0.5))
+	region.call(&"set_map", 2, color_map)
+	if not instances.is_empty():
+		region.set(&"instances", instances)
+	var dir := OUT.path_join(folder)
+	DirAccess.make_dir_recursive_absolute(dir)
+	var path := dir.path_join(TrenchDotTerrain3DCache.region_stem(loc) + ".res")
+	if region.call(&"save", path, half) != OK:
+		push_error("could not save %s" % path)
+		return true
+	var saved := ResourceLoader.load(path, "", ResourceLoader.CACHE_MODE_IGNORE)
+	var encoded := TrenchDotTerrain3DCache.encode_region(saved, loc, float(saved.get(&"vertex_spacing")))
+	if encoded.has("problem"):
+		push_error("%s: %s" % [path, encoded["problem"]])
+		return true
+	var file := FileAccess.open(path.get_basename() + TrenchDotTerrain3DCache.REGION_EXT, FileAccess.WRITE)
+	file.store_buffer(encoded["bytes"])
+	return false

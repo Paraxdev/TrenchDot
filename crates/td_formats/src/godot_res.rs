@@ -180,6 +180,11 @@ impl Resource {
         &self.external
     }
 
+    #[cfg(test)]
+    pub(crate) fn internal_mut(&mut self) -> &mut [SubResource] {
+        &mut self.internal
+    }
+
     /// The resource built into the file that `value` refers to. Files from before named ids refer by the number in
     /// `local://<number>`, later ones by the place in the internal table.
     pub fn resolve(&self, value: &Value) -> Option<&SubResource> {
