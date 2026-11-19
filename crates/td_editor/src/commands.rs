@@ -1484,6 +1484,10 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         Action::SelectAllInMode => state.doc.select(|m, s| ops::select_all(m, s, &open_groups)),
         Action::Cancel => {
             state.drop_group_status();
+            if state.status == "Dropped the selection box" {
+                state.clear_status();
+            }
+
             if state.drop_selection_box() {
                 state.set_status(msg!("Dropped the selection box"));
             } else if state.doc.selection.has_faces() {

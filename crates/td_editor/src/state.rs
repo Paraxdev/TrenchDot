@@ -1207,7 +1207,7 @@ impl EditorState {
         true
     }
 
-    fn clear_status(&mut self) {
+    pub fn clear_status(&mut self) {
         self.status.clear();
         self.status_tr = None;
         self.status_failed = false;

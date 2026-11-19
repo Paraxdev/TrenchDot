@@ -75,6 +75,7 @@ pub fn confirm(state: &mut EditorState) -> usize {
         s.nodes.extend(found.iter().copied());
     });
     state.set_status(msg_n!(found.len(), "Selected {n} object", "Selected {n} objects"));
+    state.bind_status_to_selection();
     found.len()
 }
 
@@ -210,6 +211,36 @@ mod tests {
         assert_eq!(block_status(&prefs).en, "The Block tool draws brushes (Shift+B)");
         prefs.key_overrides.insert(Action::SetTool(ToolKind::Block).binding_id(), String::new());
         assert_eq!(block_status(&prefs).en, "The Block tool draws brushes");
+    }
+
+    #[test]
+    fn escape_leaves_no_box_status_behind_once_it_moved_on() {
+        use crate::commands::{Action, execute};
+        let ctx = egui::Context::default();
+        let (mut state, [_, _, _, away]) = room();
+        let b = top([-120.0, 0.0, 300.0], [-310.0, 0.0, 190.0], false);
+        for selected in [false, true] {
+            state.doc.select(|_, s| {
+                s.clear();
+                if selected {
+                    s.select_node(away);
+                }
+            });
+            state.selection_box = Some(b);
+            execute(&mut state, Action::Cancel, &ctx);
+            assert_eq!(state.status, "Dropped the selection box");
+            execute(&mut state, Action::Cancel, &ctx);
+            state.expire_selection_status();
+            assert_eq!((state.status.as_str(), state.doc.selection.nodes.is_empty()), ("", true), "selected {selected}");
+        }
+
+        state.selection_box = Some(b);
+        assert_eq!(confirm(&mut state), 2);
+        state.expire_selection_status();
+        assert_eq!(state.status, "Selected 2 objects");
+        execute(&mut state, Action::Cancel, &ctx);
+        state.expire_selection_status();
+        assert_eq!((state.status.as_str(), state.doc.selection.nodes.is_empty()), ("", true), "the count goes with the selection");
     }
 
     #[test]
