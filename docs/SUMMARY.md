@@ -8,6 +8,7 @@
     * [Coming from Unity or Blender](editor/coming-from-unity-blender.md)
     * [Coming from Hammer or TrenchBroom](editor/coming-from-hammer-trenchbroom.md)
     * [Brushes and CSG](editor/brushes.md)
+    * [Tunnels](editor/tunnels.md)
     * [Trim](editor/trim.md)
     * [Meshes](editor/meshes.md)
     * [Models](editor/models.md)

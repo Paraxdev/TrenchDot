@@ -189,6 +189,9 @@ A Godot effect that mirrors what is already on screen in shiny surfaces, so wet 
 ## SDFGI
 Godot's real time global illumination, light that bounces off surfaces and tints what is around them, without baking. It learns the scene's geometry in rings of cells around the camera, so geometry that appears suddenly, such as a swapped in map section, stays dark until the rings move on. Baked lighting has no such delay.
 
+## segmental arch
+An arch that is a slice of a circle less than a half circle, so it is flatter than a round arch of the same width. Old bridges, cellars and brick sewers often have one. An Arched tunnel with an Angle under 180 gets one.
+
 ## signal
 Godot's name for an event a node announces, such as a button being pressed. Every entity output is a signal, and wiring an output connects that signal to an input method on the target.
 
