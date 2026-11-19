@@ -7,7 +7,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use td_core::{DVec2, DVec3, Mirror, NodeId};
 use td_geom::heightfield::Terrain;
-use td_geom::terrain3d::{Control, EdgeBlend, Grid, LOC_MAX, LOC_MIN, Loc, Region3D, loc_in_range, surface_height};
+use td_geom::terrain3d::{BLANK_COLOR, Control, EdgeBlend, Grid, LOC_MAX, LOC_MIN, Loc, Region3D, loc_in_range, surface_height};
 use td_geom::terrain3d_tile::{self, Paint, PaintMode};
 
 use crate::map::{Map, NodeKind};
@@ -135,12 +135,14 @@ pub struct GrowPlan {
 }
 
 /// What Terrain3D has at a position: `height` is the surface a scatter instance stands on in map units, None over a
-/// hole or where no region is. `control` is the nearest vertex's control word.
+/// hole or where no region is. `control` and `color` are the nearest vertex's, the color blank for a region without
+/// a color map.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Probe {
     pub height: Option<f64>,
     pub region: Option<Loc>,
     pub control: Option<Control>,
+    pub color: Option<[u8; 4]>,
 }
 
 impl Terrain3DLink {
@@ -403,10 +405,12 @@ impl Terrain3DLink {
         let cell = grid.cell();
         let nearest = [(x / cell).round() as i64, (z / cell).round() as i64];
         let loc = grid.region_of(near);
+        let vertex = grid.sample(find, nearest);
         Probe {
             height: h.is_finite().then_some(h as f64 * grid.upm),
             region: find(loc).map(|_| loc),
-            control: grid.sample(find, nearest).map(|(r, k)| Control(r.control[k])),
+            control: vertex.map(|(r, k)| Control(r.control[k])),
+            color: vertex.map(|(r, k)| r.color.as_chunks::<4>().0.get(k).copied().unwrap_or(BLANK_COLOR)),
         }
     }
 
@@ -1057,8 +1061,14 @@ mod edit_tests {
         assert_eq!((hole.height, hole.region), (None, Some([-1, 0])));
         assert!(hole.control.unwrap().hole());
 
+        assert_eq!(before.color, Some(BLANK_COLOR));
+        link.paint(&source, DVec3::new(-3.0 * CELL, 0.0, 5.0 * CELL), 64.0, &Paint::Color { rgb: [12, 200, 7], erase: false }, 1.0);
+        assert_eq!(link.probe(&source, x, z).color, Some([12, 200, 7, BLANK_COLOR[3]]));
+        let bare = colorless(&[[-1, 0]]);
+        assert_eq!(Terrain3DLink::new("res://t3d").probe(&bare, x, z).color, Some(BLANK_COLOR), "no color map reads blank");
+
         let outside = link.probe(&source, 4.0 * 1024.0, 4.0 * 1024.0);
-        assert_eq!((outside.height, outside.region, outside.control), (None, None, None));
+        assert_eq!((outside.height, outside.region, outside.control, outside.color), (None, None, None, None));
         let edge = link.probe(&source, 0.0, 0.0);
         assert_eq!(edge.region, Some([0, 0]));
         assert!((edge.height.unwrap() - want(0.0, 0.0)).abs() < 1e-3);

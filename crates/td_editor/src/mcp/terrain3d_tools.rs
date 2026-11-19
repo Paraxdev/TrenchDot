@@ -7,14 +7,15 @@ use serde_json::{Value, json};
 use td_core::{DVec2, DVec3, NodeId};
 use td_doc::terrain::{SculptBrush, SculptMode};
 use td_doc::terrain3d::{RegionSource, reground_scatter};
-use td_geom::terrain3d::Loc;
-use td_geom::terrain3d_tile::PaintMode;
+use td_geom::terrain3d::{Loc, roughness_percent};
+use td_geom::terrain3d_tile::{Flag, Paint, PaintMode};
 
 use super::ToolResult;
 use super::content_tools::{point, resample};
 use super::tools::uint;
 use crate::app::App;
 use crate::state::EditorState;
+use crate::terrain3d::brush::{color_hex, parse_color};
 
 /// How long a tool waits for the regions it edits to load from the cache.
 const LOAD_TIMEOUT: Duration = Duration::from_secs(20);
@@ -51,7 +52,7 @@ fn xz(p: DVec3) -> DVec2 {
 #[derive(Debug)]
 pub(crate) enum Job {
     Dabs { brush: SculptBrush, points: Vec<DVec3> },
-    Paint { texture: u8, mode: PaintMode, strength: f32, radius: f64, points: Vec<DVec3> },
+    Paint { paint: Paint, strength: f32, radius: f64, points: Vec<DVec3> },
     Flatten { min: DVec2, max: DVec2, height: f64, margin: f64 },
     Ramp { from: DVec3, to: DVec3, width: f64, margin: f64 },
 }
@@ -137,15 +138,38 @@ impl Job {
                 brush.mode = if a["hole"].as_bool().unwrap_or(true) { SculptMode::Hole } else { SculptMode::Unhole };
                 Ok(Job::Dabs { brush, points: one()? })
             }
-            "paint_texture" => {
-                let texture = uint(&a["texture"]).filter(|t| *t < 32).ok_or("texture, a Terrain3D texture id from 0 to 31, is required")? as u8;
-                let mode = match a["mode"].as_str().unwrap_or("base") {
-                    "base" => PaintMode::Base,
-                    "spray" => PaintMode::Spray,
-                    _ => return Err("mode must be base or spray".into()),
+            "paint_texture" | "paint_navigation" | "paint_autoshader" | "paint_color" | "paint_wetness" => {
+                let erase = a["erase"].as_bool().unwrap_or(false);
+                let paint = match op {
+                    "paint_texture" => {
+                        let id = uint(&a["texture"]).filter(|t| *t < 32).ok_or("texture, a Terrain3D texture id from 0 to 31, is required")? as u8;
+                        let mode = match a["mode"].as_str().unwrap_or("base") {
+                            "base" => PaintMode::Base,
+                            "spray" => PaintMode::Spray,
+                            _ => return Err("mode must be base or spray".into()),
+                        };
+                        Paint::Texture { id, mode }
+                    }
+                    "paint_navigation" => Paint::Flag { flag: Flag::Navigation, on: a["on"].as_bool().unwrap_or(true) },
+                    "paint_autoshader" => Paint::Flag { flag: Flag::Autoshader, on: a["on"].as_bool().unwrap_or(true) },
+                    "paint_color" => {
+                        let rgb = match &a["color"] {
+                            Value::Null if erase => [255; 3],
+                            Value::Null => return Err("color #rrggbb required, or erase true".into()),
+                            v => v.as_str().and_then(parse_color).ok_or("color must be #rrggbb")?,
+                        };
+                        Paint::Color { rgb, erase }
+                    }
+                    _ => {
+                        let roughness = match &a["roughness"] {
+                            Value::Null => -50.0,
+                            v => v.as_f64().filter(|r| (-100.0..=100.0).contains(r)).ok_or("roughness must be a number from -100 to 100")?,
+                        };
+                        Paint::Wetness { roughness: roughness.round() as i8, erase }
+                    }
                 };
-                let points = if center.is_some() { one()? } else { many(radius * 0.4)? };
-                Ok(Job::Paint { texture, mode, strength: a["strength"].as_f64().unwrap_or(1.0).clamp(0.0, 1.0) as f32, radius, points })
+                let points = if center.is_some() { one()? } else { many(a["spacing"].as_f64().unwrap_or(radius * 0.4))? };
+                Ok(Job::Paint { paint, strength: a["strength"].as_f64().unwrap_or(1.0).clamp(0.0, 1.0) as f32, radius, points })
             }
             "flatten_rect" => {
                 let (Some(min), Some(max)) = (point(&a["min"]), point(&a["max"])) else { return Err("min and max [x, z] required".into()) };
@@ -160,7 +184,8 @@ impl Job {
                 Ok(Job::Ramp { from, to, width: a["width"].as_f64().unwrap_or(96.0), margin: a["margin"].as_f64().unwrap_or(64.0) })
             }
             other => Err(format!(
-                "terrain_edit op {other} does not apply to Terrain3D, use sculpt, sculpt_path, paint_texture, flatten_rect, ramp, holes, or only probe"
+                "terrain_edit op {other} does not apply to Terrain3D, use sculpt, sculpt_path, paint_texture, paint_color, paint_wetness, \
+                 paint_navigation,paint_autoshader, flatten_rect, ramp, holes, or only probe"
             )),
         }
     }
@@ -220,9 +245,9 @@ impl EditorState {
                         locs.extend(link.sculpt(&source, *p, &brush));
                     }
                 }
-                Job::Paint { texture, mode, strength, radius, points } => {
+                Job::Paint { paint, strength, radius, points } => {
                     for p in points {
-                        locs.extend(link.paint_texture(&source, *p, *radius, *texture, *mode, *strength));
+                        locs.extend(link.paint(&source, *p, *radius, paint, *strength));
                     }
                 }
                 Job::Flatten { min, max, height, margin } => locs.extend(link.flatten_rect(&source, *min, *max, *height, *margin)),
@@ -248,7 +273,8 @@ impl EditorState {
         }
     }
 
-    /// The surface height and texture ids at `x`, `z` (map units) as JSON, after loading what they read.
+    /// The surface height, texture ids, flags, color and wetness at `x`, `z` (map units) as JSON, after loading what they
+    /// read.
     pub(crate) fn probe_terrain3d(&mut self, id: NodeId, x: f64, z: f64) -> Result<Value, String> {
         self.load_terrain3d_rect(id, DVec2::new(x, z), DVec2::new(x, z))?;
         let (_, cache) = self.terrain3d_links().into_iter().find(|(node, _)| *node == id).ok_or("no Terrain3D cache")?;
@@ -263,6 +289,11 @@ impl EditorState {
             out["hole"] = json!(c.hole());
             out["navigation"] = json!(c.navigation());
             out["auto"] = json!(c.auto());
+        }
+
+        if let Some([r, g, b, a]) = p.color {
+            out["color"] = json!(color_hex([r, g, b]));
+            out["roughness"] = json!(roughness_percent(a));
         }
 
         Ok(out)
@@ -362,10 +393,75 @@ mod tests {
         assert!(base(json!({ "texture": 32 })).unwrap_err().contains("0 to 31"));
         assert!(base(json!({ "texture": -1 })).unwrap_err().contains("0 to 31"));
         assert!(base(json!({ "texture": 2, "mode": "smear" })).unwrap_err().contains("base or spray"));
-        let Ok(Job::Paint { texture, mode, strength, .. }) = base(json!({ "texture": 31, "mode": "spray", "strength": 4.0 })) else { panic!("parses") };
-        assert_eq!((texture, mode, strength), (31, PaintMode::Spray, 1.0));
-        let Ok(Job::Paint { texture, mode, .. }) = base(json!({ "texture": 0 })) else { panic!("parses") };
-        assert_eq!((texture, mode), (0, PaintMode::Base));
+        let Ok(Job::Paint { paint, strength, .. }) = base(json!({ "texture": 31, "mode": "spray", "strength": 4.0 })) else { panic!("parses") };
+        assert_eq!((paint, strength), (Paint::Texture { id: 31, mode: PaintMode::Spray }, 1.0));
+        let Ok(Job::Paint { paint, .. }) = base(json!({ "texture": 0 })) else { panic!("parses") };
+        assert_eq!(paint, Paint::Texture { id: 0, mode: PaintMode::Base });
+    }
+
+    fn paint_of(op: &str, a: Value) -> Result<(Paint, f32, Vec<DVec3>), String> {
+        match parse(op, a)? {
+            Job::Paint { paint, strength, points, .. } => Ok((paint, strength, points)),
+            other => panic!("{op} parsed as {other:?}"),
+        }
+    }
+
+    #[test]
+    fn every_paint_op_takes_a_center_or_points_and_needs_one() {
+        let extra = |op: &str| match op {
+            "paint_texture" => json!({ "texture": 3 }),
+            "paint_color" => json!({ "color": "#102030" }),
+            _ => json!({}),
+        };
+        for op in ["paint_texture", "paint_navigation", "paint_autoshader", "paint_color", "paint_wetness"] {
+            let with = |more: Value| {
+                let mut a = extra(op);
+                a.as_object_mut().unwrap().extend(more.as_object().unwrap().clone());
+                paint_of(op, a)
+            };
+            assert_eq!(with(json!({ "center": [-700.5, 310.0] })).unwrap().2, vec![DVec3::new(-700.5, 0.0, 310.0)], "{op}");
+            assert_eq!(with(json!({ "points": [[-40.0, 12.0]] })).unwrap().2, vec![DVec3::new(-40.0, 0.0, 12.0)], "{op}");
+            let path = with(json!({ "points": [[-40.0, 12.0], [60.0, 12.0]], "radius": 50.0 })).unwrap().2;
+            assert_eq!((path.len(), path.last().copied()), (6, Some(DVec3::new(60.0, 0.0, 12.0))), "{op} spaces dabs radius * 0.4 apart");
+            assert_eq!(with(json!({ "points": [[-40.0, 12.0], [60.0, 12.0]], "radius": 50.0, "spacing": 50.0 })).unwrap().2.len(), 3, "{op}");
+            assert!(with(json!({})).unwrap_err().contains("points"), "{op}");
+        }
+    }
+
+    #[test]
+    fn flag_color_and_wetness_ops_check_their_values() {
+        let at = |op: &str, more: Value| {
+            let mut a = json!({ "center": [5.0, -9.0], "radius": 30.0 });
+            a.as_object_mut().unwrap().extend(more.as_object().unwrap().clone());
+            paint_of(op, a).map(|(paint, strength, _)| (paint, strength))
+        };
+        assert_eq!(at("paint_navigation", json!({})).unwrap().0, Paint::Flag { flag: Flag::Navigation, on: true });
+        assert_eq!(at("paint_navigation", json!({ "on": false })).unwrap().0, Paint::Flag { flag: Flag::Navigation, on: false });
+        assert_eq!(at("paint_autoshader", json!({})).unwrap().0, Paint::Flag { flag: Flag::Autoshader, on: true });
+        assert_eq!(at("paint_autoshader", json!({ "on": false })).unwrap().0, Paint::Flag { flag: Flag::Autoshader, on: false });
+
+        assert_eq!(at("paint_color", json!({ "color": "#B4966E" })).unwrap(), (Paint::Color { rgb: [0xb4, 0x96, 0x6e], erase: false }, 1.0));
+        for bad in [json!("#12345"), json!("red"), json!("#gggggg"), json!("b4966e"), json!(0xb4966e)] {
+            assert!(at("paint_color", json!({ "color": bad })).unwrap_err().contains("#rrggbb"), "{bad}");
+        }
+
+        assert!(at("paint_color", json!({})).unwrap_err().contains("required"));
+        assert_eq!(at("paint_color", json!({ "erase": true })).unwrap().0, Paint::Color { rgb: [255; 3], erase: true });
+        assert_eq!(at("paint_color", json!({ "color": "#000000", "strength": 3.0 })).unwrap().1, 1.0);
+        assert_eq!(at("paint_color", json!({ "color": "#000000", "strength": -2.0 })).unwrap().1, 0.0);
+        assert_eq!(at("paint_color", json!({ "color": "#000000", "strength": 0.25 })).unwrap().1, 0.25);
+
+        assert_eq!(at("paint_wetness", json!({})).unwrap(), (Paint::Wetness { roughness: -50, erase: false }, 1.0));
+        for (given, kept) in [(-100.0, -100), (100.0, 100), (0.0, 0), (33.4, 33), (-0.6, -1)] {
+            assert_eq!(at("paint_wetness", json!({ "roughness": given })).unwrap().0, Paint::Wetness { roughness: kept, erase: false }, "{given}");
+        }
+
+        for bad in [json!(-101), json!(101), json!(100.5), json!("wet")] {
+            assert!(at("paint_wetness", json!({ "roughness": bad })).unwrap_err().contains("-100 to 100"), "{bad}");
+        }
+
+        assert_eq!(at("paint_wetness", json!({ "roughness": 20, "erase": true })).unwrap().0, Paint::Wetness { roughness: 20, erase: true });
+        assert!(at("paint_wetness", json!({ "radius": 1.0e9 })).unwrap_err().contains("radius"));
     }
 
     #[test]
@@ -426,5 +522,7 @@ mod tests {
         assert_eq!(flat.bounds(), (DVec2::new(-42.0, -2.0), DVec2::new(62.0, 102.0)));
         let dab = parse("sculpt", json!({ "center": [7.0, -3.0], "mode": "raise", "radius": 10.0 })).unwrap();
         assert_eq!(dab.bounds(), (DVec2::new(-3.0, -13.0), DVec2::new(17.0, 7.0)));
+        let wet = parse("paint_wetness", json!({ "points": [[-300.0, 40.0], [-260.0, -15.0]], "radius": 25.0 })).unwrap();
+        assert_eq!(wet.bounds(), (DVec2::new(-325.0, -40.0), DVec2::new(-235.0, 65.0)));
     }
 }

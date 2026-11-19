@@ -123,6 +123,10 @@ pub fn parse_color(text: &str) -> Option<[u8; 3]> {
     Some([byte(0)?, byte(2)?, byte(4)?])
 }
 
+pub fn color_hex([r, g, b]: [u8; 3]) -> String {
+    format!("#{r:02x}{g:02x}{b:02x}")
+}
+
 /// The texture ids Paint can set: the Terrain3D texture assets of the first node the Sculpt tool reaches, with the
 /// Paint and Spray switch.
 pub fn texture_picker(ui: &mut Ui, state: &mut EditorState, nodes: &[NodeId]) {

@@ -9749,6 +9749,58 @@ fn terrain3d_terrain_edit_over_mcp() {
     assert!(control(25, 25).hole());
 }
 
+/// terrain_edit paints Terrain3D's color, wetness, navigation and autoshader across a region border off the origin,
+/// probe reads them back, erase takes them away again and the pending file carries the color.
+#[test]
+#[ignore]
+fn terrain3d_terrain_edit_paints_color_wetness_and_flags_over_mcp() {
+    use td_formats::terrain3d_cache::{DIR_NAME, read_pending};
+
+    let (dir, map) = terrain3d_world_at("terrain3d_paint_ops", None, &[[-2, 1], [-1, 1], [-2, 2]]);
+    let ed = Editor::launch_with("terrain3d_paint_ops", &["--project", dir.to_str().unwrap()]);
+    ed.call("map_file", json!({ "op": "open", "path": map }));
+    let node = ed.call("list_nodes", json!({ "type": "terrain3d" }))["nodes"][0]["id"].clone();
+    let probe = |x: f64, z: f64| ed.call("terrain_edit", json!({ "id": node, "probe": [x, z] }))["probe"].clone();
+    let edit = |mut args: Value| {
+        args["id"] = node.clone();
+        ed.call("terrain_edit", args)
+    };
+    let read = |x: f64, z: f64, key: &str| probe(x, z)[key].clone();
+
+    assert_eq!((read(-512.0, 704.0, "color"), read(-512.0, 704.0, "roughness")), (json!("#ffffff"), json!(0)));
+    let painted = edit(json!({ "op": "paint_color", "center": [-512.0, 704.0], "radius": 40.0, "color": "#C03010" }));
+    assert_eq!(painted["regions"], json!([[-2, 1], [-1, 1]]), "{painted}");
+    assert_eq!(read(-512.0, 704.0, "color"), "#c03010");
+    assert_eq!(probe(-520.0, 704.0)["region"], json!([-2, 1]));
+    assert_ne!(read(-520.0, 704.0, "color"), "#ffffff", "the dab reached across the border");
+    assert_eq!(read(-512.0, 784.0, "color"), "#ffffff", "outside the radius");
+    assert_eq!(read(-512.0, 704.0, "roughness"), 0, "color keeps the roughness");
+
+    edit(json!({ "op": "paint_wetness", "center": [-296.0, 600.0], "radius": 40.0 }));
+    assert_eq!((read(-296.0, 600.0, "roughness"), read(-296.0, 600.0, "color")), (json!(-50), json!("#ffffff")));
+    edit(json!({ "op": "paint_wetness", "center": [-296.0, 600.0], "radius": 40.0, "roughness": 80, "strength": 0.5 }));
+    let half = read(-296.0, 600.0, "roughness").as_i64().unwrap();
+    assert!((10..20).contains(&half), "half way from -50 toward 80, {half}");
+    edit(json!({ "op": "paint_wetness", "center": [-296.0, 600.0], "radius": 40.0, "erase": true }));
+    assert_eq!(read(-296.0, 600.0, "roughness"), 0, "erase brings it back to 0");
+
+    edit(json!({ "op": "paint_navigation", "center": [-800.0, 600.0], "radius": 30.0 }));
+    assert_eq!((read(-800.0, 600.0, "navigation"), read(-800.0, 680.0, "navigation")), (json!(true), json!(false)));
+    edit(json!({ "op": "paint_navigation", "center": [-800.0, 600.0], "radius": 30.0, "on": false }));
+    assert_eq!(read(-800.0, 600.0, "navigation"), false);
+    edit(json!({ "op": "paint_autoshader", "points": [[-900.0, 960.0], [-900.0, 1100.0]], "radius": 20.0 }));
+    assert_eq!((read(-900.0, 1000.0, "auto"), read(-900.0, 1080.0, "auto"), read(-960.0, 1000.0, "auto")), (json!(true), json!(true), json!(false)));
+    assert_eq!(probe(-900.0, 1080.0)["region"], json!([-2, 2]));
+
+    assert!(ed.call_err("terrain_edit", json!({ "id": node, "op": "paint_color", "center": [-512.0, 704.0], "color": "red" })).contains("#rrggbb"));
+    assert!(ed.call_err("terrain_edit", json!({ "id": node, "op": "paint_wetness", "center": [-512.0, 704.0], "roughness": 101 })).contains("-100 to 100"));
+    assert_eq!(read(-512.0, 704.0, "color"), "#c03010", "a refused op changes nothing");
+
+    ed.call("run_action", json!({ "action": "send_terrain3d" }));
+    let pending = read_pending(&dir.join("terrain").join(DIR_NAME), [-1, 1], 64).unwrap();
+    assert_eq!(pending.region.color[24 * 64 * 4..][..4], [0xc0, 0x30, 0x10, 127], "the pending file holds the color");
+}
+
 /// The height Godot samples at `x`, `z` in map units over the regions of `terrain3d_world` with the edits of the pending
 /// files, the surface a scatter instance is put on.
 fn surface_at(cache: &std::path::Path, x: f64, z: f64) -> f64 {

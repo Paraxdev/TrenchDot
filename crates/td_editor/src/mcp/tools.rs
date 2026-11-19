@@ -19,7 +19,7 @@ use crate::app::App;
 use crate::camera::ViewKind;
 use crate::commands::Action;
 use crate::state::EditorState;
-use crate::terrain3d::brush::{Channel, Terrain3DPaint, parse_color};
+use crate::terrain3d::brush::{Channel, Terrain3DPaint, color_hex, parse_color};
 use crate::tools::ToolKind;
 
 pub struct InputStep {
@@ -165,8 +165,7 @@ fn terrain3d_paint_arg(v: &Value, base: Terrain3DPaint) -> Result<Terrain3DPaint
 }
 
 fn terrain3d_paint_json(p: &Terrain3DPaint) -> Value {
-    let [r, g, b] = p.color;
-    json!({ "channel": p.channel, "color": format!("#{r:02x}{g:02x}{b:02x}"), "roughness": p.roughness })
+    json!({ "channel": p.channel, "color": color_hex(p.color), "roughness": p.roughness })
 }
 
 /// `edit_symmetry` the way set_editor takes it, for get_state.
