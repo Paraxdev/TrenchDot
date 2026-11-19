@@ -35,6 +35,7 @@ static func run(t) -> void:
 	await _test_cli_settings(t)
 	await _test_settings_refusals(t)
 	await _test_settings_save_fails(t)
+	await _test_settings_keep_unloaded(t)
 	await _test_scene_spacing(t)
 	_test_new_folder_settings(t)
 	await _test_lost_settings(t)
@@ -648,6 +649,19 @@ static func _test_settings_save_fails(t) -> void:
 		if path.begins_with(".trenchdot/backups"):
 			after.erase(path)
 	t.check(after == before, "the region files and the cache are as they were, got %s for %s" % [after.keys(), before.keys()])
+
+## A region file Terrain3D could not load is not one the settings change merged away, so it stays as it was.
+static func _test_settings_keep_unloaded(t) -> void:
+	var folder := WORK.path_join("settings_unloaded")
+	(await _world(t, "settings_unloaded")).free()
+	var broken := folder.path_join(TrenchDotTerrain3DCache.region_stem(Vector2i(5, 5)) + ".res")
+	FileAccess.open(broken, FileAccess.WRITE).store_string("not a region")
+	var md5 := FileAccess.get_md5(broken)
+	var changed := Export._cli(["settings", folder, "128", "2.5"])
+	var problems: Array = changed[1].get("problems", [])
+	t.check(changed[0] == 0 and changed[1].get("ok") == true and FileAccess.get_md5(broken) == md5, "a region file that did not load stays, got %s" % [changed])
+	t.check(problems.any(func(p: String) -> bool: return p.contains(broken.get_file()) and p.contains("did not load")) and not changed[1].get("removed", []).has(broken.get_file()), "and is named as a problem, got %s" % [problems])
+	t.check(changed[1].get("removed", []).has(TrenchDotTerrain3DCache.region_stem(Vector2i(3, -2)) + ".res"), "while the file of a loaded region that merged away goes, got %s" % [changed[1].get("removed")])
 
 ## A scene's Terrain3D on [param folder] at the spacing the test worlds have, in a slot under a map node.
 static func _reopened(t, folder: String) -> TrenchDotTerrain3D:
