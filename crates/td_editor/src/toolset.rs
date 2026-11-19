@@ -341,8 +341,12 @@ impl ToolSet {
         }
     }
 
-    /// Resets per-tool state when the active tool changes.
+    /// Resets per-tool state when the active tool changes, and drops the Vertex tool's corners once no object is selected.
     pub fn sync(&mut self, state: &EditorState) {
+        if state.doc.selection.nodes.is_empty() {
+            self.vertex.selected.clear();
+        }
+
         if self.active != Some(state.tool) {
             self.orphaned |= self.holds_transaction();
             self.clip = ClipTool::default();
@@ -2809,6 +2813,21 @@ mod tests {
         for want in [DVec3::new(4.0, 53.0, -5.0), DVec3::new(96.0, 53.0, -5.0)] {
             assert!(got.iter().any(|v| v.distance(want) < 1e-6), "no corner at {want:?} in {got:?}");
         }
+    }
+
+    #[test]
+    fn escape_that_clears_the_objects_drops_the_vertex_corners() {
+        let (mut state, _) = state_with_brush();
+        let mut tools = ToolSet::default();
+        state.tool = ToolKind::Vertex;
+        tools.vertex.selected = vec![DVec3::ZERO, DVec3::new(64.0, 0.0, 0.0)];
+        tools.sync(&state);
+        assert_eq!(tools.vertex.selected.len(), 2, "the corners of a selected brush stay");
+
+        crate::commands::execute(&mut state, crate::commands::Action::Cancel, &egui::Context::default());
+        tools.sync(&state);
+        assert!(state.doc.selection.nodes.is_empty());
+        assert_eq!((tools.vertex.selected.as_slice(), state.tool), (&[][..], ToolKind::Vertex));
     }
 
     #[test]
