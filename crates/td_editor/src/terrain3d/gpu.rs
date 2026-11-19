@@ -580,6 +580,7 @@ fn albedo_cache<'a>(renderer: &Renderer, albedos: &'a mut HashMap<PathBuf, Albed
 }
 
 /// The manifest's textures as the clipmap draws them: the exported albedo, else the thumbnail, else the color alone.
+/// Godot hands Terrain3D's color array to the shader made linear, though the uniform has no `source_color`.
 fn textures(cache: &Path, list: &[ManifestTexture]) -> Vec<ClipmapTexture> {
     let open = |file: &str| (!file.is_empty()).then(|| image::open(cache.join(file)).ok()).flatten().map(|i| i.to_rgba8());
     list.iter()
@@ -589,7 +590,8 @@ fn textures(cache: &Path, list: &[ManifestTexture]) -> Vec<ClipmapTexture> {
                 None => open(&t.thumbnail).map_or(Albedo::None, Albedo::Thumbnail),
             };
             let [r, g, b, _] = t.albedo_color;
-            ClipmapTexture { id: t.id, albedo, color: [r, g, b], uv_scale: t.uv_scale, detiling: [t.detiling_rotation, t.detiling_shift] }
+            let color = [r, g, b].map(td_render::srgb_to_linear);
+            ClipmapTexture { id: t.id, albedo, color, uv_scale: t.uv_scale, detiling: [t.detiling_rotation, t.detiling_shift] }
         })
         .collect()
 }
@@ -823,6 +825,15 @@ mod tests {
         assert!(sea.color.iter().zip(want).all(|(a, b)| (a - b).abs() < 1e-6), "{:?}", sea.color);
         assert_eq!(water(40.0, Some(&ocean(true, 5.0))).unwrap().level, 200.0, "the level follows the units per meter");
         assert_eq!(water(32.0, Some(&ocean(true, 0.0))).unwrap().level, 0.0);
+    }
+
+    #[test]
+    fn a_texture_albedo_color_tints_in_linear_color_like_godot() {
+        let grass = ManifestTexture { id: 1, albedo_color: [0.5, 0.04045, 1.0, 0.25], ..Default::default() };
+        let drawn = textures(Path::new("no-cache"), &[grass]);
+        let want = [0.21404114, 0.04045 / 12.92, 1.0];
+        assert!(drawn[0].color.iter().zip(want).all(|(a, b)| (a - b).abs() < 1e-6), "{:?}", drawn[0].color);
+        assert!(matches!(drawn[0].albedo, Albedo::None));
     }
 
     #[test]

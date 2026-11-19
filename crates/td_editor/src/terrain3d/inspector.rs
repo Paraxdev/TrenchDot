@@ -87,13 +87,15 @@ pub fn use_godots(link: &mut Terrain3DLink, loc: Loc) -> bool {
     link.edits.remove(&loc).is_some() | link.removed.remove(&loc).is_some()
 }
 
-/// The swatch of a texture: the mean color of its image, multiplied with the tint as the terrain draws it.
-/// A texture without an image shows its tint alone.
+/// The swatch of a texture: the mean color of its image, multiplied with the tint in linear color as the terrain
+/// draws it. A texture without an image shows its tint alone.
 pub fn swatch(texture: &ManifestTexture, mean: Option<[u8; 3]>) -> Color32 {
-    let tint = texture.albedo_color.map(|c| c.clamp(0.0, 1.0));
-    let [r, g, b] = mean.unwrap_or([255; 3]).map(f32::from);
-    let [tr, tg, tb, _] = tint;
-    Color32::from_rgb((r * tr).round() as u8, (g * tg).round() as u8, (b * tb).round() as u8)
+    let mean = mean.unwrap_or([255; 3]);
+    let [r, g, b] = [0, 1, 2].map(|i| {
+        let tint = td_render::srgb_to_linear(texture.albedo_color[i].clamp(0.0, 1.0));
+        egui::ecolor::gamma_u8_from_linear_f32(egui::ecolor::linear_f32_from_gamma_u8(mean[i]) * tint)
+    });
+    Color32::from_rgb(r, g, b)
 }
 
 /// The mean color of an image, ignoring the alpha that holds Terrain3D's height. None for an empty image.
@@ -537,9 +539,9 @@ mod tests {
         let texture = |albedo_color| ManifestTexture { id: 3, albedo_color, ..Default::default() };
         let mean = Some([200, 100, 50]);
         assert_eq!(swatch(&texture([1.0; 4]), mean), Color32::from_rgb(200, 100, 50), "a white tint leaves the image");
-        assert_eq!(swatch(&texture([0.5, 1.0, 0.2, 0.3]), mean), Color32::from_rgb(100, 100, 10));
+        assert_eq!(swatch(&texture([0.5, 1.0, 0.2, 0.3]), mean), Color32::from_rgb(99, 100, 3));
         assert_eq!(swatch(&texture([-1.0, 2.0, 1.0, 1.0]), mean), Color32::from_rgb(0, 100, 50), "the tint is clamped");
-        assert_eq!(swatch(&texture([0.1, 0.2, 0.9, 0.5]), None), Color32::from_rgb(26, 51, 230));
+        assert_eq!(swatch(&texture([0.4, 0.2, 0.8, 0.5]), None), Color32::from_rgb(102, 51, 204));
     }
 
     #[test]

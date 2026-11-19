@@ -93,7 +93,7 @@ pub enum Albedo {
 pub struct ClipmapTexture {
     pub id: u32,
     pub albedo: Albedo,
-    /// Terrain3D's `albedo_color`, multiplied with the albedo as its shader does.
+    /// Terrain3D's `albedo_color` in linear color, multiplied with the albedo as its shader does.
     pub color: [f32; 3],
     pub uv_scale: f32,
     /// Terrain3D's `detiling_rotation` and `detiling_shift`.
