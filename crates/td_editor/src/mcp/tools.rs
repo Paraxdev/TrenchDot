@@ -601,7 +601,7 @@ pub(super) fn tunnel_args(args: &Value, bounds: &Aabb, sides: usize, thickness: 
 
     if want.walkway {
         for (key, asked, used, room, size) in [
-            ("walkway_width", want.walkway_width, got.walkway_width, "40 percent of the opening", "wide"),
+            ("walkway_width", want.walkway_width, got.walkway_width, "40 percent of the opening at their top", "wide"),
             ("walkway_height", want.walkway_height, got.walkway_height, "half the clear height", "high"),
         ] {
             if used != asked {

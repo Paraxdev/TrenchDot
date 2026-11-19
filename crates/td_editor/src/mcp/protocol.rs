@@ -294,7 +294,7 @@ pub fn tool_definitions() -> Vec<Value> {
                     "ceiling": { "type": "boolean", "description": "tunnel: the slab over a square tunnel, on by default, false leaves an open trench" },
                     "angle": { "type": "number", "description": "arch and arched tunnel: degrees of a circle the arch sweeps, 10 to 180 (default 180, a half ellipse as tall as the bounds), cut back until it fits the bounds height (a tunnel's arch rises at most half the smaller of its width and height and keeps its crown at least 1 thick). The reply carries angle and a note when the sweep differs" },
                     "walkway": { "type": "boolean", "description": "tunnel: two raised walkways along the walls with a sunken channel between them, off by default" },
-                    "walkway_width": { "type": "number", "description": "tunnel: how far each walkway reaches in from its wall, 32 by default, at most 40 percent of the opening" },
+                    "walkway_width": { "type": "number", "description": "tunnel: how far each walkway reaches in from its wall, 32 by default, at most 40 percent of the opening at the walkway top, which a round tunnel narrows" },
                     "walkway_height": { "type": "number", "description": "tunnel: how high the walkways stand, 16 by default, at most half the clear height" },
                     "rise": { "type": "number", "description": "tunnel: how far the far end climbs toward the ceiling side, 0 by default, negative runs downhill, at most twice the length either way" },
                     "bend_angle": { "type": "number", "description": "tunnel: degrees the tunnel turns past its far end, 0 (straight) to 180" },
