@@ -7862,12 +7862,12 @@ fn the_tool_row_puts_brush_tools_before_terrain_and_paint_tools() {
             )
         })
         .collect();
-    assert_eq!(buttons.len(), 16, "{buttons:?}");
+    assert_eq!(buttons.len(), 17, "{buttons:?}");
 
     let terrain: Vec<&str> = buttons.iter().filter(|b| b.1 == "terrain").map(|b| b.0.as_str()).collect();
     assert_eq!(terrain, ["Sculpt", "Blend", "Paint", "Scatter"]);
     assert!(buttons.iter().filter(|b| b.1 == "brush").all(|b| !terrain.contains(&b.0.as_str())));
-    assert_eq!(buttons.iter().filter(|b| b.1 == "brush").count(), 12);
+    assert_eq!(buttons.iter().filter(|b| b.1 == "brush").count(), 13);
     assert!(buttons.iter().all(|b| b.1 == "brush" || b.1 == "terrain"), "{buttons:?}");
 
     let last_brush = buttons.iter().filter(|b| b.1 == "brush").map(|b| b.2[2]).fold(f64::MIN, f64::max);
