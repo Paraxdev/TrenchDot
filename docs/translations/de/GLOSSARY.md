@@ -175,6 +175,9 @@ Ein Godot-Effekt, der spiegelt, was schon auf dem Bildschirm ist, in glänzenden
 ## SDFGI { #sdfgi }
 Die Echtzeit-Beleuchtung von Godot für globale Illumination, Licht, das von Oberflächen abprallt und die Umgebung färbt, ohne Baken. Sie lernt die Geometrie der Szene in Ringen aus Zellen um die Kamera, daher bleibt plötzlich auftauchende Geometrie, etwa ein eingetauschter Kartenabschnitt, dunkel, bis die Ringe weiterwandern. Gebackenes Licht hat diese Verzögerung nicht.
 
+## Auswahlbox { #selection-box data-forms="Auswahlboxen" }
+Die Box, die du mit der Voreinstellung Hammer auf leerem Raum in einer 2D-Ansicht aufziehst. Sie wartet auf Enter oder einen Klick hinein und wählt dann jedes Objekt, das ganz darin liegt, auch die hintereinander gestapelten, denn eine 2D-Ansicht schaut geradewegs durch die Karte. Im Vertex-Werkzeug wählt derselbe Zug stattdessen Ecken.
+
 ## Signal { #signal data-forms="Signale|Signalen|Signals" }
 Godots Name für ein Ereignis, das ein Node meldet, etwa wenn ein Knopf gedrückt wird. Jeder Output einer Entität ist ein Signal, und einen Output zu verdrahten verbindet dieses Signal mit einer Input-Methode am Ziel.
 

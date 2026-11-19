@@ -192,6 +192,9 @@ Godot's real time global illumination, light that bounces off surfaces and tints
 ## segmental arch
 An arch that is a slice of a circle less than a half circle, so it is flatter than a round arch of the same width. Old bridges, cellars and brick sewers often have one. An Arched tunnel with an Angle under 180 gets one.
 
+## selection box
+The box you drag on empty space in a 2D view with the Hammer preset. It waits for Enter or a click inside it, then selects every object lying wholly inside, the ones stacked behind each other too, since a 2D view looks straight through the map. In the Vertex tool the same drag selects corners instead.
+
 ## signal
 Godot's name for an event a node announces, such as a button being pressed. Every entity output is a signal, and wiring an output connects that signal to an input method on the target.
 

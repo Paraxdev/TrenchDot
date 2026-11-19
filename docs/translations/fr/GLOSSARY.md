@@ -175,6 +175,9 @@ Un effet de Godot qui reflète ce qui est déjà à l'écran dans les surfaces b
 ## SDFGI { #sdfgi }
 L'illumination globale en temps réel de Godot, une lumière qui rebondit sur les surfaces et teinte ce qui les entoure, sans précalcul. Elle apprend la géométrie de la scène dans des anneaux de cellules autour de la caméra, donc une géométrie qui apparaît d'un coup, comme une section de carte échangée, reste sombre jusqu'à ce que les anneaux se déplacent. L'éclairage précalculé n'a pas ce délai.
 
+## boîte de sélection { #selection-box data-forms="boîtes de sélection" }
+La boîte que l'on trace sur un espace vide dans une vue 2D avec le préréglage Hammer. Elle attend Enter ou un clic à l'intérieur, puis sélectionne chaque objet qui s'y trouve entièrement, y compris ceux empilés les uns derrière les autres, car une vue 2D regarde à travers toute la carte. Dans l'outil Sommet, le même glisser sélectionne des coins.
+
 ## signal { #signal data-forms="signaux" }
 Le nom que Godot donne à un événement qu'un nœud annonce, comme l'appui sur un bouton. Chaque output d'entité est un signal, et câbler un output connecte ce signal à une méthode d'input de la cible.
 

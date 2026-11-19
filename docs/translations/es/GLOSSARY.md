@@ -175,6 +175,9 @@ Un efecto de Godot que refleja en las superficies brillantes lo que ya está en 
 ## SDFGI { #sdfgi }
 La iluminación global en tiempo real de Godot, luz que rebota en las superficies y tiñe lo que las rodea, sin hornear. Aprende la geometría de la escena en anillos de celdas alrededor de la cámara, así que la geometría que aparece de golpe, como una sección de mapa cambiada, queda a oscuras hasta que los anillos avanzan. La luz horneada no tiene ese retraso.
 
+## caja de selección { #selection-box data-forms="cajas de selección" }
+La caja que se arrastra sobre un espacio vacío en una vista 2D con el preajuste de Hammer. Espera a Enter o a un clic dentro y luego selecciona cada objeto que queda entero dentro, también los apilados uno detrás de otro, porque una vista 2D mira a través de todo el mapa. En la herramienta Vértice el mismo arrastre selecciona esquinas.
+
 ## señal { #signal data-forms="señales" }
 El nombre que da Godot a un evento que anuncia un nodo, como pulsar un botón. Cada output de una entidad es una señal, y cablear un output conecta esa señal con un método de input del destino.
 
