@@ -10541,3 +10541,152 @@ fn native_terrain_triangles_stay_about_the_same_for_a_bigger_terrain() {
     let (small, big) = (triangles(&ed, 257), triangles(&ed, 2049));
     assert!(small > 1000 && big < small * 2, "257 vertices a side draw {small} triangles, 2049 draw {big}");
 }
+
+/// The sun travels along +x and -z, 40 degrees down, so a shadow lands about 0.84 units along each for every unit of
+/// height. A brush high over a clipmap terrain shadows it, and the terrain shadows a floor below except under its hole.
+#[test]
+#[ignore]
+fn native_terrain_clipmap_casts_and_catches_sun_shadows() {
+    let ed = Editor::launch("terrain_clip_shadows");
+    let id = ed.call("create_terrain", json!({ "center": [0, 300, 0], "resolution": 33, "cell_size": 32, "shape": "flat" }))["id"].as_u64().unwrap();
+    ed.call("terrain_edit", json!({ "id": id, "op": "holes", "min": [-96, -96], "max": [96, 96], "hole": true }));
+    ed.call("set_editor", json!({ "shade": "lit", "tool": "select" }));
+    ed.call("run_action", json!({ "action": "select_none" }));
+    assert_eq!(ed.call("terrain_edit", json!({ "id": id, "probe": [200, 200] }))["probe_height"], json!(300.0));
+    assert_eq!(ed.call("terrain_edit", json!({ "id": id, "op": "info" }))["drawn"], "clipmap");
+    let args = json!({ "target": "3d", "width": 480, "height": 360 });
+    let whole = [0..480, 0..360];
+
+    // 424 units over [-450, 0], away from the hole.
+    ed.call("set_camera", json!({ "view": "3d", "position": [-93, 600, -356.5], "look_at": [-93, 300, -357] }));
+    let ground = shot(&ed, args.clone(), "ground");
+    ed.call("create_brush", json!({ "min": [-482, 700, -32], "max": [-418, 748, 32] }));
+    ed.call("run_action", json!({ "action": "select_none" }));
+    let deadline = Instant::now() + Duration::from_secs(15);
+    loop {
+        let (shaded, _) = shaded_and_same(&ground, &shot(&ed, args.clone(), "brush"), whole.clone());
+        if shaded > 1000 {
+            break;
+        }
+
+        assert!(Instant::now() < deadline, "the brush never shadowed the terrain, {shaded} pixels darkened");
+        std::thread::sleep(Duration::from_millis(200));
+    }
+
+    // A floor 300 units under the terrain, seen from just over it. Sunlight through the hole lands around [253, -253],
+    // and the light that would reach [300, 100] passes the terrain at [47, 353], far from the hole and the edges.
+    ed.call("create_brush", json!({ "min": [-512, -16, -512], "max": [512, 0, 512] }));
+    ed.call("run_action", json!({ "action": "select_none" }));
+    let floor = |at: [f64; 2], label: &str, done: &dyn Fn((usize, usize)) -> bool| {
+        ed.call("set_camera", json!({ "view": "3d", "position": [at[0], 60, at[1] + 0.5], "look_at": [at[0], 0, at[1]] }));
+        let deadline = Instant::now() + Duration::from_secs(15);
+        loop {
+            let shown = shot(&ed, args.clone(), label);
+            ed.call("hierarchy", json!({ "op": "set_flags", "ids": [id], "hidden": true }));
+            let bare = shot(&ed, args.clone(), &format!("{label}_bare"));
+            ed.call("hierarchy", json!({ "op": "set_flags", "ids": [id], "hidden": false }));
+            let counts = shaded_and_same(&bare, &shown, whole.clone());
+            if done(counts) {
+                return counts;
+            }
+
+            assert!(Instant::now() < deadline, "{label}: {counts:?} pixels shaded and lit of 172800");
+            std::thread::sleep(Duration::from_millis(200));
+        }
+    };
+    floor([253.0, -253.0], "under_hole", &|(shaded, same)| shaded < 2000 && same > 150_000);
+    floor([300.0, 100.0], "under_ground", &|(shaded, same)| shaded > 150_000 && same < 2000);
+}
+
+#[test]
+#[ignore]
+fn native_terrain_clipmap_draws_like_the_chunks_baked_and_in_wireframe() {
+    let ed = Editor::launch("terrain_clip_baked");
+    let terrain = json!({ "center": [0, 0, 0], "resolution": 33, "cell_size": 32, "shape": "hills", "height": 120, "seed": 3 });
+    let id = ed.call("create_terrain", terrain)["id"].as_u64().unwrap();
+    ed.call("create_brush", json!({ "min": [-64, 200, -64], "max": [64, 232, 64] }));
+    ed.call("run_action", json!({ "action": "select_none" }));
+    let baked = ed.call("bake_lighting", json!({ "quality": "preview", "texel_size": 16 }));
+    assert!(baked["has_bake"].as_bool().unwrap(), "{baked}");
+    ed.call("set_camera", json!({ "view": "3d", "position": [-420, 320, 420], "look_at": [0, 40, 0] }));
+    let args = json!({ "target": "3d", "width": 480, "height": 360 });
+    for shade in ["baked", "wireframe"] {
+        ed.call("set_editor", json!({ "shade": shade, "tool": "select", "terrain_lod": true }));
+        let clip = shot(&ed, args.clone(), &format!("{shade}_clipmap"));
+        assert_eq!(ed.call("terrain_edit", json!({ "id": id, "op": "info" }))["drawn"], "clipmap");
+        ed.call("set_editor", json!({ "terrain_lod": false }));
+        let chunks = shot(&ed, args.clone(), &format!("{shade}_chunks"));
+        let (mean, apart) = (image_difference(&clip, &chunks), pixels_apart(&clip, &chunks, 6).len());
+        assert!(mean < 1.0 && apart < 480 * 360 / 100, "{shade}: mean difference {mean}, {apart} pixels apart by more than 6 levels");
+        if shade == "wireframe" {
+            assert_eq!(mean, 0.0, "wireframe draws the same lines either way");
+        }
+    }
+}
+
+#[test]
+#[ignore]
+fn moving_a_native_terrain_uploads_nothing_and_resizing_one_makes_a_new_clipmap() {
+    let ed = Editor::launch("terrain_clip_two");
+    let make =
+        |center: [i32; 3]| ed.call("create_terrain", json!({ "center": center, "resolution": 33, "cell_size": 32, "shape": "hills" }))["id"].as_u64().unwrap();
+    let (a, b) = (make([-600, 0, 0]), make([600, 0, 0]));
+    let info = |id: u64| ed.call("terrain_edit", json!({ "id": id, "op": "info" }));
+    let uploads = |id: u64| {
+        let u = info(id)["clipmap"]["uploads"].clone();
+        [&u["whole"], &u["partial"]].map(|v| v.as_u64().unwrap())
+    };
+    ed.call("set_editor", json!({ "shade": "textured", "tool": "select" }));
+    ed.call("set_camera", json!({ "view": "3d", "position": [0, 1600, 1200], "look_at": [0, 0, 0] }));
+    let args = json!({ "target": "3d", "width": 480, "height": 360 });
+    ed.call("run_action", json!({ "action": "select_none" }));
+    let before = shot(&ed, args.clone(), "before");
+    assert_eq!((uploads(a), uploads(b)), ([1, 0], [1, 0]));
+
+    let origin = info(a)["origin"].clone();
+    ed.call("select", json!({ "ids": [a] }));
+    ed.call("transform", json!({ "translate": [96, 32, -64] }));
+    ed.call("run_action", json!({ "action": "select_none" }));
+    let moved = info(a)["origin"].clone();
+    let offset: Vec<f64> = (0..3).map(|i| moved[i].as_f64().unwrap() - origin[i].as_f64().unwrap()).collect();
+    assert_eq!(offset, [96.0, 32.0, -64.0]);
+    assert_eq!((uploads(a), uploads(b)), ([1, 0], [1, 0]), "moving a terrain only changes its uniform");
+    assert!(pixels_apart(&before, &shot(&ed, args.clone(), "moved"), 6).len() > 1000, "the moved terrain is drawn at its new place");
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!((info(a)["origin"].clone(), uploads(a)), (origin, [1, 0]));
+    ed.call("run_action", json!({ "action": "select_none" }));
+    assert!(pixels_apart(&before, &shot(&ed, args.clone(), "back"), 0).is_empty(), "undo draws it where it was");
+
+    ed.call("terrain_edit", json!({ "id": b, "op": "resize", "east": 8 }));
+    let resized = info(b);
+    assert_eq!((resized["resolution"].clone(), resized["clipmap"]["gpu_bytes"].clone()), (json!([41, 33]), json!(41 * 33 * 12)));
+    assert_eq!((uploads(a), uploads(b)), ([1, 0], [1, 0]), "the resized terrain gets a new clipmap written once, the other keeps its own");
+    assert_eq!(info(a)["clipmap"]["gpu_bytes"], json!(33 * 33 * 12));
+}
+
+#[test]
+#[ignore]
+fn a_native_terrain_beside_terrain3d_regions_draws_both() {
+    let (ed, node) = launch_world("terrain_clip_beside_terrain3d", None);
+    ed.call("set_editor", json!({ "shade": "lit", "tool": "select" }));
+    let id =
+        ed.call("create_terrain", json!({ "origin": [-576, 0, 0], "resolution": 17, "cell_size": 32, "shape": "hills", "height": 96 }))["id"].as_u64().unwrap();
+    ed.call("run_action", json!({ "action": "select_none" }));
+    ed.call("set_camera", json!({ "view": "3d", "position": [256, 1300, 1500], "look_at": [256, 0, 300] }));
+    clipmap_settled(&ed, &node, 3);
+    assert_eq!(ed.call("terrain_edit", json!({ "id": id, "op": "info" }))["drawn"], "clipmap");
+    let args = json!({ "target": "3d", "width": 480, "height": 360 });
+    let both = shot(&ed, args.clone(), "both");
+    let (red, blue) = world_colors(&both);
+    assert!(red > 500 && blue > 500, "the regions show their textures beside the terrain: {red} red and {blue} blue pixels");
+    let without = |hide: Value, label: &str| {
+        ed.call("hierarchy", json!({ "op": "set_flags", "ids": [hide], "hidden": true }));
+        let img = shot(&ed, args.clone(), label);
+        ed.call("hierarchy", json!({ "op": "set_flags", "ids": [hide], "hidden": false }));
+        pixels_apart(&both, &img, 12)
+    };
+    let (native, world) = (without(json!(id), "no_native"), without(node.clone(), "no_terrain3d"));
+    assert!(native.len() > 2000 && world.len() > 2000, "hiding the native terrain changes {} pixels, the Terrain3D node {}", native.len(), world.len());
+    let mean_x = |p: &[(u32, u32)]| p.iter().map(|(x, _)| f64::from(*x)).sum::<f64>() / p.len() as f64;
+    assert!(mean_x(&native) < mean_x(&world), "the native terrain lies west of the regions");
+}
