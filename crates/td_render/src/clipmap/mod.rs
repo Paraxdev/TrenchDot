@@ -858,8 +858,40 @@ mod tests {
         instances: &layout::Instances,
         eye: Vec3,
         view_proj: Mat4,
-        [w, h]: [u32; 2],
+        size: [u32; 2],
     ) -> Vec<[f32; 4]> {
+        bytemuck::cast_slice::<f32, [f32; 4]>(&render_rings(device, queue, source, groups, instances, eye, view_proj, size, false)).to_vec()
+    }
+
+    /// Draws the ring parts of `instances` like the renderer's shadow pass, with the entries `vs_shadow` and
+    /// `fs_shadow` of `source`, a camera only the vertex stage sees and no culling, and reads back the depth, 1 where
+    /// nothing was drawn. `w` has to be a multiple of 64.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn render_shadow_depths(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        source: &str,
+        groups: &[Option<(&wgpu::BindGroupLayout, &wgpu::BindGroup)>],
+        instances: &layout::Instances,
+        eye: Vec3,
+        view_proj: Mat4,
+        size: [u32; 2],
+    ) -> Vec<f32> {
+        render_rings(device, queue, source, groups, instances, eye, view_proj, size, true)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn render_rings(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        source: &str,
+        groups: &[Option<(&wgpu::BindGroupLayout, &wgpu::BindGroup)>],
+        instances: &layout::Instances,
+        eye: Vec3,
+        view_proj: Mat4,
+        [w, h]: [u32; 2],
+        shadow: bool,
+    ) -> Vec<f32> {
         let camera = crate::CameraUniform {
             view_proj: view_proj.to_cols_array_2d(),
             inv_view_proj: view_proj.inverse().to_cols_array_2d(),
@@ -874,7 +906,7 @@ mod tests {
             label: None,
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                visibility: if shadow { wgpu::ShaderStages::VERTEX } else { wgpu::ShaderStages::VERTEX_FRAGMENT },
                 ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None },
                 count: None,
             }],
@@ -884,18 +916,23 @@ mod tests {
             layout: &camera_bgl,
             entries: &[wgpu::BindGroupEntry { binding: 0, resource: camera.as_entire_binding() }],
         });
+        let (format, texel, aspect) = if shadow {
+            (wgpu::TextureFormat::Depth32Float, 4, wgpu::TextureAspect::DepthOnly)
+        } else {
+            (wgpu::TextureFormat::Rgba32Float, 16, wgpu::TextureAspect::All)
+        };
+        let color_target = [Some(wgpu::ColorTargetState { format, blend: None, write_mask: wgpu::ColorWrites::ALL })];
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: None, source: wgpu::ShaderSource::Wgsl(source.into()) });
         let layouts: Vec<_> = std::iter::once(Some(&camera_bgl)).chain(groups.iter().map(|g| g.map(|(layout, _)| layout))).collect();
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &layouts, immediate_size: 0 });
         let vertex_attrs = wgpu::vertex_attr_array![0 => Uint32x2];
         let instance_attrs = wgpu::vertex_attr_array![1 => Sint32x2, 2 => Uint32];
-        let format = wgpu::TextureFormat::Rgba32Float;
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: None,
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
-                entry_point: Some("vs_main"),
+                entry_point: Some(if shadow { "vs_shadow" } else { "vs_main" }),
                 compilation_options: Default::default(),
                 buffers: &[
                     Some(wgpu::VertexBufferLayout { array_stride: 8, step_mode: wgpu::VertexStepMode::Vertex, attributes: &vertex_attrs }),
@@ -903,14 +940,24 @@ mod tests {
                 ],
             },
             // The renderer's culling, so ground wound the wrong way leaves the image empty.
-            primitive: wgpu::PrimitiveState { front_face: wgpu::FrontFace::Ccw, cull_mode: Some(wgpu::Face::Back), ..Default::default() },
-            depth_stencil: None,
+            primitive: wgpu::PrimitiveState {
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: if shadow { None } else { Some(wgpu::Face::Back) },
+                ..Default::default()
+            },
+            depth_stencil: shadow.then(|| wgpu::DepthStencilState {
+                format,
+                depth_write_enabled: Some(true),
+                depth_compare: Some(wgpu::CompareFunction::Less),
+                stencil: Default::default(),
+                bias: Default::default(),
+            }),
             multisample: Default::default(),
             fragment: Some(wgpu::FragmentState {
                 module: &shader,
-                entry_point: Some("fs_test"),
+                entry_point: Some(if shadow { "fs_shadow" } else { "fs_test" }),
                 compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState { format, blend: None, write_mask: wgpu::ColorWrites::ALL })],
+                targets: if shadow { &[] } else { &color_target },
             }),
             multiview_mask: None,
             cache: None,
@@ -938,21 +985,27 @@ mod tests {
             .collect();
         let readback = device.create_buffer(&wgpu::BufferDescriptor {
             label: None,
-            size: (w * h * 16) as u64,
+            size: (w * h * texel) as u64,
             usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        let color = [Some(wgpu::RenderPassColorAttachment {
+            view: &view,
+            depth_slice: None,
+            resolve_target: None,
+            ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT), store: wgpu::StoreOp::Store },
+        })];
+        let depth = wgpu::RenderPassDepthStencilAttachment {
+            view: &view,
+            depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Store }),
+            stencil_ops: None,
+        };
         let mut encoder = device.create_command_encoder(&Default::default());
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: None,
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    depth_slice: None,
-                    resolve_target: None,
-                    ops: wgpu::Operations { load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT), store: wgpu::StoreOp::Store },
-                })],
-                depth_stencil_attachment: None,
+                color_attachments: if shadow { &[] } else { &color },
+                depth_stencil_attachment: shadow.then_some(depth),
                 timestamp_writes: None,
                 occlusion_query_set: None,
                 multiview_mask: None,
@@ -974,17 +1027,17 @@ mod tests {
         }
 
         encoder.copy_texture_to_buffer(
-            wgpu::TexelCopyTextureInfo { texture: &target, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
+            wgpu::TexelCopyTextureInfo { texture: &target, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect },
             wgpu::TexelCopyBufferInfo {
                 buffer: &readback,
-                layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(w * 16), rows_per_image: Some(h) },
+                layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(w * texel), rows_per_image: Some(h) },
             },
             wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
         );
         queue.submit([encoder.finish()]);
         readback.slice(..).map_async(wgpu::MapMode::Read, |r| r.unwrap());
         device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
-        bytemuck::cast_slice::<u8, [f32; 4]>(&readback.slice(..).get_mapped_range().unwrap()).to_vec()
+        bytemuck::cast_slice::<u8, f32>(&readback.slice(..).get_mapped_range().unwrap()).to_vec()
     }
 
     /// The cell under the center of every pixel of a [`draw`] image, row by row.

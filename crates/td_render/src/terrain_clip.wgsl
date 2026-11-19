@@ -125,3 +125,23 @@ fn fs_main(f: VOut) -> @location(0) vec4<f32> {
     }
     return terrain_shade(f.world, f.normal, paint_weights(p), f32(clip.grid.z), lightmap_uv(f.world));
 }
+
+struct ShadowOut {
+    @builtin(position) clip: vec4<f32>,
+    @location(0) world: vec3<f32>,
+};
+
+// In the shadow pass `cam` holds the sun's view projection and the eye the rings follow.
+@vertex
+fn vs_shadow(v: VIn) -> ShadowOut {
+    let world = clip_vertex(v).world;
+    return ShadowOut(cam.view_proj * vec4<f32>(world, 1.0), world);
+}
+
+// Holes and the ground past the edge let the sun through, like they draw nothing.
+@fragment
+fn fs_shadow(f: ShadowOut) {
+    if (dropped(local_cells(f.world))) {
+        discard;
+    }
+}

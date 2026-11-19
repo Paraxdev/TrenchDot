@@ -2360,7 +2360,7 @@ impl SceneCache {
             meshes.extend(self.terrains.values().flat_map(|t| t.chunks.iter().flatten()));
             meshes.extend(self.scatters.values().flat_map(|s| s.chunks.values().flat_map(|c| &c.meshes)));
             let clipmaps: Vec<_> = self.terrain3d.values().map(|n| n.clip()).collect();
-            renderer.render_shadow(&meshes, &clipmaps, eye.as_vec3(), vp);
+            renderer.render_shadow(&meshes, &clipmaps, &[], eye.as_vec3(), vp);
             vp
         });
         renderer.set_lighting(&self.lighting, vp);

@@ -274,11 +274,11 @@ mod tests {
     use glam::camera::rh::proj::directx::perspective_infinite_reverse;
     use glam::camera::rh::view::look_to_mat4;
 
-    use glam::DVec3;
+    use glam::{DVec3, Vec2};
     use td_geom::Terrain;
 
     use super::*;
-    use crate::clipmap::tests::{device, render_parts, top_down};
+    use crate::clipmap::tests::{device, render_parts, render_shadow_depths, top_down};
 
     const ORIGIN: Vec3 = Vec3::new(-1000.5, 37.0, 2210.0);
     const CELL: f32 = 24.0;
@@ -656,5 +656,47 @@ mod tests {
 
             assert!(checked > 10000, "{checked} pixels checked with {chart:?}");
         }
+    }
+
+    /// The sun sees the terrain's surface from the rings around the viewer's eye, and the edge and both holes leave
+    /// the shadow map clear so sunlight falls through them.
+    #[test]
+    #[ignore = "needs a GPU"]
+    fn gpu_casts_shadow_depth_except_through_holes() {
+        let t = painted();
+        let (device, queue) = device(false);
+        let layout = bind_group_layout(&device);
+        let mut clip = TerrainClipmap::new(&device, &queue, &layout, t.resolution).unwrap();
+        clip.write_whole(&queue, &t.heights, &pack(&t)).unwrap();
+        clip.set_params(&queue, &TerrainClipParams { origin: ORIGIN, cell: CELL, ..Default::default() });
+        let size = t.size().as_vec2();
+        let [low, high] = range(&t.heights);
+        let sun = crate::Renderer::sun_view_proj(Vec3::NEG_Y, ORIGIN + Vec3::new(-40.0, low, -40.0), ORIGIN + Vec3::new(size.x + 40.0, high, size.y + 70.0));
+        let eye = at_cells([30.5, 4.25], 200.0);
+        let size = [512, 288];
+        let groups = [None, None, Some((&layout, &clip.bind_group))];
+        let depths = render_shadow_depths(&device, &queue, &crate::terrain_clip_shader(), &groups, &clip.instances(eye, sun), eye, sun, size);
+
+        let [w, h] = size;
+        let inverse = sun.inverse();
+        let [mut ground, mut past, mut holes] = [0, 0, 0];
+        for (k, &depth) in depths.iter().enumerate() {
+            let ndc = Vec2::new(((k as u32 % w) as f32 + 0.5) / w as f32 * 2.0 - 1.0, 1.0 - ((k as u32 / w) as f32 + 0.5) / h as f32 * 2.0);
+            let at = inverse.project_point3(ndc.extend(depth)).as_dvec3();
+            let xz = DVec2::new(at.x, at.z);
+            let Some((inside, hole)) = spot(&t, xz) else { continue };
+            assert_eq!(depth < 1.0, inside && !hole, "pixel {k} at {xz}: depth {depth}");
+            if !inside {
+                past += 1;
+            } else if hole {
+                holes += 1;
+            } else {
+                let want = t.height_at(xz.x, xz.y).unwrap();
+                assert!((at.y - want).abs() < 0.05, "pixel {k} at {xz} cast from height {}, want {want}", at.y);
+                ground += 1;
+            }
+        }
+
+        assert!(ground > 30000 && past > 10000 && holes > 60, "{ground} ground, {past} past the edge and {holes} hole pixels checked");
     }
 }

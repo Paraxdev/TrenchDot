@@ -108,3 +108,21 @@ fn native_terrains_count_the_triangles_their_rings_draw() {
     assert_eq!(wire.triangles(), near);
     renderer.free_target(target);
 }
+
+#[test]
+fn native_terrains_cast_into_the_shadow_map() {
+    let (_state, renderer) = gpu();
+    let small = terrain(&renderer, [257, 257], "no such material");
+    let big = terrain(&renderer, [2049, 2049], "no such material");
+    let eye = ORIGIN + Vec3::new(1024.5 * CELL, 150.0, 1000.25 * CELL);
+    let far = ORIGIN + Vec3::new(2048.0 * CELL, 900.0, 2048.0 * CELL);
+    let sun = Renderer::sun_view_proj(Vec3::new(0.3, -1.0, 0.45), ORIGIN - Vec3::new(100.0, 600.0, 100.0), far);
+    let many = [&big, &small, &big, &big, &big];
+    let parts: usize = many.iter().map(|clip| clip.instances(eye, sun).parts.len()).sum();
+    assert!(parts > MAX_INSTANCES, "{parts} parts do not outgrow the first shadow instance buffer");
+
+    renderer.render_shadow(&[], &[], &many, eye, sun);
+    renderer.render_shadow(&[], &[], &[&small], eye, sun);
+    renderer.render_shadow(&[], &[], &[], eye, sun);
+    assert_eq!((small.triangles(), big.triangles()), (0, 0), "the shadow pass leaves the view's triangle counts alone");
+}

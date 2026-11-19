@@ -178,6 +178,15 @@ fn terrain_shader() -> String {
     format!("{}\n{}\n{}\n{}", include_str!("common.wgsl"), include_str!("lightmap.wgsl"), include_str!("terrain_look.wgsl"), include_str!("terrain.wgsl"))
 }
 
+fn terrain_clip_instances(device: &wgpu::Device, records: usize) -> wgpu::Buffer {
+    device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("terrain clipmap instances"),
+        size: (records * std::mem::size_of::<clipmap::layout::ClipmapInstance>()) as u64,
+        usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    })
+}
+
 fn terrain_clip_shader() -> String {
     format!(
         "{}\n{}\n{}\n{}\n{}\n{}",
@@ -674,6 +683,8 @@ pub struct Renderer {
     clipmap_shadow_camera: wgpu::Buffer,
     clipmap_shadow_bg: wgpu::BindGroup,
     clipmap_shadow_instances: wgpu::Buffer,
+    terrain_clip_shadow: wgpu::RenderPipeline,
+    terrain_clip_shadow_instances: std::sync::Mutex<wgpu::Buffer>,
     water_pipeline: wgpu::RenderPipeline,
     /// One per water of a frame, since every write lands before the submit and one buffer would hold the last.
     water_buffers: Vec<wgpu::Buffer>,
@@ -937,6 +948,11 @@ impl Renderer {
             bind_group_layouts: &[Some(&camera_bgl), Some(&terrain_bgl), Some(&lightmap_bgl), Some(&terrain_clip_bgl)],
             immediate_size: 0,
         });
+        let terrain_clip_shadow_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("terrain clipmap shadow"),
+            bind_group_layouts: &[Some(&shadow_bgl), None, None, Some(&terrain_clip_bgl)],
+            immediate_size: 0,
+        });
         let clipmap_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("clipmap"),
             bind_group_layouts: &[Some(&camera_bgl), Some(&clipmap_bgl)],
@@ -1169,7 +1185,7 @@ impl Renderer {
                 buffers: &clipmap_buffers,
             },
             primitive: wgpu::PrimitiveState { topology: tri, cull_mode: None, ..Default::default() },
-            depth_stencil: shadow_depth,
+            depth_stencil: shadow_depth.clone(),
             multisample: Default::default(),
             // Holes and the ground past the regions with no background cast nothing, like they draw nothing.
             fragment: Some(wgpu::FragmentState {
@@ -1181,6 +1197,28 @@ impl Renderer {
             multiview_mask: None,
             cache: None,
         });
+        let terrain_clip_shadow = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("terrain clipmap shadow"),
+            layout: Some(&terrain_clip_shadow_layout),
+            vertex: wgpu::VertexState {
+                module: &terrain_clip_shader,
+                entry_point: Some("vs_shadow"),
+                compilation_options: Default::default(),
+                buffers: &clipmap_buffers,
+            },
+            primitive: wgpu::PrimitiveState { topology: tri, cull_mode: None, ..Default::default() },
+            depth_stencil: shadow_depth,
+            multisample: Default::default(),
+            fragment: Some(wgpu::FragmentState {
+                module: &terrain_clip_shader,
+                entry_point: Some("fs_shadow"),
+                compilation_options: Default::default(),
+                targets: &[],
+            }),
+            multiview_mask: None,
+            cache: None,
+        });
+        let terrain_clip_shadow_instances = std::sync::Mutex::new(terrain_clip_instances(&device, clipmap::layout::MAX_INSTANCES));
 
         let lightmap_bg =
             Self::lightmap_bind_group(&device, &lightmap_bgl, &lightmap_buffer, &solid_texture("no light map", wgpu::TextureFormat::Rgba8Unorm, [0; 4]));
@@ -1230,6 +1268,8 @@ impl Renderer {
             water_buffers,
             water_bgs,
             clipmap_shadow_instances,
+            terrain_clip_shadow,
+            terrain_clip_shadow_instances,
             shadow_uniform,
             shadow_bg,
             shadow_view,
@@ -1620,9 +1660,19 @@ impl Renderer {
         proj * view
     }
 
-    /// Renders the opaque and double sided meshes into the sun shadow map, and the clipmaps with their rings around `eye`.
-    pub fn render_shadow(&self, meshes: &[&GpuMesh], clipmaps: &[&clipmap::GpuClipmap], eye: Vec3, view_proj: Mat4) {
+    /// Renders the opaque and double sided meshes into the sun shadow map, and the clipmaps and native terrain clipmaps
+    /// with their rings around `eye`.
+    pub fn render_shadow(
+        &self,
+        meshes: &[&GpuMesh],
+        clipmaps: &[&clipmap::GpuClipmap],
+        terrain_clips: &[&clipmap::native::TerrainClipmap],
+        eye: Vec3,
+        view_proj: Mat4,
+    ) {
         self.queue.write_buffer(&self.shadow_uniform, 0, bytemuck::cast_slice(&view_proj.to_cols_array()));
+        let terrain_clips: Vec<_> = terrain_clips.iter().map(|&clip| (clip, clip.instances(eye, view_proj))).collect();
+        let terrain_clip_buffer = self.write_terrain_clip_parts(&self.terrain_clip_shadow_instances, &terrain_clips);
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("shadow") });
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -1648,7 +1698,7 @@ impl Renderer {
                 }
             }
 
-            if !clipmaps.is_empty() {
+            if !clipmaps.is_empty() || !terrain_clips.is_empty() {
                 let camera = CameraUniform {
                     view_proj: view_proj.to_cols_array_2d(),
                     inv_view_proj: view_proj.inverse().to_cols_array_2d(),
@@ -1657,9 +1707,24 @@ impl Renderer {
                     viewport: [0.0; 4],
                 };
                 self.queue.write_buffer(&self.clipmap_shadow_camera, 0, bytemuck::bytes_of(&camera));
+            }
+
+            if !clipmaps.is_empty() {
                 pass.set_pipeline(&self.clipmap_shadow);
                 pass.set_bind_group(0, &self.clipmap_shadow_bg, &[]);
                 self.draw_rings(&mut pass, clipmaps, &self.clipmap_shadow_instances, eye, view_proj, false);
+            }
+
+            if !terrain_clips.is_empty() {
+                pass.set_pipeline(&self.terrain_clip_shadow);
+                pass.set_bind_group(0, &self.clipmap_shadow_bg, &[]);
+                let record = std::mem::size_of::<clipmap::layout::ClipmapInstance>() as u64;
+                let mut base = 0;
+                for (clip, instances) in &terrain_clips {
+                    pass.set_bind_group(3, &clip.bind_group, &[]);
+                    self.draw_parts(&mut pass, instances, &terrain_clip_buffer, base, false);
+                    base += instances.parts.len() as u64 * record;
+                }
             }
         }
 
@@ -1720,13 +1785,13 @@ impl Renderer {
         triangles
     }
 
-    /// Writes the ring parts of `clips` one after the other into the target's buffer, grown when they do not fit.
+    /// Writes the ring parts of `clips` one after the other into `buffer`, grown when they do not fit.
     fn write_terrain_clip_parts<'t>(
         &self,
-        target: &'t ViewTarget,
+        buffer: &'t std::sync::Mutex<wgpu::Buffer>,
         clips: &[(&clipmap::native::TerrainClipmap, clipmap::layout::Instances)],
     ) -> std::sync::MutexGuard<'t, wgpu::Buffer> {
-        let mut buffer = target.terrain_clip_instances.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut buffer = buffer.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         let records: Vec<clipmap::layout::ClipmapInstance> = clips.iter().flat_map(|(_, i)| i.parts.iter().map(|&p| p.into())).collect();
         if records.is_empty() {
             return buffer;
@@ -1734,7 +1799,7 @@ impl Renderer {
 
         let bytes: &[u8] = bytemuck::cast_slice(&records);
         if bytes.len() as u64 > buffer.size() {
-            *buffer = self.terrain_clip_instances(records.len().next_power_of_two());
+            *buffer = terrain_clip_instances(&self.device, records.len().next_power_of_two());
         }
 
         self.queue.write_buffer(&buffer, 0, bytes);
@@ -1786,15 +1851,6 @@ impl Renderer {
         }
 
         clipmap::native::TerrainClipmap::new(&self.device, &self.queue, &self.terrain_clip_bgl, resolution)
-    }
-
-    fn terrain_clip_instances(&self, records: usize) -> wgpu::Buffer {
-        self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("terrain clipmap instances"),
-            size: (records * std::mem::size_of::<clipmap::layout::ClipmapInstance>()) as u64,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        })
     }
 
     /// Triangles the clipmaps put on screen in the last view that drew any, after culling.
@@ -1928,7 +1984,7 @@ impl Renderer {
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let terrain_clip_instances = std::sync::Mutex::new(self.terrain_clip_instances(clipmap::layout::MAX_INSTANCES));
+        let terrain_clip_instances = std::sync::Mutex::new(terrain_clip_instances(&self.device, clipmap::layout::MAX_INSTANCES));
         *target = Some(ViewTarget {
             size,
             msaa,
@@ -1999,7 +2055,7 @@ impl Renderer {
             ShadeMode::Wireframe => Vec::new(),
             _ => frame.terrain_clipmaps.iter().map(|&clip| (clip, clip.instances(params.eye, params.view_proj))).collect(),
         };
-        let terrain_clip_buffer = self.write_terrain_clip_parts(target, &terrain_clips);
+        let terrain_clip_buffer = self.write_terrain_clip_parts(&target.terrain_clip_instances, &terrain_clips);
 
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("viewport") });
         {
