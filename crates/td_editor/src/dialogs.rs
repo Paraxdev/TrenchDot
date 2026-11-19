@@ -961,7 +961,9 @@ impl ShapeDialog {
         let mut open = self.open;
         let (sources, mut bounds) = self.sources_and_bounds(state);
         widgets::top_window(en!("Shape Generator"), ctx).open(&mut open).resizable(false).show(ctx, |ui| {
-            egui::ComboBox::new("shape_kind", tr("Shape")).selected_text(tr(self.kind.label())).show_ui(ui, |ui| {
+            // The default menu height shows 7 of the shapes with no sign that more follow.
+            let menu_height = ctx.content_rect().height() * 0.7;
+            egui::ComboBox::new("shape_kind", tr("Shape")).selected_text(tr(self.kind.label())).height(menu_height).show_ui(ui, |ui| {
                 for k in ShapeKind::ALL {
                     ui.selectable_value(&mut self.kind, k, tr(k.label()));
                 }
