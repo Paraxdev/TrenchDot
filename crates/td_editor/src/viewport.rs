@@ -8,12 +8,13 @@ use crate::camera::{Camera, ViewKind};
 use crate::commands::Action;
 use crate::i18n::{en, msg, msg_n, tr, trf};
 use crate::mouse_map::{
-    Button, Chord, ClickHit, ClickRule, DoubleClick, DoubleClickHit, DragHit, SelectionDrag, click_rule, double_click, grabs_slanted_edges, selection_drag,
-    shift_counts_on_click, shift_locks_axis,
+    Button, Chord, ClickHit, ClickRule, DoubleClick, DoubleClickHit, DragHit, EmptyDrag, SelectionDrag, click_rule, double_click, empty_drag,
+    grabs_slanted_edges, selection_drag, shift_counts_on_click, shift_locks_axis,
 };
 use crate::panels::DndPayload;
 use crate::picking::{self, Hit};
 use crate::scene::{SceneCache, v3};
+use crate::selection_box::SelectionBox;
 use crate::state::EditorState;
 use crate::tools::{Drag, ToolKind, line_ray_param};
 use crate::toolset::ToolSet;
@@ -93,12 +94,20 @@ impl Viewport {
         cx.renderer.ensure_target(&mut self.target, [(rect.width() * ppp).round() as u32, (rect.height() * ppp).round() as u32]);
 
         cx.tools.settle(cx.state);
+        if cx.state.tool != ToolKind::Select {
+            cx.state.drop_selection_box();
+        }
+
         if self.drag.is_some() && !self.is_camera_drag() {
             // A tool picked mid drag (a shortcut, the toolbar) stops the select handling below, so close its edit here.
             // A drag whose transaction was closed elsewhere (undo, a tab switch) must not go on editing outside it.
-            // The Shape Generator's box has none, it ends with the box (a selection took the dialog over).
+            // The Shape Generator's box and the selection box have none, the drag ends with its box.
             let switched = !draws_like_select(cx.state.tool);
-            let orphaned = if matches!(self.drag, Some(Drag::ShapeBounds { .. })) { cx.state.shape_bounds.is_none() } else { !cx.state.doc.in_transaction() };
+            let orphaned = match self.drag {
+                Some(Drag::ShapeBounds { .. }) => cx.state.shape_bounds.is_none(),
+                Some(Drag::SelectBox) => cx.state.selection_box.is_none(),
+                _ => !cx.state.doc.in_transaction(),
+            };
             if switched || orphaned {
                 self.drag = None;
                 cx.state.drag_preview = None;
@@ -155,6 +164,12 @@ impl Viewport {
     pub fn cancel_drag(&mut self, state: &mut EditorState) -> bool {
         if self.drag.is_none() || self.is_camera_drag() || matches!(self.drag, Some(Drag::ShapeBounds { .. })) {
             return false;
+        }
+
+        if matches!(self.drag, Some(Drag::SelectBox)) {
+            self.drag = None;
+            state.drop_selection_box();
+            return true;
         }
 
         self.drag = None;
@@ -412,9 +427,11 @@ impl Viewport {
         let double_clicked = crate::widgets::double_clicked(response);
         let on_gizmo = response.interact_pointer_pos().is_some_and(|pos| crate::transform_gizmo::hit(cx.state, &self.camera, rect, pos).is_some());
         let pair_on_gizmo = response.clicked() && std::mem::replace(&mut self.gizmo_click, on_gizmo);
+        let box_click = response.clicked() && self.click_on_selection_box(response, cx.state);
 
         if response.clicked()
             && !on_gizmo
+            && !box_click
             && let Some(pos) = response.interact_pointer_pos()
         {
             let mut hit = self.pick(cx, pos);
@@ -501,7 +518,10 @@ impl Viewport {
             }
         }
 
-        if double_clicked && let Some(pos) = response.interact_pointer_pos() {
+        if double_clicked
+            && !box_click
+            && let Some(pos) = response.interact_pointer_pos()
+        {
             let hit = self.double_click_hit(cx, pos);
             // The click above already ran and may have closed or selected groups, so this reads the groups afresh.
             let map = &cx.state.doc.map;
@@ -553,6 +573,7 @@ impl Viewport {
         if response.drag_started_by(PointerButton::Primary) && !matches!(self.drag, Some(Drag::Orbit { .. })) {
             self.press_modifiers = modifiers;
             self.last_click = None;
+            cx.state.drop_selection_box();
             if let Some(origin) = press_origin {
                 self.drag = self.begin_primary_drag(origin, modifiers, cx);
             }
@@ -598,6 +619,21 @@ impl Viewport {
         }
 
         let _ = rect;
+    }
+
+    /// A click while the Hammer selection box waits: inside the box it selects what the box holds, anywhere else it
+    /// drops the box and goes on as a normal click. Returns whether the box took the click.
+    fn click_on_selection_box(&self, response: &Response, state: &mut EditorState) -> bool {
+        let Some(b) = state.selection_box else { return false };
+        let inside =
+            b.view == self.camera.kind && response.interact_pointer_pos().is_some_and(|pos| b.contains_point(self.camera.screen_to_plane(self.rect, pos)));
+        if inside {
+            crate::selection_box::confirm(state);
+        } else {
+            state.drop_selection_box();
+        }
+
+        inside
     }
 
     fn begin_primary_drag(&mut self, origin: Pos2, modifiers: egui::Modifiers, cx: &mut ViewCtx) -> Option<Drag> {
@@ -681,6 +717,25 @@ impl Viewport {
             return Some(Drag::ShapeBounds { start, side: Some(normal) });
         }
 
+        if self.camera.kind.is_2d() && state.shape_bounds.is_some() {
+            return Some(Drag::ShapeBounds { start: self.camera.screen_to_plane(self.rect, origin), side: None });
+        }
+
+        match empty_drag(&preset, state.tool, Chord::new(Button::Drag, modifiers), self.camera.kind.is_2d()) {
+            EmptyDrag::DrawBrush => {}
+            EmptyDrag::SelectBox { add } => {
+                let at = self.camera.screen_to_plane(self.rect, origin);
+                let b = SelectionBox { view: self.camera.kind, a: at, b: at, add };
+                state.selection_box = Some(b);
+                state.set_status(b.pending_status());
+                return Some(Drag::SelectBox);
+            }
+            EmptyDrag::Nothing => {
+                state.set_status(crate::selection_box::block_status(&state.prefs));
+                return None;
+            }
+        }
+
         match self.camera.kind {
             ViewKind::Perspective => {
                 let (start, normal) = match hit {
@@ -698,10 +753,6 @@ impl Viewport {
             }
             _ => {
                 let start = self.camera.screen_to_plane(self.rect, origin);
-                if state.shape_bounds.is_some() {
-                    return Some(Drag::ShapeBounds { start, side: None });
-                }
-
                 let axis = self.camera.kind.depth_axis();
                 let selected = map.bounds_of(state.doc.selection.nodes.iter().copied());
                 let depth = (state.prefs.draw_depth_from_selection && !selected.is_empty() && selected.size()[axis] > 1e-6)
@@ -875,6 +926,12 @@ impl Viewport {
                 let dist = (self.camera.screen_to_plane(rect, pos) - *origin).dot(*normal);
                 if let Some([cx, cz]) = crate::terrain_size::drag_edge(state, *id, *normal, (dist / cell).round() as i64) {
                     state.set_status(msg!("Resized the terrain to {cx} x {cz} cells", cx, cz));
+                }
+            }
+            Drag::SelectBox => {
+                let at = self.camera.screen_to_plane(rect, pos);
+                if let Some(b) = state.selection_box.as_mut() {
+                    b.b = at;
                 }
             }
             _ => {}
@@ -1257,6 +1314,8 @@ impl Viewport {
             if let Some(b) = state.shape_bounds {
                 size_labels(&painter, &self.camera, self.rect, b, crate::theme::VIEW.shape_bounds(), false);
             }
+
+            crate::selection_box::paint(&painter, &self.camera, self.rect, state);
 
             // The pending size outlines the selected terrain, so its labels go on the other sides.
             if let Some(b) = crate::terrain_size::footprint(state) {

@@ -23,6 +23,7 @@ pub const DISCORD_URL: &str = env!("TRENCHDOT_DISCORD_URL");
 
 pub const CAMERA_3D_HELP: &str = en!("Hold the right mouse button to look around, WASD flies. Middle drag pans, the wheel moves forward and back.");
 pub const CAMERA_2D_HELP: &str = en!("Right or middle drag pans, the wheel zooms. Drag on empty space to draw a box brush.");
+pub const CAMERA_2D_HELP_HAMMER: &str = en!("Right or middle drag pans, the wheel zooms. Drag on empty space to draw a selection box.");
 const LOOP_STEPS: [&str; 4] = [en!("Block out"), en!("Texture it"), en!("Add entities"), en!("Play in Godot")];
 
 /// The first run card's one line on what a keymap preset changes. A test checks the keys it names against

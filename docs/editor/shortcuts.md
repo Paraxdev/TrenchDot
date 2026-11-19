@@ -191,6 +191,9 @@ moves the brush.
 | Drag the selection | Move it, with no axis lock |
 | Drag a selection edge (2D) | Resize along it. Shift or Ctrl copies instead |
 | Shift+drag the selection, Ctrl+drag the selection | Copy it and move the copy, in every view, as one undo step. On a selected face in 3D it copies too, it does not push the face |
+| Drag off the selection (2D) | Draw a selection box. It waits until you press Enter or click inside it, then selects every object lying wholly inside, at any depth. Esc or a click outside drops it |
+| Ctrl+drag off the selection (2D) | Draw a selection box that adds to the selection |
+| Drag off the selection (3D) | Nothing. Pick the Block tool (Shift+B) to draw brushes |
 
 | Key | Blender preset |
 | --- | --- |

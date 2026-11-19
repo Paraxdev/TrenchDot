@@ -464,6 +464,12 @@ impl ToolSet {
         }
 
         match state.tool {
+            ToolKind::Select => {
+                if state.selection_box.is_some() && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Enter)) {
+                    crate::selection_box::confirm(state);
+                    return true;
+                }
+            }
             ToolKind::Clip => {
                 if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Tab)) {
                     self.clip.side = Some(match self.clip.side.unwrap_or(ClipSide::Front) {
@@ -2926,6 +2932,10 @@ mod tests {
             When::VertexSelected => tools.vertex.selected.push(DVec3::new(-20.0, 0.0, 10.0)),
             When::PathStarted => tools.path.last = Some(brush),
             When::FacesInReach => select_only(&mut state, &[brush]),
+            When::SelectionBox => {
+                let (a, b) = (DVec3::splat(-1000.0), DVec3::splat(1000.0));
+                state.selection_box = Some(crate::selection_box::SelectionBox { view: crate::camera::ViewKind::Top, a, b, add: false });
+            }
             When::MeshSelected | When::MeshGizmo | When::MeshTransform | When::MeshLoopCut => {
                 select_only(&mut state, &[mesh]);
                 tools.mesh.component = crate::mesh_tool::Component::Face;
@@ -2956,6 +2966,16 @@ mod tests {
                 row.when
             );
         }
+    }
+
+    #[test]
+    fn enter_confirms_a_waiting_selection_box() {
+        use crate::tool_keys::{When, preset_rows};
+        let row = preset_rows("hammer").iter().find(|r| r.when == When::SelectionBox).expect("the Hammer preset lists Enter");
+        let (mut tools, mut state) = tool_key_setup(row.tool, row.when);
+        assert!(press_chord(&mut tools, &mut state, row.key, row.modifiers));
+        assert!(state.selection_box.is_none());
+        assert_eq!(state.doc.selection.nodes.len(), 2, "the brush and the mesh lie inside");
     }
 
     #[test]

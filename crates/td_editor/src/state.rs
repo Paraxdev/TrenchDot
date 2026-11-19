@@ -681,6 +681,8 @@ pub struct EditorState {
     pub spline_preview: Vec<(DVec3, DVec3)>,
     /// The Shape Generator's own box while it is open with no brush or mesh selected, drawn and edited in the views.
     pub shape_bounds: Option<Aabb>,
+    /// The Hammer preset's selection box, drawn in a 2D view and waiting for Enter or a click inside it.
+    pub selection_box: Option<crate::selection_box::SelectionBox>,
     /// The size change typed into the Inspector for a terrain, applied as one undo step.
     pub terrain_resize: Option<crate::terrain_size::TerrainResizeDraft>,
     /// The height range of the draft's terrain and the revision it was read at, see `terrain_size::height_range`.
@@ -926,6 +928,7 @@ impl EditorState {
             array_preview: Vec::new(),
             spline_preview: Vec::new(),
             shape_bounds: None,
+            selection_box: None,
             terrain_resize: None,
             terrain_heights: Default::default(),
             mirror_pairs: Default::default(),
@@ -1187,13 +1190,30 @@ impl EditorState {
     /// other status line stays.
     pub fn drop_group_status(&mut self) {
         if self.says_group_status() {
-            self.status.clear();
-            self.status_tr = None;
-            self.status_failed = false;
-            self.status_rang = false;
-            self.status_selection = None;
-            self.status_tool = None;
+            self.clear_status();
         }
+    }
+
+    /// Drops the waiting selection box and the status that asks to confirm it. Returns whether there was one.
+    pub fn drop_selection_box(&mut self) -> bool {
+        if self.selection_box.take().is_none() {
+            return false;
+        }
+
+        if self.status.starts_with("Press Enter or click inside the box") {
+            self.clear_status();
+        }
+
+        true
+    }
+
+    fn clear_status(&mut self) {
+        self.status.clear();
+        self.status_tr = None;
+        self.status_failed = false;
+        self.status_rang = false;
+        self.status_selection = None;
+        self.status_tool = None;
     }
 
     fn says_group_status(&self) -> bool {
@@ -1380,6 +1400,7 @@ impl EditorState {
     /// Node ids restart per map, so state naming a node of the map being left would point at another map's node.
     fn forget_nodes(&mut self) {
         self.active_scatter = None;
+        self.selection_box = None;
         self.renaming = None;
         self.outliner_reveal = None;
         self.terrain_resize = None;

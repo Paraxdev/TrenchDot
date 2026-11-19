@@ -25,7 +25,7 @@ three differ.
 
 | Hammer | TrenchBroom | TrenchDot |
 | --- | --- | --- |
-| Block tool, a solid | Drag in a view | Drag in any view with the Select tool (Q) to draw a box [brush](brushes.md#draw-and-move), or with the **Block** tool (Shift+B in the Hammer preset) to draw over the selection too. Ctrl+Shift+B for arches, stairs and cylinders |
+| Block tool, a solid | Drag in a view | Drag in any view with the Select tool (Q) to draw a box [brush](brushes.md#draw-and-move), or with the **Block** tool to draw over the selection too. In the Hammer preset only the Block tool (Shift+B) draws, a Select tool drag in a 2D view draws a selection box. Ctrl+Shift+B for arches, stairs and cylinders |
 | Selection tool | Select | **Select** tool, Q |
 | worldspawn | worldspawn | The map's worldspawn holds the world brushes, select nothing to see its keys in the Inspector |
 | Tie to Entity | *Create Brush Entity* in the right click menu | Select the brushes and pick *Brush > Tie to Entity*, Ctrl+T in the Hammer preset, see [below](#where-trenchdot-differs). Right click and *Create Brush Entity*, or double clicking a brush entity card in the **Entities** panel, work too, see [Brush entities](../gameplay/placing.md#brush-entities) |
@@ -107,6 +107,7 @@ what the TrenchDot column says.
 | Zoom in a 2D view | Wheel | Wheel | Same |
 | Select | Click | Click | Same |
 | Add to or remove from the selection | Ctrl+click | Ctrl+click | Same |
+| Select what lies in a box | Draw a brush, then Ctrl+E (Select Inside) | Draw a brush, then Ctrl+E | Drag on empty space in a 2D view, then press Enter or click inside the box. Ctrl+drag adds to the selection |
 | Select a group | Click selects the group, double click opens it | Click selects the group, double click opens it | Same |
 | Pick what lies behind | Ctrl+wheel | Click again at the same spot, or Alt+click, in the Top, Front and Side views | Same |
 | Select a face | Shift+click | Shift+click | Click in the Texture tool (Shift+A) |

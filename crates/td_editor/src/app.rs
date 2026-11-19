@@ -105,6 +105,7 @@ pub struct App {
     pub(crate) project_generation: u64,
     confirm_close: bool,
     offscreen: bool,
+    mouse_look: Option<MouseLook>,
     /// Asking whether to save the active map before its tab closes.
     confirm_tab_close: bool,
     allow_close: bool,
@@ -762,7 +763,12 @@ fn mouse_help(preset: &str) -> String {
     [
         tr("3D: right drag looks, WASD flies, Q and E go down and up, middle drag pans, Alt+left drag orbits").to_string(),
         tr("2D: right or middle drag pans, the wheel zooms, drag a selection edge to resize").to_string(),
-        tr("Click selects an object or a whole group, double click opens a group. Drag empty space to draw a brush").to_string(),
+        tr(if preset == "hammer" {
+            en!("Click selects an object or a whole group, double click opens a group. Drag empty space in 2D to draw a selection box")
+        } else {
+            en!("Click selects an object or a whole group, double click opens a group. Drag empty space to draw a brush")
+        })
+        .to_string(),
         tr("3D gizmo: arrows and squares move, rings rotate, boxes scale").to_string(),
         if preset == "hammer" {
             tr("Shift+A opens the Texture tool, click picks a face, Ctrl+click adds one. Shift+drag copies the selection").to_string()
@@ -854,6 +860,12 @@ fn make_room(dock: &mut DockState<Tab>, tab: Tab) {
 }
 
 const BOTTOM_ROOM: f32 = 0.55;
+
+/// A running mouse look, see `App::drive_mouse_look`.
+struct MouseLook {
+    /// Where the cursor was when the look started, it goes back there afterwards.
+    from: Option<egui::Pos2>,
+}
 
 /// Whether `tab` is open and the one showing in its leaf.
 fn tab_shown(dock: &DockState<Tab>, tab: &Tab) -> bool {
@@ -1080,6 +1092,7 @@ impl App {
             project_generation: 1,
             confirm_close: false,
             offscreen: args.offscreen,
+            mouse_look: None,
             confirm_tab_close: false,
             allow_close: false,
             show_prefs: false,
@@ -1174,6 +1187,18 @@ impl App {
             return;
         }
 
+        // Mouse look flies with plain keys, which ToolSet::keys swallows, so its own keys are taken first.
+        if self.viewports.iter().any(|v| v.mouse_look) {
+            let toggled = commands::shortcuts(&self.state.prefs)
+                .into_iter()
+                .filter(|(_, a)| *a == Action::ToggleMouseLook)
+                .any(|(s, _)| ctx.input_mut(|i| commands::consume_shortcut(i, &s)));
+            if toggled || ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+                self.viewports.iter_mut().for_each(|v| v.mouse_look = false);
+                return;
+            }
+        }
+
         if scope == KeyScope::Editor {
             // Tab belongs to the tools and shortcuts here. Left to egui it would also move the keyboard focus into a
             // panel, and every key after it would go there.
@@ -1265,6 +1290,7 @@ impl App {
             Action::ShowAddonSetup => self.content_wizard.open_addon_from_menu(&mut self.state),
             Action::InstallNatureModels => self.content_wizard.open_from_menu(&mut self.state, Some(crate::content::Choice::Nature)),
             Action::ToggleMaximizeView => self.toggle_maximize(),
+            Action::ToggleMouseLook => self.toggle_mouse_look(),
             Action::ViewLayout(n) => {
                 self.maximized = None;
                 let views: Vec<usize> = if n <= 1 { vec![self.view_to_maximize()] } else { (0..(n as usize).min(self.viewports.len())).collect() };
@@ -1356,10 +1382,74 @@ impl App {
     /// scrolled in, else the first shown view, the 3D view when it is open.
     fn view_to_maximize(&self) -> usize {
         let open = open_views(&self.dock);
+        self.view_under_pointer().or(open.contains(&self.active_view).then_some(self.active_view)).unwrap_or_else(|| open.iter().copied().min().unwrap_or(0))
+    }
+
+    fn view_under_pointer(&self) -> Option<usize> {
         // A key pressed in the frame the pointer arrives comes before the view has seen it hover.
         let under = |v: &crate::viewport::Viewport| under_pointer(v.hovered, v.rect, self.pointer, self.pointer_over_window);
-        let hovered = open.iter().copied().find(|i| self.viewports.get(*i).is_some_and(under));
-        hovered.or(open.contains(&self.active_view).then_some(self.active_view)).unwrap_or_else(|| open.iter().copied().min().unwrap_or(0))
+        open_views(&self.dock).into_iter().find(|i| self.viewports.get(*i).is_some_and(under))
+    }
+
+    /// Starts mouse look in the 3D view under the pointer, or the shown 3D view when the pointer is on no view, as from
+    /// a menu. Ends it when it runs.
+    fn toggle_mouse_look(&mut self) {
+        if self.viewports.iter().any(|v| v.mouse_look) {
+            self.viewports.iter_mut().for_each(|v| v.mouse_look = false);
+            return;
+        }
+
+        let shown_3d = || self.viewports.iter().position(|v| !v.kind().is_2d()).filter(|i| tab_shown(&self.dock, &Tab::View(*i)));
+        match self.view_under_pointer().or_else(shown_3d) {
+            Some(i) if !self.viewports[i].kind().is_2d() => {
+                self.viewports[i].start_mouse_look();
+                self.state.set_status(msg!("Mouse look: move the mouse to look, WASD flies, Esc or a click stops"));
+            }
+            _ => self.state.fail_status(msg!("Mouse look works in the 3D view")),
+        }
+    }
+
+    /// Keeps the cursor of a running mouse look hidden in the middle of its view, ends the look when the window loses
+    /// focus or the view goes away, and puts the cursor back where it was afterwards. An offscreen editor leaves the
+    /// system cursor alone.
+    fn drive_mouse_look(&mut self, ctx: &egui::Context) {
+        let unfocused = ctx.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::WindowFocused(false))));
+        for (i, v) in self.viewports.iter_mut().enumerate() {
+            if v.mouse_look && (unfocused || !tab_shown(&self.dock, &Tab::View(i))) {
+                v.mouse_look = false;
+            }
+        }
+
+        let center = self.viewports.iter().find(|v| v.mouse_look).map(|v| v.rect.center());
+        match (center, self.mouse_look.is_some()) {
+            (Some(center), started) => {
+                if !started {
+                    self.mouse_look = Some(MouseLook { from: self.pointer });
+                    if !self.offscreen {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::CursorGrab(egui::viewport::CursorGrab::Confined));
+                    }
+                }
+
+                ctx.set_cursor_icon(egui::CursorIcon::None);
+                // In the middle of the view the hidden cursor hovers nothing else, and the click that ends the look
+                // lands in the view.
+                if !self.offscreen && self.pointer.is_none_or(|p| p.distance(center) > 1.0) {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::CursorPosition(center));
+                }
+            }
+            (None, true) => {
+                let from = self.mouse_look.take().and_then(|m| m.from);
+                if !self.offscreen {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::CursorGrab(egui::viewport::CursorGrab::None));
+                    if let Some(from) = from {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::CursorPosition(from));
+                    }
+                }
+
+                self.state.set_status(msg!("Mouse look off"));
+            }
+            (None, false) => {}
+        }
     }
 
     fn toggle_maximize(&mut self) {
@@ -1863,6 +1953,7 @@ impl App {
 
                     ui.separator();
                     m.toggle(ui, en!("Maximize View"), self.maximized.is_some(), Action::ToggleMaximizeView);
+                    m.toggle(ui, en!("Mouse Look"), self.viewports.iter().any(|v| v.mouse_look), Action::ToggleMouseLook);
                 });
                 sub_menu(ui, Some(icons::shade(self.state.prefs.shade)), en!("Shading"), |ui| {
                     for s in Shade::ALL {
@@ -3102,7 +3193,12 @@ impl TabViewer for Tabs<'_> {
         } else if let Tab::View(i) = tab
             && let Some(vp) = self.viewports.get(*i)
         {
-            tr(if vp.kind().is_2d() { crate::welcome::CAMERA_2D_HELP } else { crate::welcome::CAMERA_3D_HELP }).to_string()
+            let help = match (vp.kind().is_2d(), self.state.prefs.keymap_preset.as_str()) {
+                (true, "hammer") => crate::welcome::CAMERA_2D_HELP_HAMMER,
+                (true, _) => crate::welcome::CAMERA_2D_HELP,
+                (false, _) => crate::welcome::CAMERA_3D_HELP,
+            };
+            tr(help).to_string()
         } else {
             return;
         };
@@ -3432,6 +3528,8 @@ impl eframe::App for App {
                 v.focus(&bounds);
             }
         }
+
+        self.drive_mouse_look(&ctx);
 
         self.prefs_window(&ctx);
         self.close_dialog(&ctx);
@@ -4371,8 +4469,10 @@ mod tests {
         let blender = lines("blender");
         let hammer = lines("hammer");
         assert_eq!(hammer.len(), 6);
-        assert_eq!(hammer[..4], tb[..4]);
+        assert_eq!(hammer[..2], tb[..2]);
+        assert_eq!(hammer[3..4], tb[3..4]);
         assert_eq!(hammer[5], tb[5]);
+        assert!(hammer[2].ends_with("Drag empty space in 2D to draw a selection box"), "{}", hammer[2]);
         assert!(hammer[4].contains("Shift+drag copies the selection") && hammer[4].contains("Texture tool"), "{}", hammer[4]);
         assert!(!hammer[4].contains("pushes"), "{}", hammer[4]);
         assert_eq!(tb.len(), 6);

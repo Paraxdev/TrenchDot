@@ -20,6 +20,7 @@ pub enum When {
     MeshGizmo,
     MeshTransform,
     MeshLoopCut,
+    SelectionBox,
 }
 
 impl When {
@@ -35,6 +36,7 @@ impl When {
             When::MeshGizmo => Some(en!("while the gizmo shows")),
             When::MeshTransform => Some(en!("while moving, rotating or scaling")),
             When::MeshLoopCut => Some(en!("while cutting a loop")),
+            When::SelectionBox => Some(en!("while a selection box waits")),
         }
     }
 }
@@ -130,8 +132,11 @@ pub fn tool_key_rows() -> &'static [ToolKeyRow] {
 }
 
 /// Keys a tool answers only under one keymap preset, because the preset binds an action that acts on the tool's
-/// selection. The tool does not read them, so the drift test over `TOOL_KEYS` leaves them out.
-const HAMMER_KEYS: &[ToolKeyRow] = &[row(ToolKind::Texture, Key::A, CTRL, en!("Select every face of the selected brushes"), When::FacesInReach)];
+/// selection or only the preset makes what the key acts on. The drift test over `TOOL_KEYS` leaves them out.
+const HAMMER_KEYS: &[ToolKeyRow] = &[
+    row(ToolKind::Texture, Key::A, CTRL, en!("Select every face of the selected brushes"), When::FacesInReach),
+    row(ToolKind::Select, Key::Enter, NONE, en!("Select what lies wholly inside the selection box"), When::SelectionBox),
+];
 
 pub fn preset_rows(preset: &str) -> &'static [ToolKeyRow] {
     match preset {
@@ -187,9 +192,11 @@ mod tests {
     #[test]
     fn only_the_hammer_preset_has_keys_of_its_own() {
         let hammer = preset_rows("hammer");
-        assert_eq!(hammer.len(), 1);
+        assert_eq!(hammer.len(), 2);
         assert_eq!((hammer[0].tool, hammer[0].chord().as_str()), (ToolKind::Texture, "Ctrl+A"));
         assert_eq!(describe(&hammer[0]), "Select every face of the selected brushes (with faces or brushes selected)");
+        assert_eq!((hammer[1].tool, hammer[1].chord().as_str()), (ToolKind::Select, "Enter"));
+        assert_eq!(describe(&hammer[1]), "Select what lies wholly inside the selection box (while a selection box waits)");
         for preset in ["trenchbroom", "blender", "unknown", ""] {
             assert!(preset_rows(preset).is_empty(), "{preset}");
         }

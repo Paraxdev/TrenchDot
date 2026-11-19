@@ -201,6 +201,29 @@ pub fn draw_tool(preset: &str) -> ToolKind {
     if preset == "hammer" { ToolKind::Block } else { ToolKind::Select }
 }
 
+/// What a primary drag that grabs nothing of the selection does in a view.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EmptyDrag {
+    DrawBrush,
+    /// The Hammer preset's selection box, `add` keeps what is selected.
+    SelectBox {
+        add: bool,
+    },
+    Nothing,
+}
+
+/// What a drag off the selection does with `tool` active. Hammer leaves drawing to the Block tool, its 2D views draw
+/// a selection box instead.
+pub fn empty_drag(preset: &str, tool: ToolKind, chord: Chord, in_2d: bool) -> EmptyDrag {
+    if tool == ToolKind::Block || draw_tool(preset) != ToolKind::Block {
+        EmptyDrag::DrawBrush
+    } else if in_2d {
+        EmptyDrag::SelectBox { add: chord.command }
+    } else {
+        EmptyDrag::Nothing
+    }
+}
+
 /// Whether Shift changes what a click does. The Hammer preset keeps Shift for cloning, so a Shift+click there is a plain
 /// click, also for stepping through stacked objects in a 2D view.
 pub fn shift_counts_on_click(preset: &str) -> bool {
@@ -279,6 +302,8 @@ pub enum Bound {
     View(DoubleClickHit, bool, DoubleClick),
     Texture(Chord, TextureGesture),
     Drag(Chord, DragHit, SelectionDrag),
+    /// A drag off the selection with the Select tool, in a 2D view, the 3D view or, with `None`, both.
+    EmptyDrag(Chord, Option<bool>, EmptyDrag),
     Outliner(Chord, RowClick),
 }
 
@@ -330,6 +355,10 @@ pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
         ..fixed(VIEWS, gesture, what)
     };
     let view = |gesture: &'static str, what: &'static str, hit, open, d| MouseRow { bound: Some(Bound::View(hit, open, d)), ..fixed(VIEWS, gesture, what) };
+    let empty = |mods: &str, gesture: &'static str, what: &'static str, in_2d, d| MouseRow {
+        bound: Some(Bound::EmptyDrag(chord(Button::Drag, mods), in_2d, d)),
+        ..fixed(VIEWS, gesture, what)
+    };
     let outliner = |mods: &str, gesture: &'static str, what: &'static str, g| MouseRow {
         bound: Some(Bound::Outliner(chord(Button::Click, mods), g)),
         ..fixed(OUTLINER, gesture, what)
@@ -349,10 +378,24 @@ pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
             DoubleClick::CloseGroup,
         ),
         fixed(VIEWS, en!("Click again soon at the same spot, or Alt+click (2D)"), en!("Select the next object under the cursor")),
-        fixed(VIEWS, en!("Drag off the selection"), en!("Draw a brush")),
     ]);
     if preset == "hammer" {
         rows.extend([
+            empty(
+                "",
+                en!("Drag off the selection (2D)"),
+                en!("Draw a selection box. Enter or a click inside it selects what lies wholly inside"),
+                Some(true),
+                EmptyDrag::SelectBox { add: false },
+            ),
+            empty(
+                "c",
+                en!("Ctrl+drag off the selection (2D)"),
+                en!("Draw a selection box that adds to the selection"),
+                Some(true),
+                EmptyDrag::SelectBox { add: true },
+            ),
+            empty("", en!("Drag off the selection (3D)"), en!("Nothing, the Block tool draws brushes"), Some(false), EmptyDrag::Nothing),
             drag("", en!("Drag the selection"), en!("Move it"), DragHit::Selected, SelectionDrag::Move),
             drag("s", en!("Shift+drag the selection"), en!("Copy it and move the copy"), DragHit::Selected, SelectionDrag::Copy),
             drag("c", en!("Ctrl+drag the selection"), en!("Copy it and move the copy"), DragHit::Selected, SelectionDrag::Copy),
@@ -360,6 +403,7 @@ pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
         ]);
     } else {
         rows.extend([
+            empty("", en!("Drag off the selection"), en!("Draw a brush"), None, EmptyDrag::DrawBrush),
             drag("", en!("Drag the selection"), en!("Move it. Ctrl copies, Shift locks the axis"), DragHit::Selected, SelectionDrag::Move),
             drag("", en!("Drag a selection edge (2D)"), en!("Resize along it, slanted edges too. Ctrl copies instead"), DragHit::Edge2d, SelectionDrag::Resize),
             drag("s", en!("Shift+drag a selected face (3D)"), en!("Push or pull the face"), DragHit::SelectedFace3d, SelectionDrag::PushFace),
@@ -629,6 +673,13 @@ mod tests {
                     assert_eq!(selection_drag("trenchbroom", chord, hit), d, "{}", row.gesture);
                     assert!(row.gesture.starts_with(&chord_prefix(chord)), "{} is not {:?}", row.gesture, chord);
                 }
+                Some(Bound::EmptyDrag(chord, view, d)) => {
+                    for in_2d in view.map_or(vec![false, true], |v| vec![v]) {
+                        assert_eq!(empty_drag("trenchbroom", ToolKind::Select, chord, in_2d), d, "{}", row.gesture);
+                    }
+
+                    assert!(row.gesture.starts_with(&chord_prefix(chord)), "{} is not {:?}", row.gesture, chord);
+                }
                 Some(Bound::Outliner(chord, click)) => {
                     assert_eq!(row_click(chord.command, chord.shift), click, "{}", row.gesture);
                     assert!(row.gesture.starts_with(&chord_prefix(chord)), "{} is not {:?}", row.gesture, chord);
@@ -662,9 +713,33 @@ mod tests {
         }
 
         for preset in ["hammer", "blender"] {
-            let fixed = |r: &&MouseRow| r.bound.is_some() && !matches!(r.bound, Some(Bound::Drag(..)));
+            let fixed = |r: &&MouseRow| r.bound.is_some() && !matches!(r.bound, Some(Bound::Drag(..) | Bound::EmptyDrag(..)));
             let other: Vec<_> = mouse_rows(preset).iter().filter(fixed).cloned().collect();
             assert_eq!(other, rows.iter().filter(fixed).cloned().collect::<Vec<_>>(), "{preset}");
+        }
+    }
+
+    #[test]
+    fn hammer_draws_a_selection_box_in_2d_and_leaves_brushes_to_the_block_tool() {
+        use EmptyDrag::*;
+        for chord in chords(Button::Drag) {
+            for in_2d in [false, true] {
+                assert_eq!(empty_drag("trenchbroom", ToolKind::Select, chord, in_2d), DrawBrush);
+                assert_eq!(empty_drag("blender", ToolKind::Select, chord, in_2d), DrawBrush);
+                assert_eq!(empty_drag("hammer", ToolKind::Block, chord, in_2d), DrawBrush, "the Block tool draws in every view");
+                let hammer = empty_drag("hammer", ToolKind::Select, chord, in_2d);
+                assert_eq!(hammer, if in_2d { SelectBox { add: chord.command } } else { Nothing });
+                let rows: Vec<_> = mouse_rows("hammer")
+                    .into_iter()
+                    .filter_map(|r| if let Some(Bound::EmptyDrag(c, v, d)) = r.bound { Some((r.gesture, c, v, d)) } else { None })
+                    .collect();
+                assert!(rows.iter().any(|(_, _, v, d)| *d == hammer && v.is_none_or(|v| v == in_2d)), "no Hammer row for {chord:?} in 2D {in_2d}");
+                for (gesture, c, v, d) in rows {
+                    assert!(gesture.starts_with(&chord_prefix(c)), "{gesture} is not {c:?}");
+                    assert!(v.is_some_and(|v| gesture.ends_with(if v { "(2D)" } else { "(3D)" })), "{gesture} names its view");
+                    assert_eq!(empty_drag("hammer", ToolKind::Select, c, v.unwrap()), d, "{gesture}");
+                }
+            }
         }
     }
 

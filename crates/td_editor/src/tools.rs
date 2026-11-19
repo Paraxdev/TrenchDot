@@ -177,6 +177,8 @@ pub enum Drag {
         start: DVec3,
         side: Option<DVec3>,
     },
+    /// Drawing the Hammer preset's selection box, kept in `EditorState::selection_box`. Holds no transaction either.
+    SelectBox,
     /// Tool specific drags handled by the tool itself.
     Tool,
 }

@@ -1474,7 +1474,9 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         Action::SelectAllInMode => state.doc.select(|m, s| ops::select_all(m, s, &open_groups)),
         Action::Cancel => {
             state.drop_group_status();
-            if state.doc.selection.has_faces() {
+            if state.drop_selection_box() {
+                state.set_status(msg!("Dropped the selection box"));
+            } else if state.doc.selection.has_faces() {
                 state.doc.select(|_, s| s.faces.clear());
             } else if !state.doc.selection.nodes.is_empty() {
                 state.doc.select(|_, s| s.clear());
@@ -1706,6 +1708,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             }
         }
         Action::SetTool(t) => {
+            state.drop_selection_box();
             state.tool = if state.tool == t { ToolKind::Select } else { t };
             state.set_status(Msg { en: format!("{} tool", state.tool.label()), shown: trf!("{tool} tool", tool = tr(state.tool.label())) });
             state.bind_status_to_tool();

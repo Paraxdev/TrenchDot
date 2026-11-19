@@ -4464,6 +4464,62 @@ fn the_block_tool_draws_over_the_selection() {
     assert!(bounds().contains(&[[-384, 112, -384], [384, 128, 384]]), "the slab stays put {:?}", bounds());
 }
 
+#[test]
+#[ignore]
+fn hammer_select_box_waits_for_enter_or_a_click_inside() {
+    let ed = Editor::launch("hammer_select_box");
+    let a = ed.box_brush([0.0, 0.0, 0.0], [64.0, 64.0, 64.0]);
+    let b = ed.box_brush([96.0, 0.0, 0.0], [160.0, 64.0, 64.0]);
+    let c = ed.box_brush([0.0, 0.0, 192.0], [64.0, 64.0, 256.0]);
+    ed.call("set_editor", json!({ "grid": 8, "snap": true, "keymap": "hammer" }));
+    ed.call("set_camera", json!({ "view": "top", "center": [160, 0, 160], "zoom": 0.5 }));
+    ed.call("select", json!({ "ids": [] }));
+    let pending = || ed.state()["editor"]["selection_box"].clone();
+    let drag = |from: [i64; 3], to: [i64; 3], modifiers: Value| {
+        ed.input("top", json!([{ "type": "drag", "world": from, "to_world": to, "modifiers": modifiers }]));
+    };
+    let key = |key: &str| ed.input("top", json!([{ "type": "move" }, { "type": "key", "key": key }]));
+
+    drag([-48, 0, -48], [208, 0, 112], json!([]));
+    let waiting = pending();
+    assert_eq!((waiting["view"].clone(), waiting["add"].clone()), (json!("top"), json!(false)), "{waiting}");
+    assert!(selected(&ed).is_empty(), "the box waits");
+    key("Enter");
+    assert!(pending().is_null());
+    assert_eq!(selected_sorted(&ed), [a, b], "c sticks out below the box");
+
+    drag([-48, 0, 160], [96, 0, 288], json!(["ctrl"]));
+    assert_eq!(pending()["add"], true);
+    ed.input("top", json!([{ "type": "click", "world": [80, 0, 280] }]));
+    assert!(pending().is_null());
+    assert_eq!(selected_sorted(&ed), [a, b, c], "a click inside adds what the box holds");
+
+    drag([300, 0, 300], [360, 0, 360], json!([]));
+    assert!(!pending().is_null());
+    key("Escape");
+    assert!(pending().is_null(), "Esc drops the box");
+    assert_eq!(selected_sorted(&ed), [a, b, c], "and keeps the selection");
+
+    ed.call("select", json!({ "ids": [] }));
+    drag([-48, 0, -48], [80, 0, 80], json!([]));
+    ed.input("top", json!([{ "type": "click", "world": [128, 0, 32] }]));
+    assert!(pending().is_null());
+    assert_eq!(selected(&ed), [b], "a click outside drops the box and clicks as usual");
+
+    ed.call("set_camera", json!({ "view": "3d", "position": [-300, 250, 300], "look_at": [0, 0, 0] }));
+    ed.input("3d", json!([{ "type": "drag", "world": [200, 0, -200], "to_world": [300, 0, -150] }]));
+    assert_eq!(ed.brushes(), 3, "a 3D drag off the selection draws nothing");
+    assert_eq!(selected(&ed), [b]);
+    assert!(pending().is_null());
+    let status = ed.state()["status"].as_str().unwrap().to_string();
+    assert!(status.starts_with("The Block tool draws brushes"), "{status}");
+
+    ed.call("set_editor", json!({ "keymap": "trenchbroom" }));
+    drag([300, 0, 300], [360, 0, 360], json!([]));
+    assert!(pending().is_null());
+    assert_eq!(ed.brushes(), 4, "TrenchBroom draws a brush");
+}
+
 /// The Hammer preset clones on Shift+drag, Ctrl+drag too, and has no Shift axis lock. TrenchBroom keeps Shift as the
 /// axis lock and as the face push in 3D.
 #[test]

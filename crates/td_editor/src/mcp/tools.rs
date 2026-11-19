@@ -1382,6 +1382,7 @@ impl App {
                 "symmetry": s.symmetry,
                 "mirror_plane": s.mirror_plane,
                 "edit_symmetry": edit_symmetry_json(&s.edit_symmetry),
+                "selection_box": s.selection_box.map(|b| json!({ "view": view_name(b.view), "min": arr(b.min()), "max": arr(b.max()), "add": b.add })),
             },
             "mirror_planes": td_doc::mirror::selection_planes(map, sel)
                 .iter()

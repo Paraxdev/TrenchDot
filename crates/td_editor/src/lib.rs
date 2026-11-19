@@ -50,6 +50,7 @@ pub mod random_fill;
 pub mod scatter_panel;
 pub mod scatter_tool;
 pub mod scene;
+pub mod selection_box;
 pub mod shape_bounds;
 pub mod spline_dialog;
 pub mod state;
