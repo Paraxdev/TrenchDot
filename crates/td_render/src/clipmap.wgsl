@@ -26,7 +26,8 @@ struct Clipmap {
     noise: vec4<f32>,
     // xyz: Terrain3D's world noise offset, w: fewest octaves
     noise_offset: vec4<f32>,
-    // x: 1 when the background draws, y: 1 with water over the ground, z: the water's opacity
+    // x: 1 when the background draws, y: 1 with water over the ground, z: the water's opacity, w: the paint overlay
+    // (0 none, 1 navigation, 2 wetness, 3 autoshader)
     toggles: vec4<f32>,
     // rgb: linear water color, w: map unit height of the water surface
     water: vec4<f32>,
@@ -48,9 +49,14 @@ struct Clipmap {
 @group(1) @binding(5) var<uniform> clip: Clipmap;
 @group(1) @binding(6) var albedo: texture_2d_array<f32>;
 @group(1) @binding(7) var albedo_sampler: sampler;
+@group(1) @binding(8) var coarse_color: texture_2d<f32>;
 
 const TAU: f32 = 6.283185307179586;
 const PLAIN_GROUND: vec3<f32> = vec3<f32>(0.62, 0.6, 0.55);
+const NAVIGATION_WASH: vec3<f32> = vec3<f32>(0.5, 0.2, 0.5);
+const WET_WASH: vec3<f32> = vec3<f32>(0.4, 0.6, 1.0);
+const DRY_WASH: vec3<f32> = vec3<f32>(0.6, 0.4, 0.0);
+const AUTOSHADER_WASH: vec3<f32> = vec3<f32>(0.36, 0.2, 0.09);
 
 struct VIn {
     @location(0) local: vec2<u32>,
@@ -348,14 +354,21 @@ fn control_at(cell: vec2<i32>) -> u32 {
     return 1u << AUTO_BIT;
 }
 
-// Terrain3D's color map at a vertex, white where only the coarse atlas or nothing holds it.
-fn color_at(cell: vec2<i32>) -> vec3<f32> {
+// Terrain3D's color map at a vertex, roughness in alpha, and its blank color where no region holds it.
+fn color_texel(cell: vec2<i32>) -> vec4<f32> {
     let loc = loc_of(cell);
     let slot = slot_at(loc);
     if (slot >= 0) {
-        return textureLoad(fine_color, cell - loc * clip.grid.x, slot, 0).rgb;
+        return textureLoad(fine_color, cell - loc * clip.grid.x, slot, 0);
     }
-    return vec3<f32>(1.0);
+    if (slot == COARSE_ONLY) {
+        return textureLoad(coarse_color, (cell - clip.grid.zw * clip.grid.x) / clip.grid.y, 0);
+    }
+    return vec4<f32>(1.0, 1.0, 1.0, 0.5);
+}
+
+fn color_at(cell: vec2<i32>) -> vec3<f32> {
+    return color_texel(cell).rgb;
 }
 
 // Cells between the vertices whose control words a pixel at `p` cells reads: the coarse texels in a region only the
@@ -476,11 +489,70 @@ fn height_weight(w: f32, share: f32, height: f32) -> f32 {
     return exp2((60.0 * clip.material.x + 4.0) * log2(w + share + height)) * w;
 }
 
+// The corners of the pixel's cell that ground_albedo blends, with their bilinear weights.
+struct Corners {
+    cells: array<vec2<i32>, 4>,
+    weights: vec4<f32>,
+};
+
+fn corners_of(world: vec3<f32>) -> Corners {
+    let stride = control_step(world.xz / clip.world.x);
+    let q = world.xz / (clip.world.x * f32(stride));
+    let c = vec2<i32>(floor(q)) * stride;
+    let f = q - floor(q);
+    var k: Corners;
+    for (var i = 0u; i < 4u; i++) {
+        let o = vec2<i32>(i32(i & 1u), i32(i >> 1u));
+        k.cells[i] = c + o * stride;
+        k.weights[i] = mix(1.0 - f.x, f.x, f32(o.x)) * mix(1.0 - f.y, f.y, f32(o.y));
+    }
+    return k;
+}
+
+// The color map blended over the pixel's cell, roughness in alpha.
+fn color_tint(world: vec3<f32>) -> vec4<f32> {
+    let k = corners_of(world);
+    var tint = vec4<f32>(0.0);
+    for (var i = 0u; i < 4u; i++) {
+        if (k.weights[i] > 0.0) {
+            tint += k.weights[i] * color_texel(k.cells[i]);
+        }
+    }
+    return tint;
+}
+
+// How much of the pixel's cell has `bit` set in its control words.
+fn control_share(world: vec3<f32>, bit: u32) -> f32 {
+    let k = corners_of(world);
+    var share = 0.0;
+    for (var i = 0u; i < 4u; i++) {
+        share += k.weights[i] * f32((control_at(k.cells[i]) >> bit) & 1u);
+    }
+    return share;
+}
+
+// The wash the Sculpt tool's Terrain3D channels show while they paint. Wetness is Terrain3D's roughness modifier, alpha
+// below 0.5 is wetter.
+fn paint_overlay(base: vec3<f32>, world: vec3<f32>) -> vec3<f32> {
+    let mode = u32(clip.toggles.w + 0.5);
+    if (mode == 1u) {
+        return mix(base, NAVIGATION_WASH, 0.5 * control_share(world, NAV_BIT));
+    }
+    if (mode == 2u) {
+        let wet = color_tint(world).a - 0.5;
+        return mix(base, select(DRY_WASH, WET_WASH, wet < 0.0), abs(wet));
+    }
+    if (mode == 3u) {
+        return mix(base, AUTOSHADER_WASH, 0.5 * control_share(world, AUTO_BIT));
+    }
+    return base;
+}
+
 // The ground's color before light: the textures at the corners of the pixel's cell, height blended and tinted by the
 // bilinearly blended color map.
 fn ground_albedo(world: vec3<f32>, n: vec3<f32>, ddx: vec2<f32>, ddy: vec2<f32>) -> vec3<f32> {
     if (clip.look.z < 0.5) {
-        return PLAIN_GROUND;
+        return PLAIN_GROUND * color_tint(world).rgb;
     }
     let stride = control_step(world.xz / clip.world.x);
     let q = world.xz / (clip.world.x * f32(stride));
@@ -552,6 +624,7 @@ fn fs_main(f: VOut) -> @location(0) vec4<f32> {
     if (flat_mode < 0.5) {
         base = ground_albedo(f.world, n, ddx, ddy);
     }
+    base = paint_overlay(base, f.world);
     base = selection_tint(base, clip.look.y);
     var rgb: vec3<f32>;
     if (is_lit()) {

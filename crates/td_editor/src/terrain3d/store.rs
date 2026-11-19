@@ -589,6 +589,18 @@ pub fn build_lod(grid: &Grid, region: &Region3D, hash: RegionHash) -> Option<Lod
     (!levels.is_empty()).then_some(Lod { loc: region.loc, region_size: region.size, hash, levels })
 }
 
+/// The colors of an edited region's coarse block, the way its pyramid level of `stride` keeps them. None for a region
+/// without a color map or with a blank one.
+pub fn coarse_color(region: &Region3D, stride: u32) -> Option<Vec<u8>> {
+    let colored = region.color.len() == region.heights.len() * 4 && !region.color_is_blank();
+    if !colored || stride == 0 || !region.size.is_multiple_of(stride) {
+        return None;
+    }
+
+    let side = region.size / stride;
+    Some((0..side).flat_map(|j| (0..side).map(move |i| [i * stride, j * stride])).flat_map(|at| average_color(region, at, stride)).collect())
+}
+
 /// The mean color of the `stride` square of pixels centered on `at`, cut to the region.
 fn average_color(region: &Region3D, at: [u32; 2], stride: u32) -> [u8; 4] {
     let span = |v: u32| v.saturating_sub(stride / 2)..(v + stride.div_ceil(2)).min(region.size);
@@ -982,6 +994,12 @@ mod tests {
         let half: Vec<u8> = (0..4).map(|c| ((red[c] as u32 * 2 + BLANK_COLOR[c] as u32 * 2 + 2) / 4) as u8).collect();
         assert_eq!(color(3, 1), half, "x 10 and 11 red, 12 and 13 blank");
         assert_eq!((color(0, 0), color(1, 1)), (BLANK_COLOR.to_vec(), BLANK_COLOR.to_vec()));
+        assert_eq!(coarse_color(&r, 4).as_ref(), Some(&level.colors), "an edited region's coarse block matches its pyramid");
+        assert_eq!(coarse_color(&r, 16).map(|c| c.len()), Some(4 * 4 * 4));
+        assert_eq!((coarse_color(&r, 0), coarse_color(&r, 5)), (None, None));
+        r.color = BLANK_COLOR.repeat(64 * 64);
+        assert_eq!(coarse_color(&r, 4), None, "a blank color map tints nothing");
+        assert_eq!(coarse_color(&region(A, 3.0), 4), None);
     }
 
     #[test]

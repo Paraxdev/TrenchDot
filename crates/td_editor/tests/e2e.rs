@@ -9801,6 +9801,101 @@ fn terrain3d_terrain_edit_paints_color_wetness_and_flags_over_mcp() {
     assert_eq!(pending.region.color[24 * 64 * 4..][..4], [0xc0, 0x30, 0x10, 127], "the pending file holds the color");
 }
 
+/// Regions no view needs whole are drawn from their coarse blocks alone, which carry the color map and the flag bits,
+/// so paint made in Godot shows at any distance and the Sculpt tool's Navigable Area channel washes the ground Godot
+/// marked navigable. An edit would load its regions whole, so the paint is in the cached files.
+#[test]
+#[ignore]
+fn terrain3d_far_ground_shows_its_color_and_the_paint_overlay() {
+    use td_formats::terrain3d_cache;
+    use td_geom::terrain3d::Control;
+
+    let name = "terrain3d_far_paint";
+    let locs = [[6, 0], [7, 0], [6, 1], [7, 1]];
+    let (dir, map) = terrain3d_world_at(name, None, &locs);
+    let cache = dir.join("terrain").join(terrain3d_cache::DIR_NAME);
+    for loc in locs {
+        let mut cached = terrain3d_cache::read_region(&cache, loc, 64).unwrap();
+        if loc[0] == 6 {
+            cached.region.color = [0, 255, 255, 127].repeat(64 * 64);
+        } else {
+            cached.region.control.iter_mut().for_each(|c| *c = Control(*c).with_navigation(true).0);
+        }
+
+        terrain3d_cache::write_region(&cache, &cached).unwrap();
+    }
+
+    let ed = Editor::launch_with(name, &["--project", dir.to_str().unwrap()]);
+    // The 2D views hold nothing whole below 1/8 pixel per unit, the eye nothing farther than 1664 units, which the
+    // regions from x 3072 and z 0 to 1024 are. The eye sits over x 3584, so the cyan x 6 regions fill the left half of
+    // the shot and the navigable x 7 regions the right half.
+    let away = || {
+        for view in ["top", "front", "side"] {
+            ed.call("set_camera", json!({ "view": view, "center": [0, 0, 0], "zoom": 0.05 }));
+        }
+
+        ed.call("set_camera", json!({ "view": "3d", "position": [3584, 2600, 2724], "look_at": [3584, 0, 512] }));
+    };
+    away();
+    ed.call("map_file", json!({ "op": "open", "path": map }));
+    away();
+    let node = ed.call("list_nodes", json!({ "type": "terrain3d" }))["nodes"][0]["id"].clone();
+    ed.call("set_editor", json!({ "shade": "lit", "tool": "select" }));
+    let args = json!({ "target": "3d", "width": 480, "height": 360 });
+    let clipmap = || ed.call("terrain3d", json!({ "op": "info", "id": node }))["clipmap"].clone();
+    let halves = |img: &image::RgbaImage, f: &dyn Fn([i32; 4]) -> bool| {
+        let mut n = [0, 0];
+        for (x, _, p) in img.enumerate_pixels() {
+            n[usize::from(x >= img.width() / 2)] += usize::from(f(p.0.map(i32::from)));
+        }
+
+        n
+    };
+    let red = |p: [i32; 4]| p[0] > p[1] + 50 && p[0] > p[2] + 50;
+    let deadline = Instant::now() + Duration::from_secs(30);
+    let tinted = loop {
+        let img = shot(&ed, args.clone(), "tinted");
+        let c = clipmap();
+        assert_eq!(c["fine_used"], 0, "no region is near enough for a fine layer: {c}");
+        if c["coarse_regions"] == 4 && halves(&img, &red)[1] > 1000 {
+            break img;
+        }
+
+        assert!(Instant::now() < deadline, "the coarse blocks never showed: {c}");
+        std::thread::sleep(Duration::from_millis(200));
+    };
+    let [left, right] = halves(&tinted, &red);
+    assert!(left * 10 < right, "the color map turns the red texture cyan on the left: {left} red pixels left, {right} right");
+
+    let until = |label: &str, done: &dyn Fn(&image::RgbaImage) -> bool| {
+        let deadline = Instant::now() + Duration::from_secs(15);
+        loop {
+            let img = shot(&ed, args.clone(), label);
+            if done(&img) {
+                return img;
+            }
+
+            assert!(Instant::now() < deadline, "{label} never showed");
+            std::thread::sleep(Duration::from_millis(200));
+        }
+    };
+    let apart = |a: &image::RgbaImage, b: &image::RgbaImage| a.pixels().zip(b.pixels()).filter(|(p, q)| (0..3).any(|c| p.0[c].abs_diff(q.0[c]) > 8)).count();
+    ed.call("set_editor", json!({ "tool": "sculpt", "sculpt_mode": "paint_layer", "terrain3d_paint": { "channel": "color" } }));
+    let color = until("color_channel", &|img| apart(&tinted, img) < 50);
+    ed.call("set_editor", json!({ "terrain3d_paint": { "channel": "navigation" } }));
+    let washed = until("navigation_channel", &|img| {
+        let mut n = [0, 0];
+        for ((x, _, p), q) in color.enumerate_pixels().zip(img.pixels()) {
+            n[usize::from(x >= img.width() / 2)] += usize::from(q.0[2] > p.0[2].saturating_add(20));
+        }
+
+        n[1] > 1000 && n[0] * 10 < n[1]
+    });
+    assert_eq!(clipmap()["fine_used"], 0, "the wash came from the coarse flag bits");
+    ed.call("set_editor", json!({ "terrain3d_paint": { "channel": "color" } }));
+    until("color_again", &|img| apart(&color, img) < 50 && apart(&washed, img) > 1000);
+}
+
 /// The height Godot samples at `x`, `z` in map units over the regions of `terrain3d_world` with the edits of the pending
 /// files, the surface a scatter instance is put on.
 fn surface_at(cache: &std::path::Path, x: f64, z: f64) -> f64 {

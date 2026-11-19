@@ -12,10 +12,13 @@ use td_geom::terrain3d::{Control, Loc, Region3D};
 use td_render::clipmap::look::{Albedo, ClipmapTexture};
 use td_render::clipmap::noise::Noise;
 use td_render::clipmap::{AlbedoData, ClipmapAlbedo};
-use td_render::clipmap::{AutoShader, Background, ClipmapDesc, ClipmapParams, DualScale, GpuClipmap, Slot, coarse_stride, fine_capacity, region_index};
+use td_render::clipmap::{
+    AutoShader, Background, ClipmapDesc, ClipmapParams, DualScale, GpuClipmap, Overlay, Slot, coarse_stride, fine_capacity, region_index,
+};
 use td_render::{Renderer, Water};
 
 use super::residency::{self, Source};
+use super::store::coarse_color;
 use crate::state::{EditorState, Prefs};
 
 /// Bytes a frame uploads at most, though always one region, so a region of 1024 costs one frame.
@@ -433,7 +436,10 @@ pub fn sync(
             _ => None,
         })
         .collect();
-    let params = params(state.terrain3d.upm, manifest, &regions, &ranges, outline.selected, outline.wire, &state.prefs);
+    let params = ClipmapParams {
+        overlay: super::brush::overlay(state),
+        ..params(state.terrain3d.upm, manifest, &regions, &ranges, outline.selected, outline.wire, &state.prefs)
+    };
     if *node.clip.params() != params {
         node.clip.set_params(&renderer.queue, &params);
     }
@@ -464,7 +470,7 @@ pub fn sync(
         if node.held.patched(r.loc, r.source)
             && let Some((h, c)) = new.coarse(stride)
         {
-            if let Err(e) = node.clip.write_coarse(&renderer.queue, r.loc, &h, &c) {
+            if let Err(e) = node.clip.write_coarse(&renderer.queue, r.loc, &h, &c, coarse_color(&new, stride).as_deref()) {
                 eprintln!("Terrain3D clipmap: {e}");
             }
 
@@ -483,12 +489,14 @@ pub fn sync(
         }
 
         let written = match (upload, whole) {
-            (Upload::Coarse(_), Some(region)) => region.coarse(stride).map(|(h, c)| node.clip.write_coarse(&renderer.queue, loc, &h, &c)),
+            (Upload::Coarse(_), Some(region)) => {
+                region.coarse(stride).map(|(h, c)| node.clip.write_coarse(&renderer.queue, loc, &h, &c, coarse_color(&region, stride).as_deref()))
+            }
             (Upload::Coarse(_), None) => state
                 .terrain3d
                 .lod(cache, loc)
                 .and_then(|l| l.levels.iter().find(|v| v.stride == stride).and_then(|v| coarse_from_level(v, size, stride)))
-                .map(|(h, c, _)| node.clip.write_coarse(&renderer.queue, loc, &h, &c)),
+                .map(|(h, c, color)| node.clip.write_coarse(&renderer.queue, loc, &h, &c, (!color.is_empty()).then_some(color.as_slice()))),
             (Upload::Fine(_, layer), Some(region)) => {
                 let written = node.clip.write_fine(
                     &renderer.queue,
@@ -664,6 +672,7 @@ fn params(
             DualScale { texture: d.texture, reduction: d.reduction as f32, near: d.near as f32, far: d.far as f32 }
         }),
         water: water(f64::from(upm), manifest.ocean.as_ref()).filter(|_| prefs.terrain3d_water),
+        overlay: Overlay::None,
     }
 }
 

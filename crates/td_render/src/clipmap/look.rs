@@ -15,6 +15,7 @@ const BLEND_SHIFT: u32 = 14;
 const ANGLE_SHIFT: u32 = 10;
 const SCALE_SHIFT: u32 = 7;
 const HOLE_BIT: u32 = 2;
+const NAV_BIT: u32 = 1;
 const AUTO_BIT: u32 = 0;
 /// What an id the texture list leaves out draws with, like the mesh terrain's stand in.
 const UNLISTED_COLOR: [f32; 4] = [0.5, 0.5, 0.5, 1.0];
@@ -23,7 +24,7 @@ const DEFAULT_UV_SCALE: f32 = 0.1;
 /// The control word layout the clipmap shader decodes with.
 pub(crate) fn wgsl_consts() -> String {
     format!(
-        "const BASE_SHIFT: u32 = {BASE_SHIFT}u;\nconst OVERLAY_SHIFT: u32 = {OVERLAY_SHIFT}u;\nconst BLEND_SHIFT: u32 = {BLEND_SHIFT}u;\nconst ANGLE_SHIFT: u32 = {ANGLE_SHIFT}u;\nconst SCALE_SHIFT: u32 = {SCALE_SHIFT}u;\nconst HOLE_BIT: u32 = {HOLE_BIT}u;\nconst AUTO_BIT: u32 = {AUTO_BIT}u;\n"
+        "const BASE_SHIFT: u32 = {BASE_SHIFT}u;\nconst OVERLAY_SHIFT: u32 = {OVERLAY_SHIFT}u;\nconst BLEND_SHIFT: u32 = {BLEND_SHIFT}u;\nconst ANGLE_SHIFT: u32 = {ANGLE_SHIFT}u;\nconst SCALE_SHIFT: u32 = {SCALE_SHIFT}u;\nconst HOLE_BIT: u32 = {HOLE_BIT}u;\nconst NAV_BIT: u32 = {NAV_BIT}u;\nconst AUTO_BIT: u32 = {AUTO_BIT}u;\n"
     )
 }
 

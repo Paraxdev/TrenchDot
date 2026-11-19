@@ -19,6 +19,8 @@ const COARSE_ONLY: i32 = -2;
 const FINE_BYTES: u64 = 384 << 20;
 /// Bytes of one fine layer per vertex: a height, a control word and a color.
 const FINE_TEXEL_BYTES: u64 = 12;
+/// Terrain3D's color map texel where nothing is painted, white with a roughness modifier of 0 %.
+const BLANK_COLOR: [u8; 4] = [255, 255, 255, 127];
 const MIN_LAYERS: u64 = 4;
 const MAX_LAYERS: u64 = 64;
 /// Widest coarse atlas, 32 regions of 128 texels.
@@ -173,6 +175,21 @@ pub struct ClipmapParams {
     pub dual_scale: Option<DualScale>,
     /// The water drawn over the ground, which hides the ground below it more the deeper it lies.
     pub water: Option<crate::Water>,
+    pub overlay: Overlay,
+}
+
+/// The wash over the ground that shows what a Terrain3D paint channel has painted, the way Terrain3D's own debug views
+/// do while its tool is active.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum Overlay {
+    #[default]
+    None,
+    /// Navigable ground purple.
+    Navigation,
+    /// Ground with a lower roughness blue and with a higher one brown, by how far it is from 0 %.
+    Wetness,
+    /// Ground with the autoshader on brown.
+    Autoshader,
 }
 
 /// Terrain3D's dual scaling: farther from the camera than `near` meters one texture fades to a sample at its uv scale
@@ -212,6 +229,7 @@ impl Default for ClipmapParams {
             blend_sharpness: 0.5,
             dual_scale: None,
             water: None,
+            overlay: Overlay::None,
         }
     }
 }
@@ -271,7 +289,7 @@ impl ClipmapUniform {
         self.noise = [n.scale, n.height, n.lod_distance, octaves(n.max_octaves)];
         self.noise_offset = [n.offset[0], n.offset[1], n.offset[2], octaves(n.min_octaves)];
         let water = p.water.unwrap_or(crate::Water { level: 0.0, color: [0.0; 4] });
-        self.toggles = [flag(p.background_shown), flag(p.water.is_some()), water.color[3], 0.0];
+        self.toggles = [flag(p.background_shown), flag(p.water.is_some()), water.color[3], p.overlay as u32 as f32];
         self.water = [water.color[0], water.color[1], water.color[2], water.level];
         self.material = [p.blend_sharpness.clamp(0.0, 1.0), 0.0, 0.0, 0.0];
         self.dual_scale = match p.dual_scale {
@@ -317,6 +335,7 @@ pub(crate) fn bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout 
                 ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
                 count: None,
             },
+            texture(8, float, flat),
         ],
     })
 }
@@ -330,6 +349,7 @@ pub struct GpuClipmap {
     fine_color: wgpu::Texture,
     coarse_heights: wgpu::Texture,
     coarse_control: wgpu::Texture,
+    coarse_color: wgpu::Texture,
     albedo: wgpu::Texture,
     sampler: wgpu::Sampler,
     /// Whether [`Self::set_textures`] was given any.
@@ -362,6 +382,7 @@ impl GpuClipmap {
         let fine_color = texture("clipmap fine color", side, desc.layers, wgpu::TextureFormat::Rgba8UnormSrgb);
         let coarse_heights = texture("clipmap coarse heights", desc.atlas_size(), 1, wgpu::TextureFormat::R32Float);
         let coarse_control = texture("clipmap coarse control", desc.atlas_size(), 1, wgpu::TextureFormat::R32Uint);
+        let coarse_color = texture("clipmap coarse color", desc.atlas_size(), 1, wgpu::TextureFormat::Rgba8UnormSrgb);
         let uniform = ClipmapUniform::new(desc);
         let buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("clipmap"),
@@ -379,7 +400,7 @@ impl GpuClipmap {
             mipmap_filter: wgpu::MipmapFilterMode::Linear,
             ..Default::default()
         });
-        let data = [&fine_heights, &fine_control, &fine_color, &coarse_heights, &coarse_control, &albedo];
+        let data = [&fine_heights, &fine_control, &fine_color, &coarse_heights, &coarse_control, &albedo, &coarse_color];
         let bind_group = bind_group(device, layout, data, &buffer, &sampler);
         queue.write_buffer(&buffer, 0, bytemuck::bytes_of(&uniform));
         Ok(GpuClipmap {
@@ -389,6 +410,7 @@ impl GpuClipmap {
             fine_color,
             coarse_heights,
             coarse_control,
+            coarse_color,
             albedo,
             sampler,
             listed: false,
@@ -411,7 +433,7 @@ impl GpuClipmap {
         self.uniform.textures = albedo.entries;
         self.uniform.set_params(&self.params, self.listed);
         queue.write_buffer(&self.buffer, 0, bytemuck::bytes_of(&self.uniform));
-        let data = [&self.fine_heights, &self.fine_control, &self.fine_color, &self.coarse_heights, &self.coarse_control, &self.albedo];
+        let data = [&self.fine_heights, &self.fine_control, &self.fine_color, &self.coarse_heights, &self.coarse_control, &self.albedo, &self.coarse_color];
         self.bind_group = bind_group(device, layout, data, &self.buffer, &self.sampler);
     }
 
@@ -483,22 +505,32 @@ impl GpuClipmap {
         Ok(())
     }
 
-    /// Writes a region's block of the coarse atlas, [`ClipmapDesc::coarse_texels`] squared values row by row.
-    pub fn write_coarse(&self, queue: &wgpu::Queue, loc: [i32; 2], heights: &[f32], control: &[u32]) -> Result<(), String> {
+    /// Writes a region's block of the coarse atlas, [`ClipmapDesc::coarse_texels`] squared values row by row. `color`
+    /// holds four bytes a texel, Terrain3D's blank color when None.
+    pub fn write_coarse(&self, queue: &wgpu::Queue, loc: [i32; 2], heights: &[f32], control: &[u32], color: Option<&[u8]>) -> Result<(), String> {
         if !self.desc.in_atlas(loc) {
             return Err(format!("region {loc:?} is outside the coarse atlas"));
         }
 
         let cs = self.desc.coarse_texels();
         let n = (cs * cs) as usize;
-        if heights.len() != n || control.len() != n {
-            return Err(format!("{} heights and {} control words for {n} coarse texels", heights.len(), control.len()));
+        let blank;
+        let color = match color {
+            Some(c) => c,
+            None => {
+                blank = BLANK_COLOR.repeat(n);
+                &blank
+            }
+        };
+        if heights.len() != n || control.len() != n || color.len() != n * 4 {
+            return Err(format!("{} heights, {} control words and {} color bytes for {n} coarse texels", heights.len(), control.len(), color.len()));
         }
 
         let lo = self.desc.atlas[0];
         let at = wgpu::Origin3d { x: (loc[0] - lo[0]) as u32 * cs, y: (loc[1] - lo[1]) as u32 * cs, z: 0 };
         write(queue, &self.coarse_heights, at, [cs, cs], bytemuck::cast_slice(heights));
         write(queue, &self.coarse_control, at, [cs, cs], bytemuck::cast_slice(control));
+        write(queue, &self.coarse_color, at, [cs, cs], color);
         Ok(())
     }
 
@@ -529,25 +561,26 @@ impl GpuClipmap {
     }
 }
 
-/// `data` holds the fine heights, control and color, the coarse heights and control, and the albedo, in binding order.
+/// `data` holds the fine heights, control and color, the coarse heights and control, the albedo and the coarse color,
+/// in binding order.
 fn bind_group(
     device: &wgpu::Device,
     layout: &wgpu::BindGroupLayout,
-    data: [&wgpu::Texture; 6],
+    data: [&wgpu::Texture; 7],
     buffer: &wgpu::Buffer,
     sampler: &wgpu::Sampler,
 ) -> wgpu::BindGroup {
+    const BINDINGS: [u32; 7] = [0, 1, 2, 3, 4, 6, 8];
     let views: Vec<wgpu::TextureView> = data
         .iter()
         .enumerate()
         .map(|(i, t)| {
-            let dimension = if i == 3 || i == 4 { wgpu::TextureViewDimension::D2 } else { wgpu::TextureViewDimension::D2Array };
+            let dimension = if matches!(i, 3 | 4 | 6) { wgpu::TextureViewDimension::D2 } else { wgpu::TextureViewDimension::D2Array };
             t.create_view(&wgpu::TextureViewDescriptor { dimension: Some(dimension), ..Default::default() })
         })
         .collect();
-    let binding = |i: usize| if i < 5 { i as u32 } else { i as u32 + 1 };
     let mut entries: Vec<wgpu::BindGroupEntry> =
-        views.iter().enumerate().map(|(i, v)| wgpu::BindGroupEntry { binding: binding(i), resource: wgpu::BindingResource::TextureView(v) }).collect();
+        views.iter().enumerate().map(|(i, v)| wgpu::BindGroupEntry { binding: BINDINGS[i], resource: wgpu::BindingResource::TextureView(v) }).collect();
     entries.push(wgpu::BindGroupEntry { binding: 5, resource: buffer.as_entire_binding() });
     entries.push(wgpu::BindGroupEntry { binding: 7, resource: wgpu::BindingResource::Sampler(sampler) });
     device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("clipmap"), layout, entries: &entries })
@@ -748,13 +781,14 @@ mod tests {
         assert_eq!(fine(1, [5, 5], [0, 0], 0), Ok(()), "an empty rectangle writes nothing");
 
         let (ch, cc) = (vec![0.0f32; 256], vec![0u32; 256]);
-        assert_eq!(clip.write_coarse(&queue, [-5, 1], &ch, &cc), Ok(()));
-        assert_eq!(clip.write_coarse(&queue, [-2, 4], &ch, &cc), Ok(()));
+        assert_eq!(clip.write_coarse(&queue, [-5, 1], &ch, &cc, None), Ok(()));
+        assert_eq!(clip.write_coarse(&queue, [-2, 4], &ch, &cc, Some(&[9; 1024])), Ok(()));
         for loc in [[-1, 4], [-5, 0], [-6, 2], [-3, 5]] {
-            assert!(clip.write_coarse(&queue, loc, &ch, &cc).is_err(), "{loc:?} is outside the atlas");
+            assert!(clip.write_coarse(&queue, loc, &ch, &cc, None).is_err(), "{loc:?} is outside the atlas");
         }
 
-        assert!(clip.write_coarse(&queue, [-5, 1], &ch[..255], &cc).is_err());
+        assert!(clip.write_coarse(&queue, [-5, 1], &ch[..255], &cc, None).is_err());
+        assert!(clip.write_coarse(&queue, [-5, 1], &ch, &cc, Some(&[9; 1020])).is_err(), "one color texel short");
 
         clip.set_slots(&queue, &[([-5, 1], Slot::Fine(2)), ([-2, 4], Slot::Coarse), ([15, -16], Slot::Fine(0))]).unwrap();
         let got = [[-5, 1], [-2, 4], [15, -16], [0, 0], [16, 0]].map(|l| clip.slot(l));
@@ -962,8 +996,8 @@ mod tests {
         clip.write_fine(&queue, 1, [0, 0], [64, 64], &fine, &c, &k).unwrap();
         clip.write_fine(&queue, 0, [0, 0], [64, 64], &vec![1000.0; n], &c, &k).unwrap();
         let coarse: Vec<f32> = (0..256i64).map(|k| plane((-128 + k % 16 * 4) as f64, (128 + k / 16 * 4) as f64) as f32).collect();
-        clip.write_coarse(&queue, [-2, 2], &coarse, &[0; 256]).unwrap();
-        clip.write_coarse(&queue, [-3, 2], &[-1000.0; 256], &[0; 256]).unwrap();
+        clip.write_coarse(&queue, [-2, 2], &coarse, &[0; 256], None).unwrap();
+        clip.write_coarse(&queue, [-3, 2], &[-1000.0; 256], &[0; 256], None).unwrap();
         clip.set_slots(&queue, &[([-3, 2], Slot::Fine(1)), ([-2, 2], Slot::Coarse)]).unwrap();
         let (cell, upm) = (24.0f32, 40.0f32);
         clip.set_params(&queue, &ClipmapParams { cell, upm, heights: [-4000.0, 0.0], ..Default::default() });
@@ -1154,6 +1188,16 @@ mod tests {
         assert_eq!((u.toggles, u.water), ([0.0, 1.0, 0.75, 0.0], [0.1, 0.25, 0.4, -80.5]));
         u.set_params(&ClipmapParams { water: None, ..params }, true);
         assert_eq!((u.toggles, u.water), ([0.0; 4], [0.0; 4]));
+    }
+
+    #[test]
+    fn the_paint_overlay_reaches_the_uniform_beside_the_water() {
+        let mut u = ClipmapUniform::new(&DESC);
+        let water = crate::Water { level: 3.0, color: [0.1, 0.2, 0.3, 0.5] };
+        for (overlay, want) in [(Overlay::None, 0.0), (Overlay::Navigation, 1.0), (Overlay::Wetness, 2.0), (Overlay::Autoshader, 3.0)] {
+            u.set_params(&ClipmapParams { overlay, water: Some(water), ..Default::default() }, true);
+            assert_eq!(u.toggles, [1.0, 1.0, 0.5, want], "{overlay:?}");
+        }
     }
 
     #[test]
@@ -1475,5 +1519,101 @@ mod tests {
                 _ => assert_eq!(seen, [total, 0, 0], "{case}"),
             }
         }
+    }
+
+    /// A fine region and a coarse one beside it, each with its own color map, drawn with no texture listed, with a white
+    /// one, and under each paint overlay. The fine region is navigable where x < 32, autoshaded where z < 32 and wet
+    /// where x < 32, the coarse one navigable where z < 32 and dry everywhere.
+    #[test]
+    #[ignore = "needs a GPU"]
+    fn gpu_tints_fine_and_coarse_ground_and_washes_what_was_painted() {
+        let (device, queue) = device(false);
+        let layout = bind_group_layout(&device);
+        let desc = ClipmapDesc { region_size: 64, layers: 1, coarse_stride: 4, atlas: [[1, 0], [1, 0]] };
+        let mut clip = GpuClipmap::new(&device, &queue, &layout, &desc).unwrap();
+        let local = |k: usize| [k % 64, k / 64];
+        let control: Vec<u32> = (0..64 * 64).map(|k| (((local(k)[0] < 32) as u32) << 1) | (local(k)[1] < 32) as u32).collect();
+        let color: Vec<[u8; 4]> = (0..64 * 64).map(|k| [255, 128, 255, if local(k)[0] < 32 { 0 } else { 127 }]).collect();
+        clip.write_fine(&queue, 0, [0, 0], [64, 64], &[1.0; 64 * 64], &control, &color).unwrap();
+        let coarse_control: Vec<u32> = (0..256).map(|k| ((k / 16) < 8) as u32 * 2).collect();
+        clip.write_coarse(&queue, [1, 0], &[1.0; 256], &coarse_control, Some(&[128, 255, 255, 255].repeat(256))).unwrap();
+        clip.set_slots(&queue, &[([0, 0], Slot::Fine(0)), ([1, 0], Slot::Coarse)]).unwrap();
+        let cell = 48.0f32;
+        let params = ClipmapParams { cell, heights: [0.0, 300.0], ..Default::default() };
+        clip.set_params(&queue, &params);
+
+        let [w, h] = [256u32, 128];
+        let eye = Vec3::new(64.1 * cell, 2000.0, 32.2 * cell);
+        let view_proj = top_down(eye, [68.0 * cell, 34.0 * cell]);
+        let cells = pixel_cells(view_proj, [w, h], cell);
+        let albedo = "@fragment fn fs_test(f: VOut) -> @location(0) vec4<f32> { let m = f.world.xz / clip.world.y; let ddx = dpdx(m); let ddy = dpdy(m); if (dropped(f.world)) { discard; } return vec4<f32>(ground_albedo(f.world, normalize(f.normal), ddx, ddy), 1.0); }";
+        let washed = "@fragment fn fs_test(f: VOut) -> @location(0) vec4<f32> { if (dropped(f.world)) { discard; } return vec4<f32>(paint_overlay(vec3<f32>(0.8), f.world), 1.0); }";
+        // Whether a pixel's cell has all its corners in the fine region, or in the coarse one, None near their edges.
+        let ground = |[x, z]: [f64; 2]| {
+            if (1.0..62.0).contains(&x) && (1.0..62.0).contains(&z) {
+                Some(true)
+            } else if (65.0..123.0).contains(&x) && (1.0..59.0).contains(&z) {
+                Some(false)
+            } else {
+                None
+            }
+        };
+        let check = |clip: &GpuClipmap, name: &str, fragment: &str, want: &dyn Fn(bool, [f64; 2]) -> Option<[f32; 3]>| {
+            let pixels = draw(&device, &queue, &layout, clip, eye, view_proj, [w, h], fragment);
+            let mut seen = [0; 2];
+            for (i, (p, &at)) in pixels.iter().zip(&cells).enumerate() {
+                let Some(fine) = ground(at) else { continue };
+                let Some(want) = want(fine, at) else { continue };
+                let off = (0..3).map(|k| (p[k] - want[k]).abs()).fold(0.0, f32::max);
+                assert!(p[3] == 1.0 && off < 0.004, "{name}: pixel {i} at cell {at:?}: {p:?}, want {want:?}");
+                seen[fine as usize] += 1;
+            }
+
+            assert!(seen.iter().all(|&n| n > 500), "{name}: {seen:?}");
+        };
+
+        let lin = crate::srgb_to_linear(128.0 / 255.0);
+        let tint = |fine: bool| if fine { [1.0, lin, 1.0] } else { [lin, 1.0, 1.0] };
+        let plain = [0.62f32, 0.6, 0.55];
+        check(&clip, "plain ground", albedo, &|fine, _| Some([0, 1, 2].map(|k| plain[k] * tint(fine)[k])));
+        let pixels = draw(&device, &queue, &layout, &clip, eye, view_proj, [w, h], washed);
+        assert!(pixels.iter().all(|p| p[3] == 0.0 || *p == [0.8, 0.8, 0.8, 1.0]), "no overlay leaves the ground as it was");
+
+        let wash = |rgb: [f32; 3], share: f32| [0, 1, 2].map(|k| 0.8 + (rgb[k] - 0.8) * share);
+        let below = |v: f64, edge: f64, step: f64| {
+            if v < edge - step {
+                Some(true)
+            } else if v >= edge {
+                Some(false)
+            } else {
+                None
+            }
+        };
+        let navigable = |fine: bool, [x, z]: [f64; 2]| {
+            let on = if fine { below(x, 32.0, 1.0)? } else { below(z, 32.0, 4.0)? };
+            Some(wash([0.5, 0.2, 0.5], if on { 0.5 } else { 0.0 }))
+        };
+        let wetness = |fine: bool, [x, _]: [f64; 2]| {
+            if !fine {
+                return Some(wash([0.6, 0.4, 0.0], 0.5));
+            }
+
+            Some(wash([0.4, 0.6, 1.0], if below(x, 32.0, 1.0)? { 0.5 } else { 0.5 - 127.0 / 255.0 }))
+        };
+        let autoshaded = |fine: bool, [_, z]: [f64; 2]| {
+            let on = fine && below(z, 32.0, 1.0)?;
+            Some(wash([0.36, 0.2, 0.09], if on { 0.5 } else { 0.0 }))
+        };
+        type Want<'a> = &'a dyn Fn(bool, [f64; 2]) -> Option<[f32; 3]>;
+        let overlays: [(Overlay, Want); 3] = [(Overlay::Navigation, &navigable), (Overlay::Wetness, &wetness), (Overlay::Autoshader, &autoshaded)];
+        for (overlay, want) in overlays {
+            clip.set_params(&queue, &ClipmapParams { overlay, ..params });
+            check(&clip, &format!("{overlay:?}"), washed, want);
+        }
+
+        let white = image::RgbaImage::from_pixel(64, 64, image::Rgba([255, 255, 255, 90]));
+        let texture = look::ClipmapTexture { id: 0, albedo: look::Albedo::Thumbnail(white), color: [1.0; 3], uv_scale: 0.1, detiling: [0.0; 2] };
+        clip.set_textures(&device, &queue, &layout, &[texture]);
+        check(&clip, "textured ground", albedo, &|fine, _| Some(tint(fine)));
     }
 }

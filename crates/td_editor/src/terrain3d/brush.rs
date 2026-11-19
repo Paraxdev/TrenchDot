@@ -6,10 +6,12 @@ use td_core::{DVec3, NodeId, Ray};
 use td_doc::terrain::{SculptBrush, SculptMode};
 use td_doc::terrain3d::reground_scatter;
 use td_geom::terrain3d_tile::{Flag, Paint, PaintMode};
+use td_render::clipmap::Overlay;
 
 use crate::en;
 use crate::i18n::{tr, trf};
 use crate::state::EditorState;
+use crate::tools::ToolKind;
 
 /// The texture a Paint dab sets, and whether it paints the base or sprays the overlay.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -109,6 +111,20 @@ impl Terrain3DPaint {
             Channel::Navigation => Paint::Flag { flag: Flag::Navigation, on: !erase },
             Channel::Autoshader => Paint::Flag { flag: Flag::Autoshader, on: !erase },
         }
+    }
+}
+
+/// The wash the Terrain3D clipmap draws while the Sculpt tool paints a channel that is hard to see on its own.
+pub fn overlay(state: &EditorState) -> Overlay {
+    if state.tool != ToolKind::Sculpt || state.sculpt.mode != SculptMode::PaintLayer {
+        return Overlay::None;
+    }
+
+    match state.terrain3d_paint.channel {
+        Channel::Navigation => Overlay::Navigation,
+        Channel::Wetness => Overlay::Wetness,
+        Channel::Autoshader => Overlay::Autoshader,
+        Channel::Texture | Channel::Color => Overlay::None,
     }
 }
 
@@ -349,6 +365,22 @@ pub(crate) mod tests {
         assert_eq!(p.paint(tex, true), Paint::Texture { id: 3, mode: PaintMode::Spray }, "a texture has nothing to erase");
         assert_eq!(Terrain3DPaint::default().roughness, -50);
         assert_eq!(Terrain3DPaint::default().color, [0xb4, 0x96, 0x6e]);
+    }
+
+    #[test]
+    fn the_overlay_follows_the_channel_while_the_sculpt_tool_paints() {
+        let mut state = EditorState::new(Default::default());
+        state.terrain3d_paint.channel = Channel::Navigation;
+        assert_eq!(overlay(&state), Overlay::None, "another tool shows no wash");
+        state.tool = ToolKind::Sculpt;
+        state.sculpt.mode = SculptMode::Raise;
+        assert_eq!(overlay(&state), Overlay::None, "nor does a sculpt mode that does not paint");
+        state.sculpt.mode = SculptMode::PaintLayer;
+        let shown = Channel::ALL.map(|c| {
+            state.terrain3d_paint.channel = c;
+            overlay(&state)
+        });
+        assert_eq!(shown, [Overlay::None, Overlay::None, Overlay::Wetness, Overlay::Navigation, Overlay::Autoshader]);
     }
 
     #[test]
