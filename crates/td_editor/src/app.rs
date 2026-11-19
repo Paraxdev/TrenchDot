@@ -2883,6 +2883,8 @@ impl App {
                 stats.triangles += self.renderer.clipmap_triangles();
             }
 
+            stats.triangles += self.scene.terrain_clip_triangles();
+
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.label(stats_text(&stats));
                 ui.separator();

@@ -7,6 +7,7 @@ use td_doc::scatter::ScatterInstance;
 use td_doc::{Map, NodeKind, Scatter, ScatterItem, ScatterKind};
 use td_editor::scene::SceneCache;
 use td_editor::state::{EditorState, Prefs};
+use td_geom::Terrain;
 
 const TREE: &str = "res://demo/models/pine.bbmodel";
 
@@ -41,12 +42,16 @@ impl Gpu {
         self.rs.device.generate_allocator_report().expect("this backend gives no allocator report, use Vulkan or DX12").total_allocated_bytes as i64
     }
 
-    /// GPU bytes the scene of `map` holds once its upload buffers are freed, and the triangles it draws.
     fn scene_cost(&mut self, map: &Map) -> (i64, usize) {
+        self.scene_cost_with(map, Prefs::default())
+    }
+
+    /// GPU bytes the scene of `map` holds once its upload buffers are freed, and the triangles it draws.
+    fn scene_cost_with(&mut self, map: &Map, prefs: Prefs) -> (i64, usize) {
         let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../godot");
         let path = self.dir.join("map.tdm");
         td_doc::format::save(map, &path).unwrap();
-        let mut state = EditorState::new(Prefs::default());
+        let mut state = EditorState::new(prefs);
         state.load_project(&root);
         state.open_map(&path).unwrap();
         self.settle();
@@ -161,4 +166,30 @@ fn model_point_entities_upload_their_model_once() {
     // A record per entity plus an outline record for its box in the 2D views, the model itself is uploaded once.
     let per_entity = (many - few) / 10_000;
     assert!(per_entity <= 128, "a model point entity takes {per_entity} B of GPU memory");
+}
+
+fn terrain(side: u32) -> Map {
+    let mut m = Map::new();
+    let layer = m.default_layer();
+    let mut t = Terrain::new(DVec3::new(-1000.5, 37.0, 2210.0), [side, side], 24.0, "dirt");
+    for (k, h) in t.heights.iter_mut().enumerate() {
+        let (i, j) = ((k as u32 % side) as f32, (k as u32 / side) as f32);
+        *h = i * 0.3 - j * 0.1 + (i * 0.05).sin() * 40.0;
+    }
+
+    m.insert(layer, NodeKind::Terrain(t));
+    m
+}
+
+#[test]
+#[ignore = "needs a GPU"]
+fn a_big_terrain_draws_with_its_clipmap_in_little_memory() {
+    let mut gpu = Gpu::new("terrain");
+    let map = terrain(2049);
+    let (clip, clip_tris) = gpu.scene_cost(&map);
+    assert_eq!(clip_tris, 0, "the rings count their own triangles when they draw");
+    assert!(clip < 64 << 20, "a 2049 terrain takes {} MB with its clipmap", clip >> 20);
+    let (chunks, chunk_tris) = gpu.scene_cost_with(&map, Prefs { terrain_lod: false, ..Prefs::default() });
+    assert_eq!(chunk_tris, 2 * 2048 * 2048);
+    assert!(chunks > 4 * clip, "chunk meshes take {} MB against {} MB", chunks >> 20, clip >> 20);
 }

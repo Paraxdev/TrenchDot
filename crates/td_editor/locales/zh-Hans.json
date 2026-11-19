@@ -2915,5 +2915,6 @@
   "Changing the Terrain3D settings…": "正在更改 Terrain3D 设置…",
   "Rewrote {n} region file at region size {size} and vertex spacing {spacing}. Godot uses the new spacing the next time it opens the scene": { "other": "已按区域大小 {size} 和顶点间距 {spacing} 重写 {n} 个区域文件。Godot 下次打开场景时会采用新的间距" },
   "Godot reported: {problems}": "Godot 报告：{problems}",
-  "Rewrite the {n} region file with a headless Godot? A backup is kept in the data folder": { "other": "用无窗口的 Godot 重写全部 {n} 个区域文件？数据文件夹中会保留一份备份" }
+  "Rewrite the {n} region file with a headless Godot? A backup is kept in the data folder": { "other": "用无窗口的 Godot 重写全部 {n} 个区域文件？数据文件夹中会保留一份备份" },
+  "Terrain {name} is drawn without level of detail, the GPU cannot hold it": "地形 {name} 以无细节层次方式绘制，GPU 无法容纳它"
 }

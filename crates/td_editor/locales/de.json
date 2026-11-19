@@ -2915,5 +2915,6 @@
   "Changing the Terrain3D settings…": "Terrain3D-Einstellungen werden geändert…",
   "Rewrote {n} region file at region size {size} and vertex spacing {spacing}. Godot uses the new spacing the next time it opens the scene": { "one": "{n} Regionsdatei mit Regionsgröße {size} und Vertexabstand {spacing} neu geschrieben. Godot übernimmt den neuen Abstand, wenn es die Szene das nächste Mal öffnet", "other": "{n} Regionsdateien mit Regionsgröße {size} und Vertexabstand {spacing} neu geschrieben. Godot übernimmt den neuen Abstand, wenn es die Szene das nächste Mal öffnet" },
   "Godot reported: {problems}": "Godot meldet: {problems}",
-  "Rewrite the {n} region file with a headless Godot? A backup is kept in the data folder": { "one": "Die {n} Regionsdatei mit einem Godot ohne Fenster neu schreiben? Eine Sicherung bleibt im Datenordner", "other": "Alle {n} Regionsdateien mit einem Godot ohne Fenster neu schreiben? Eine Sicherung bleibt im Datenordner" }
+  "Rewrite the {n} region file with a headless Godot? A backup is kept in the data folder": { "one": "Die {n} Regionsdatei mit einem Godot ohne Fenster neu schreiben? Eine Sicherung bleibt im Datenordner", "other": "Alle {n} Regionsdateien mit einem Godot ohne Fenster neu schreiben? Eine Sicherung bleibt im Datenordner" },
+  "Terrain {name} is drawn without level of detail, the GPU cannot hold it": "Terrain {name} wird ohne Detailstufen gezeichnet, die GPU kann es nicht halten"
 }

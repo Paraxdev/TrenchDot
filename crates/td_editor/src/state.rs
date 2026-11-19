@@ -440,6 +440,8 @@ pub struct Prefs {
     pub godot_overlays: bool,
     /// Hide the faces the build drops because they only face the void of a sealed map.
     pub preview_void_cull: bool,
+    /// Draw native terrains with clipmap rings that get coarser with distance. Off draws every cell as chunk meshes.
+    pub terrain_lod: bool,
     /// Agent the walkable area overlay is baked for.
     pub walk_agent: crate::walkable::Agent,
     /// Show first steps in the views while the map is empty.
@@ -570,6 +572,7 @@ impl Default for Prefs {
             box_xray: false,
             godot_overlays: true,
             preview_void_cull: false,
+            terrain_lod: true,
             walk_agent: Default::default(),
             start_hints: true,
             terrain3d: false,

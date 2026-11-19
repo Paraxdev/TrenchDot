@@ -12,6 +12,7 @@ use crate::face_cull::{FaceCull, FacePieces};
 use crate::i18n::msg;
 use crate::prefabs::{self, PrefabCache};
 use crate::state::EditorState;
+use crate::terrain_clip::TerrainClip;
 
 pub const EDGE_COLOR: [f32; 4] = [0.85, 0.85, 0.85, 0.28];
 pub const EDGE_COLOR_2D: [f32; 4] = [0.85, 0.85, 0.85, 0.75];
@@ -102,6 +103,16 @@ struct TerrainGpu {
     /// Height following grid lines, only built in wireframe mode.
     wire: Option<GpuLines>,
     triangles: usize,
+    /// Set while level of detail is on. A clipmap leaves `chunks` empty, a fallback draws them.
+    clip: Option<TerrainClip>,
+}
+
+/// Which chunk meshes a terrain build makes.
+enum Chunks {
+    All,
+    Changed(BTreeSet<usize>),
+    /// None, the terrain draws with its clipmap.
+    Skip,
 }
 
 /// Geometry being interactively moved, kept as its pre-drag batches so each frame only re-uploads a
@@ -187,6 +198,8 @@ pub struct SceneCache {
     wireframe: bool,
     buckets: Vec<Bucket>,
     terrains: HashMap<NodeId, TerrainGpu>,
+    /// The `terrain_lod` preference `terrains` were built with.
+    terrain_lod: bool,
     terrain3d: HashMap<NodeId, crate::terrain3d::gpu::NodeClipmap>,
     /// Albedo arrays by cache folder, which outlive a node's clipmap so a rebuilt or shown again one decodes nothing.
     terrain3d_albedo: HashMap<std::path::PathBuf, crate::terrain3d::gpu::AlbedoCache>,
@@ -1313,34 +1326,41 @@ fn terrain_wire(t: &Terrain, color: [f32; 4]) -> Vec<LineVertex> {
     lines
 }
 
-fn build_terrain(
-    renderer: &mut Renderer,
-    t: &Terrain,
-    selected: bool,
-    chunks_to_build: Option<&BTreeSet<usize>>,
-    previous: Option<TerrainGpu>,
-    wireframe: bool,
-    chart: Option<[[f32; 4]; 2]>,
-) -> TerrainGpu {
+fn terrain_material(renderer: &mut Renderer, t: &Terrain) -> String {
     let layers: Vec<(String, f32, f32, f32)> = t
         .layers
         .iter()
         .map(|l| (l.material.clone(), l.tile.max(1.0) as f32, l.detile.clamp(0.0, 1.0) as f32, l.detile_sharpen.clamp(0.0, 1.0) as f32))
         .collect();
-    let key = renderer.prepare_terrain_material(&layers);
-    let chunk_list = t.chunks();
+    renderer.prepare_terrain_material(&layers)
+}
+
+fn build_terrain(
+    renderer: &mut Renderer,
+    t: &Terrain,
+    selected: bool,
+    chunks: Chunks,
+    previous: Option<TerrainGpu>,
+    wireframe: bool,
+    chart: Option<[[f32; 4]; 2]>,
+) -> TerrainGpu {
+    let key = terrain_material(renderer, t);
+    let chunk_list = if matches!(chunks, Chunks::Skip) { Vec::new() } else { t.chunks() };
     let mut out = previous.filter(|p| p.chunks.len() == chunk_list.len()).unwrap_or(TerrainGpu {
         chunks: Vec::new(),
         lines_2d: None,
         sel_lines: None,
         wire: None,
         triangles: 0,
+        clip: None,
     });
     out.wire = if wireframe { renderer.upload_lines(&terrain_wire(t, if selected { SELECTED_COLOR } else { TERRAIN_EDGE })) } else { None };
     out.chunks.resize_with(chunk_list.len(), || None);
     let flag = if selected { 1.0 } else { 0.0 };
     for (index, (ci, cj, w, h)) in chunk_list.iter().copied().enumerate() {
-        if chunks_to_build.is_some_and(|set| !set.contains(&index)) {
+        if let Chunks::Changed(set) = &chunks
+            && !set.contains(&index)
+        {
             continue;
         }
 
@@ -1373,7 +1393,7 @@ fn build_terrain(
         out.chunks[index] = renderer.upload_mesh(&batch);
     }
 
-    out.triangles = (t.cells()[0] * t.cells()[1] * 2) as usize;
+    out.triangles = if matches!(chunks, Chunks::Skip) { 0 } else { (t.cells()[0] * t.cells()[1] * 2) as usize };
     let b = t.bounds();
     let mut lines = Vec::new();
     let color = if selected { SELECTED_COLOR } else { TERRAIN_EDGE };
@@ -1794,6 +1814,7 @@ impl SceneCache {
             && self.wireframe == wireframe
             && self.selection_hidden != show_selection
             && self.void_generation == void_generation
+            && self.terrain_lod == state.prefs.terrain_lod
             && self.prev_map.is_some()
         {
             return;
@@ -2050,23 +2071,50 @@ impl SceneCache {
         let selected_brush_like: BTreeSet<NodeId> = selection.geometry(&map).into_iter().collect();
         let is_selected = |id: NodeId| selection.nodes.contains(&id) || map.ancestors(id).iter().any(|a| selection.nodes.contains(a));
 
-        // Terrains keep their own chunked GPU meshes.
+        let lod = state.prefs.terrain_lod;
+        if self.terrain_lod != lod {
+            self.terrains.clear();
+            dirty.extend(map.nodes.keys().copied().filter(|id| map.terrain(*id).is_some()));
+            self.terrain_lod = lod;
+        }
+
+        // Terrains keep their own clipmaps or chunked GPU meshes.
         for id in dirty.iter().copied() {
             match map.terrain(id) {
                 Some(t) if !map.is_hidden(id) && map.in_cordon(id) && t.is_valid() => {
                     let selected = selected_brush_like.contains(&id);
-                    let previous = self.terrains.remove(&id);
+                    let mut previous = self.terrains.remove(&id);
                     let prev_terrain = self.prev_map.as_ref().and_then(|p| p.terrain(id));
                     let prev_selected = self.prev_selection.nodes.contains(&id)
                         || self.prev_map.as_ref().is_some_and(|p| p.ancestors(id).iter().any(|a| self.prev_selection.nodes.contains(a)));
                     let chart = crate::bake::charts_of(&map, id).get(&0).copied();
-                    // Sculpting drops the bake of the whole terrain, so every chunk loses its light map coordinates.
-                    let prev_chart = self.prev_map.as_ref().and_then(|p| crate::bake::charts_of(p, id).get(&0).copied());
-                    let chunks = match (prev_terrain, &previous, full || selected != prev_selected || chart != prev_chart) {
-                        (Some(old), Some(_), false) => changed_chunks(old, t),
-                        _ => None,
+                    let prev_clip = previous.as_mut().and_then(|p| p.clip.take());
+                    let was_fallback = prev_clip.as_ref().is_some_and(|c| c.fallback().is_some());
+                    let clip = lod.then(|| {
+                        let material = terrain_material(renderer, t);
+                        let old = prev_terrain.filter(|_| prev_clip.is_some());
+                        crate::terrain_clip::sync(renderer, prev_clip, old, t, &crate::terrain_clip::params(t, selected, chart), &material)
+                    });
+                    let chunks = if clip.as_ref().is_some_and(|c| c.clipmap().is_some()) {
+                        Chunks::Skip
+                    } else {
+                        // Sculpting drops the bake of the whole terrain, so every chunk loses its light map coordinates.
+                        let prev_chart = self.prev_map.as_ref().and_then(|p| crate::bake::charts_of(p, id).get(&0).copied());
+                        match (prev_terrain, &previous, full || selected != prev_selected || chart != prev_chart) {
+                            (Some(old), Some(p), false) if !p.chunks.is_empty() => changed_chunks(old, t).map_or(Chunks::All, Chunks::Changed),
+                            _ => Chunks::All,
+                        }
                     };
-                    let gpu = build_terrain(renderer, t, selected, chunks.as_ref(), previous, wireframe, chart);
+                    if let Some(reason) = clip.as_ref().and_then(TerrainClip::fallback)
+                        && !was_fallback
+                    {
+                        let name = map.get(id).map(|n| n.name()).unwrap_or_default();
+                        eprintln!("terrain {name} drawn as chunks: {reason}");
+                        state.fail_status(msg!("Terrain {name} is drawn without level of detail, the GPU cannot hold it", name));
+                    }
+
+                    let mut gpu = build_terrain(renderer, t, selected, chunks, previous, wireframe, chart);
+                    gpu.clip = clip;
                     self.terrains.insert(id, gpu);
                 }
                 _ => {
@@ -2347,7 +2395,7 @@ impl SceneCache {
             return;
         }
 
-        let rings = !self.terrain3d.is_empty();
+        let rings = !self.terrain3d.is_empty() || self.terrain_clipmaps().next().is_some();
         let moved = shadow_moved(self.shadow_view, focus, eye, rings);
         if !self.shadow_dirty && !moved {
             return;
@@ -2360,7 +2408,7 @@ impl SceneCache {
             meshes.extend(self.terrains.values().flat_map(|t| t.chunks.iter().flatten()));
             meshes.extend(self.scatters.values().flat_map(|s| s.chunks.values().flat_map(|c| &c.meshes)));
             let clipmaps: Vec<_> = self.terrain3d.values().map(|n| n.clip()).collect();
-            renderer.render_shadow(&meshes, &clipmaps, &[], eye.as_vec3(), vp);
+            renderer.render_shadow(&meshes, &clipmaps, &self.terrain_clipmaps().collect::<Vec<_>>(), eye.as_vec3(), vp);
             vp
         });
         renderer.set_lighting(&self.lighting, vp);
@@ -2418,6 +2466,15 @@ impl SceneCache {
         self.terrain3d_failed = failed;
     }
 
+    fn terrain_clipmaps(&self) -> impl Iterator<Item = &td_render::clipmap::native::TerrainClipmap> {
+        self.terrains.values().filter_map(|t| t.clip.as_ref()?.clipmap())
+    }
+
+    /// Triangles the native terrain clipmaps drew in the last view that showed them, which `stats` leaves out.
+    pub fn terrain_clip_triangles(&self) -> usize {
+        self.terrain_clipmaps().map(|c| c.triangles() as usize).sum()
+    }
+
     /// Whether a Terrain3D clipmap has uploads left, so the next frame should come soon.
     pub fn terrain3d_pending(&self) -> bool {
         self.terrain3d_pending
@@ -2456,6 +2513,7 @@ impl SceneCache {
                 frame.overlay_lines.extend(t.sel_lines.as_ref());
             } else {
                 frame.terrain.extend(t.chunks.iter().flatten());
+                frame.terrain_clipmaps.extend(t.clip.as_ref().and_then(TerrainClip::clipmap));
                 frame.wire_lines.extend(t.wire.as_ref());
                 if overlays {
                     frame.overlay_lines.extend(t.sel_lines.as_ref());
