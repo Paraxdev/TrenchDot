@@ -14,4 +14,5 @@ image.workspace = true
 
 [dev-dependencies]
 naga = { version = "30.0.1", features = ["wgsl-in"] }
+td_geom.workspace = true
 wgpu = { workspace = true, features = ["noop"] }

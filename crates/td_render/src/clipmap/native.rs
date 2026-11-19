@@ -1,6 +1,8 @@
 //! A TrenchDot terrain drawn with the clipmap rings: its heights and paint live in two textures and the rings snap in
 //! the terrain's own cells, so the near ground splits its cells like the chunk meshes do.
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use glam::{DVec2, I64Vec2, Mat4, Vec3};
 
 use super::layout;
@@ -98,8 +100,8 @@ pub struct TerrainClipmap {
     material: String,
     uploads: Uploads,
     buffer: wgpu::Buffer,
-    #[expect(dead_code)]
-    bind_group: wgpu::BindGroup,
+    pub(crate) bind_group: wgpu::BindGroup,
+    triangles: AtomicU64,
 }
 
 impl TerrainClipmap {
@@ -150,6 +152,7 @@ impl TerrainClipmap {
             uploads: Uploads::default(),
             buffer,
             bind_group,
+            triangles: AtomicU64::new(0),
         };
         queue.write_buffer(&clip.buffer, 0, bytemuck::bytes_of(&clip.uniform()));
         Ok(clip)
@@ -174,6 +177,15 @@ impl TerrainClipmap {
 
     pub fn uploads(&self) -> Uploads {
         self.uploads
+    }
+
+    /// Triangles the rings drew in the last main pass that showed this terrain, after culling.
+    pub fn triangles(&self) -> u64 {
+        self.triangles.load(Ordering::Relaxed)
+    }
+
+    pub(crate) fn drew(&self, triangles: usize) {
+        self.triangles.store(triangles as u64, Ordering::Relaxed);
     }
 
     pub fn gpu_bytes(&self) -> u64 {
@@ -262,8 +274,11 @@ mod tests {
     use glam::camera::rh::proj::directx::perspective_infinite_reverse;
     use glam::camera::rh::view::look_to_mat4;
 
+    use glam::DVec3;
+    use td_geom::Terrain;
+
     use super::*;
-    use crate::clipmap::tests::{device, top_down};
+    use crate::clipmap::tests::{device, render_parts, top_down};
 
     const ORIGIN: Vec3 = Vec3::new(-1000.5, 37.0, 2210.0);
     const CELL: f32 = 24.0;
@@ -460,6 +475,186 @@ mod tests {
             let level_0: Vec<I64Vec2> = clip.instances(eye, open(eye)).parts.iter().filter(|p| p.level == 0).map(|p| p.origin).collect();
             assert!(!level_0.is_empty(), "{local:?}");
             assert!(level_0.iter().all(|o| o.rem_euclid(I64Vec2::splat(2)) == I64Vec2::ZERO), "{local:?}: {level_0:?}");
+        }
+    }
+
+    /// A slanted and bumpy terrain at `ORIGIN` with four painted layers, a vertex whose splat sums to 0, a hole inside
+    /// and one in the last cell.
+    fn painted() -> Terrain {
+        let [w, d] = [37u32, 21];
+        let mut t = Terrain::new(ORIGIN.as_dvec3(), [w, d], CELL as f64, "stone");
+        t.heights = (0..d).flat_map(|j| (0..w).map(move |i| i as f32 * 3.5 - j as f32 * 11.0 + 40.0 + ((i * 7 + j * 3) % 5) as f32 * 9.0)).collect();
+        t.splat = (0..w * d).flat_map(|k| [(k * 37 % 256) as u8, (k * 11 % 200) as u8, (k % 3 * 60) as u8, 30]).collect();
+        let zero = t.index(12, 7) * 4;
+        t.splat[zero..zero + 4].fill(0);
+        t.holes = vec![0; 36 * 20];
+        t.holes[5 * 36 + 10] = 1;
+        t.holes[19 * 36 + 35] = 1;
+        t
+    }
+
+    fn pack(t: &Terrain) -> Vec<[u32; 2]> {
+        let [w, d] = t.resolution;
+        let [cw, cd] = t.cells();
+        (0..d)
+            .flat_map(|j| (0..w).map(move |i| (i, j)))
+            .map(|(i, j)| {
+                let k = t.index(i, j) * 4;
+                let splat = t.splat.get(k..k + 4).map_or(0, |b| u32::from_le_bytes(b.try_into().unwrap()));
+                [splat, (i < cw && j < cd && t.is_hole(i, j)) as u32]
+            })
+            .collect()
+    }
+
+    const SIZE: [u32; 2] = [192, 108];
+
+    /// Draws `t` from straight above with `fragment`, an `fs_test` entry added to the shader, and returns the pixels
+    /// with the world x and z under each pixel's center.
+    fn draw_from_above(t: &Terrain, params: TerrainClipParams, fragment: &str) -> Vec<([f32; 4], DVec2)> {
+        let (device, queue) = device(false);
+        let layout = bind_group_layout(&device);
+        let mut clip = TerrainClipmap::new(&device, &queue, &layout, t.resolution).unwrap();
+        clip.write_whole(&queue, &t.heights, &pack(t)).unwrap();
+        clip.set_params(&queue, &params);
+        let size = t.size().as_vec2();
+        let eye = ORIGIN + Vec3::new(size.x / 2.0, 3000.0, size.y / 2.0);
+        let view_proj = top_down(eye, [480.0, 270.0]);
+        let source = format!("{}\n{fragment}", crate::terrain_clip_shader());
+        let groups = [None, None, Some((&layout, &clip.bind_group))];
+        let pixels = render_parts(&device, &queue, &source, &groups, &clip.instances(eye, view_proj), eye, view_proj, SIZE);
+        let [w, h] = SIZE;
+        let inverse = view_proj.inverse();
+        let under = (0..w * h).map(|k| {
+            let ndc = Vec3::new(((k % w) as f32 + 0.5) / w as f32 * 2.0 - 1.0, 1.0 - ((k / w) as f32 + 0.5) / h as f32 * 2.0, 0.5);
+            let at = inverse.project_point3(ndc);
+            DVec2::new(at.x as f64, at.z as f64)
+        });
+        pixels.into_iter().zip(under).collect()
+    }
+
+    fn local(t: &Terrain, xz: DVec2) -> DVec2 {
+        (xz - DVec2::new(t.origin.x, t.origin.z)) / t.cell_size
+    }
+
+    /// Whether `xz` is inside the terrain and whether it is over a hole, None within a small margin of a cell line where
+    /// the rasterizer may go either way.
+    fn spot(t: &Terrain, xz: DVec2) -> Option<(bool, bool)> {
+        let local = local(t, xz);
+        let f = local - local.floor();
+        if f.min_element() < 0.03 || f.max_element() > 0.97 {
+            return None;
+        }
+
+        let [cw, cd] = t.cells();
+        let inside = local.x > 0.0 && local.y > 0.0 && local.x < cw as f64 && local.y < cd as f64;
+        Some((inside, inside && t.is_hole(local.x as u32, local.y as u32)))
+    }
+
+    fn on_ground(t: &Terrain, xz: DVec2) -> bool {
+        spot(t, xz) == Some((true, false))
+    }
+
+    /// The vertex weights of the triangle under `xz` mixed by where `xz` sits in it, what the chunk meshes interpolate.
+    fn chunk_weights(t: &Terrain, xz: DVec2) -> [f64; 4] {
+        let local = local(t, xz);
+        for tri in Terrain::cell_triangles(local.x as u32, local.y as u32) {
+            let [a, b, c] = tri.map(|(i, j)| DVec2::new(i as f64, j as f64));
+            let det = (b - a).perp_dot(c - a);
+            let u = (local - a).perp_dot(c - a) / det;
+            let v = (b - a).perp_dot(local - a) / det;
+            if u >= -1e-9 && v >= -1e-9 && u + v <= 1.0 + 1e-9 {
+                let [wa, wb, wc] = tri.map(|(i, j)| t.weights(i, j).map(f64::from));
+                return std::array::from_fn(|k| wa[k] * (1.0 - u - v) + wb[k] * u + wc[k] * v);
+            }
+        }
+
+        unreachable!("{local} is in neither triangle of its cell")
+    }
+
+    /// The level 0 rings follow the terrain's own triangles, so every pixel lands on `Terrain::height_at`, and the
+    /// edge and both holes are cut.
+    #[test]
+    #[ignore = "needs a GPU"]
+    fn gpu_draws_the_heights_and_holes_of_the_terrain() {
+        let t = painted();
+        let fragment =
+            "@fragment fn fs_test(f: VOut) -> @location(0) vec4<f32> { if (dropped(local_cells(f.world))) { discard; } return vec4<f32>(f.world, 1.0); }";
+        let pixels = draw_from_above(&t, TerrainClipParams { origin: ORIGIN, cell: CELL, ..Default::default() }, fragment);
+
+        let [mut ground, mut past, mut holes] = [0, 0, 0];
+        for (k, (p, xz)) in pixels.iter().enumerate() {
+            let Some((inside, hole)) = spot(&t, *xz) else { continue };
+            assert_eq!(p[3] == 1.0, inside && !hole, "pixel {k} at {xz}: {p:?}");
+            if !inside {
+                past += 1;
+            } else if hole {
+                holes += 1;
+            } else {
+                let want = DVec3::new(xz.x, t.height_at(xz.x, xz.y).unwrap(), xz.y);
+                assert!(Vec3::from_slice(&p[..3]).as_dvec3().abs_diff_eq(want, 0.05), "pixel {k} drew {p:?}, want {want}");
+                ground += 1;
+            }
+        }
+
+        assert!(ground > 10000 && past > 2500 && holes > 25, "{ground} ground, {past} past the edge and {holes} hole pixels checked");
+    }
+
+    /// A thousandth of a cell past the edge still draws, so tiled terrains meet without a gap, a hundredth does not.
+    #[test]
+    #[ignore = "needs a GPU"]
+    fn gpu_keeps_a_sliver_past_the_edge() {
+        let fragment = "@fragment fn fs_test(f: VOut) -> @location(0) vec4<f32> { let g = vec2<f32>(clip.grid.xy);             return vec4<f32>(f32(dropped(vec2<f32>(g.x + 5e-4, 1.5))), f32(dropped(vec2<f32>(1.5, -5e-4))),             f32(dropped(vec2<f32>(g.x + 0.01, 1.5))), f32(dropped(vec2<f32>(1.5, -0.01)))); }";
+        let pixels = draw_from_above(&painted(), TerrainClipParams { origin: ORIGIN, cell: CELL, ..Default::default() }, fragment);
+        let drawn: Vec<[f32; 4]> = pixels.into_iter().map(|(p, _)| p).filter(|p| p[3] == 1.0).collect();
+        assert!(drawn.len() > 10000, "{} pixels drawn", drawn.len());
+        assert!(drawn.iter().all(|p| *p == [0.0, 0.0, 1.0, 1.0]), "{:?}", drawn.iter().find(|p| **p != [0.0, 0.0, 1.0, 1.0]));
+    }
+
+    /// Paint at every pixel is the mix of the chunk meshes, a vertex with no splat counts as the first layer, and uv2
+    /// is the chart applied to the pixel's position.
+    #[test]
+    #[ignore = "needs a GPU"]
+    fn gpu_paints_like_the_chunk_meshes() {
+        let t = painted();
+        let params = TerrainClipParams { origin: ORIGIN, cell: CELL, ..Default::default() };
+        let fragment =
+            "@fragment fn fs_test(f: VOut) -> @location(0) vec4<f32> { let p = local_cells(f.world); if (dropped(p)) { discard; } return paint_weights(p); }";
+        let mut checked = 0;
+        for (k, (p, xz)) in draw_from_above(&t, params, fragment).iter().enumerate() {
+            if !on_ground(&t, *xz) {
+                continue;
+            }
+
+            let want = chunk_weights(&t, *xz);
+            assert!((0..4).all(|i| (f64::from(p[i]) - want[i]).abs() < 1e-3), "pixel {k} at {xz} painted {p:?}, want {want:?}");
+            checked += 1;
+        }
+
+        assert!(checked > 10000, "{checked} pixels checked");
+        let zero = t.vertex(12, 7);
+        assert_eq!(chunk_weights(&t, DVec2::new(zero.x + 0.01, zero.z + 0.02)).map(|w| (w * 100.0).round()), [100.0, 0.0, 0.0, 0.0]);
+
+        let rows = [[0.0011, 0.0004, -0.0007, 1.6], [-0.0004, -0.0002, 0.0013, -2.3]];
+        let fragment = "@fragment fn fs_test(f: VOut) -> @location(0) vec4<f32> { if (dropped(local_cells(f.world))) { discard; } return vec4<f32>(lightmap_uv(f.world), f32(clip.grid.z), f32(clip.grid.w)); }";
+        for chart in [Some(rows), None] {
+            let params = TerrainClipParams { selected: chart.is_some(), chart, ..params };
+            let mut checked = 0;
+            for (k, (p, xz)) in draw_from_above(&t, params, fragment).iter().enumerate() {
+                if !on_ground(&t, *xz) {
+                    continue;
+                }
+
+                let at = DVec3::new(xz.x, t.height_at(xz.x, xz.y).unwrap(), xz.y);
+                let want = match chart {
+                    Some(rows) => rows.map(|r| r[0] as f64 * at.x + r[1] as f64 * at.y + r[2] as f64 * at.z + r[3] as f64).to_vec(),
+                    None => vec![-1.0, -1.0],
+                };
+                let flags = [chart.is_some() as u8 as f32; 2];
+                assert!((0..2).all(|i| (f64::from(p[i]) - want[i]).abs() < 1e-3) && [p[2], p[3]] == flags, "pixel {k} at {xz}: {p:?}, want {want:?}");
+                checked += 1;
+            }
+
+            assert!(checked > 10000, "{checked} pixels checked with {chart:?}");
         }
     }
 }

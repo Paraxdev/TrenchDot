@@ -178,6 +178,18 @@ fn terrain_shader() -> String {
     format!("{}\n{}\n{}\n{}", include_str!("common.wgsl"), include_str!("lightmap.wgsl"), include_str!("terrain_look.wgsl"), include_str!("terrain.wgsl"))
 }
 
+fn terrain_clip_shader() -> String {
+    format!(
+        "{}\n{}\n{}\n{}\n{}\n{}",
+        include_str!("common.wgsl"),
+        include_str!("lightmap.wgsl"),
+        include_str!("terrain_look.wgsl"),
+        clipmap::wgsl_consts(),
+        include_str!("ring.wgsl"),
+        include_str!("terrain_clip.wgsl")
+    )
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ShadeMode {
     Textured,
@@ -561,6 +573,8 @@ pub struct ViewTarget {
     camera_wide_bg: wgpu::BindGroup,
     /// Room for [`MAX_CLIPMAPS`] clipmaps of [`clipmap::layout::MAX_INSTANCES`] records each.
     clipmap_instances: wgpu::Buffer,
+    /// The ring parts of every native terrain clipmap one after the other, grown before a pass that needs more room.
+    terrain_clip_instances: std::sync::Mutex<wgpu::Buffer>,
     pub texture_id: egui::TextureId,
 }
 
@@ -614,6 +628,8 @@ pub struct Frame<'a> {
     pub terrain: Vec<&'a GpuMesh>,
     /// Terrain3D worlds, at most [`MAX_CLIPMAPS`] are drawn.
     pub clipmaps: Vec<&'a clipmap::GpuClipmap>,
+    /// Native terrains drawn with the clipmap rings after the chunks, never in wireframe.
+    pub terrain_clipmaps: Vec<&'a clipmap::native::TerrainClipmap>,
     /// Drawn over the opaque geometry and under the translucent meshes, never in wireframe. At most [`MAX_CLIPMAPS`]
     /// are drawn, one per Terrain3D node.
     pub water: Vec<Water>,
@@ -646,6 +662,7 @@ pub struct Renderer {
     shape_depth: wgpu::RenderPipeline,
     shape_overlay: wgpu::RenderPipeline,
     terrain_pipeline: wgpu::RenderPipeline,
+    terrain_clip_pipeline: wgpu::RenderPipeline,
     clipmap_pipeline: wgpu::RenderPipeline,
     clipmap_wire: wgpu::RenderPipeline,
     clipmap_meshes: [ClipmapMesh; clipmap::layout::MeshKind::COUNT],
@@ -884,6 +901,10 @@ impl Renderer {
             device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("mesh"), source: wgpu::ShaderSource::Wgsl(mesh_shader().into()) });
         let terrain_shader =
             device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("terrain"), source: wgpu::ShaderSource::Wgsl(terrain_shader().into()) });
+        let terrain_clip_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("terrain clipmap"),
+            source: wgpu::ShaderSource::Wgsl(terrain_clip_shader().into()),
+        });
         let shadow_shader = device
             .create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("shadow"), source: wgpu::ShaderSource::Wgsl(include_str!("shadow.wgsl").into()) });
         let line_shader =
@@ -909,6 +930,11 @@ impl Renderer {
         let terrain_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("terrain"),
             bind_group_layouts: &[Some(&camera_bgl), Some(&terrain_bgl), Some(&lightmap_bgl)],
+            immediate_size: 0,
+        });
+        let terrain_clip_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("terrain clipmap"),
+            bind_group_layouts: &[Some(&camera_bgl), Some(&terrain_bgl), Some(&lightmap_bgl), Some(&terrain_clip_bgl)],
             immediate_size: 0,
         });
         let clipmap_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -1101,6 +1127,7 @@ impl Renderer {
         };
         let clipmap_pipeline = clipmap_make("clipmap", tri, Some(wgpu::Face::Back), "fs_main", true, Greater);
         let clipmap_wire = clipmap_make("clipmap wire", wgpu::PrimitiveTopology::LineList, None, "fs_wire", false, GreaterEqual);
+        let terrain_clip_pipeline = make("terrain clipmap", &terrain_clip_shader, &terrain_clip_layout, &clipmap_buffers, tri, true, false, true, Greater);
         let clipmap_meshes = clipmap::layout::MeshKind::ALL.map(|kind| {
             let buffer =
                 |label: &str, contents: &[u8], usage| device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some(label), contents, usage });
@@ -1190,6 +1217,7 @@ impl Renderer {
             shape_depth,
             shape_overlay,
             terrain_pipeline,
+            terrain_clip_pipeline,
             clipmap_pipeline,
             clipmap_wire,
             clipmap_meshes,
@@ -1661,21 +1689,56 @@ impl Renderer {
             let base = (k * clipmap::layout::MAX_INSTANCES) as u64 * record;
             self.queue.write_buffer(buffer, base, bytemuck::cast_slice(&records));
             pass.set_bind_group(1, &clip.bind_group, &[]);
-            pass.set_vertex_buffer(1, buffer.slice(base..base + records.len() as u64 * record));
-            for (mesh, range) in self.clipmap_meshes.iter().zip(&instances.ranges) {
-                if range.is_empty() {
-                    continue;
-                }
-
-                triangles += mesh.count as usize / 3 * range.len();
-                let (index, count) = if wire { (&mesh.wire, mesh.wire_count) } else { (&mesh.index, mesh.count) };
-                pass.set_vertex_buffer(0, mesh.vertex.slice(..));
-                pass.set_index_buffer(index.slice(..), wgpu::IndexFormat::Uint32);
-                pass.draw_indexed(0..count, 0, range.clone());
-            }
+            triangles += self.draw_parts(pass, &instances, buffer, base, wire);
         }
 
         triangles
+    }
+
+    /// Draws the ring meshes of `instances`, whose records sit in `buffer` from byte `base` on. Returns the triangles
+    /// drawn.
+    fn draw_parts(&self, pass: &mut wgpu::RenderPass, instances: &clipmap::layout::Instances, buffer: &wgpu::Buffer, base: u64, wire: bool) -> usize {
+        if instances.parts.is_empty() {
+            return 0;
+        }
+
+        let record = std::mem::size_of::<clipmap::layout::ClipmapInstance>() as u64;
+        pass.set_vertex_buffer(1, buffer.slice(base..base + instances.parts.len() as u64 * record));
+        let mut triangles = 0;
+        for (mesh, range) in self.clipmap_meshes.iter().zip(&instances.ranges) {
+            if range.is_empty() {
+                continue;
+            }
+
+            triangles += mesh.count as usize / 3 * range.len();
+            let (index, count) = if wire { (&mesh.wire, mesh.wire_count) } else { (&mesh.index, mesh.count) };
+            pass.set_vertex_buffer(0, mesh.vertex.slice(..));
+            pass.set_index_buffer(index.slice(..), wgpu::IndexFormat::Uint32);
+            pass.draw_indexed(0..count, 0, range.clone());
+        }
+
+        triangles
+    }
+
+    /// Writes the ring parts of `clips` one after the other into the target's buffer, grown when they do not fit.
+    fn write_terrain_clip_parts<'t>(
+        &self,
+        target: &'t ViewTarget,
+        clips: &[(&clipmap::native::TerrainClipmap, clipmap::layout::Instances)],
+    ) -> std::sync::MutexGuard<'t, wgpu::Buffer> {
+        let mut buffer = target.terrain_clip_instances.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+        let records: Vec<clipmap::layout::ClipmapInstance> = clips.iter().flat_map(|(_, i)| i.parts.iter().map(|&p| p.into())).collect();
+        if records.is_empty() {
+            return buffer;
+        }
+
+        let bytes: &[u8] = bytemuck::cast_slice(&records);
+        if bytes.len() as u64 > buffer.size() {
+            *buffer = self.terrain_clip_instances(records.len().next_power_of_two());
+        }
+
+        self.queue.write_buffer(&buffer, 0, bytes);
+        buffer
     }
 
     pub fn upload_mesh(&self, batch: &MeshBatch) -> Option<GpuMesh> {
@@ -1723,6 +1786,15 @@ impl Renderer {
         }
 
         clipmap::native::TerrainClipmap::new(&self.device, &self.queue, &self.terrain_clip_bgl, resolution)
+    }
+
+    fn terrain_clip_instances(&self, records: usize) -> wgpu::Buffer {
+        self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("terrain clipmap instances"),
+            size: (records * std::mem::size_of::<clipmap::layout::ClipmapInstance>()) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        })
     }
 
     /// Triangles the clipmaps put on screen in the last view that drew any, after culling.
@@ -1856,7 +1928,21 @@ impl Renderer {
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        *target = Some(ViewTarget { size, msaa, resolve, resolve_view, depth, camera, camera_bg, camera_wide, camera_wide_bg, clipmap_instances, texture_id });
+        let terrain_clip_instances = std::sync::Mutex::new(self.terrain_clip_instances(clipmap::layout::MAX_INSTANCES));
+        *target = Some(ViewTarget {
+            size,
+            msaa,
+            resolve,
+            resolve_view,
+            depth,
+            camera,
+            camera_bg,
+            camera_wide,
+            camera_wide_bg,
+            clipmap_instances,
+            terrain_clip_instances,
+            texture_id,
+        });
         true
     }
 
@@ -1909,6 +1995,11 @@ impl Renderer {
         let uniform = CameraUniform::new(target.size, params);
         self.queue.write_buffer(&target.camera, 0, bytemuck::bytes_of(&uniform));
         self.queue.write_buffer(&target.camera_wide, 0, bytemuck::bytes_of(&uniform.wide(params)));
+        let terrain_clips: Vec<_> = match params.shade {
+            ShadeMode::Wireframe => Vec::new(),
+            _ => frame.terrain_clipmaps.iter().map(|&clip| (clip, clip.instances(params.eye, params.view_proj))).collect(),
+        };
+        let terrain_clip_buffer = self.write_terrain_clip_parts(target, &terrain_clips);
 
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("viewport") });
         {
@@ -2018,6 +2109,23 @@ impl Renderer {
                             pass.draw_indexed(range.clone(), 0, 0..1);
                         }
                     }
+                }
+            }
+
+            if !terrain_clips.is_empty() {
+                pass.set_pipeline(&self.terrain_clip_pipeline);
+                let record = std::mem::size_of::<clipmap::layout::ClipmapInstance>() as u64;
+                let mut base = 0;
+                for (clip, instances) in &terrain_clips {
+                    let mut triangles = 0;
+                    if let Some(bg) = self.terrain_materials.get(clip.material()) {
+                        pass.set_bind_group(1, bg, &[]);
+                        pass.set_bind_group(3, &clip.bind_group, &[]);
+                        triangles = self.draw_parts(&mut pass, instances, &terrain_clip_buffer, base, false);
+                    }
+
+                    clip.drew(triangles);
+                    base += instances.parts.len() as u64 * record;
                 }
             }
 
@@ -2221,6 +2329,7 @@ mod tests {
         let common = include_str!("common.wgsl");
         validate("mesh", &super::mesh_shader());
         validate("terrain", &super::terrain_shader());
+        validate("terrain clipmap", &super::terrain_clip_shader());
 
         validate("clipmap", &super::clipmap_shader());
         validate("sky", &format!("{common}\n{}", include_str!("sky.wgsl")));

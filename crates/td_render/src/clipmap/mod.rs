@@ -839,8 +839,26 @@ mod tests {
         clip: &GpuClipmap,
         eye: Vec3,
         view_proj: Mat4,
-        [w, h]: [u32; 2],
+        size: [u32; 2],
         fragment: &str,
+    ) -> Vec<[f32; 4]> {
+        let source = format!("{}\n{fragment}", crate::clipmap_shader());
+        let instances = clip.instances(eye, view_proj);
+        render_parts(device, queue, &source, &[Some((layout, &clip.bind_group))], &instances, eye, view_proj, size)
+    }
+
+    /// Draws the ring parts of `instances` with `source`, a shader with the entries `vs_main` and `fs_test`, like
+    /// [`draw`]. The camera is group 0 and `groups` follow from group 1 on.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn render_parts(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        source: &str,
+        groups: &[Option<(&wgpu::BindGroupLayout, &wgpu::BindGroup)>],
+        instances: &layout::Instances,
+        eye: Vec3,
+        view_proj: Mat4,
+        [w, h]: [u32; 2],
     ) -> Vec<[f32; 4]> {
         let camera = crate::CameraUniform {
             view_proj: view_proj.to_cols_array_2d(),
@@ -866,13 +884,9 @@ mod tests {
             layout: &camera_bgl,
             entries: &[wgpu::BindGroupEntry { binding: 0, resource: camera.as_entire_binding() }],
         });
-        let source = format!("{}\n{fragment}", crate::clipmap_shader());
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: None, source: wgpu::ShaderSource::Wgsl(source.into()) });
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: None,
-            bind_group_layouts: &[Some(&camera_bgl), Some(layout)],
-            immediate_size: 0,
-        });
+        let layouts: Vec<_> = std::iter::once(Some(&camera_bgl)).chain(groups.iter().map(|g| g.map(|(layout, _)| layout))).collect();
+        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &layouts, immediate_size: 0 });
         let vertex_attrs = wgpu::vertex_attr_array![0 => Uint32x2];
         let instance_attrs = wgpu::vertex_attr_array![1 => Sint32x2, 2 => Uint32];
         let format = wgpu::TextureFormat::Rgba32Float;
@@ -912,7 +926,6 @@ mod tests {
             view_formats: &[],
         });
         let view = target.create_view(&Default::default());
-        let instances = clip.instances(eye, view_proj);
         let records: Vec<layout::ClipmapInstance> = instances.parts.iter().map(|&p| p.into()).collect();
         let records = buffer(bytemuck::cast_slice(&records), wgpu::BufferUsages::VERTEX);
         let meshes: Vec<_> = layout::MeshKind::ALL
@@ -946,7 +959,12 @@ mod tests {
             });
             pass.set_pipeline(&pipeline);
             pass.set_bind_group(0, &camera_bg, &[]);
-            pass.set_bind_group(1, &clip.bind_group, &[]);
+            for (k, group) in groups.iter().enumerate() {
+                if let Some((_, bind_group)) = group {
+                    pass.set_bind_group(k as u32 + 1, *bind_group, &[]);
+                }
+            }
+
             pass.set_vertex_buffer(1, records.slice(..));
             for ((vertex, index, count), range) in meshes.iter().zip(&instances.ranges) {
                 pass.set_vertex_buffer(0, vertex.slice(..));

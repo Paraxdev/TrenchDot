@@ -3126,6 +3126,7 @@ dependencies = [
  "glam",
  "image",
  "naga",
+ "td_geom",
  "wgpu",
 ]
 
