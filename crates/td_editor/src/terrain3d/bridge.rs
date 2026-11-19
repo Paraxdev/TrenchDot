@@ -288,35 +288,34 @@ fn ask(request: &Apply) -> Outcome {
 
 fn headless(request: &Apply) -> Outcome {
     let Some(exe) = &request.godot else { return Outcome::default() };
-    match run_cli(exe, request, "apply") {
+    match run_cli(exe, &request.project, "apply", &request.folder, &[]) {
         Err(e) => Outcome::failed(Route::Headless, e),
         Ok(reply) => Outcome::from_reply(Route::Headless, &reply),
     }
 }
 
-/// Runs the Terrain3D CLI of the addon on the request's folder and returns the JSON result it printed last.
-fn run_cli(exe: &Path, request: &Apply, command: &str) -> Result<Value, String> {
+/// Runs the Terrain3D CLI of the addon with `command` on `folder` and the `extra` arguments after it, and returns the
+/// JSON result it printed last.
+fn run_cli(exe: &Path, project: &Path, command: &str, folder: &Path, extra: &[String]) -> Result<Value, String> {
     let mut cmd = Command::new(exe);
-    cmd.arg("--headless")
-        .arg("--path")
-        .arg(&request.project)
-        .arg("--script")
-        .arg(CLI_SCRIPT)
-        .arg("--")
-        .arg(command)
-        .arg(live_link::godot_path(&request.folder));
+    cmd.arg("--headless").arg("--path").arg(project).arg("--script").arg(CLI_SCRIPT).arg("--").arg(command).arg(live_link::godot_path(folder)).args(extra);
     let (code, stdout) = run_capture(cmd, HEADLESS_TIMEOUT)?;
     if let Some(reply) = stdout.lines().rev().find(|l| !l.trim().is_empty()).and_then(|l| serde_json::from_str::<Value>(l).ok()) {
         return Ok(reply);
     }
 
     let how = code.map_or_else(|| "Godot crashed".to_string(), |code| format!("Godot crashed or quit with exit code {code}"));
-    let unsent = if command == "apply" { ", so the edits stay unsent" } else { "" };
+    let after = match command {
+        "apply" => ", so the edits stay unsent",
+        "settings" => ", the region files it rewrote have a backup in the data folder's .trenchdot/backups",
+        _ => "",
+    };
     Err(format!(
-        "{how} before it printed a result{unsent}. Run \"{exe}\" --headless --path \"{project}\" --script {CLI_SCRIPT} -- {command} \"{folder}\" by hand to see why",
+        "{how} before it printed a result{after}. Run \"{exe}\" --headless --path \"{project}\" --script {CLI_SCRIPT} -- {command} \"{folder}\"{extra} by hand to see why",
         exe = exe.display(),
-        project = live_link::godot_path(&request.project),
-        folder = live_link::godot_path(&request.folder),
+        project = live_link::godot_path(project),
+        folder = live_link::godot_path(folder),
+        extra = extra.iter().map(|a| format!(" {a}")).collect::<String>(),
     ))
 }
 
@@ -342,7 +341,7 @@ pub fn export(request: &Apply) -> Result<Vec<Loc>, String> {
     }
 
     let Some(exe) = &request.godot else { return Err(NOT_EXPORTED.to_string()) };
-    let reply = run_cli(exe, request, "export")?;
+    let reply = run_cli(exe, &request.project, "export", &request.folder, &[])?;
     if reply["ok"].as_bool() == Some(true) { Ok(written(&reply)) } else { Err(reply_error(&reply)) }
 }
 
@@ -429,27 +428,40 @@ pub struct Look {
     pub ocean_enabled: bool,
 }
 
-/// One request to change the region size, vertex spacing and look of the Terrain3D the open Godot editor shows.
+/// One request to change the region size, vertex spacing and look of a Terrain3D.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SettingsRequest {
-    pub port: u16,
+    /// The live link port, None when the link is off.
+    pub port: Option<u16>,
+    pub project: PathBuf,
+    /// The Godot that rewrites the region files when no Godot editor runs, None leaves the change to the editor.
+    pub godot: Option<PathBuf>,
     pub folder: PathBuf,
     pub region_size: u32,
     pub spacing: f64,
     pub look: LookChange,
 }
 
-/// What the Terrain3D node has after a settings change. `look` is None from an addon that predates picking it.
-#[derive(Clone, Debug, PartialEq)]
+/// What the Terrain3D has after a settings change. `look` is None from an addon that predates picking it, and from a
+/// headless Godot, which changes the grid alone.
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Settings {
     pub region_size: u32,
     pub spacing: f64,
     pub look: Option<Look>,
+    pub route: Route,
+    /// The folder a headless Godot copied the region files and manifest to first, empty on the live link.
+    pub backup: String,
+    /// How many regions a headless Godot rewrote.
+    pub regions: usize,
+    pub problems: Vec<String>,
 }
 
 const OLD_ADDON_SETTINGS: &str = "Update the TrenchDot addon in Godot to change Terrain3D settings";
 pub const OLD_ADDON_LOOK: &str = "Update the TrenchDot addon in Godot to pick the Terrain3D material, assets or ocean";
 const NO_SCENE_SETTINGS: &str = "Open the scene that shows this Terrain3D in the Godot editor first";
+pub const LINK_OFF_SETTINGS: &str = "Turn on the live link, TrenchDot only rewrites the region files when it can tell no Godot editor has them open";
+const HEADLESS_LOOK: &str = "Open the scene that shows this Terrain3D in the Godot editor to pick its material, assets or ocean";
 
 fn settings_message(request: &SettingsRequest) -> Value {
     let mut message = json!({
@@ -472,10 +484,22 @@ fn settings_message(request: &SettingsRequest) -> Value {
     message
 }
 
-/// Asks the open Godot editor to change the Terrain3D settings, blocking. Godot rewrites its region files itself, so
-/// there is no headless fallback. The answer is what Godot has now.
+/// Changes the Terrain3D settings, blocking. The open Godot editor does it when it shows the folder. A headless Godot
+/// rewrites the region files only when no Godot editor runs at all, since an editor may hold the regions in an open
+/// scene and save them back over the change. The answer is what Godot has now.
 pub fn settings(request: &SettingsRequest) -> Result<Settings, String> {
-    let reply = live_link::send_timeout(request.port, &settings_message(request), LIVE_REPLY)?;
+    let Some(port) = request.port else { return Err(LINK_OFF_SETTINGS.to_string()) };
+    match live_link::send_timeout(port, &settings_message(request), LIVE_REPLY) {
+        Ok(reply) => live_settings(&reply),
+        Err(e) if e == live_link::NOT_RUNNING => match &request.godot {
+            Some(exe) => headless_settings(exe, request),
+            None => Err(e),
+        },
+        Err(e) => Err(e),
+    }
+}
+
+fn live_settings(reply: &Value) -> Result<Settings, String> {
     if reply["ok"].as_bool() == Some(true)
         && let (Some(region_size), Some(spacing)) = (reply["region_size"].as_u64().and_then(|n| u32::try_from(n).ok()), reply["vertex_spacing"].as_f64())
     {
@@ -483,13 +507,40 @@ pub fn settings(request: &SettingsRequest) -> Result<Settings, String> {
             (Some(material), Some(assets), Some(ocean_enabled)) => Some(Look { material: material.into(), assets: assets.into(), ocean_enabled }),
             _ => None,
         };
-        return Ok(Settings { region_size, spacing, look });
+        return Ok(Settings { region_size, spacing, look, route: Route::LiveLink, ..Default::default() });
     }
 
     Err(match reply["error"].as_str() {
         Some(OLD_ADDON) => OLD_ADDON_SETTINGS.to_string(),
         Some(error) if error.starts_with(NO_SCENE) => NO_SCENE_SETTINGS.to_string(),
-        _ => reply_error(&reply),
+        _ => reply_error(reply),
+    })
+}
+
+fn headless_settings(exe: &Path, request: &SettingsRequest) -> Result<Settings, String> {
+    if !request.look.is_empty() {
+        return Err(HEADLESS_LOOK.to_string());
+    }
+
+    let extra = [request.region_size.to_string(), request.spacing.to_string()];
+    let reply = run_cli(exe, &request.project, "settings", &request.folder, &extra)?;
+    let problems: Vec<String> = reply["problems"].as_array().into_iter().flatten().filter_map(Value::as_str).map(str::to_string).collect();
+    if reply["ok"].as_bool() != Some(true) {
+        return Err(match reply["error"].as_str().filter(|e| !e.is_empty()) {
+            Some(error) => error.to_string(),
+            None if !problems.is_empty() => problems.join("; "),
+            None => reply_error(&reply),
+        });
+    }
+
+    Ok(Settings {
+        region_size: request.region_size,
+        spacing: request.spacing,
+        look: None,
+        route: Route::Headless,
+        backup: reply["backup"].as_str().unwrap_or_default().to_string(),
+        regions: reply["written"].as_array().map_or(0, Vec::len),
+        problems,
     })
 }
 
@@ -1031,7 +1082,8 @@ exit 3
     }
 
     fn settings_request(port: u16, folder: PathBuf, region_size: u32, spacing: f64, look: LookChange) -> SettingsRequest {
-        SettingsRequest { port, folder, region_size, spacing, look }
+        let project = folder.parent().map(Path::to_path_buf).unwrap_or_default();
+        SettingsRequest { port: Some(port), project, godot: None, folder, region_size, spacing, look }
     }
 
     #[test]
@@ -1062,7 +1114,7 @@ exit 3
         let look = LookChange { material: Some("res://terrain/m.tres".into()), assets: None, ocean_enabled: Some(true) };
         let got = settings(&settings_request(port, dir.path().join("terrain"), 512, 0.75, look));
         let want = Look { material: "res://terrain/m.tres".into(), assets: String::new(), ocean_enabled: true };
-        assert_eq!(got, Ok(Settings { region_size: 512, spacing: 0.75, look: Some(want) }));
+        assert_eq!(got, Ok(Settings { region_size: 512, spacing: 0.75, look: Some(want), route: Route::LiveLink, ..Default::default() }));
         let seen = seen.lock().unwrap();
         assert_eq!(seen.len(), 1);
         assert_eq!((seen[0]["region_size"].as_u64(), seen[0]["vertex_spacing"].as_f64()), (Some(512), Some(0.75)));
@@ -1081,7 +1133,7 @@ exit 3
         for answer in answers {
             let (port, _) = fake_editor(vec![("terrain3d_settings", answer.clone())]);
             let got = settings(&settings_request(port, dir.path().join("terrain"), 256, 2.0, look.clone()));
-            assert_eq!(got, Ok(Settings { region_size: 256, spacing: 2.0, look: None }), "{answer}");
+            assert_eq!(got, Ok(Settings { region_size: 256, spacing: 2.0, route: Route::LiveLink, ..Default::default() }), "{answer}");
         }
     }
 
@@ -1100,7 +1152,60 @@ exit 3
         assert_eq!(refused("res://x.tres is not a Terrain3DMaterial"), "res://x.tres is not a Terrain3DMaterial");
         let (port, _) = fake_editor(vec![("terrain3d_settings", json!({ "ok": true, "material": "res://x.tres", "assets": "", "ocean_enabled": false }))]);
         assert_eq!(settings(&request(port)), Err("unexpected reply".to_string()), "a reply without the grid is not a success");
-        assert_eq!(settings(&request(1)), Err(live_link::NOT_RUNNING.to_string()));
+        assert_eq!(settings(&request(CLOSED)), Err(live_link::NOT_RUNNING.to_string()), "with no Godot to run the change waits for the editor");
+    }
+
+    /// A port nobody listens on, so the live link says no Godot editor runs.
+    const CLOSED: u16 = 1;
+
+    #[test]
+    fn without_a_godot_editor_a_headless_godot_rewrites_the_region_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let reply = r#"{"ok":true,"error":"","backup":"C:/game/terrain/.trenchdot/backups/20261119T101500","written":[[0,0],[1,0],[0,1]],"removed":[],"problems":["kept the spacing"]}"#;
+        let (exe, args) = fake_godot(dir.path(), reply);
+        let folder = dir.path().join("game").join("terrain");
+        let request = SettingsRequest { godot: Some(exe), ..settings_request(CLOSED, folder.clone(), 128, 2.5, LookChange::default()) };
+        let got = settings(&request).unwrap();
+        assert_eq!((got.route, got.region_size, got.spacing, got.look.clone()), (Route::Headless, 128, 2.5, None));
+        assert_eq!(
+            (got.backup.as_str(), got.regions, got.problems),
+            ("C:/game/terrain/.trenchdot/backups/20261119T101500", 3, vec!["kept the spacing".to_string()])
+        );
+        let args = std::fs::read_to_string(&args).unwrap();
+        for part in ["--headless", "--path", "terrain3d_cli.gd", " -- settings "] {
+            assert!(args.contains(part), "{part} is missing from {args}");
+        }
+
+        assert!(args.trim_end().ends_with(&format!("{} 128 2.5", live_link::godot_path(&folder))), "{args}");
+    }
+
+    #[test]
+    fn a_headless_refusal_is_the_settings_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let refused = |reply: &str| {
+            let (exe, _) = fake_godot(dir.path(), reply);
+            settings(&SettingsRequest { godot: Some(exe), ..settings_request(CLOSED, dir.path().join("terrain"), 64, 1.0, LookChange::default()) }).unwrap_err()
+        };
+        let held = "the regions at (0, 0) hold Terrain3D instances, which only their scene can move";
+        assert_eq!(refused(&format!(r#"{{"ok":false,"error":"{held}"}}"#)), held);
+        assert_eq!(refused(r#"{"ok":false,"error":"","problems":["could not save","could not export"]}"#), "could not save; could not export");
+        assert_eq!(refused(r#"{"ok":false}"#), "unexpected reply");
+    }
+
+    #[test]
+    fn a_running_godot_editor_or_a_look_change_never_starts_a_headless_godot() {
+        let dir = tempfile::tempdir().unwrap();
+        let (exe, args) = fake_godot(dir.path(), r#"{"ok":true}"#);
+        let request = |port, look| SettingsRequest { godot: Some(exe.clone()), ..settings_request(port, dir.path().join("terrain"), 64, 1.0, look) };
+        for (error, want) in [("unknown event", OLD_ADDON_SETTINGS), ("no open scene shows the Terrain3D data in res://terrain", NO_SCENE_SETTINGS)] {
+            let (port, _) = fake_editor(vec![("terrain3d_settings", json!({ "ok": false, "error": error }))]);
+            assert_eq!(settings(&request(port, LookChange::default())), Err(want.to_string()));
+        }
+
+        let look = LookChange { ocean_enabled: Some(true), ..Default::default() };
+        assert_eq!(settings(&request(CLOSED, look)), Err(HEADLESS_LOOK.to_string()));
+        assert_eq!(settings(&SettingsRequest { port: None, ..request(CLOSED, LookChange::default()) }), Err(LINK_OFF_SETTINGS.to_string()));
+        assert!(!args.exists(), "no Godot ran");
     }
 
     #[test]

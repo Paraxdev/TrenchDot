@@ -476,7 +476,8 @@ impl App {
 
         let before = self.state.terrain3d.manifest(&cache).and_then(look_of);
         let folder = cache.parent().ok_or("no folder")?.to_path_buf();
-        let request = bridge::SettingsRequest { port: self.state.prefs.live_link_port, folder, region_size: size, spacing, look };
+        let (port, project) = (Some(self.state.prefs.live_link_port), self.state.game.project_root.clone().unwrap_or_default());
+        let request = bridge::SettingsRequest { port, project, godot: None, folder, region_size: size, spacing, look };
         let answer = bridge::settings(&request)?;
         self.state.terrain3d.recheck();
         let reply = settings_reply(id, regrid, &request.look, before.as_ref(), &answer)?;
@@ -786,7 +787,7 @@ mod tests {
         let id = NodeId(7);
         let look = Look { material: "res://t/m.tres".into(), assets: String::new(), ocean_enabled: true };
         let asked = LookChange { material: Some("res://t/m.tres".into()), ocean_enabled: Some(true), ..Default::default() };
-        let answer = Settings { region_size: 128, spacing: 0.5, look: Some(look.clone()) };
+        let answer = Settings { region_size: 128, spacing: 0.5, look: Some(look.clone()), ..Default::default() };
         assert_eq!(
             settings_reply(id, false, &asked, None, &answer),
             Ok(
@@ -798,7 +799,7 @@ mod tests {
         assert_eq!(changed(true, &look), json!(true));
         assert_eq!(changed(false, &Look { ocean_enabled: false, ..look.clone() }), json!(true));
 
-        let old = Settings { region_size: 128, spacing: 0.5, look: None };
+        let old = Settings { region_size: 128, spacing: 0.5, ..Default::default() };
         assert_eq!(settings_reply(id, false, &asked, Some(&look), &old), Err(bridge::OLD_ADDON_LOOK.to_string()));
         assert_eq!(
             settings_reply(id, true, &asked, None, &old),

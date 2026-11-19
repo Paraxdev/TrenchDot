@@ -230,7 +230,8 @@ impl EditorState {
             return false;
         }
 
-        self.terrain3d_bridge.send_settings(bridge::SettingsRequest { port: self.prefs.live_link_port, folder, region_size, spacing, look });
+        let (port, project) = (Some(self.prefs.live_link_port), self.game.project_root.clone().unwrap_or_default());
+        self.terrain3d_bridge.send_settings(bridge::SettingsRequest { port, project, godot: None, folder, region_size, spacing, look });
         true
     }
 
