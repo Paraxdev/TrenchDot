@@ -3705,6 +3705,43 @@ fn the_terrain3d_inspector_lists_textures_and_settles_a_conflict_in_one_undo_ste
 }
 
 #[test]
+fn the_paint_channel_picker_shows_only_the_controls_its_channel_needs() {
+    use td_editor::terrain3d::brush::{self, Channel};
+    let (mut f, id) = terrain3d_fixture("channels");
+    let cache = f.state.game.project_root.clone().unwrap().join("terrain").join(td_formats::terrain3d_cache::DIR_NAME);
+    f.state.terrain3d.refresh(&cache);
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(700.0, 120.0))
+        .build_ui_state(move |ui, f: &mut Fixture| drop(ui.horizontal(|ui| brush::channel_picker(ui, &mut f.state, &[id]))), f);
+    harness.run();
+    let count = |h: &Harness<'_, Fixture>, role| h.query_all_by_role(role).count();
+    let combos = |h: &Harness<'_, Fixture>| count(h, egui::accesskit::Role::ComboBox);
+    let colors = |h: &Harness<'_, Fixture>| count(h, egui::accesskit::Role::ColorWell);
+    let fields = |h: &Harness<'_, Fixture>| count(h, egui::accesskit::Role::SpinButton);
+
+    assert_eq!(harness.state().state.terrain3d_paint.channel, Channel::Texture, "the texture channel is the default");
+    assert_eq!((combos(&harness), colors(&harness), fields(&harness)), (2, 0, 0), "channel and texture combos");
+    harness.get_by_label("Spray");
+
+    let expect = [(Channel::Color, (1, 1, 0)), (Channel::Wetness, (1, 0, 1)), (Channel::Navigation, (1, 0, 0)), (Channel::Autoshader, (1, 0, 0))];
+    for (channel, want) in expect {
+        harness.state_mut().state.terrain3d_paint.channel = channel;
+        harness.run();
+        assert_eq!((combos(&harness), colors(&harness), fields(&harness)), want, "{channel:?}");
+        assert!(harness.query_by_label("Spray").is_none(), "{channel:?} has no texture switch");
+    }
+
+    harness.state_mut().state.terrain3d_paint.channel = Channel::Texture;
+    harness.run();
+    harness.get_by_label("Spray");
+    harness.get_all_by_role(egui::accesskit::Role::ComboBox).next().unwrap().click();
+    harness.run();
+    harness.get_by_label("Navigable Area").click();
+    harness.run();
+    assert_eq!(harness.state().state.terrain3d_paint.channel, Channel::Navigation);
+}
+
+#[test]
 fn the_terrain3d_inspector_says_why_godot_is_out_of_reach() {
     let (f, _) = terrain3d_fixture("status");
     let mut harness = Harness::builder()

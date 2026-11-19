@@ -5,8 +5,9 @@ use egui::Ui;
 use td_core::{DVec3, NodeId, Ray};
 use td_doc::terrain::{SculptBrush, SculptMode};
 use td_doc::terrain3d::reground_scatter;
-use td_geom::terrain3d_tile::PaintMode;
+use td_geom::terrain3d_tile::{Flag, Paint, PaintMode};
 
+use crate::en;
 use crate::i18n::{tr, trf};
 use crate::state::EditorState;
 
@@ -21,6 +22,105 @@ impl Texture {
     pub fn mode(self) -> PaintMode {
         if self.spray { PaintMode::Spray } else { PaintMode::Base }
     }
+
+    pub fn paint(self) -> Paint {
+        Paint::Texture { id: self.id, mode: self.mode() }
+    }
+}
+
+/// The channel combo of the Sculpt tool's Paint Layer mode on Terrain3D, with the controls its channel needs: the
+/// texture picker, a color button or a roughness field. Navigable Area and Autoshader need none.
+pub fn channel_picker(ui: &mut Ui, state: &mut EditorState, nodes: &[NodeId]) {
+    let channel = state.terrain3d_paint.channel;
+    egui::ComboBox::from_id_salt("terrain3d_channel")
+        .selected_text(tr(channel.label()))
+        .show_ui(ui, |ui| {
+            for c in Channel::ALL {
+                ui.selectable_value(&mut state.terrain3d_paint.channel, c, tr(c.label()));
+            }
+        })
+        .response
+        .on_hover_text(tr("What Paint Layer paints on Terrain3D, Shift takes it away again"));
+    match channel {
+        Channel::Texture => texture_picker(ui, state, nodes),
+        Channel::Color => {
+            ui.color_edit_button_srgb(&mut state.terrain3d_paint.color);
+        }
+        Channel::Wetness => {
+            ui.add(egui::DragValue::new(&mut state.terrain3d_paint.roughness).range(-100..=100).prefix(format!("{} ", tr("roughness"))).suffix(" %"))
+                .on_hover_text(tr("Negative is wetter and shinier in Godot, positive is drier"));
+        }
+        Channel::Navigation | Channel::Autoshader => {}
+    }
+}
+
+/// What the Paint Layer mode of the Sculpt tool paints on a Terrain3D node, named like Terrain3D's tools.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Channel {
+    #[default]
+    Texture,
+    Color,
+    Wetness,
+    Navigation,
+    Autoshader,
+}
+
+impl Channel {
+    pub const ALL: [Channel; 5] = [Channel::Texture, Channel::Color, Channel::Wetness, Channel::Navigation, Channel::Autoshader];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Channel::Texture => en!("Texture"),
+            Channel::Color => en!("Color"),
+            Channel::Wetness => en!("Wetness"),
+            Channel::Navigation => en!("Navigable Area"),
+            Channel::Autoshader => en!("Autoshader"),
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<Channel> {
+        serde_json::from_value(serde_json::Value::String(name.to_string())).ok()
+    }
+}
+
+/// The Terrain3D channel the Sculpt tool paints with its color and roughness, the editor's own state.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Terrain3DPaint {
+    pub channel: Channel,
+    pub color: [u8; 3],
+    /// Terrain3D's roughness modifier in percent, -100 to 100, negative is wetter.
+    pub roughness: i8,
+}
+
+impl Default for Terrain3DPaint {
+    fn default() -> Self {
+        Self { channel: Channel::Texture, color: [0xb4, 0x96, 0x6e], roughness: -50 }
+    }
+}
+
+impl Terrain3DPaint {
+    /// The dab this channel makes, `erase` being Terrain3D's Remove tools. A texture has nothing to erase.
+    pub fn paint(&self, texture: Texture, erase: bool) -> Paint {
+        match self.channel {
+            Channel::Texture => texture.paint(),
+            Channel::Color => Paint::Color { rgb: self.color, erase },
+            Channel::Wetness => Paint::Wetness { roughness: self.roughness.clamp(-100, 100), erase },
+            Channel::Navigation => Paint::Flag { flag: Flag::Navigation, on: !erase },
+            Channel::Autoshader => Paint::Flag { flag: Flag::Autoshader, on: !erase },
+        }
+    }
+}
+
+/// `#rrggbb` as bytes, nothing else.
+pub fn parse_color(text: &str) -> Option<[u8; 3]> {
+    let hex = text.strip_prefix('#')?;
+    if hex.len() != 6 || !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return None;
+    }
+
+    let byte = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).ok();
+    Some([byte(0)?, byte(2)?, byte(4)?])
 }
 
 /// The texture ids Paint can set: the Terrain3D texture assets of the first node the Sculpt tool reaches, with the
@@ -63,8 +163,8 @@ impl EditorState {
     }
 
     /// One dab on every Terrain3D node of `nodes`. Height modes put the scatter that follows the node back on the new
-    /// surface in the same edit. `PaintLayer` paints the texture instead of a layer. Returns the regions changed.
-    pub fn sculpt_terrain3d(&mut self, nodes: &[NodeId], center: DVec3, brush: &SculptBrush, texture: Texture) -> usize {
+    /// surface in the same edit. `PaintLayer` makes the dab `paint` describes instead of painting a layer. Returns the regions changed.
+    pub fn sculpt_terrain3d(&mut self, nodes: &[NodeId], center: DVec3, brush: &SculptBrush, paint: &Paint) -> usize {
         let links = self.terrain3d_links();
         let mut changed = 0;
         for id in nodes {
@@ -74,7 +174,13 @@ impl EditorState {
             let done = self.doc.try_edit(label, |m, _| {
                 let Some(link) = m.terrain3d_mut(*id) else { return Err(()) };
                 let locs = match brush.mode {
-                    SculptMode::PaintLayer => link.paint_texture(&source, center, brush.radius, texture.id, texture.mode(), brush.strength as f32),
+                    SculptMode::PaintLayer => {
+                        let amount = match paint {
+                            Paint::Color { .. } | Paint::Wetness { .. } => (brush.strength * 0.05).clamp(0.004, 1.0) as f32,
+                            _ => brush.strength as f32,
+                        };
+                        link.paint(&source, center, brush.radius, paint, amount)
+                    }
                     _ => link.sculpt(&source, center, brush),
                 };
                 if !matches!(brush.mode, SculptMode::PaintLayer | SculptMode::Hole | SculptMode::Unhole) {
@@ -164,7 +270,7 @@ pub(crate) mod tests {
         SculptBrush { mode: SculptMode::Raise, radius, strength: 40.0, ..Default::default() }
     }
 
-    const PLAIN: Texture = Texture { id: 0, spray: false };
+    const PLAIN: Paint = Paint::Texture { id: 0, mode: PaintMode::Base };
 
     #[test]
     fn a_dab_on_a_region_corner_raises_both_sides_and_is_one_undo_step_per_dab() {
@@ -175,7 +281,7 @@ pub(crate) mod tests {
         let source = state.terrain3d.source(&cache).unwrap();
         let before: Vec<_> = [[0, 0], [1, 0], [0, 1], [1, 1]].iter().map(|l| source.region(*l).unwrap().heights.clone()).collect();
         let undo = state.doc.history.undo_labels().count();
-        let changed = state.sculpt_terrain3d(&[id], corner, &raise(12.0 * UPM), PLAIN);
+        let changed = state.sculpt_terrain3d(&[id], corner, &raise(12.0 * UPM), &PLAIN);
         assert_eq!(changed, 4, "all four regions around the corner changed");
         assert_eq!(state.doc.history.undo_labels().count(), undo + 1);
         let link = state.doc.map.terrain3d(id).unwrap();
@@ -196,9 +302,9 @@ pub(crate) mod tests {
         let (mut state, id, _) = state_over(dir.path(), &[[0, 0]]);
         let undo = state.doc.history.undo_labels().count();
         let far = DVec3::new(-900.0 * UPM, 0.0, 900.0 * UPM);
-        assert_eq!(state.sculpt_terrain3d(&[id], far, &raise(4.0 * UPM), PLAIN), 0);
+        assert_eq!(state.sculpt_terrain3d(&[id], far, &raise(4.0 * UPM), &PLAIN), 0);
         assert!(state.doc.map.terrain3d(id).unwrap().edits.is_empty());
-        assert_eq!(state.sculpt_terrain3d(&[], far, &raise(4.0 * UPM), PLAIN), 0, "no nodes, nothing to do");
+        assert_eq!(state.sculpt_terrain3d(&[], far, &raise(4.0 * UPM), &PLAIN), 0, "no nodes, nothing to do");
         assert_eq!(state.doc.history.undo_labels().count(), undo, "a dab that changes nothing leaves no undo step");
     }
 
@@ -208,7 +314,7 @@ pub(crate) mod tests {
         let (mut state, id, _) = state_over(dir.path(), &[[0, 0], [1, 0]]);
         let paint = SculptBrush { mode: SculptMode::PaintLayer, radius: 6.0 * UPM, strength: 1.0, ..Default::default() };
         let center = DVec3::new(64.0 * 2.5 * UPM + 3.0 * UPM, 0.0, 40.0 * UPM);
-        assert!(state.sculpt_terrain3d(&[id], center, &paint, Texture { id: 9, spray: false }) >= 1);
+        assert!(state.sculpt_terrain3d(&[id], center, &paint, &Texture { id: 9, spray: false }.paint()) >= 1);
         let link = state.doc.map.terrain3d(id).unwrap();
         let centre = |loc: Loc| Control(link.edits[&loc].region.control[16 * 64 + 1]);
         assert_eq!((centre([1, 0]).base(), centre([1, 0]).overlay()), (9, 9));
@@ -216,11 +322,83 @@ pub(crate) mod tests {
         assert!(heights_before.iter().all(|h| *h >= 1.0), "painting leaves the heights alone");
 
         let spray = SculptBrush { strength: 0.4, ..paint };
-        state.sculpt_terrain3d(&[id], center, &spray, Texture { id: 12, spray: true });
+        state.sculpt_terrain3d(&[id], center, &spray, &Texture { id: 12, spray: true }.paint());
         let after = Control(state.doc.map.terrain3d(id).unwrap().edits[&[1, 0]].region.control[16 * 64 + 1]);
         assert_eq!(after.overlay(), 12, "spray sets the overlay");
         assert_eq!(after.base(), 9, "and keeps the base");
         assert!(after.blend() > 0);
+    }
+
+    #[test]
+    fn a_channel_makes_its_dab_and_erase_is_the_opposite() {
+        let tex = Texture { id: 3, spray: true };
+        let mut p = Terrain3DPaint { channel: Channel::Color, color: [1, 2, 3], roughness: 250u8 as i8 };
+        assert_eq!(p.paint(tex, false), Paint::Color { rgb: [1, 2, 3], erase: false });
+        assert_eq!(p.paint(tex, true), Paint::Color { rgb: [1, 2, 3], erase: true });
+        p.channel = Channel::Wetness;
+        assert_eq!(p.paint(tex, false), Paint::Wetness { roughness: -6, erase: false });
+        p.channel = Channel::Navigation;
+        assert_eq!(p.paint(tex, true), Paint::Flag { flag: Flag::Navigation, on: false });
+        p.channel = Channel::Autoshader;
+        assert_eq!(p.paint(tex, false), Paint::Flag { flag: Flag::Autoshader, on: true });
+        p.channel = Channel::Texture;
+        assert_eq!(p.paint(tex, true), Paint::Texture { id: 3, mode: PaintMode::Spray }, "a texture has nothing to erase");
+        assert_eq!(Terrain3DPaint::default().roughness, -50);
+        assert_eq!(Terrain3DPaint::default().color, [0xb4, 0x96, 0x6e]);
+    }
+
+    #[test]
+    fn channels_and_colors_parse_strictly() {
+        assert_eq!(Channel::ALL.map(|c| Channel::from_name(serde_json::to_value(c).unwrap().as_str().unwrap())), Channel::ALL.map(Some));
+        assert_eq!(Channel::from_name("navigation"), Some(Channel::Navigation));
+        assert_eq!(Channel::from_name("Navigable Area"), None);
+        assert_eq!(parse_color("#B4966E"), Some([0xb4, 0x96, 0x6e]));
+        assert_eq!(parse_color("#000000"), Some([0, 0, 0]));
+        for bad in ["", "#", "#12345", "#1234567", "#12345678", "b4966e", "red", "#gggggg", "#12 456", "##12345"] {
+            assert_eq!(parse_color(bad), None, "{bad}");
+        }
+    }
+
+    #[test]
+    fn flag_dabs_set_and_clear_bits_inside_the_brush_across_a_border_and_color_dabs_keep_the_other_channel() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, _) = state_over(dir.path(), &[[-2, 1], [-1, 1]]);
+        // The border between the two regions sits 64 * 2.5 m west of x = 0, the brush straddles it.
+        let center = DVec3::new(-2.0 * 64.0 * 2.5 * UPM + 3.0 * UPM, 0.0, 64.0 * 2.5 * UPM + 31.0 * UPM);
+        let dab = SculptBrush { mode: SculptMode::PaintLayer, radius: 9.0 * UPM, strength: 1.0, ..Default::default() };
+        let bit = |s: &EditorState, loc: Loc| {
+            s.doc.map.terrain3d(id).unwrap().edits.get(&loc).map(|e| e.region.control.iter().filter(|c| Control(**c).navigation()).count())
+        };
+        let nav = |on| Paint::Flag { flag: Flag::Navigation, on };
+        assert_eq!(state.sculpt_terrain3d(&[id], center, &dab, &nav(true)), 1);
+        let on = bit(&state, [-2, 1]).unwrap();
+        assert!(on > 1, "many vertices, {on}");
+        assert_eq!(bit(&state, [-1, 1]), None, "the neighbour out of reach is untouched");
+        let before = state.doc.map.terrain3d(id).unwrap().edits[&[-2, 1]].region.heights.clone();
+        assert_eq!(state.sculpt_terrain3d(&[id], center, &dab, &nav(true)), 0, "setting a set bit changes nothing");
+        assert_eq!(state.sculpt_terrain3d(&[id], center, &dab, &nav(false)), 1);
+        assert_eq!(bit(&state, [-2, 1]), Some(0));
+        assert_eq!(state.doc.map.terrain3d(id).unwrap().edits[&[-2, 1]].region.heights, before);
+
+        let color = Paint::Color { rgb: [200, 40, 10], erase: false };
+        assert_eq!(state.sculpt_terrain3d(&[id], center, &dab, &color), 1);
+        let region = &state.doc.map.terrain3d(id).unwrap().edits[&[-2, 1]].region;
+        let tinted = region.color.chunks(4).filter(|p| p[..3] != [255, 255, 255]).count();
+        assert!(tinted > 1, "the color moved, {tinted}");
+        assert!(region.color.chunks(4).all(|p| p[3] == 127), "the roughness is kept");
+        assert!(region.control.iter().all(|c| !Control(*c).navigation()));
+    }
+
+    #[test]
+    fn a_stroke_of_one_channel_is_one_undo_step_named_paint() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, _) = state_over(dir.path(), &[[3, -4]]);
+        let center = DVec3::new(3.0 * 64.0 * 2.5 * UPM + 40.0 * UPM, 0.0, -4.0 * 64.0 * 2.5 * UPM + 70.0 * UPM);
+        let dab = SculptBrush { mode: SculptMode::PaintLayer, radius: 5.0 * UPM, strength: 1.0, ..Default::default() };
+        let steps = state.doc.history.undo_labels().count();
+        state.sculpt_terrain3d(&[id], center, &dab, &Paint::Flag { flag: Flag::Autoshader, on: true });
+        assert_eq!(state.doc.history.undo_labels().count(), steps + 1);
+        assert_eq!(state.doc.history.undo_labels().next(), Some("Paint"));
     }
 
     #[test]
@@ -229,10 +407,10 @@ pub(crate) mod tests {
         let (mut state, id, _) = state_over(dir.path(), &[[0, 0]]);
         let center = DVec3::new(30.0 * UPM, 0.0, 33.0 * UPM);
         let hole = SculptBrush { mode: SculptMode::Hole, radius: 3.0 * UPM, strength: 1.0, ..Default::default() };
-        assert_eq!(state.sculpt_terrain3d(&[id], center, &hole, PLAIN), 1);
+        assert_eq!(state.sculpt_terrain3d(&[id], center, &hole, &PLAIN), 1);
         let holes = |s: &EditorState| s.doc.map.terrain3d(id).unwrap().edits[&[0, 0]].region.control.iter().filter(|c| Control(**c).hole()).count();
         assert!(holes(&state) > 0);
-        state.sculpt_terrain3d(&[id], center, &SculptBrush { mode: SculptMode::Unhole, ..hole }, PLAIN);
+        state.sculpt_terrain3d(&[id], center, &SculptBrush { mode: SculptMode::Unhole, ..hole }, &PLAIN);
         assert_eq!(holes(&state), 0);
     }
 
@@ -255,7 +433,7 @@ pub(crate) mod tests {
         let y_of = |s: &EditorState, set: NodeId| s.doc.map.scatter(set).unwrap().instances[0].position.y;
 
         let undo = state.doc.history.undo_labels().count();
-        assert_eq!(state.sculpt_terrain3d(&[id], DVec3::new(20.0 * UPM, 0.0, 18.0 * UPM), &raise(8.0 * UPM), PLAIN), 1);
+        assert_eq!(state.sculpt_terrain3d(&[id], DVec3::new(20.0 * UPM, 0.0, 18.0 * UPM), &raise(8.0 * UPM), &PLAIN), 1);
         let source = state.terrain3d.source(&cache).unwrap();
         let link = state.doc.map.terrain3d(id).unwrap();
         let regions: Vec<_> = [[0, 0], [1, 0]].iter().map(|l| (*l, link.region(&source, *l).unwrap())).collect();

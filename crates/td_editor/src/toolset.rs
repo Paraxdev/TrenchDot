@@ -673,8 +673,8 @@ impl ToolSet {
                         }
                     });
                     if sculpting {
-                        let texture = state.terrain3d_texture;
-                        state.sculpt_terrain3d(&terrain3d, p, &brush, texture);
+                        let paint = state.terrain3d_paint.paint(state.terrain3d_texture, modifiers.shift);
+                        state.sculpt_terrain3d(&terrain3d, p, &brush, &paint);
                     }
 
                     self.stroke.last_dab = Some(p);

@@ -2897,5 +2897,11 @@
   "Some regions were made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "Algumas regiões foram feitas com outro tamanho de região que o do terreno do Godot, usar as do Godot ou devolver o tamanho no Godot",
   "File dialogs are off with --offscreen, use the map_file tool": "As caixas de diálogo de arquivo ficam desativadas com --offscreen, usar a ferramenta map_file",
   "Deleted {count} objects with {n} unsent Terrain3D region edit, undo brings it back": { "one": "{count} objetos excluídos com {n} edição de região do Terrain3D não enviada, desfazer a traz de volta", "other": "{count} objetos excluídos com {n} edições de região do Terrain3D não enviadas, desfazer as traz de volta" },
-  "Regions change out of view": "As regiões mudam fora da vista"
+  "Regions change out of view": "As regiões mudam fora da vista",
+  "Navigable Area": "Área navegável",
+  "Wetness": "Umidade",
+  "Autoshader": "Autoshader",
+  "roughness": "rugosidade",
+  "What Paint Layer paints on Terrain3D, Shift takes it away again": "O que Pintar camada pinta no Terrain3D, Shift tira de volta",
+  "Negative is wetter and shinier in Godot, positive is drier": "Negativo é mais úmido e brilhante no Godot, positivo é mais seco"
 }

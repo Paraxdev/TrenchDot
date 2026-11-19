@@ -106,7 +106,7 @@ mod tests {
     fn bumpy(root: &Path, locs: &[Loc]) -> (EditorState, NodeId, std::path::PathBuf) {
         let (mut state, id, cache) = state_over(root, locs);
         let dab = SculptBrush { mode: SculptMode::Raise, radius: 9.0 * UPM, strength: 40.0, ..Default::default() };
-        state.sculpt_terrain3d(&[id], DVec3::new(21.3 * UPM, 0.0, 17.9 * UPM), &dab, Texture { id: 0, spray: false });
+        state.sculpt_terrain3d(&[id], DVec3::new(21.3 * UPM, 0.0, 17.9 * UPM), &dab, &Texture { id: 0, spray: false }.paint());
         load_regions(&mut state);
         (state, id, cache)
     }
@@ -166,7 +166,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (mut state, id, cache) = bumpy(dir.path(), &[[0, 0], [1, 0]]);
         let hole = SculptBrush { mode: SculptMode::Hole, radius: 6.0 * UPM, strength: 1.0, ..Default::default() };
-        state.sculpt_terrain3d(&[id], DVec3::new(80.0 * UPM, 0.0, 80.0 * UPM), &hole, Texture { id: 0, spray: false });
+        state.sculpt_terrain3d(&[id], DVec3::new(80.0 * UPM, 0.0, 80.0 * UPM), &hole, &Texture { id: 0, spray: false }.paint());
         load_regions(&mut state);
         let set = rocks(&mut state, id);
         state.prefs.scatter.rules.density = 2.0;
@@ -243,7 +243,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let (mut state, id, cache) = bumpy(dir.path(), &[[0, 0], [1, 0]]);
         let hole = SculptBrush { mode: SculptMode::Hole, radius: 6.0 * UPM, strength: 1.0, ..Default::default() };
-        state.sculpt_terrain3d(&[id], DVec3::new(80.0 * UPM, 0.0, 80.0 * UPM), &hole, Texture { id: 0, spray: false });
+        state.sculpt_terrain3d(&[id], DVec3::new(80.0 * UPM, 0.0, 80.0 * UPM), &hole, &Texture { id: 0, spray: false }.paint());
         load_regions(&mut state);
         let set = rocks(&mut state, id);
         state.prefs.scatter.radius = 14.0 * UPM;

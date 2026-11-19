@@ -2897,5 +2897,11 @@
   "Some regions were made at another region size than Godot's terrain has, use Godot's or set the size back in Godot": "部分区域的区域大小与 Godot 中的地形不同，请使用 Godot 的版本，或在 Godot 中改回该大小",
   "File dialogs are off with --offscreen, use the map_file tool": "使用 --offscreen 时文件对话框已关闭，请使用 map_file 工具",
   "Deleted {count} objects with {n} unsent Terrain3D region edit, undo brings it back": { "other": "已删除 {count} 个对象，其中有 {n} 处未发送的 Terrain3D 区域修改，撤销即可恢复" },
-  "Regions change out of view": "区域的变化在视图之外"
+  "Regions change out of view": "区域的变化在视图之外",
+  "Navigable Area": "可导航区域",
+  "Wetness": "湿度",
+  "Autoshader": "自动着色器",
+  "roughness": "粗糙度",
+  "What Paint Layer paints on Terrain3D, Shift takes it away again": "在 Terrain3D 上绘制图层模式所绘制的内容，按住 Shift 可将其擦除",
+  "Negative is wetter and shinier in Godot, positive is drier": "负值在 Godot 中更湿润、更有光泽，正值更干燥"
 }

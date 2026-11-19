@@ -525,7 +525,7 @@ mod tests {
     fn dab(state: &mut EditorState, id: NodeId, loc: Loc, x: f64) {
         let brush = SculptBrush { mode: SculptMode::Raise, radius: 400.0, strength: 40.0, ..Default::default() };
         let center = DVec3::new(loc[0] as f64 * 5120.0 + x, 0.0, loc[1] as f64 * 5120.0 + 1900.0);
-        assert_eq!(state.sculpt_terrain3d(&[id], center, &brush, brush::Texture { id: 0, spray: false }), 1);
+        assert_eq!(state.sculpt_terrain3d(&[id], center, &brush, &brush::Texture { id: 0, spray: false }.paint()), 1);
     }
 
     /// Godot applying the pending file of `L` the way the addon does: its round trip leaves other bits, the region gets a

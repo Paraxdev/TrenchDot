@@ -19,6 +19,7 @@ use crate::app::App;
 use crate::camera::ViewKind;
 use crate::commands::Action;
 use crate::state::EditorState;
+use crate::terrain3d::brush::{Channel, Terrain3DPaint, parse_color};
 use crate::tools::ToolKind;
 
 pub struct InputStep {
@@ -141,6 +142,31 @@ fn edit_symmetry_arg(v: &Value, missing: EditSymmetry) -> Result<EditSymmetry, S
         }
         _ => Err(HELP.into()),
     }
+}
+
+/// The `channel`, `color` and `roughness` keys of `v` laid over the Terrain3D paint `base`, as run_action sculpt and
+/// the `terrain3d_paint` key of set_editor take them. A key that is missing keeps its value from `base`.
+fn terrain3d_paint_arg(v: &Value, base: Terrain3DPaint) -> Result<Terrain3DPaint, String> {
+    let mut paint = base;
+    if !v["channel"].is_null() {
+        paint.channel = v["channel"].as_str().and_then(Channel::from_name).ok_or("channel must be texture, color, wetness, navigation or autoshader")?;
+    }
+
+    if !v["color"].is_null() {
+        paint.color = v["color"].as_str().and_then(parse_color).ok_or("color must be #rrggbb")?;
+    }
+
+    if !v["roughness"].is_null() {
+        let r = v["roughness"].as_f64().filter(|r| (-100.0..=100.0).contains(r)).ok_or("roughness must be a number from -100 to 100")?;
+        paint.roughness = r.round() as i8;
+    }
+
+    Ok(paint)
+}
+
+fn terrain3d_paint_json(p: &Terrain3DPaint) -> Value {
+    let [r, g, b] = p.color;
+    json!({ "channel": p.channel, "color": format!("#{r:02x}{g:02x}{b:02x}"), "roughness": p.roughness })
 }
 
 /// `edit_symmetry` the way set_editor takes it, for get_state.
@@ -1388,6 +1414,7 @@ impl App {
                 "clip_points": self.tools.clip.points.iter().map(|p| arr(*p)).collect::<Vec<_>>(),
                 "selected_vertices": self.tools.vertex.selected.iter().map(|p| arr(*p)).collect::<Vec<_>>(),
                 "sculpt": { "radius": s.sculpt.radius, "strength": s.sculpt.strength },
+                "terrain3d_paint": terrain3d_paint_json(&s.terrain3d_paint),
                 "symmetry": s.symmetry,
                 "mirror_plane": s.mirror_plane,
                 "edit_symmetry": edit_symmetry_json(&s.edit_symmetry),
@@ -1848,7 +1875,12 @@ impl App {
                     id: a["texture"].as_u64().map_or(self.state.terrain3d_texture.id, |t| t.min(31) as u8),
                     spray: a["spray"].as_bool().unwrap_or(self.state.terrain3d_texture.spray),
                 };
-                let regions = self.state.sculpt_terrain3d(&scope.terrain3d, center, &brush, texture);
+                let channel = match terrain3d_paint_arg(a, self.state.terrain3d_paint) {
+                    Ok(c) => c,
+                    Err(e) => return err(e),
+                };
+                let paint = channel.paint(texture, a["erase"].as_bool().unwrap_or(false));
+                let regions = self.state.sculpt_terrain3d(&scope.terrain3d, center, &brush, &paint);
                 changed |= regions > 0;
                 return ok(
                     json!({ "changed": changed, "faces": faces.len(), "terrains": terrains.len(), "terrain3d": scope.terrain3d.len(), "regions": regions }),
@@ -2433,6 +2465,13 @@ impl App {
             },
             None => None,
         };
+        let terrain3d_paint = match args["terrain3d_paint"].is_null() {
+            true => None,
+            false => match terrain3d_paint_arg(&args["terrain3d_paint"], self.state.terrain3d_paint) {
+                Ok(p) => Some(p),
+                Err(e) => return err(e),
+            },
+        };
         let tool = match args["tool"].as_str() {
             Some(t) => match ToolKind::from_name(t) {
                 Some(k) => Some(k),
@@ -2525,6 +2564,10 @@ impl App {
 
         if let Some(m) = sculpt_mode {
             self.state.sculpt.mode = m;
+        }
+
+        if let Some(p) = terrain3d_paint {
+            self.state.terrain3d_paint = p;
         }
 
         if let Some(m) = args["material"].as_str() {

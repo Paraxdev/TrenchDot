@@ -9518,6 +9518,77 @@ fn terrain3d_sculpt_and_paint_edit_the_regions_under_the_brush() {
     assert_eq!(a.base, td_formats::terrain3d_cache::RegionHash([7; 32]));
 }
 
+/// The Sculpt tool's Terrain3D channel sets and clears the navigation and autoshader bits inside the brush circle,
+/// paints the color map and roughness, and each dab is one undo step. Bad values are refused and change nothing.
+#[test]
+#[ignore]
+fn terrain3d_paint_channels_set_flags_color_and_wetness_in_one_undo_step() {
+    let (ed, node) = launch_world("terrain3d_channels", None);
+    ed.call("set_editor", json!({ "tool": "sculpt", "sculpt_mode": "paint_layer" }));
+    let probe = |x: f64, z: f64| ed.call("terrain_edit", json!({ "id": node, "probe": [x, z] }))["probe"].clone();
+    let dab = |center: [f64; 3], erase: bool| {
+        ed.call("run_action", json!({ "action": "sculpt", "args": { "center": center, "mode": "paint_layer", "radius": 64, "strength": 1.0, "erase": erase } }))
+    };
+    let channel = |name: &str| ed.call("set_editor", json!({ "terrain3d_paint": { "channel": name } }));
+
+    assert_eq!(ed.state()["editor"]["terrain3d_paint"], json!({ "channel": "texture", "color": "#b4966e", "roughness": -50 }));
+    channel("navigation");
+    assert_eq!(ed.state()["editor"]["terrain3d_paint"]["channel"], "navigation");
+
+    let center = [700.0, 0.0, 136.0];
+    assert_eq!((probe(700.0, 136.0)["navigation"].clone(), probe(740.0, 136.0)["navigation"].clone()), (json!(false), json!(false)));
+    assert_eq!(dab(center, false)["regions"], 1);
+    assert_eq!((probe(700.0, 136.0)["navigation"].clone(), probe(740.0, 136.0)["navigation"].clone()), (json!(true), json!(true)));
+    assert_eq!(probe(800.0, 136.0)["navigation"], false, "outside the radius");
+    assert_eq!(probe(700.0, 136.0)["base"], 2, "the texture is untouched");
+    ed.call("run_action", json!({ "action": "undo", "args": { "steps": 1 } }));
+    assert_eq!(probe(700.0, 136.0)["navigation"], false, "one undo takes the whole dab back");
+    dab(center, false);
+    assert_eq!(dab(center, true)["regions"], 1);
+    assert_eq!(probe(700.0, 136.0)["navigation"], false, "erase clears it");
+
+    channel("autoshader");
+    let auto = |x: f64| probe(x, 136.0)["auto"].clone();
+    assert_eq!((auto(700.0), auto(800.0)), (json!(false), json!(false)));
+    dab(center, false);
+    assert_eq!((auto(700.0), auto(740.0), auto(800.0)), (json!(true), json!(true), json!(false)));
+    dab(center, true);
+    assert_eq!(auto(700.0), false);
+    assert_eq!(dab([-4000.0, 0.0, -4000.0], false)["regions"], 0, "a dab off every region changes nothing");
+
+    ed.call("set_editor", json!({ "terrain3d_paint": { "channel": "color", "color": "#12AB34", "roughness": -20 } }));
+    assert_eq!(ed.state()["editor"]["terrain3d_paint"], json!({ "channel": "color", "color": "#12ab34", "roughness": -20 }));
+    dab([300.0, 0.0, 200.0], false);
+    ed.call("run_action", json!({ "action": "sculpt", "args": { "center": [900.0, 0.0, 200.0], "mode": "paint_layer", "radius": 64, "strength": 1.0, "channel": "wetness", "roughness": 100 } }));
+    assert_eq!(ed.state()["editor"]["terrain3d_paint"]["channel"], "color", "an argument of one dab leaves the editor's channel alone");
+    ed.call("run_action", json!({ "action": "send_terrain3d" }));
+    use td_formats::terrain3d_cache::read_pending;
+    let cache = artifacts().join("terrain3d_channels").join("terrain").join(td_formats::terrain3d_cache::DIR_NAME);
+    let (a, b) = (read_pending(&cache, [0, 0], 64).unwrap(), read_pending(&cache, [1, 0], 64).unwrap());
+    let pixel = |p: &td_formats::terrain3d_cache::PendingRegion, x: usize, y: usize| <[u8; 4]>::try_from(&p.region.color[(y * 64 + x) * 4..][..4]).unwrap();
+    let tinted = pixel(&a, 37, 25);
+    assert!(tinted[0] < 255 && tinted[1] < 255 && tinted[2] < 255, "the color moved off white, {tinted:?}");
+    assert_eq!(tinted[3], 127, "and the roughness stayed");
+    assert_eq!(pixel(&a, 5, 60), [255, 255, 255, 127], "outside the brush the color stays blank");
+    let wet = pixel(&b, 48, 25);
+    assert!(wet[3] > 127 && wet[..3] == [255, 255, 255], "roughness 100 percent raised the alpha only, {wet:?}");
+
+    for (args, text) in [
+        (json!({ "channel": "bogus" }), "channel"),
+        (json!({ "color": "red" }), "color"),
+        (json!({ "color": "#12345" }), "color"),
+        (json!({ "roughness": 101 }), "roughness"),
+        (json!({ "roughness": -100.5 }), "roughness"),
+    ] {
+        let e = ed.call_err("set_editor", json!({ "terrain3d_paint": args }));
+        assert!(e.contains(text), "{e}");
+    }
+
+    assert_eq!(ed.state()["editor"]["terrain3d_paint"], json!({ "channel": "color", "color": "#12ab34", "roughness": -20 }), "refusals change nothing");
+    ed.call("set_editor", json!({ "terrain3d_paint": { "roughness": -100 } }));
+    assert_eq!(ed.state()["editor"]["terrain3d_paint"]["roughness"], -100, "the boundary is accepted");
+}
+
 /// A script that selects, sets the brush radius and sculpts in one call gives the radius to the brush size of what it
 /// just selected, and the stroke uses it.
 #[test]
