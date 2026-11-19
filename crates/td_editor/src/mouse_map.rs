@@ -198,6 +198,12 @@ pub fn shift_locks_axis(preset: &str) -> bool {
     preset != "hammer"
 }
 
+/// Whether a 2D drag grabs every side of one selected brush or of the selected faces, slanted ones too. Hammer moves a
+/// brush by its wireframe, so there only the sides of the selection bounds resize.
+pub fn grabs_slanted_edges(preset: &str) -> bool {
+    preset != "hammer"
+}
+
 /// What a mouse gesture on a face does in the Texture tool.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TextureGesture {
@@ -689,6 +695,15 @@ mod tests {
         }
 
         assert!(!shift_locks_axis("hammer"));
+    }
+
+    #[test]
+    fn only_hammer_keeps_slanted_edges_out_of_reach() {
+        for preset in ["trenchbroom", "blender", "unknown", ""] {
+            assert!(grabs_slanted_edges(preset), "{preset}");
+        }
+
+        assert!(!grabs_slanted_edges("hammer"));
     }
 
     #[test]

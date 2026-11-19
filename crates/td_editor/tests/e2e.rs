@@ -657,6 +657,60 @@ fn resize_edges_and_faces() {
     ed.screenshot("3d", "after_face_drag");
 }
 
+#[test]
+#[ignore]
+fn a_slanted_side_resizes_in_2d_and_a_selected_face_drags_alone() {
+    let ed = Editor::launch("slanted_side_drag");
+    let wedge = ed.call("create_brush", json!({ "shape": "wedge", "min": [0, 0, 0], "max": [64, 64, 128] }))["ids"][0].as_u64().unwrap();
+    ed.call("set_camera", json!({ "view": "side", "center": [32, 48, 64], "zoom": 1.5 }));
+    let bounds = || {
+        let nodes = ed.call("list_nodes", json!({ "type": "brush" }))["nodes"].clone();
+        let b = &nodes[0]["bounds"];
+        let v = |k: &str| b[k].as_array().unwrap().iter().map(|x| x.as_f64().unwrap()).collect::<Vec<_>>();
+        (nodes.as_array().unwrap().len(), v("min"), v("max"))
+    };
+    let undo = || ed.call("run_action", json!({ "action": "undo" }));
+    let drag = json!([{ "type": "drag", "world": [32, 32, 64], "to_world": [32, 48, 72] }]);
+    // The slanted side lies on 2y + z = 128, the drag reaches 17.9 along its normal and snaps to 16.
+    let resized = (1, vec![0.0, 0.0, 0.0], vec![64.0, 128.0 / 2.0 + 8.0 * 5f64.sqrt(), 128.0 + 16.0 * 5f64.sqrt()]);
+    let same = |a: &(usize, Vec<f64>, Vec<f64>), b: &(usize, Vec<f64>, Vec<f64>)| a.0 == b.0 && approx(&a.1, &b.1) && approx(&a.2, &b.2);
+
+    ed.call("select", json!({ "ids": [wedge] }));
+    let undo_before = ed.state()["undo"].as_array().unwrap().len();
+    ed.input("side", drag.clone());
+    let state = ed.state();
+    assert!(same(&bounds(), &resized), "{:?}", bounds());
+    assert!(state["status"].as_str().unwrap().starts_with("Resize 16.000"), "{}", state["status"]);
+    assert_eq!(state["undo"][0], "Resize Brushes");
+    assert_eq!(state["undo"].as_array().unwrap().len(), undo_before + 1);
+
+    undo();
+    ed.call("set_editor", json!({ "keymap": "hammer" }));
+    ed.input("side", drag.clone());
+    assert!(same(&bounds(), &(1, vec![0.0, 16.0, 16.0], vec![64.0, 80.0, 144.0])), "Hammer moves by the slanted outline {:?}", bounds());
+
+    undo();
+    ed.call("set_editor", json!({ "keymap": "trenchbroom" }));
+    let faces = ed.call("texture", json!({ "op": "get", "faces": (0..5).map(|f| json!([wedge, f])).collect::<Vec<_>>() }));
+    let slanted = faces["faces"].as_array().unwrap().iter().find(|f| f["normal"][1].as_f64().unwrap() > 0.1 && f["normal"][2].as_f64().unwrap() > 0.1).unwrap()
+        ["face"][1]
+        .as_u64()
+        .unwrap();
+    ed.call("select", json!({ "faces": [[wedge, slanted]] }));
+    ed.input("side", drag.clone());
+    assert!(same(&bounds(), &resized), "a selected face drags on its own {:?}", bounds());
+    let selection = &ed.state()["selection"];
+    assert_eq!(selection["faces"], json!([[wedge, slanted]]));
+    assert_eq!(selection["nodes"], json!([]));
+
+    undo();
+    ed.call("select", json!({ "ids": [wedge] }));
+    ed.input("side", json!([{ "type": "drag", "world": [32, 32, 64], "to_world": [32, -64, -128], "steps": 12 }]));
+    let (count, _, max) = bounds();
+    assert_eq!(count, 1);
+    assert!(max[1] > 0.0 && max[1] < 64.0 && max[2] > 0.0 && max[2] < 128.0, "past the collapse the wedge keeps its last valid shape {max:?}");
+}
+
 fn selected(ed: &Editor) -> Vec<u64> {
     ed.state()["selection"]["nodes"].as_array().unwrap().iter().map(|n| n.as_u64().unwrap()).collect()
 }

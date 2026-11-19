@@ -146,6 +146,8 @@ pub enum Drag {
         faces: Vec<(NodeId, usize)>,
         origin: DVec3,
         normal: DVec3,
+        /// The last distance every face could move, where the drag stays while the pointer asks for a collapse.
+        last_ok: f64,
     },
     /// Dragging the side of terrain `id` facing `normal` in a 2D view, which adds or removes whole cells there.
     TerrainEdge {

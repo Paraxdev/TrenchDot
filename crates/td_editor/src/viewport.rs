@@ -8,8 +8,8 @@ use crate::camera::{Camera, ViewKind};
 use crate::commands::Action;
 use crate::i18n::{en, msg, msg_n, tr, trf};
 use crate::mouse_map::{
-    Button, Chord, ClickHit, ClickRule, DoubleClick, DoubleClickHit, DragHit, SelectionDrag, click_rule, double_click, selection_drag, shift_counts_on_click,
-    shift_locks_axis,
+    Button, Chord, ClickHit, ClickRule, DoubleClick, DoubleClickHit, DragHit, SelectionDrag, click_rule, double_click, grabs_slanted_edges, selection_drag,
+    shift_counts_on_click, shift_locks_axis,
 };
 use crate::panels::DndPayload;
 use crate::picking::{self, Hit};
@@ -580,13 +580,13 @@ impl Viewport {
             && self.camera.kind.is_2d()
             && let Some(pos) = response.hover_pos()
             && let Some((normal, segment)) = self
-                .edge_under_cursor(pos, cx)
+                .edge_under_cursor(pos, cx.state)
                 .map(|e| (e.normal, e.segment))
                 .or_else(|| self.terrain_edge_under(pos, cx.state).map(|(_, n, s)| (n, s)))
                 .or_else(|| self.box_side_under(pos, cx.state))
         {
-            let icon = if normal.dot(self.camera.kind.axes().0).abs() > 0.5 { CursorIcon::ResizeHorizontal } else { CursorIcon::ResizeVertical };
-            ui.ctx().set_cursor_icon(icon);
+            let (r, u, _) = self.camera.kind.axes();
+            ui.ctx().set_cursor_icon(resize_cursor(Vec2::new(normal.dot(r) as f32, -normal.dot(u) as f32)));
             self.hover_edge = Some(segment);
         }
 
@@ -606,12 +606,11 @@ impl Viewport {
         }
 
         if self.camera.kind.is_2d()
-            && !cx.state.doc.selection.nodes.is_empty()
-            && let Some(edge) = self.edge_under_cursor(origin, cx)
+            && let Some(edge) = self.edge_under_cursor(origin, cx.state)
         {
             let origin_world = self.camera.screen_to_plane(self.rect, origin);
             cx.state.doc.begin(en!("Resize Brushes"));
-            return Some(Drag::FaceResize { faces: edge.faces, origin: origin_world, normal: edge.normal });
+            return Some(Drag::FaceResize { faces: edge.faces, origin: origin_world, normal: edge.normal, last_ok: 0.0 });
         }
 
         if self.camera.kind.is_2d()
@@ -643,7 +642,7 @@ impl Viewport {
                 let plane = brush.faces[face].plane;
                 let faces = coplanar_selected_faces(state, &plane);
                 state.doc.begin(if action == SelectionDrag::ExtrudeFace { en!("Extrude") } else { en!("Resize Brushes") });
-                return Some(Drag::FaceResize { faces, origin: h.point, normal: plane.normal });
+                return Some(Drag::FaceResize { faces, origin: h.point, normal: plane.normal, last_ok: 0.0 });
             }
 
             if selected(h.node) {
@@ -815,7 +814,7 @@ impl Viewport {
                     None => crate::shape_bounds::drawn(*start, current, &base, self.camera.kind.depth_axis(), state.grid, state.snap),
                 });
             }
-            Drag::FaceResize { faces, origin, normal } => {
+            Drag::FaceResize { faces, origin, normal, last_ok } => {
                 let dist = match self.camera.kind {
                     ViewKind::Perspective => line_ray_param(*origin, *normal, &ray),
                     _ => Some((self.camera.screen_to_plane(rect, pos) - *origin).dot(*normal)),
@@ -823,31 +822,43 @@ impl Viewport {
                 let Some(dist) = dist else { return };
                 state.doc.reset_transaction();
                 let dist = snap_face_move(state, faces, *normal, dist);
-                if dist.abs() < 1e-9 {
-                    return;
-                }
-
-                let faces = faces.clone();
-                let normal = *normal;
                 let extrude = self.press_modifiers.command && self.camera.kind == ViewKind::Perspective;
-                let uv_lock = opts.uv_lock;
-                state.doc.edit("Resize", |m, s| {
-                    for (id, face) in &faces {
-                        let Some(brush) = m.brush(*id).cloned() else { continue };
-                        if extrude && dist > 0.0 {
-                            if let Ok(nb) = td_geom::csg::extrude_face(&brush, *face, dist) {
+                let applied = if dist.abs() < 1e-9 {
+                    0.0
+                } else if extrude && dist > 0.0 {
+                    let faces = faces.clone();
+                    state.doc.edit("Resize", |m, s| {
+                        for (id, face) in &faces {
+                            let Some(brush) = m.brush(*id) else { continue };
+                            if let Ok(nb) = td_geom::csg::extrude_face(brush, *face, dist) {
                                 let parent = m.get(*id).and_then(|n| n.parent).unwrap_or(m.default_layer());
                                 let new_id = m.insert(parent, td_doc::NodeKind::Brush(nb));
                                 s.nodes.insert(new_id);
                             }
-                        } else if let Ok(nb) = brush.move_face(*face, normal * dist, uv_lock)
-                            && let Some(slot) = m.brush_mut(*id)
-                        {
-                            *slot = nb;
                         }
+                    });
+                    dist
+                } else {
+                    let mut tries = [dist, *last_ok].into_iter().filter(|d| d.abs() >= 1e-9);
+                    match tries.find_map(|d| moved_brushes(&state.doc.map, faces, *normal, d, opts.uv_lock).map(|b| (d, b))) {
+                        Some((applied, moved)) => {
+                            state.doc.edit("Resize", |m, _| {
+                                for (id, brush) in moved {
+                                    if let Some(slot) = m.brush_mut(id) {
+                                        *slot = brush;
+                                    }
+                                }
+                            });
+                            applied
+                        }
+                        None => 0.0,
                     }
-                });
-                state.set_status(msg!("Resize {dist}", dist = format!("{dist:.3}")));
+                };
+                if let Some(Drag::FaceResize { last_ok, .. }) = &mut self.drag {
+                    *last_ok = applied;
+                }
+
+                state.set_status(msg!("Resize {dist}", dist = format!("{applied:.3}")));
             }
             Drag::TerrainEdge { id, origin, normal } => {
                 let Some(cell) = state.doc.transaction_base().and_then(|m| m.terrain(*id)).map(|t| t.cell_size) else { return };
@@ -883,9 +894,42 @@ impl Viewport {
         side_under(self.camera.project(self.rect, b.min)?, self.camera.project(self.rect, b.max)?, r, u, pos)
     }
 
+    /// 2D views: the side under the cursor that a drag resizes, with the faces lying on it. Outside Hammer that is a
+    /// selected brush face, or a face of the one selected brush, seen edge on, else a side of the selection bounds.
+    fn edge_under_cursor(&self, pos: Pos2, state: &EditorState) -> Option<EdgeGrab> {
+        let (map, sel) = (&state.doc.map, &state.doc.selection);
+        if grabs_slanted_edges(&state.prefs.keymap_preset) {
+            let selected: Vec<_> = sel.faces.iter().copied().filter(|&(id, _)| map.brush(id).is_some()).collect();
+            if !selected.is_empty() {
+                return self.face_edge_under(pos, map, &selected);
+            }
+
+            let brushes = sel.brushes(map);
+            if let [id] = brushes[..] {
+                let all: Vec<_> = (0..map.brush(id)?.faces.len()).map(|f| (id, f)).collect();
+                return self.face_edge_under(pos, map, &all);
+            }
+        }
+
+        if sel.nodes.is_empty() {
+            return None;
+        }
+
+        self.bounds_edge_under(pos, state)
+    }
+
+    /// The face among `candidates` seen edge on under the cursor, with every candidate on its plane.
+    fn face_edge_under(&self, pos: Pos2, map: &td_doc::Map, candidates: &[(NodeId, usize)]) -> Option<EdgeGrab> {
+        let (keys, sides): (Vec<_>, Vec<_>) =
+            candidates.iter().filter_map(|&(id, f)| Some(((id, f), edge_on_side(&self.camera, self.rect, map.brush(id)?, f)?))).unzip();
+        let i = nearest_side(pos, &sides)?;
+        let (id, f) = keys[i];
+        let plane = map.brush(id)?.faces[f].plane;
+        Some(EdgeGrab { normal: exact_axis(plane.normal), faces: coplanar_with(map, candidates, &plane), segment: sides[i].segment })
+    }
+
     /// 2D views: the side of the selection bounds under the cursor, with the faces lying on it.
-    fn edge_under_cursor(&self, pos: Pos2, cx: &ViewCtx) -> Option<EdgeGrab> {
-        let state = &cx.state;
+    fn bounds_edge_under(&self, pos: Pos2, state: &EditorState) -> Option<EdgeGrab> {
         let brushes = state.doc.selection.brushes(&state.doc.map);
         if brushes.is_empty() {
             return None;
@@ -1294,9 +1338,9 @@ pub fn wheel_notches(input: &egui::InputState, keep: impl Fn(egui::Modifiers) ->
 /// away from where it was. Slanted faces still move in grid steps.
 fn snap_face_move(state: &EditorState, faces: &[(NodeId, usize)], normal: DVec3, dist: f64) -> f64 {
     let plane = faces.first().and_then(|&(id, face)| state.doc.map.brush(id)?.faces.get(face).map(|f| f.plane));
-    let Some(plane) = plane.filter(|_| state.snap && normal.abs().max_element() > 1.0 - 1e-9) else { return state.snap_scalar(dist) };
+    let Some(plane) = plane.filter(|_| state.snap && normal.abs().max_element() > 1.0 - 1e-6) else { return state.snap_scalar(dist) };
     let facing = plane.normal.dot(normal);
-    if facing.abs() < 1.0 - 1e-9 {
+    if facing.abs() < 1.0 - 1e-6 {
         return state.snap_scalar(dist);
     }
 
@@ -1373,6 +1417,91 @@ fn coplanar_selected_faces(state: &EditorState, plane: &Plane) -> Vec<(NodeId, u
     }
 
     out
+}
+
+/// The faces among `faces` that lie on `plane`.
+fn coplanar_with(map: &td_doc::Map, faces: &[(NodeId, usize)], plane: &Plane) -> Vec<(NodeId, usize)> {
+    let on_plane = |&(id, f): &(NodeId, usize)| map.brush(id).and_then(|b| b.faces.get(f)).is_some_and(|f| f.plane.approx_eq(plane, 1e-6, 1e-4));
+    faces.iter().copied().filter(on_plane).collect()
+}
+
+/// The brushes holding `faces` with those faces moved `dist` along `normal`, or None when any brush would lose a face,
+/// so faces that move together never come apart.
+fn moved_brushes(map: &td_doc::Map, faces: &[(NodeId, usize)], normal: DVec3, dist: f64, uv_lock: bool) -> Option<Vec<(NodeId, Brush)>> {
+    faces.iter().filter_map(|&(id, f)| Some(map.brush(id)?.move_face(f, normal * dist, uv_lock).ok().map(|b| (id, b)))).collect()
+}
+
+/// The world axis `n` lies along within 1e-6, else `n`. An axis aligned side then lands on grid lines when snapped.
+fn exact_axis(n: DVec3) -> DVec3 {
+    let mut axis = DVec3::ZERO;
+    let i = td_core::major_axis(n);
+    axis[i] = n[i].signum();
+    if (n - axis).abs().max_element() <= 1e-6 { axis } else { n }
+}
+
+/// A brush face seen edge on in a 2D view, a side of the brush outline there.
+struct FaceSide {
+    segment: [Pos2; 2],
+    /// Outward on screen, where y grows down.
+    screen_normal: Vec2,
+    /// How far the brush reaches on screen along `screen_normal`.
+    thickness: f32,
+}
+
+fn edge_on_side(cam: &Camera, rect: Rect, brush: &Brush, face: usize) -> Option<FaceSide> {
+    let n = brush.faces.get(face)?.plane.normal;
+    let (r, u, forward) = cam.kind.axes();
+    if n.dot(forward).abs() >= 1e-4 {
+        return None;
+    }
+
+    let screen_normal = Vec2::new(n.dot(r) as f32, -n.dot(u) as f32).normalized();
+    let along = screen_normal.rot90();
+    let points = brush.face_points(face).into_iter().map(|p| cam.project(rect, p)).collect::<Option<Vec<_>>>()?;
+    let key = |p: &&Pos2| p.to_vec2().dot(along);
+    let a = *points.iter().min_by(|p, q| key(p).total_cmp(&key(q)))?;
+    let b = *points.iter().max_by(|p, q| key(p).total_cmp(&key(q)))?;
+    let depths = brush.vertices.iter().filter_map(|&v| cam.project(rect, v)).map(|p| p.to_vec2().dot(screen_normal));
+    let (lo, hi) = depths.fold((f32::MAX, f32::MIN), |(lo, hi), d| (lo.min(d), hi.max(d)));
+    Some(FaceSide { segment: [a, b], screen_normal, thickness: hi - lo })
+}
+
+/// The side whose grab zone holds `pos`, the nearest when zones overlap, and on a tie the one `pos` lies further
+/// outside of. A zone reaches `EDGE_GRAB` out from its side and past both ends, like [`side_under`] for a box, but
+/// inside the brush only a third of its thickness, so a thin brush keeps its middle for moving.
+fn nearest_side(pos: Pos2, sides: &[FaceSide]) -> Option<usize> {
+    let mut best: Option<(usize, f32)> = None;
+    for (i, s) in sides.iter().enumerate() {
+        let [a, b] = s.segment;
+        let along = s.screen_normal.rot90();
+        let t = (pos - a).dot(along);
+        let out = (pos - a).dot(s.screen_normal);
+        let grab = if out < 0.0 { EDGE_GRAB.min(s.thickness / 3.0) } else { EDGE_GRAB };
+        if t < -EDGE_GRAB || t > (b - a).dot(along) + EDGE_GRAB || out.abs() > grab {
+            continue;
+        }
+
+        if best.is_none_or(|(_, o)| out.abs() < o.abs() || (out.abs() == o.abs() && out > o)) {
+            best = Some((i, out));
+        }
+    }
+
+    best.map(|(i, _)| i)
+}
+
+/// The resize arrow closest to a side's outward screen normal, straight within 22.5 degrees of a screen axis.
+fn resize_cursor(screen_normal: Vec2) -> CursorIcon {
+    let n = screen_normal.normalized();
+    let tan = std::f32::consts::FRAC_PI_8.tan();
+    if n.y.abs() <= n.x.abs() * tan {
+        CursorIcon::ResizeHorizontal
+    } else if n.x.abs() <= n.y.abs() * tan {
+        CursorIcon::ResizeVertical
+    } else if n.x * n.y < 0.0 {
+        CursorIcon::ResizeNeSw
+    } else {
+        CursorIcon::ResizeNwSe
+    }
 }
 
 /// Redraws the shapes painted since `start` for the paper of a light 2D view, the same flip the line shader applies.
@@ -1802,6 +1931,210 @@ mod tests {
         assert_eq!(normal(3.0, 1.0), Some(DVec3::NEG_X), "the top is nearer, but heights are not dragged");
         assert_eq!(normal(-3.0, -1.0), Some(DVec3::NEG_X));
         assert_eq!(normal(128.0, 1.0), None, "the top itself grabs nothing");
+    }
+
+    /// A Side view 800 by 600 at zoom 2 looking at wedge W, min (-40, 8, 24) max (24, 72, 152), whose slanted side
+    /// lies on 2y + z = 168.
+    fn wedge_in_side_view() -> (EditorState, Viewport, NodeId) {
+        let mut state = EditorState::new(Default::default());
+        let w = add_wedge(&mut state, DVec3::new(-40.0, 8.0, 24.0), DVec3::new(24.0, 72.0, 152.0));
+        let mut view = Viewport::new(ViewKind::Side);
+        view.rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0));
+        (view.camera.center, view.camera.zoom) = (DVec3::new(0.0, 40.0, 88.0), 2.0);
+        (state, view, w)
+    }
+
+    fn add_wedge(state: &mut EditorState, min: DVec3, max: DVec3) -> NodeId {
+        let layer = state.doc.map.default_layer();
+        let brush = td_geom::shapes::wedge(&Aabb::new(min, max), "dev/grey").unwrap();
+        state.doc.map.insert(layer, td_doc::map::NodeKind::Brush(brush))
+    }
+
+    fn face_along(state: &EditorState, id: NodeId, normal: DVec3) -> usize {
+        state.doc.map.brush(id).unwrap().faces.iter().position(|f| (f.plane.normal - normal.normalize()).length() < 1e-9).unwrap()
+    }
+
+    fn grabbed(view: &Viewport, state: &EditorState, pos: Pos2) -> Option<(Vec<(NodeId, usize)>, DVec3)> {
+        view.edge_under_cursor(pos, state).map(|g| (g.faces, g.normal))
+    }
+
+    const SLANT: DVec3 = DVec3::new(0.0, 2.0, 1.0);
+
+    #[test]
+    fn a_slanted_side_seen_edge_on_grabs_along_its_own_normal() {
+        let (mut state, view, w) = wedge_in_side_view();
+        state.doc.select(|_, s| _ = s.nodes.insert(w));
+        let at = |p: DVec3| view.camera.project(view.rect, p).unwrap();
+        let mid = at(DVec3::new(-8.0, 40.0, 88.0));
+        let grab = view.edge_under_cursor(mid, &state).unwrap();
+        assert_eq!(grab.faces, vec![(w, face_along(&state, w, SLANT))]);
+        assert!((grab.normal - SLANT.normalize()).length() < 1e-12, "{}", grab.normal);
+        let (toe, apex) = (at(DVec3::new(0.0, 8.0, 152.0)), at(DVec3::new(0.0, 72.0, 24.0)));
+        assert!(grab.segment[0].distance(apex) < 1e-3 && grab.segment[1].distance(toe) < 1e-3, "{:?}", grab.segment);
+
+        let out = Vec2::new(-1.0, -2.0).normalized();
+        let faces = |p: Pos2| grabbed(&view, &state, p).map(|g| g.0);
+        assert_eq!(faces(mid + out * 7.99), Some(grab.faces.clone()));
+        assert_eq!(faces(mid + out * 8.01), None);
+        assert_eq!(faces(mid - out * 7.9), Some(grab.faces.clone()), "W is thick enough for the whole zone inside");
+        assert_eq!(faces(at(DVec3::new(0.0, 88.0 / 3.0, 200.0 / 3.0))), None, "the middle moves W");
+    }
+
+    #[test]
+    fn hammer_and_several_brushes_grab_only_the_bounds_sides() {
+        let (mut state, view, w) = wedge_in_side_view();
+        state.doc.select(|_, s| _ = s.nodes.insert(w));
+        state.prefs.keymap_preset = "hammer".into();
+        let at = |p: DVec3| view.camera.project(view.rect, p).unwrap();
+        let mid = at(DVec3::new(0.0, 40.0, 88.0));
+        assert_eq!(grabbed(&view, &state, mid), None, "Hammer moves a brush by its slanted wireframe");
+        let back = face_along(&state, w, DVec3::NEG_Z);
+        assert_eq!(grabbed(&view, &state, at(DVec3::new(0.0, 40.0, 22.0))), Some((vec![(w, back)], DVec3::NEG_Z)));
+
+        state.prefs.keymap_preset = "trenchbroom".into();
+        let layer = state.doc.map.default_layer();
+        let cube = Brush::from_aabb(&Aabb::new(DVec3::new(40.0, 0.0, 40.0), DVec3::new(72.0, 24.0, 104.0)), "dev/grey").unwrap();
+        let b = state.doc.map.insert(layer, td_doc::map::NodeKind::Brush(cube));
+        state.doc.select(|_, s| _ = s.nodes.insert(b));
+        assert_eq!(grabbed(&view, &state, mid), None, "two brushes grab their bounds only");
+        let bottom = face_along(&state, b, DVec3::NEG_Y);
+        assert_eq!(grabbed(&view, &state, at(DVec3::new(0.0, -2.0, 88.0))), Some((vec![(b, bottom)], DVec3::NEG_Y)));
+    }
+
+    #[test]
+    fn a_face_selection_grabs_only_its_own_edge_on_faces() {
+        let (mut state, view, w) = wedge_in_side_view();
+        let at = |p: DVec3| view.camera.project(view.rect, p).unwrap();
+        let (slant, bottom, side) = (face_along(&state, w, SLANT), face_along(&state, w, DVec3::NEG_Y), face_along(&state, w, DVec3::X));
+        let (mid, floor, back) = (at(DVec3::new(0.0, 40.0, 88.0)), at(DVec3::new(0.0, 8.0, 88.0)), at(DVec3::new(0.0, 40.0, 24.0)));
+        let spots = [mid, floor, back, at(DVec3::new(0.0, 8.0, 152.0)), at(DVec3::new(0.0, 72.0, 24.0)), at(DVec3::new(0.0, 30.0, 60.0))];
+        let select = |state: &mut EditorState, faces: &[(NodeId, usize)]| {
+            state.doc.select(|_, s| {
+                s.clear();
+                s.faces.extend(faces.iter().copied());
+            })
+        };
+
+        assert!(spots.iter().all(|&p| grabbed(&view, &state, p).is_none()), "nothing selected");
+
+        select(&mut state, &[(w, slant)]);
+        assert_eq!(grabbed(&view, &state, mid).map(|g| g.0), Some(vec![(w, slant)]));
+        assert_eq!(grabbed(&view, &state, floor), None, "an unselected face of the brush stays put");
+
+        select(&mut state, &[(w, bottom)]);
+        assert_eq!(grabbed(&view, &state, mid), None);
+        assert_eq!(grabbed(&view, &state, floor), Some((vec![(w, bottom)], DVec3::NEG_Y)));
+
+        select(&mut state, &[(w, side)]);
+        assert!(spots.iter().all(|&p| grabbed(&view, &state, p).is_none()), "a face looking at the view is no side");
+
+        let layer = state.doc.map.default_layer();
+        let mesh = td_geom::Mesh::from_brush(state.doc.map.brush(w).unwrap());
+        let m = state.doc.map.insert(layer, td_doc::map::NodeKind::Mesh(mesh));
+        select(&mut state, &[(m, 0), (m, 1), (m, 2)]);
+        assert!(spots.iter().all(|&p| grabbed(&view, &state, p).is_none()), "mesh faces are not resized here");
+    }
+
+    #[test]
+    fn coplanar_selected_faces_are_grabbed_together() {
+        let (mut state, view, w) = wedge_in_side_view();
+        let w2 = add_wedge(&mut state, DVec3::new(56.0, 40.0, 24.0), DVec3::new(88.0, 72.0, 88.0));
+        let (slant, slant2, bottom) = (face_along(&state, w, SLANT), face_along(&state, w2, SLANT), face_along(&state, w, DVec3::NEG_Y));
+        state.doc.select(|_, s| s.faces.extend([(w, slant), (w2, slant2), (w, bottom)]));
+        let shared = view.camera.project(view.rect, DVec3::new(0.0, 56.0, 56.0)).unwrap();
+        assert_eq!(grabbed(&view, &state, shared).map(|g| g.0), Some(vec![(w, slant), (w2, slant2)]));
+    }
+
+    #[test]
+    fn at_the_apex_the_nearer_side_wins() {
+        let (mut state, view, w) = wedge_in_side_view();
+        state.doc.select(|_, s| _ = s.nodes.insert(w));
+        let apex = view.camera.project(view.rect, DVec3::new(0.0, 72.0, 24.0)).unwrap();
+        let (out, down_slope) = (Vec2::new(-1.0, -2.0).normalized(), Vec2::new(-2.0, 1.0).normalized());
+        let faces = |p: Pos2| grabbed(&view, &state, p).map(|g| g.0);
+        assert_eq!(faces(apex + down_slope * 4.0 + out * 3.0), Some(vec![(w, face_along(&state, w, SLANT))]));
+        assert_eq!(faces(apex + Vec2::new(2.0, 2.0)), Some(vec![(w, face_along(&state, w, DVec3::NEG_Z))]));
+    }
+
+    #[test]
+    fn a_thin_slanted_brush_keeps_its_middle_for_moving() {
+        let (mut state, view, _) = wedge_in_side_view();
+        let corners = [(0.0, 0.0), (0.0, 12.0), (64.0, 32.0), (64.0, 44.0)];
+        let points: Vec<DVec3> = [-16.0, 16.0].into_iter().flat_map(|x| corners.map(|(y, z)| DVec3::new(x, y, z))).collect();
+        let layer = state.doc.map.default_layer();
+        let slab = state.doc.map.insert(layer, td_doc::map::NodeKind::Brush(Brush::from_points(&points, &[], "dev/grey").unwrap()));
+        state.doc.select(|_, s| _ = s.nodes.insert(slab));
+        // 10.7 units thick, 21.5 points at zoom 2, so the zone inside each slanted side is 7.2 points deep.
+        let mid = view.camera.project(view.rect, DVec3::new(0.0, 32.0, 28.0)).unwrap();
+        let out = Vec2::new(-2.0, 1.0).normalized();
+        let side = Some(vec![(slab, face_along(&state, slab, DVec3::new(0.0, -1.0, 2.0)))]);
+        let faces = |p: Pos2| grabbed(&view, &state, p).map(|g| g.0);
+        assert_eq!(faces(mid + out * 7.9), side);
+        assert_eq!(faces(mid - out * 7.0), side);
+        assert_eq!(faces(mid - out * 7.5), None);
+    }
+
+    #[test]
+    fn side_zones_end_exactly_at_their_limits() {
+        let mut segment = [Pos2::new(100.0, 100.0), Pos2::new(100.0, 200.0)];
+        segment.sort_by(|a, b| a.to_vec2().dot(Vec2::X.rot90()).total_cmp(&b.to_vec2().dot(Vec2::X.rot90())));
+        let side = |thickness: f32| [FaceSide { segment, screen_normal: Vec2::X, thickness }];
+        let grabs = |thickness: f32, x: f32, y: f32| nearest_side(Pos2::new(x, y), &side(thickness)).is_some();
+        assert!(grabs(30.0, 108.0, 150.0) && !grabs(30.0, 108.01, 150.0), "outside");
+        assert!(grabs(30.0, 92.0, 150.0) && !grabs(30.0, 91.99, 150.0), "inside a thick brush");
+        assert!(grabs(21.0, 93.0, 150.0) && !grabs(21.0, 92.99, 150.0), "inside a thin brush, a third of it");
+        assert!(grabs(30.0, 100.0, 92.0) && !grabs(30.0, 100.0, 91.99), "before the first end");
+        assert!(grabs(30.0, 100.0, 208.0) && !grabs(30.0, 100.0, 208.01), "past the last end");
+        assert_eq!(nearest_side(Pos2::new(100.0, 150.0), &[]), None);
+    }
+
+    #[test]
+    fn moved_brushes_moves_all_or_none() {
+        let (mut state, _, w) = wedge_in_side_view();
+        let w2 = add_wedge(&mut state, DVec3::new(56.0, 40.0, 24.0), DVec3::new(88.0, 72.0, 88.0));
+        let both = [(w, face_along(&state, w, SLANT)), (w2, face_along(&state, w2, SLANT))];
+        let n = SLANT.normalize();
+        let slant_dist = |b: &Brush| b.faces.iter().find(|f| (f.plane.normal - n).length() < 1e-9).unwrap().plane.dist;
+        let before = 168.0 / 5f64.sqrt();
+        for dist in [-16.0, 16.0] {
+            let moved = moved_brushes(&state.doc.map, &both, n, dist, false).unwrap();
+            assert_eq!(moved.iter().map(|m| m.0).collect::<Vec<_>>(), vec![w, w2]);
+            assert!(moved.iter().all(|(_, b)| (slant_dist(b) - (before + dist)).abs() < 1e-9 && b.faces.len() == 5), "{dist}");
+        }
+
+        assert!(moved_brushes(&state.doc.map, &both, n, -32.0, false).is_none(), "W2's corner is 28.6 inside, so neither moves");
+        assert!(moved_brushes(&state.doc.map, &both[..1], n, -32.0, false).is_some());
+        assert!(moved_brushes(&state.doc.map, &both[..1], n, -64.0, false).is_none(), "W's corner is 57.2 inside");
+        assert!(moved_brushes(&state.doc.map, &[], n, -64.0, false).is_some_and(|m| m.is_empty()));
+    }
+
+    #[test]
+    fn the_resize_cursor_follows_the_side_on_screen() {
+        let deg = |a: f32| resize_cursor(Vec2::angled(a.to_radians()) * 3.0);
+        assert_eq!(resize_cursor(Vec2::new(1.0, 0.0)), CursorIcon::ResizeHorizontal);
+        assert_eq!(resize_cursor(Vec2::new(0.0, 1.0)), CursorIcon::ResizeVertical);
+        assert_eq!(resize_cursor(Vec2::new(0.7, -0.7)), CursorIcon::ResizeNeSw, "up and right on screen");
+        assert_eq!(resize_cursor(Vec2::new(0.7, 0.7)), CursorIcon::ResizeNwSe);
+        for (a, icon) in [
+            (22.4, CursorIcon::ResizeHorizontal),
+            (22.6, CursorIcon::ResizeNwSe),
+            (-22.4, CursorIcon::ResizeHorizontal),
+            (-22.6, CursorIcon::ResizeNeSw),
+            (180.0 + 22.4, CursorIcon::ResizeHorizontal),
+            (90.0 - 22.4, CursorIcon::ResizeVertical),
+            (90.0 - 22.6, CursorIcon::ResizeNwSe),
+            (-90.0 + 22.6, CursorIcon::ResizeNeSw),
+        ] {
+            assert_eq!(deg(a), icon, "{a} degrees");
+        }
+    }
+
+    #[test]
+    fn a_side_within_a_hair_of_an_axis_takes_the_axis() {
+        assert_eq!(exact_axis(DVec3::new(1e-7, -1.0, 0.0).normalize()), DVec3::NEG_Y);
+        let off = DVec3::new(1e-5, 1.0, 0.0).normalize();
+        assert_eq!(exact_axis(off), off);
+        assert_eq!(exact_axis(SLANT.normalize()), SLANT.normalize());
     }
 
     #[test]
