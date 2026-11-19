@@ -1268,7 +1268,7 @@ fn mirror_section(ui: &mut Ui, state: &mut EditorState, actions: &mut Vec<Action
             let name = state.doc.map.get(d.group).map(|n| n.name()).unwrap_or_default();
             let (axis, at) = (crate::commands::axis_name(d.plane.axis), crate::gizmos::fmt_num(d.plane.at));
             let distance = crate::gizmos::fmt_num(d.slide.length());
-            ui.label(RichText::new(trf!("{name} is {distance} units off the mirror plane {axis} = {at}", name, distance, axis, at)).weak());
+            ui.label(RichText::new(trf!("{name} is slid {distance} units along the mirror plane {axis} = {at}", name, distance, axis, at)).weak());
         }
 
         if !drifts.is_empty() {

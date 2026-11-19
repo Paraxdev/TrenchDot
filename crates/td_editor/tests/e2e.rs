@@ -6968,7 +6968,7 @@ fn set_mirror_gap_moves_both_halves() {
     refuse(json!({ "gap": 4, "axis": "z" }), "no mirror plane on z");
     refuse(json!({ "gap": 1e300 }), "set_mirror_gap gap must be at most 65536 units");
     ed.call("run_action", json!({ "action": "nudge", "args": { "offset": [0, 0, 48] } }));
-    refuse(json!({ "gap": 20 }), "the selected half is off its mirror plane, run mirror_again first");
+    refuse(json!({ "gap": 20 }), "the selected half was slid along its mirror plane, run mirror_again first");
     ed.call("run_action", json!({ "action": "undo" }));
     ed.call("select", json!({ "ids": [source] }));
     ed.call("run_action", json!({ "action": "select_none" }));
@@ -6996,10 +6996,16 @@ fn mirror_again_puts_a_slid_half_back() {
     ed.call("run_action", json!({ "action": "mirror_linked", "args": { "axis": "x", "plane": "max" } }));
     let copy = ed.state()["selection"]["nodes"].clone();
     let text = ed.call_err("run_action", json!({ "action": "mirror_again" }));
-    assert!(text.contains("nothing selected is off its mirror plane"), "{text}");
+    assert!(text.contains("nothing selected was slid along its mirror plane"), "{text}");
+    assert_eq!(ed.state()["mirror_slides"], json!([]), "a pair on its plane has no slide");
+    let pair = ed.state()["mirror_planes"][0].clone();
 
     ed.call("run_action", json!({ "action": "nudge", "args": { "offset": [0, 0, 16] } }));
     assert_eq!(ed.state()["mirror_planes"], json!([]), "a slid half has no plane");
+    let slid = json!([{ "axis": "x", "at": 40.0, "group": pair["group"], "partner": pair["partner"], "slide": [0.0, 0.0, -16.0], "distance": 16.0 }]);
+    assert_eq!(ed.state()["mirror_slides"], slid);
+    let text = ed.call_err("run_action", json!({ "action": "set_mirror_gap", "args": { "gap": 8 } }));
+    assert!(text.contains("slid along its mirror plane, run mirror_again first"), "{text}");
     let undo_before = ed.state()["undo"].as_array().unwrap().len();
     let reply = ed.call("run_action", json!({ "action": "mirror_again" }));
     assert_eq!((reply["moved"].clone(), reply["distance"].clone()), (json!(1), json!(16.0)), "{reply}");
@@ -7008,11 +7014,12 @@ fn mirror_again_puts_a_slid_half_back() {
     let zs: Vec<i64> = vertices_of(&ed, source).iter().map(|v| v[2]).collect();
     assert_eq!((zs.iter().min(), zs.iter().max()), (Some(&12000), Some(&36000)), "the original followed the slid copy {zs:?}");
     assert_eq!(ed.state()["mirror_planes"][0]["at"], json!(40.0));
+    assert_eq!(ed.state()["mirror_slides"], json!([]), "mirrored again, nothing is slid");
     assert_eq!(ed.state()["undo"].as_array().unwrap().len(), undo_before + 1);
     assert_eq!(ed.state()["undo"][0], "MCP: Mirror Again");
 
     let text = ed.call_err("run_action", json!({ "action": "mirror_again" }));
-    assert!(text.contains("nothing selected is off its mirror plane"), "{text}");
+    assert!(text.contains("nothing selected was slid along its mirror plane"), "{text}");
     assert_eq!(ed.state()["undo"].as_array().unwrap().len(), undo_before + 1, "a refused call leaves no undo step");
 
     ed.call("run_action", json!({ "action": "undo" }));

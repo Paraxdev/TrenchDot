@@ -1363,7 +1363,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
                 ));
                 state.mirrored_again = Some((moved, distance, plane));
             }
-            Err(()) => state.fail_status(msg!("Nothing selected is off its mirror plane")),
+            Err(()) => state.fail_status(msg!("Nothing selected was slid along its mirror plane")),
         },
         Action::ApplyMirror { distance } => match state.doc.try_edit("Apply Mirror", |m, s| td_doc::mirror::apply_mirror(m, s, distance)) {
             Ok(mut applied) => {

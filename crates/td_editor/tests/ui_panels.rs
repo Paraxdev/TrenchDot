@@ -2075,12 +2075,13 @@ fn apply_mirror_greys_out_while_the_halves_are_apart() {
 }
 
 #[test]
-fn mirror_again_shows_only_for_a_half_off_its_plane() {
+fn mirror_again_shows_only_for_a_slid_half() {
     let (f, rows) = linked_rows_fixture();
     let mut harness = gap_harness(f, rows.left);
-    let drift_line = |harness: &Harness<'_, Fixture>| {
-        harness.get_all_by_role(egui::accesskit::Role::Label).filter_map(|n| n.value()).find(|v| v.contains("off the mirror plane"))
+    let labels = |harness: &Harness<'_, Fixture>| -> Vec<String> {
+        harness.get_all_by_role(egui::accesskit::Role::Label).filter_map(|n| n.value()).map(|v| v.to_string()).collect()
     };
+    let drift_line = |harness: &Harness<'_, Fixture>| labels(harness).into_iter().find(|v| v.contains("along the mirror plane"));
     harness.get_by_label("Mirror plane X = -40");
     assert!(harness.query_by_label("Mirror Again").is_none(), "a pair on its plane has nothing to put back");
     assert_eq!(drift_line(&harness), None);
@@ -2091,7 +2092,8 @@ fn mirror_again_shows_only_for_a_half_off_its_plane() {
     };
     slide(&mut harness, DVec3::new(0.0, 9.0, 12.0));
     let line = drift_line(&harness).expect("a drift line");
-    assert!(line.starts_with("half") && line.contains(" 15 units ") && line.ends_with("X = -40"), "{line}");
+    assert!(line.starts_with("half") && line.contains(" is slid 15 units ") && line.ends_with("X = -40"), "{line}");
+    assert!(labels(&harness).iter().all(|v| !v.contains("off the mirror plane")), "a slide is not leaving the plane");
     assert!(harness.query_by_label_contains("Mirror plane X").is_none(), "the readout goes with the plane");
     harness.get_by_label("Mirror Again").click();
     harness.run();
@@ -2100,6 +2102,11 @@ fn mirror_again_shows_only_for_a_half_off_its_plane() {
     slide(&mut harness, DVec3::new(0.0, -9.0, -12.0));
     harness.get_by_label("Mirror plane X = -40");
     assert!(harness.query_by_label("Mirror Again").is_none(), "back on the plane");
+    assert_eq!(drift_line(&harness), None);
+
+    slide(&mut harness, DVec3::new(-7.0, 0.0, 0.0));
+    harness.get_by_label("Mirror plane X = -43.5");
+    assert!(harness.query_by_label("Mirror Again").is_none(), "a move across the plane only moves the plane");
     assert_eq!(drift_line(&harness), None);
 }
 

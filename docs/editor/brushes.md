@@ -285,7 +285,10 @@ plane honest, you decide what happens to each side. What you edit inside a half 
   on each side along with its half.
 * **To put the halves back across from each other** after you slid one along the plane, click **Mirror Again** in
   the Mirror section. The partner moves to the mirror image of the selected half in one undo step, and the status bar says how
-  far it moved. The button only shows while the pair is off the plane, and the section says by how much.
+  far it moved. The button only shows while a half is slid, and the section says by how much, for example *half is slid
+  15 units along the mirror plane X = -40*. While it shows, the section has no **Gap** field and no **Apply Mirror**, they
+  come back once the halves mirror again. Moving a half towards or away from the other is not a slide, the plane just
+  follows and **Gap** shows the new distance.
 * **To free one half**, run *Edit > Groups > Separate Linked Groups* on it. The two become plain groups you can change
   however you like, and the plane no longer applies. Searching the command palette for *Make Unique* finds it too.
 
@@ -326,7 +329,9 @@ The MCP action `mirror_linked` takes `axis`, `plane` (center, max, min, world or
 `set_mirror_gap` takes `gap` and an optional `axis`. `mirror_again` puts the partner back across from the selected half,
 `select_linked` selects every copy of the linked groups in the selection and `separate_linked_groups` frees them.
 `apply_mirror` takes `distance`, the weld tolerance in units. `get_state` lists the planes of the selection as
-`mirror_planes`, each with its `gap`, and `set_editor` takes `edit_symmetry` for the Vertex tool.
+`mirror_planes`, each with its `gap`. A pair with a slid half has no plane, `get_state` lists it as `mirror_slides`
+instead, with the `slide` and its `distance`, the same distance `mirror_again` moves the partner back. `set_editor` takes
+`edit_symmetry` for the Vertex tool.
 
 </div>
 

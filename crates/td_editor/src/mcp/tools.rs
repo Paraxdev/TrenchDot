@@ -1274,6 +1274,10 @@ impl App {
                 .iter()
                 .map(|m| json!({ "axis": axis_letter(m.plane.axis), "at": round3(m.plane.at), "group": m.group.0, "partner": m.partner.0, "gap": td_doc::mirror::gap(map, m) }))
                 .collect::<Vec<_>>(),
+            "mirror_slides": td_doc::mirror::drifted(map, sel)
+                .iter()
+                .map(|d| json!({ "axis": axis_letter(d.plane.axis), "at": round3(d.plane.at), "group": d.group.0, "partner": d.partner.0, "slide": [round3(d.slide.x), round3(d.slide.y), round3(d.slide.z)], "distance": round3(d.slide.length()) }))
+                .collect::<Vec<_>>(),
             "cameras": cameras,
             "ui": {
                 "language": s.prefs.lang().code(),
@@ -1554,7 +1558,7 @@ impl App {
                 let planes = td_doc::mirror::selection_planes(&self.state.doc.map, &self.state.doc.selection);
                 if planes.is_empty() {
                     if !td_doc::mirror::drifted(&self.state.doc.map, &self.state.doc.selection).is_empty() {
-                        return err("the selected half is off its mirror plane, run mirror_again first to put its partner back across");
+                        return err("the selected half was slid along its mirror plane, run mirror_again first to put its partner back across");
                     }
 
                     return err("select one half of a mirrored pair first");
@@ -1569,7 +1573,7 @@ impl App {
             }
             "mirror_again" => {
                 if td_doc::mirror::drifted(&self.state.doc.map, &self.state.doc.selection).is_empty() {
-                    return err("nothing selected is off its mirror plane");
+                    return err("nothing selected was slid along its mirror plane");
                 }
 
                 Action::MirrorAgain
