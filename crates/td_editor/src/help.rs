@@ -218,8 +218,11 @@ pub fn hint(ui: &mut Ui, hint: &str) {
 
 /// One line of guidance for a tool without options, shown in the tool options bar. The toolbar tooltip has the rest,
 /// see [`crate::panels::TOOL_HELP`].
-pub fn tool_line(tool: ToolKind) -> &'static str {
+pub fn tool_line(tool: ToolKind, preset: &str) -> &'static str {
     match tool {
+        ToolKind::Select if crate::mouse_map::draw_tool(preset) == ToolKind::Block => {
+            en!("Click picks, a group whole, double click opens it, the Block tool draws brushes")
+        }
         ToolKind::Select => en!("Click picks, a group whole, double click opens it, drag empty space to draw a brush"),
         ToolKind::Block => en!("Drag draws a box brush, a 2D edge of the selection still resizes"),
         ToolKind::Clip => en!("Click two or three points, Tab picks the side to keep, Enter clips"),
@@ -333,12 +336,14 @@ mod tests {
 
         let with_options = [ToolKind::Mesh, ToolKind::Texture, ToolKind::Paint, ToolKind::Sculpt, ToolKind::Blend, ToolKind::Scatter, ToolKind::Volume];
         for tool in ToolKind::all().into_iter().filter(|t| !with_options.contains(t)) {
-            assert!(!tool_line(tool).is_empty(), "{tool:?} shows a line where other tools show options");
-            for lang in crate::i18n::Lang::ALL {
-                let _scope = crate::i18n::scope(lang);
-                let limit = if matches!(lang, crate::i18n::Lang::ZhHans | crate::i18n::Lang::Ja) { 54 } else { 90 };
-                let shown = crate::i18n::tr(tool_line(tool));
-                assert!(shown.chars().count() < limit, "{} {tool:?}: one short line, the tooltip has the details", lang.code());
+            for preset in ["trenchbroom", "hammer"] {
+                assert!(!tool_line(tool, preset).is_empty(), "{tool:?} shows a line where other tools show options");
+                for lang in crate::i18n::Lang::ALL {
+                    let _scope = crate::i18n::scope(lang);
+                    let limit = if matches!(lang, crate::i18n::Lang::ZhHans | crate::i18n::Lang::Ja) { 54 } else { 90 };
+                    let shown = crate::i18n::tr(tool_line(tool, preset));
+                    assert!(shown.chars().count() < limit, "{} {preset} {tool:?}: one short line, the tooltip has the details", lang.code());
+                }
             }
         }
 

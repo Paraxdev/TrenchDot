@@ -1813,7 +1813,7 @@ impl App {
                         let button = menu_choice(ui, Some(icons::tool(t)), &trf!("{tool} Tool", tool = tr(t.label())), shortcut, self.state.tool == t);
                         let response = ui.add(button);
                         help::register(&response, Topic::Tool(t));
-                        if response.on_hover_text(help::tooltip(ui, panels::tool_help(t), help::F1_HINT)).clicked() {
+                        if response.on_hover_text(help::tooltip(ui, panels::tool_help(t, &self.state.prefs.keymap_preset), help::F1_HINT)).clicked() {
                             m.actions.push(Action::SetTool(t));
                             ui.close();
                         }
@@ -2076,7 +2076,11 @@ impl App {
                     }
 
                     for t in sub.iter().copied() {
-                        let text = format!("{}\n{}", tip(&trf!("{tool} Tool", tool = tr(t.label())), &Action::SetTool(t)), tr(panels::tool_help(t)));
+                        let text = format!(
+                            "{}\n{}",
+                            tip(&trf!("{tool} Tool", tool = tr(t.label())), &Action::SetTool(t)),
+                            tr(panels::tool_help(t, &self.state.prefs.keymap_preset))
+                        );
                         let tooltip = help::tooltip(ui, &text, tr(help::TOOL_HINT));
                         let resp = icons::toggle(ui, icons::tool(t), size, self.state.tool == t, tr(t.label()), tooltip);
                         group |= resp.rect;
@@ -2266,8 +2270,9 @@ impl App {
     fn tool_options(&mut self, ui: &mut Ui) {
         ui.horizontal_wrapped(|ui| {
             let tool = self.state.tool;
+            let preset = self.state.prefs.keymap_preset.clone();
             let details = |ui: &mut Ui| {
-                ui.label(tr(panels::tool_help(tool)));
+                ui.label(tr(panels::tool_help(tool, &preset)));
                 help::hint(ui, tr(help::F1_HINT));
             };
             ui.add(icons::tool(tool).image(icons::SMALL).tint(ui.visuals().strong_text_color()));
@@ -2480,14 +2485,14 @@ impl App {
                 ToolKind::Vertex => {
                     crate::symmetry::edit_options(ui, &mut self.state);
                     if self.state.prefs.help_text {
-                        let line = ui.label(RichText::new(tr(help::tool_line(tool))).weak());
+                        let line = ui.label(RichText::new(tr(help::tool_line(tool, &self.state.prefs.keymap_preset))).weak());
                         help::register(&line, Topic::Tool(tool));
                         line.on_hover_ui(details);
                     }
                 }
                 _ => {
                     if self.state.prefs.help_text {
-                        let line = ui.label(RichText::new(tr(help::tool_line(tool))).weak());
+                        let line = ui.label(RichText::new(tr(help::tool_line(tool, &self.state.prefs.keymap_preset))).weak());
                         help::register(&line, Topic::Tool(tool));
                         line.on_hover_ui(details);
                     }
@@ -3905,7 +3910,7 @@ mod tests {
         for lang in Lang::ALL {
             let _scope = scope(lang);
             let limit = if matches!(lang, Lang::ZhHans | Lang::Ja) { 84 } else { 140 };
-            for (tool, help) in crate::panels::TOOL_HELP {
+            for (tool, help) in crate::panels::TOOL_HELP.into_iter().chain([("Select", crate::panels::HAMMER_SELECT_HELP)]) {
                 let shown = tr(help);
                 assert!(shown.chars().count() < limit, "{} {tool}: {} characters", lang.code(), shown.chars().count());
             }

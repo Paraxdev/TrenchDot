@@ -10,7 +10,7 @@ use td_doc::Map;
 use crate::camera::ViewKind;
 use crate::commands::Action;
 use crate::i18n::{en, tr, trf};
-use crate::state::EditorState;
+use crate::state::{EditorState, Prefs};
 use crate::theme;
 use crate::tools::ToolKind;
 
@@ -202,13 +202,10 @@ pub fn view_hint(
         // With the Shape Generator's box showing, a drag draws that box rather than a brush.
         if matches!(state.tool, ToolKind::Select | ToolKind::Block) && state.shape_bounds.is_none() && rect.width() > 160.0 && rect.height() > 80.0 {
             let start = start_view == Some(kind);
-            let (text, color) = if start {
-                (tr("Drag here to draw your first box"), theme::colors().yellow)
-            } else {
-                (tr("Drag here to draw a box"), ui.visuals().text_color())
-            };
+            let text = draw_hint(ui.ctx(), &state.prefs, state.tool, start);
+            let color = if start { theme::colors().yellow } else { ui.visuals().text_color() };
             let painter = ui.painter_at(rect);
-            let galley = painter.layout_no_wrap(text.into(), FontId::proportional(15.0), color);
+            let galley = painter.layout_no_wrap(text, FontId::proportional(15.0), color);
             let back = Rect::from_center_size(rect.center(), galley.size() + Vec2::new(20.0, 12.0));
             painter.rect_filled(back, 6.0, ui.visuals().extreme_bg_color.gamma_multiply(0.85));
             if start {
@@ -250,14 +247,7 @@ pub fn view_hint(
                 Some(ViewKind::Side) => tr("in the Side view"),
                 _ => tr("in this view"),
             };
-            let first = if matches!(state.tool, ToolKind::Select | ToolKind::Block) {
-                trf!("To start, drag {place} to draw your first box.", place)
-            } else {
-                match crate::commands::shortcut_text(ui.ctx(), &state.prefs, &Action::SetTool(ToolKind::Select)) {
-                    Some(keys) => trf!("To start, pick the Select tool ({keys}), then drag {place} to draw your first box.", keys, place),
-                    None => trf!("To start, pick the Select tool, then drag {place} to draw your first box.", place),
-                }
-            };
+            let first = first_step(ui.ctx(), &state.prefs, state.tool, place);
             ui.label(RichText::new(first).size(15.0).color(theme::colors().yellow));
             ui.add_space(8.0);
             let hollow = match crate::commands::shortcut_text(ui.ctx(), &state.prefs, &Action::CsgHollow) {
@@ -336,9 +326,84 @@ fn first_run_form(ui: &mut Ui, state: &mut EditorState) -> FirstRun {
     FirstRun { rect: Rect::NOTHING, presets, skip }
 }
 
+fn draws(prefs: &Prefs, tool: ToolKind) -> bool {
+    tool == ToolKind::Block || tool == crate::mouse_map::draw_tool(&prefs.keymap_preset)
+}
+
+fn draw_keys(ctx: &egui::Context, prefs: &Prefs) -> Option<String> {
+    crate::commands::shortcut_text(ctx, prefs, &Action::SetTool(crate::mouse_map::draw_tool(&prefs.keymap_preset)))
+}
+
+/// The hint in an empty 2D view while `tool` is Select or Block.
+fn draw_hint(ctx: &egui::Context, prefs: &Prefs, tool: ToolKind, first: bool) -> String {
+    if draws(prefs, tool) {
+        return tr(if first { en!("Drag here to draw your first box") } else { en!("Drag here to draw a box") }).to_owned();
+    }
+
+    match draw_keys(ctx, prefs) {
+        Some(keys) => trf!("Pick the Block tool ({keys}) and drag here to draw a box", keys),
+        None => tr("Pick the Block tool and drag here to draw a box").to_owned(),
+    }
+}
+
+fn first_step(ctx: &egui::Context, prefs: &Prefs, tool: ToolKind, place: &str) -> String {
+    if draws(prefs, tool) {
+        return trf!("To start, drag {place} to draw your first box.", place);
+    }
+
+    match (crate::mouse_map::draw_tool(&prefs.keymap_preset), draw_keys(ctx, prefs)) {
+        (ToolKind::Block, Some(keys)) => trf!("To start, pick the Block tool ({keys}), then drag {place} to draw your first box.", keys, place),
+        (ToolKind::Block, None) => trf!("To start, pick the Block tool, then drag {place} to draw your first box.", place),
+        (_, Some(keys)) => trf!("To start, pick the Select tool ({keys}), then drag {place} to draw your first box.", keys, place),
+        (_, None) => trf!("To start, pick the Select tool, then drag {place} to draw your first box.", place),
+    }
+}
+
+/// The hover text of an empty Outliner.
+pub fn empty_map_hint(ctx: &egui::Context, prefs: &Prefs) -> String {
+    if crate::mouse_map::draw_tool(&prefs.keymap_preset) != ToolKind::Block {
+        return tr("Drag in the Top, Front or Side view to draw a brush, or drag an entity in from the Entities panel").to_owned();
+    }
+
+    match draw_keys(ctx, prefs) {
+        Some(keys) => {
+            trf!("Pick the Block tool ({keys}) and drag in the Top, Front or Side view to draw a brush, or drag an entity in from the Entities panel", keys)
+        }
+        None => tr("Pick the Block tool and drag in the Top, Front or Side view to draw a brush, or drag an entity in from the Entities panel").to_owned(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hammer_hints_name_the_block_tool_by_its_live_key() {
+        let ctx = egui::Context::default();
+        let mut prefs = Prefs::default();
+        let place = "in the Top view";
+        assert_eq!(draw_hint(&ctx, &prefs, ToolKind::Select, false), "Drag here to draw a box");
+        assert_eq!(draw_hint(&ctx, &prefs, ToolKind::Block, true), "Drag here to draw your first box");
+        assert_eq!(first_step(&ctx, &prefs, ToolKind::Select, place), "To start, drag in the Top view to draw your first box.");
+        assert_eq!(first_step(&ctx, &prefs, ToolKind::Clip, place), "To start, pick the Select tool (Q), then drag in the Top view to draw your first box.");
+        assert!(empty_map_hint(&ctx, &prefs).starts_with("Drag in the Top"));
+
+        prefs.keymap_preset = "hammer".into();
+        assert_eq!(draw_hint(&ctx, &prefs, ToolKind::Select, false), "Pick the Block tool (Shift+B) and drag here to draw a box");
+        assert_eq!(draw_hint(&ctx, &prefs, ToolKind::Block, false), "Drag here to draw a box");
+        assert_eq!(
+            first_step(&ctx, &prefs, ToolKind::Select, place),
+            "To start, pick the Block tool (Shift+B), then drag in the Top view to draw your first box."
+        );
+        assert_eq!(first_step(&ctx, &prefs, ToolKind::Block, place), "To start, drag in the Top view to draw your first box.");
+        assert!(empty_map_hint(&ctx, &prefs).starts_with("Pick the Block tool (Shift+B) and drag"));
+
+        prefs.key_overrides.insert(Action::SetTool(ToolKind::Block).binding_id(), "Ctrl+K".into());
+        assert_eq!(draw_hint(&ctx, &prefs, ToolKind::Select, false), "Pick the Block tool (Ctrl+K) and drag here to draw a box");
+        prefs.key_overrides.insert(Action::SetTool(ToolKind::Block).binding_id(), String::new());
+        assert_eq!(draw_hint(&ctx, &prefs, ToolKind::Select, false), "Pick the Block tool and drag here to draw a box");
+        assert_eq!(first_step(&ctx, &prefs, ToolKind::Select, place), "To start, pick the Block tool, then drag in the Top view to draw your first box.");
+    }
 
     #[test]
     fn readmes_link_the_discord_invite_in_zensical_toml() {

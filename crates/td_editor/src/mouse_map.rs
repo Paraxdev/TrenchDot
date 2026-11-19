@@ -2,6 +2,7 @@
 
 use crate::i18n::{en, tr, trf};
 use crate::state::SelectMode;
+use crate::tools::ToolKind;
 
 /// What lies under the cursor. A face is a brush or mesh face, every other object counts as an object.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -193,6 +194,11 @@ pub fn selection_drag(preset: &str, chord: Chord, hit: DragHit) -> SelectionDrag
         _ if command => SelectionDrag::Copy,
         _ => SelectionDrag::Move,
     }
+}
+
+/// The tool the hints name for drawing a brush. Hammer users draw with the Block tool.
+pub fn draw_tool(preset: &str) -> ToolKind {
+    if preset == "hammer" { ToolKind::Block } else { ToolKind::Select }
 }
 
 /// Whether Shift changes what a click does. The Hammer preset keeps Shift for cloning, so a Shift+click there is a plain
@@ -408,6 +414,14 @@ mod tests {
     use super::*;
 
     const HITS: [ClickHit; 3] = [ClickHit::None, ClickHit::Object, ClickHit::Face];
+
+    #[test]
+    fn hammer_hints_draw_with_the_block_tool() {
+        assert_eq!(draw_tool("hammer"), ToolKind::Block);
+        for preset in ["trenchbroom", "blender", "unknown"] {
+            assert_eq!(draw_tool(preset), ToolKind::Select, "{preset}");
+        }
+    }
 
     #[test]
     fn double_click_decides_by_what_is_under_the_cursor() {

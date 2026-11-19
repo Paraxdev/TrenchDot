@@ -160,8 +160,7 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
     if !filter.is_empty() && rows.iter().all(|(depth, _)| *depth == 0) {
         ui.label(RichText::new(tr("No objects match the filter")).weak());
     } else if map.layers.iter().all(|l| map.get(*l).is_none_or(|n| n.children.is_empty())) {
-        ui.label(RichText::new(tr("The map is empty")).weak())
-            .on_hover_text(tr("Drag in the Top, Front or Side view to draw a brush, or drag an entity in from the Entities panel"));
+        ui.label(RichText::new(tr("The map is empty")).weak()).on_hover_text(crate::welcome::empty_map_hint(ui.ctx(), &state.prefs));
     }
 
     let row_h = 20.0;
@@ -3192,7 +3191,14 @@ pub const TOOL_HELP: [(&str, &str); 17] = [
     ("Texture", en!("Click a face, drag to slide its texture, right click to apply the current material.")),
 ];
 
-pub fn tool_help(tool: crate::tools::ToolKind) -> &'static str {
+/// The Select help in the Hammer preset, where the Block tool draws.
+pub const HAMMER_SELECT_HELP: &str = en!("Click to select, double click to open a group, drag the selection to move it. The Block tool draws brushes.");
+
+pub fn tool_help(tool: crate::tools::ToolKind, preset: &str) -> &'static str {
+    if tool == crate::tools::ToolKind::Select && crate::mouse_map::draw_tool(preset) == crate::tools::ToolKind::Block {
+        return HAMMER_SELECT_HELP;
+    }
+
     TOOL_HELP.iter().find(|(name, _)| *name == tool.label()).map(|(_, help)| *help).unwrap_or_default()
 }
 
@@ -3272,8 +3278,8 @@ pub fn reference(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, acti
 
             ui.separator();
             ui.label(RichText::new(tr("Tools")).strong());
-            for (tool, help) in TOOL_HELP {
-                ui.label(RichText::new(tr(tool)).color(theme::colors().cyan)).on_hover_text(tr(help));
+            for t in crate::tools::ToolKind::all() {
+                ui.label(RichText::new(tr(t.label())).color(theme::colors().cyan)).on_hover_text(tr(tool_help(t, &state.prefs.keymap_preset)));
             }
         });
     });
@@ -3289,9 +3295,9 @@ fn reference_detail(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, a
     use crate::code_refs::{self, CodeKind};
     let Some(def) = state.game.entity(&ps.reference_class).cloned() else {
         ui.label(tr("Pick an entity to see how to use it from GDScript or C#."));
-        for (tool, help) in TOOL_HELP {
-            ui.label(RichText::new(tr(tool)).strong());
-            ui.label(RichText::new(tr(help)).weak());
+        for t in crate::tools::ToolKind::all() {
+            ui.label(RichText::new(tr(t.label())).strong());
+            ui.label(RichText::new(tr(tool_help(t, &state.prefs.keymap_preset))).weak());
         }
 
         return;
