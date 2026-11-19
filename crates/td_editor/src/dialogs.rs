@@ -541,7 +541,8 @@ pub struct ShapeDialog {
     thickness: f64,
     /// Degrees of a circle an arch sweeps.
     angle: f64,
-    profile: shapes::TunnelProfile,
+    /// Options only a tunnel has. Its sides, thickness and angle come from the fields the other shapes share.
+    tunnel: shapes::Tunnel,
     steps: usize,
     as_mesh: bool,
     smooth: bool,
@@ -569,7 +570,7 @@ struct Made {
 const HEAVY_TRIANGLES: usize = 10_000;
 
 /// Every setting the generated shape depends on, so it is only rebuilt when one of them changes.
-type ShapeKey = (ShapeKind, usize, f64, usize, bool, bool, shapes::Axis, TextShape, Rock, Aabb, String, (Option<f64>, Option<shapes::TunnelProfile>));
+type ShapeKey = (ShapeKind, usize, f64, usize, bool, bool, shapes::Axis, TextShape, Rock, Aabb, String, (Option<f64>, Option<shapes::Tunnel>));
 
 /// Block letter settings of the Text shape, laid out from the corner of the bounds.
 #[derive(Clone, Debug, PartialEq)]
@@ -605,7 +606,7 @@ impl Default for ShapeDialog {
             sides: 16,
             thickness: 16.0,
             angle: 180.0,
-            profile: shapes::TunnelProfile::default(),
+            tunnel: shapes::Tunnel::default(),
             steps: 8,
             as_mesh: false,
             smooth: true,
@@ -713,8 +714,13 @@ impl ShapeDialog {
             self.rock,
             *bounds,
             material.to_string(),
-            (matches!(self.kind, ShapeKind::Arch | ShapeKind::ArchWall).then_some(self.angle), (self.kind == ShapeKind::Tunnel).then_some(self.profile)),
+            (matches!(self.kind, ShapeKind::Arch | ShapeKind::ArchWall).then_some(self.angle), (self.kind == ShapeKind::Tunnel).then(|| self.tunnel_params())),
         )
+    }
+
+    /// The dialog has no Angle row for a tunnel, so the angle an arch was given must not bend an arched tunnel.
+    fn tunnel_params(&self) -> shapes::Tunnel {
+        shapes::Tunnel { sides: self.sides, thickness: self.thickness, angle: 180.0, ..self.tunnel }
     }
 
     pub fn generate(&self, bounds: &Aabb, material: &str) -> Vec<NodeKind> {
@@ -758,7 +764,7 @@ impl ShapeDialog {
             (ShapeKind::Wedge, _) => brushes(shapes::wedge(bounds, material).into_iter().collect()),
             (ShapeKind::Spike, _) => brushes(shapes::spike(bounds, material).into_iter().collect()),
             (ShapeKind::Arch, _) => brushes(shapes::arch(bounds, self.sides, self.thickness, self.angle, material)),
-            (ShapeKind::Tunnel, _) => brushes(shapes::tunnel(bounds, self.profile, self.sides, self.thickness, material)),
+            (ShapeKind::Tunnel, _) => brushes(shapes::tunnel(bounds, &self.tunnel_params(), material)),
             (ShapeKind::Pipe, _) => brushes(shapes::pipe(bounds, self.sides, self.thickness, material)),
             (ShapeKind::Stairs, _) => brushes(shapes::stairs(bounds, self.steps, material)),
             (ShapeKind::SpiralStairs, _) => brushes(shapes::spiral_stairs(bounds, self.steps, self.thickness, 1.0, material)),
@@ -842,18 +848,18 @@ impl ShapeDialog {
             });
             if self.kind == ShapeKind::Tunnel {
                 egui::ComboBox::new("shape_profile", tr("Profile"))
-                    .selected_text(tr(profile_label(self.profile)))
+                    .selected_text(tr(profile_label(self.tunnel.profile)))
                     .show_ui(ui, |ui| {
                         for p in shapes::TunnelProfile::ALL {
-                            ui.selectable_value(&mut self.profile, p, tr(profile_label(p)));
+                            ui.selectable_value(&mut self.tunnel.profile, p, tr(profile_label(p)));
                         }
                     })
                     .response
                     .on_hover_text(tr("How the tunnel is cut across its length"));
             }
 
-            let arched = self.kind == ShapeKind::Tunnel && self.profile == shapes::TunnelProfile::Arched;
-            let round = self.kind == ShapeKind::Tunnel && self.profile == shapes::TunnelProfile::Round;
+            let arched = self.kind == ShapeKind::Tunnel && self.tunnel.profile == shapes::TunnelProfile::Arched;
+            let round = self.kind == ShapeKind::Tunnel && self.tunnel.profile == shapes::TunnelProfile::Round;
             if arched
                 || round
                 || matches!(
@@ -2231,10 +2237,11 @@ mod tests {
     }
 
     #[test]
-    fn only_the_shapes_using_angle_or_profile_rebuild_on_them() {
+    fn only_the_shapes_using_angle_or_tunnel_options_rebuild_on_them() {
         let bounds = box_of([0.0, 0.0, 0.0], [192.0, 128.0, 256.0]);
-        let key = |kind, angle, profile| ShapeDialog { kind, angle, profile, ..Default::default() }.key(&bounds, "m");
-        let [a, b] = [shapes::TunnelProfile::ALL[0], shapes::TunnelProfile::ALL[1]];
+        let key = |kind, angle, tunnel| ShapeDialog { kind, angle, tunnel, ..Default::default() }.key(&bounds, "m");
+        let a = shapes::Tunnel::default();
+        let b = shapes::Tunnel { profile: shapes::TunnelProfile::Arched, ..a };
         assert_eq!(key(ShapeKind::Wedge, 90.0, a), key(ShapeKind::Wedge, 180.0, b));
         assert_eq!(key(ShapeKind::Tunnel, 90.0, a), key(ShapeKind::Tunnel, 180.0, a));
         assert_ne!(key(ShapeKind::Tunnel, 90.0, a), key(ShapeKind::Tunnel, 90.0, b));
@@ -2807,9 +2814,15 @@ mod tests {
         for (profile, count) in
             [(shapes::TunnelProfile::OpenBottom, 3), (shapes::TunnelProfile::Closed, 4), (shapes::TunnelProfile::Arched, 10), (shapes::TunnelProfile::Round, 8)]
         {
-            let d = ShapeDialog { kind: ShapeKind::Tunnel, profile, sides: 8, ..Default::default() };
+            let d = ShapeDialog { kind: ShapeKind::Tunnel, tunnel: shapes::Tunnel { profile, ..Default::default() }, sides: 8, ..Default::default() };
             assert_eq!(d.generate(&bounds, "m").len(), count, "{profile:?}");
         }
+
+        let arched = |angle| {
+            let tunnel = shapes::Tunnel { profile: shapes::TunnelProfile::Arched, ..Default::default() };
+            ShapeDialog { kind: ShapeKind::Tunnel, tunnel, angle, ..Default::default() }.generate(&bounds, "m")
+        };
+        assert_eq!(arched(90.0), arched(180.0), "an arch angle left in the dialog does not reach the tunnel");
     }
 
     #[test]

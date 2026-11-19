@@ -2495,7 +2495,7 @@ impl App {
                     adjusted.push(("thickness", wall, format!("thickness {thickness} {why}, the walls are {} thick", round2(wall))));
                 }
 
-                shapes::tunnel(&bounds, profile, sides, thickness, &material)
+                shapes::tunnel(&bounds, &shapes::Tunnel { profile, sides, thickness, ..Default::default() }, &material)
             }
             "pipe" => shapes::pipe(&bounds, sides, thickness, &material),
             "stairs" => shapes::stairs(&bounds, args["steps"].as_u64().unwrap_or(8) as usize, &material),
