@@ -1,7 +1,8 @@
 # Terrain3D cache
 
-TrenchDot never reads or writes a Terrain3D `.res` file. Godot does that through Terrain3D's own API, and the two
-programs trade data through a cache folder next to the regions. This page is for tools that want to read or produce it.
+TrenchDot never writes a Terrain3D `.res` file. Godot does that through Terrain3D's own API, and the two programs
+trade data through a cache folder next to the regions. TrenchDot only reads the `.res` files of a folder that has no
+cache yet, and writes nothing for it. This page is for tools that want to read or produce it.
 To use Terrain3D, read [Terrain3D](../godot/terrain3d.md) instead.
 
 The cache is `<data folder>/.trenchdot/`, one per data folder, shared by every map that links it. It is safe to delete,
@@ -16,6 +17,7 @@ Godot's FileSystem dock and exports skip it, and Terrain3D only reads `terrain3d
 | `textures/<id>_albedo.png` | Godot | The albedo of each texture asset at 512 px, for drawing the terrain |
 | `pending/terrain3d_XX_YY.td3r` | TrenchDot | A region edit waiting for Godot, deleted once Godot applied or refused it |
 | `lod/terrain3d_XX_YY.<hash>.td3l` | TrenchDot | Coarser copies of a region for the 3D view, safe to delete |
+| `backups/<time>/` | Godot | Copies of the region files and `manifest.json` from before the command line changed the region size or spacing, named after the UTC time like `20261119-101500`. The last three are kept |
 
 Every writer writes a temporary file and renames it, so a reader never sees half a file. Names follow Terrain3D: a
 negative coordinate is written `-01` and a positive one `_02`, so region (-1, 2) is `terrain3d-01_02`. Regions run from
@@ -66,6 +68,7 @@ negative coordinate is written `-01` and a positive one `_02`, so region (-1, 2)
 | `applied` | What Godot did with the last pending files, `reason` is `dirty`, `changed` or `size` |
 | `ocean` | The Terrain3D ocean: `enabled`, `sea_level` in meters, `water_color` and the res path of its material in `source` |
 | `resources` | The res paths of the node's `material`, `assets` and `ocean_material`, empty for none or a built in one |
+| `scene_vertex_spacing` | The vertex spacing the command line set with Godot closed, which the scene's node takes the next time the Godot editor opens it. It stays until the scene is saved there |
 
 Unknown keys are ignored, and only `format`, `version`, `region_size` and `vertex_spacing` are required, so caches
 written by an older addon still read. A missing key means:
@@ -89,8 +92,8 @@ word (bit 0 means a color map follows) and the 32 byte region hash. Then comes o
 2. `size * size` `u32` control words, the raw bits as Terrain3D stores them, NaN patterns included.
 3. When flagged, `size * size * 4` bytes of RGBA8 color, where alpha is roughness.
 
-The hash is computed by Godot over the height, control and color bytes. TrenchDot only compares it and echoes it back,
-it never computes one.
+The hash is computed by Godot over the height, control and color bytes. TrenchDot compares it and echoes it back, and
+computes it the same way for a folder it reads from the `.res` files, so a cache written later matches.
 
 A pending file has the same layout plus a 40 byte trailer: `BASE`, the 32 byte hash of the region the edit started from
 (all zero for a new region) and a `u32` flags word, bit 0 for force and bit 1 for removing the region.

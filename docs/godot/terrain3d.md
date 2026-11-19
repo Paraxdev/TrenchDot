@@ -8,10 +8,11 @@ show the ground in every view, sculpt and paint it with the tools you already kn
 
 ![The Terrain3D valley showcase in the 3D view, ridges, foothills and a river over six regions](../assets/terrain3d/valley.jpg)
 
-The pieces work like this. Godot is the only program that reads and writes Terrain3D's own files, through Terrain3D's
-own API. Whenever Terrain3D changes, the TrenchDot addon copies what it holds into a cache next to the files, and
-TrenchDot reads that cache. When you edit in TrenchDot, the edit waits in the same folder until Godot applies it. So
-Terrain3D stays in charge of its data, and you can sculpt in either program.
+The pieces work like this. Godot is the only program that writes Terrain3D's own files, through Terrain3D's own API.
+Whenever Terrain3D changes, the TrenchDot addon copies what it holds into a cache next to the files, and TrenchDot
+reads that cache, or the region files themselves for a folder Godot has not exported yet. When you edit in TrenchDot,
+the edit waits in the same folder until Godot applies it. So Terrain3D stays in charge of its data, and you can sculpt
+in either program.
 
 ## Experimental
 
@@ -58,12 +59,12 @@ status bar for a version it has not been tested with and keeps working, because 
 
 ## Linking a data folder
 
-Godot creates the region files and reads the folder for TrenchDot, so check two things first. The project has to be
-trusted: when *Restricted Mode* shows in yellow at the right of the status bar, click it and trust the project, see
+Godot creates the region files and exports the folder for TrenchDot, so check two things first. The project has to
+be trusted: when *Restricted Mode* shows in yellow at the right of the status bar, click it and trust the project, see
 [Project trust](running-godot.md#project-trust). TrenchDot also has to find Godot: when it does not, set
 *File > Preferences… > Godot executable*, see [Finding the executable](running-godot.md#finding-the-executable).
-Without both the link still works, but no ground shows and your edits wait in the data folder until Godot opens the
-scene.
+Without both the link still works, but a new folder stays empty, a folder that holds regions shows its ground without
+textures, and your edits wait in the data folder until Godot opens the scene.
 
 1. Open the dialog
 
@@ -82,8 +83,9 @@ scene.
 3. Click **Link**
 
     A node called **Terrain3D** appears in the current layer and the dialog closes. Saving the map has Godot build it,
-    and a new folder gets its blank region files then. A folder that already holds regions shows no ground until Godot
-    has read it, see [Without the Godot editor open](#without-the-godot-editor-open).
+    and a new folder gets its blank region files then. A folder that already holds regions shows its ground once
+    TrenchDot has read the region files, and its textures once Godot has exported it, see
+    [Without the Godot editor open](#without-the-godot-editor-open).
 
 A map has at most one Terrain3D node. It stays where it is: you cannot move, rotate, duplicate or group it, or put it
 in a prefab. Deleting it unlinks the folder and never deletes region files.
@@ -218,7 +220,7 @@ A selected Terrain3D node shows a light red wash and red boxes around its region
 | In the Inspector | What it does |
 | --- | --- |
 | **Data Folder** and the line under it | The linked folder, and whether Godot is connected, not running, not found, or Terrain3D is not installed |
-| **Region Size** and **Vertex Spacing** | Rewrite every region file. They are greyed out unless the Godot editor is open with this scene, since Terrain3D rewrites the files and the scene |
+| **Region Size** and **Vertex Spacing** | Rewrite every region file. With the scene open in the Godot editor, Terrain3D does it there. With Godot closed, a headless Godot does it once you confirm, see [Changing the size with Godot closed](#changing-the-size-with-godot-closed) |
 | **Look** | The material, assets and ocean of the node, see [The Look block](#the-look-block) |
 | **North (-Z)**, **South (+Z)**, **West (-X)**, **East (+X)** | How many regions to add (positive) or remove (negative) on each side. The regions the draft adds are boxed in blue and the ones it removes in the warning color, and a note on the edge of the view says when they lie off screen. **Apply** makes it one undo step and **Reset** clears the draft |
 | **Edit Regions** | Click squares of the Top view instead: an empty square adds a region, a filled one removes it |
@@ -244,10 +246,10 @@ Under **Vertex Spacing** the Inspector shows what Godot draws the node with.
 | **Sea Level** | The height of the ocean in meters, shown while the ocean is on, read only |
 
 A change here goes to Godot as one undo step, which you can undo with Ctrl+Z there, and Godot writes the cache again, so
-the 3D view follows after a moment. Like **Region Size** the controls are greyed out unless the Godot editor is open
-with this scene. A cache written by an older addon has no material or ocean, the block then asks you to update the
-TrenchDot addon in Godot. If the world background is Noise and the cache has no noise values yet, a line says the hills
-draw flat until Godot exports again.
+the 3D view follows after a moment. The controls are greyed out unless the Godot editor is open with this scene, since
+the material, assets and ocean live in the scene. A cache written by an older addon has no material or ocean, the
+block then asks you to update the TrenchDot addon in Godot. If the world background is Noise and the cache has no noise
+values yet, a line says the hills draw flat until Godot exports again.
 
 With the node selected, the **Sculpt** tool (G) works on it with the same brush ring, radius and strength as on a TrenchDot
 terrain. Raise, Lower, Smooth, Flatten, Noise, Terrace, Hole and Unhole work, and strokes cross region borders without a
@@ -369,10 +371,16 @@ strip at the edge of the world are expected.
 
 ## Without the Godot editor open
 
-TrenchDot needs Godot to read a folder it has never seen, since only Godot understands the region files. Until then
-the Inspector says "Godot has not exported this folder yet" and no ground shows. Click **Export from Godot** under that
-line: the open Godot editor, or a headless Godot when none is open, reads the folder, and the ground appears after
-about 10 seconds. You can run the same step by hand:
+A folder Godot has never exported has no cache yet, so TrenchDot reads its region files itself, and the Inspector
+counts "Reading region files 3 of 12" meanwhile. The ground then shows plain, without textures or a world background,
+since those come from the material and assets of the scene, which only Godot reads. The Inspector says "Read from the
+region files" and leaves out the Look block and the texture list. You can sculpt, paint and send as usual. TrenchDot
+writes nothing into the folder for this, and reads it again whenever a region file comes, goes or changes.
+
+![The Inspector of a folder read from its region files, with the warning line and the Export from Godot button](../assets/terrain3d/read-from-files.png)
+
+Click **Export from Godot** under that line to get the textures too: the open Godot editor, or a headless Godot when
+none is open, writes the cache, and the textures show after about 10 seconds. You can run the same step by hand:
 
 ```sh
 godot --headless --path path/to/project --script res://addons/func_godot/src/trenchdot/terrain3d_cli.gd -- export res://terrain3d_data
@@ -393,6 +401,40 @@ or builds the map once, which writes the texture list from the *Assets* of your 
 you picked in a scene are only known to the Godot editor, so a headless export keeps the material, ocean and resources
 of the last cache, unless the cache comes from an older TrenchDot addon that did not export them, then it takes the
 folder's files like a new one. To refresh those from the folder, delete `manifest.json` in `.trenchdot/` and export again.
+
+### Changing the size with Godot closed
+
+**Region Size** and **Vertex Spacing** work with Godot closed too, as long as TrenchDot finds the Godot executable.
+Pick the new value, and the Inspector asks "Rewrite all 6 region files with a headless Godot? A backup is kept in the
+data folder". Click **Change Settings** and a headless Godot rewrites every region file within a few seconds, or click
+**Cancel** to keep the old value.
+
+![The Inspector asking to rewrite all 6 region files with a headless Godot, with Change Settings and Cancel under it](../assets/terrain3d/settings-headless.png)
+
+Before Godot writes anything, it copies the region files and `manifest.json` into `.trenchdot/backups/` in the data
+folder, in a folder named after the time in UTC, and keeps the last three. Changing the size back can leave extra flat
+regions, so to undo a change exactly, close Godot, delete the region files in the data folder and copy those of the
+backup in their place.
+
+Your Godot scene still has the old spacing. The next time the Godot editor opens it, the addon gives the Terrain3D node
+the new spacing and marks the scene changed, so save it there.
+
+Sometimes nothing can be rewritten. The greyed out control or **Change Settings** button then says why when you
+hover it, or the status bar does after you click:
+
+| Message | Why, and what to do |
+| --- | --- |
+| "Send your edits first, edits made at the old region size cannot be sent after it changes" | Your unsent edits only fit the old size. Save, then change it |
+| "... holds TrenchDot edits Godot has not applied yet ..." | Edits Godot has not applied yet wait in the data folder, for example from another map. Open the scene in the Godot editor once so it applies them |
+| "the regions at ... hold Terrain3D instances, which only their scene can move ..." | Terrain3D's instancer meshes live in the scene, so change the size in the Godot editor with the scene open |
+| "Open the scene that shows this Terrain3D in the Godot editor first" | A Godot editor runs on the project, so TrenchDot leaves the files to it |
+| "Turn on the live link, TrenchDot only rewrites the region files when it can tell no Godot editor has them open" | *Godot live link* is off in *File > Preferences…*, turn on **rebuild maps in Godot on save** |
+
+The command line does the same with `settings`, the data folder, the region size and the vertex spacing:
+
+```sh
+godot --headless --path path/to/project --script res://addons/func_godot/src/trenchdot/terrain3d_cli.gd -- settings res://terrain3d_data 512 1.0
+```
 
 ## Good to know
 
@@ -426,6 +468,11 @@ string clears one), and `ocean_enabled`, as one undo step in Godot, like the Loo
 what the 3D view draws with: `resources` and `ocean` of the cache, the `background` mode and whether it has noise values,
 and `clipmap`, the layers and regions held, the GPU bytes and the triangles of the last frame. `set_editor` takes
 `terrain3d_textures`, `terrain3d_background` and `terrain3d_water`, the switches of **View > Terrain3D**.
+
+`info` names in `source` what it read, `"cache"` or `"region_files"` for a folder Godot has not exported, and the tools
+wait for those files to be read. `settings` replies with its `route`, `"live_link"` through the Godot editor or
+`"headless"` with Godot closed. A headless change adds the `backup` folder and any `problems`, and refuses `material`,
+`assets` and `ocean_enabled`, which need the scene.
 
 `terrain_edit` and `scatter` accept the id of the Terrain3D node. Its `paint_texture` op takes a `texture` id and
 `mode: "base"` or `"spray"`. `paint_color` takes a `color` and `paint_wetness` a `roughness`, both blend in by

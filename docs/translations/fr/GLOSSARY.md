@@ -172,6 +172,9 @@ Une entité qui se trouve à un seul endroit au lieu de prendre sa forme de brus
 ## Prefab { #prefab data-forms="prefabs" }
 Un morceau réutilisable de carte enregistré dans son propre fichier .tdm et placé dans d'autres cartes sous forme d'instances. Modifier le fichier du prefab met à jour chacune de ses instances.
 
+## fichier de région { #region-file data-forms="fichiers de région" }
+Le fichier `.res` dans lequel Terrain3D enregistre une région, nommé d'après sa position, comme `terrain3d-01_00.res` pour la région (-1, 0). Il contient les hauteurs, les ids de texture peints, la carte de couleur et les instances de cette région.
+
 ## res:// { #res }
 La façon dont Godot écrit un chemin dans le dossier du projet, quel que soit le nom du dossier sur le disque. res://maps/room.tdm est room.tdm dans le dossier maps de votre projet Godot. C'est pourquoi les cartes et les modèles doivent être enregistrés dans le projet pour que l'addon les trouve.
 

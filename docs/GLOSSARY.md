@@ -186,6 +186,9 @@ A reusable piece of a map saved as its own .tdm file and placed in other maps as
 ## preset
 A named set of key bindings and mouse gestures. TrenchBroom is the default, Hammer and Blender change the keys and the mouse those editors are known for, for example Shift+drag copies the selection in the Hammer preset. Pick one on the first start, under Help > Keyboard Shortcuts or in File > Preferences, and your own bindings stay on top of it.
 
+## region file { #region-file data-forms="region files" }
+The `.res` file Terrain3D saves one region in, named after its position, like `terrain3d-01_00.res` for region (-1, 0). It holds the heights, the painted texture ids, the color map and the instances of that region.
+
 ## res://
 Godot's way of writing a path inside the project folder, whatever the folder is called on disk. res://maps/room.tdm is room.tdm in the maps folder of your Godot project. That's why maps and models have to be saved inside the project for the addon to find them.
 

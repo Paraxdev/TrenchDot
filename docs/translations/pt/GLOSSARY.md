@@ -172,6 +172,9 @@ Uma entidade que fica em um único lugar em vez de tirar sua forma de brushes, c
 ## prefab { #prefab data-forms="prefabs" }
 Uma peça reutilizável de um mapa, salva como seu próprio arquivo .tdm e posicionada em outros mapas como instâncias. Editar o arquivo do prefab atualiza todas as instâncias dele.
 
+## arquivo de região { #region-file data-forms="arquivos de região" }
+O arquivo `.res` em que o Terrain3D salva uma região, com o nome da sua posição, como `terrain3d-01_00.res` para a região (-1, 0). Ele guarda as alturas, os ids de textura pintados, o mapa de cor e as instâncias dessa região.
+
 ## res:// { #res }
 A forma do Godot de escrever um caminho dentro da pasta do projeto, seja qual for o nome da pasta no disco. res://maps/room.tdm é o room.tdm na pasta maps do seu projeto Godot. É por isso que mapas e modelos precisam ser salvos dentro do projeto para o addon os encontrar.
 
