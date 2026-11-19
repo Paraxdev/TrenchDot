@@ -76,7 +76,10 @@ pub(crate) fn symmetry_arg(v: &Value, missing: Symmetry) -> Result<Symmetry, Str
 /// The ground a scatter op can land on, for loading the Terrain3D regions under it. Fill covers its whole target area.
 fn scatter_reach(op: &str, args: &Value, radius: f64) -> Option<crate::terrain3d::residency::View> {
     let points: Vec<DVec3> = match op {
-        "fill" => return Some(crate::terrain3d::follow::ground(DVec2::splat(-1.0e7), DVec2::splat(1.0e7))),
+        "fill" => {
+            let (min, max) = fill_area(args).ok().flatten().unwrap_or((DVec2::splat(-1.0e7), DVec2::splat(1.0e7)));
+            return Some(crate::terrain3d::follow::ground(min, max));
+        }
         "stroke" => args["points"].as_array().into_iter().flatten().filter_map(point).collect(),
         "paint" => point(&args["center"]).into_iter().collect(),
         _ => return None,
@@ -85,6 +88,25 @@ fn scatter_reach(op: &str, args: &Value, radius: f64) -> Option<crate::terrain3d
     let first = flat(points.first()?);
     let (min, max) = points.iter().map(flat).fold((first, first), |(lo, hi), p| (lo.min(p), hi.max(p)));
     Some(crate::terrain3d::follow::ground(min - DVec2::splat(radius), max + DVec2::splat(radius)))
+}
+
+/// The rectangle from `min` to `max`, [x, z] in map units, that a fill keeps to.
+fn fill_area(args: &Value) -> Result<Option<(DVec2, DVec2)>, String> {
+    let corner = |key: &str| -> Result<Option<DVec2>, String> {
+        match &args[key] {
+            Value::Null => Ok(None),
+            Value::Array(a) if a.len() == 2 && a.iter().all(Value::is_number) => {
+                Ok(Some(DVec2::new(a[0].as_f64().unwrap_or(0.0), a[1].as_f64().unwrap_or(0.0))))
+            }
+            _ => Err(format!("{key} must be [x, z] in map units")),
+        }
+    };
+    match (corner("min")?, corner("max")?) {
+        (None, None) => Ok(None),
+        (Some(min), Some(max)) if min.x < max.x && min.y < max.y => Ok(Some((min, max))),
+        (Some(_), Some(_)) => Err("min must be below max on both x and z".into()),
+        _ => Err("give min and max together, [x, z] in map units".into()),
+    }
 }
 
 fn arr(v: DVec3) -> Value {
@@ -1036,11 +1058,22 @@ impl App {
             crate::scatter_tool::apply_preset(&mut self.state, preset);
         }
 
-        let s = &mut self.state.prefs.scatter;
         if let Some(items) = a["items"].as_array() {
-            s.palette = items.iter().enumerate().map(|(i, v)| scatter_item(v).map_err(|e| format!("items[{i}]: {e}"))).collect::<Result<_, _>>()?;
-            s.preset.clear();
+            let mut palette = Vec::with_capacity(items.len());
+            for (i, v) in items.iter().enumerate() {
+                let item = scatter_item(v).map_err(|e| format!("items[{i}]: {e}"))?;
+                if crate::scatter_tool::missing_model(&self.state.game, &item.source) {
+                    return Err(format!("items[{i}]: {} is not a file in the project", item.source));
+                }
+
+                palette.push(item);
+            }
+
+            self.state.prefs.scatter.palette = palette;
+            self.state.prefs.scatter.preset.clear();
         }
+
+        let s = &mut self.state.prefs.scatter;
 
         if let Some(k) = a["kind"].as_str() {
             s.kind = serde_json::from_value(json!(k)).map_err(|_| "kind must be props or foliage".to_string())?;
@@ -1112,12 +1145,25 @@ impl App {
             (Ok(i), Ok(t)) => (i, t),
             (Err(e), _) | (_, Err(e)) => return err(e),
         };
+        let replace = args["replace"].as_bool() == Some(true);
+        if replace && args.get("items").is_none() && args.get("preset").is_none() {
+            return err("replace needs items or a preset, the models the set keeps");
+        }
+
+        let area = match op {
+            "fill" => match fill_area(args) {
+                Ok(area) => area,
+                Err(e) => return err(e),
+            },
+            _ => None,
+        };
         let saved = self.state.prefs.scatter.clone();
         if let Err(e) = self.apply_scatter_args(args) {
             self.state.prefs.scatter = saved;
             return err(e);
         }
 
+        let was_active = self.state.active_scatter;
         if let Some(id) = set_id {
             if self.state.doc.map.scatter(id).is_none() {
                 self.state.prefs.scatter = saved;
@@ -1144,7 +1190,11 @@ impl App {
             && let Some(id) = crate::scatter_tool::active_set(&self.state)
         {
             let palette = self.state.prefs.scatter.palette.clone();
-            crate::scatter_tool::set_palette(&mut self.state, id, &palette);
+            if replace {
+                crate::scatter_tool::replace_palette(&mut self.state, id, &palette);
+            } else {
+                crate::scatter_tool::set_palette(&mut self.state, id, &palette);
+            }
         }
 
         let result = match op {
@@ -1289,7 +1339,7 @@ impl App {
                     });
                 }
 
-                match crate::scatter_tool::fill(&mut self.state, &mut rng) {
+                match crate::scatter_tool::fill_in(&mut self.state, &mut rng, area) {
                     Ok(n) => {
                         let id = crate::scatter_tool::active_set(&self.state);
                         ok(json!({ "placed": n, "set": id.map(|id| self.scatter_summary(id)) }))
@@ -1323,12 +1373,20 @@ impl App {
                 };
                 ok(json!({ "sets": sets, "active": self.state.active_scatter.map(|i| i.0), "palette": crate::scatter_tool::brush_items(&self.state) }))
             }
+            "delete" => match set_id {
+                Some(id) => {
+                    crate::scatter_tool::delete_set(&mut self.state, id);
+                    self.state.active_scatter = was_active.filter(|a| *a != id && self.state.doc.map.scatter(*a).is_some());
+                    ok(json!({ "deleted": id.0, "active": self.state.active_scatter.map(|i| i.0) }))
+                }
+                None => err("delete needs the id of the set"),
+            },
             "to_entities" => match crate::scatter_tool::active_set(&self.state) {
                 Some(id) => ok(json!({ "entities": crate::scatter_tool::bake_to_entities(&mut self.state, id) })),
                 None => err("no scatter set, pass id"),
             },
             other => err(format!(
-                "unknown scatter op {other}, use palette, install_models, new_set, activate, paint, stroke, erase, fill, toggle_target, material, clear, get or to_entities"
+                "unknown scatter op {other}, use palette, install_models, new_set, activate, paint, stroke, erase, fill, toggle_target, material, clear, delete, get or to_entities"
             )),
         };
         if !persistent {
@@ -2682,6 +2740,20 @@ mod tests {
     }
 
     #[test]
+    fn a_fill_area_takes_both_corners_below_one_another() {
+        let area = |v: Value| fill_area(&v);
+        assert_eq!(area(json!({})), Ok(None));
+        assert_eq!(area(json!({ "min": [-300.5, 120], "max": [450, 400.25] })), Ok(Some((DVec2::new(-300.5, 120.0), DVec2::new(450.0, 400.25)))));
+        assert_eq!(area(json!({ "min": [-300, 400.25], "max": [450, 400.25] })), Err("min must be below max on both x and z".into()));
+        assert_eq!(area(json!({ "min": [450, 120], "max": [450, 400] })), Err("min must be below max on both x and z".into()));
+        assert_eq!(area(json!({ "max": [450, 400] })), Err("give min and max together, [x, z] in map units".into()));
+        assert_eq!(area(json!({ "min": [450, 400] })), Err("give min and max together, [x, z] in map units".into()));
+        for bad in [json!([1, 2, 3]), json!([1]), json!(["1", 2]), json!(7)] {
+            assert_eq!(area(json!({ "min": bad, "max": [450, 400] })), Err("min must be [x, z] in map units".into()), "{bad}");
+        }
+    }
+
+    #[test]
     fn a_scatter_call_loads_the_terrain3d_regions_its_brush_can_reach() {
         use crate::terrain3d::residency::View;
         let flat = |min: [f64; 2], max: [f64; 2]| Some(View::Flat { min: DVec2::from(min), max: DVec2::from(max), zoom: f64::INFINITY });
@@ -2689,6 +2761,9 @@ mod tests {
         assert_eq!(scatter_reach("stroke", &stroke, 64.0), flat([-184.0, -2064.0], [764.0, -836.0]));
         assert_eq!(scatter_reach("paint", &json!({ "center": [-50, 12, 75] }), 10.0), flat([-60.0, 65.0], [-40.0, 85.0]));
         assert_eq!(scatter_reach("fill", &json!({}), 64.0), flat([-1.0e7, -1.0e7], [1.0e7, 1.0e7]));
+        let area = json!({ "min": [-300.5, 120], "max": [450, 400.25] });
+        assert_eq!(scatter_reach("fill", &area, 64.0), flat([-300.5, 120.0], [450.0, 400.25]), "a fill area loads only its regions");
+        assert_eq!(scatter_reach("fill", &json!({ "min": [450, 120], "max": [-300, 400] }), 64.0), flat([-1.0e7, -1.0e7], [1.0e7, 1.0e7]));
         assert_eq!(scatter_reach("stroke", &json!({ "points": [] }), 64.0), None);
         for op in ["erase", "palette", "new_set", "clear", "get"] {
             assert_eq!(scatter_reach(op, &json!({ "center": [1, 2] }), 64.0), None, "{op}");

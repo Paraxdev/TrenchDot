@@ -1526,6 +1526,7 @@
   "A scatter set cannot be painted onto itself": "Ein Scatter-Set kann nicht auf sich selbst gemalt werden",
   "Select the surfaces to fill, or pick targets with the eyedropper in the Scatter panel": "Die zu füllenden Oberflächen auswählen oder Ziele mit der Pipette im Scatter-Panel wählen",
   "Scatter set '{name}' has no enabled models to fill with": "Scatter-Set '{name}' hat keine aktivierten Modelle zum Füllen",
+  "The area is too large to fill at density {density}, lower the density or fill a smaller area": "Die Fläche ist zu groß zum Füllen mit Dichte {density}, Dichte verringern oder eine kleinere Fläche füllen",
   "Nothing under the cursor to target": "Unter dem Cursor gibt es nichts als Ziel",
   "Scatter target: click a surface or scattered object to add it, click a target to remove it": "Scatter-Ziel: Fläche oder gestreutes Objekt anklicken zum Hinzufügen, Ziel anklicken zum Entfernen",
   "entities": "Entitäten",

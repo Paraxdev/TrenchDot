@@ -162,6 +162,27 @@ mod tests {
     }
 
     #[test]
+    fn a_fill_on_the_node_keeps_to_its_area_and_the_sample_limit() {
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, cache) = bumpy(dir.path(), &[[0, 0], [1, 0]]);
+        let set = rocks(&mut state, id);
+        state.prefs.scatter.rules.density = 0.5;
+        let (min, max) = (DVec2::new(4100.5, 700.25), DVec2::new(6900.0, 2300.0));
+        let placed = scatter_tool::fill_in(&mut state, &mut Rng::new(3), Some((min, max))).unwrap();
+        let instances = state.doc.map.scatter(set).unwrap().instances.clone();
+        assert!(placed > 100 && instances.len() == placed, "the fill placed {placed}");
+        assert!(instances.iter().all(|i| (min.x..=max.x).contains(&i.position.x) && (min.y..=max.y).contains(&i.position.z)));
+        assert!(instances.iter().any(|i| i.position.x < 5120.0) && instances.iter().any(|i| i.position.x > 5120.0), "both regions");
+        assert!(off_surface(&state, &cache, id, set).iter().all(|d| *d < 0.01 * UPM));
+
+        // The two regions are 10240 by 5120 units, 12800 samples at density 1.
+        state.prefs.scatter.rules.density = 400.0;
+        let refused = scatter_tool::fill(&mut state, &mut Rng::new(3)).unwrap_err();
+        assert!(refused.en.starts_with("The area is too large to fill at density 400,"), "{refused:?}");
+        assert_eq!(state.doc.map.scatter(set).unwrap().instances.len(), placed);
+    }
+
+    #[test]
     fn a_fill_leaves_the_cells_beside_a_hole_empty() {
         let dir = tempfile::tempdir().unwrap();
         let (mut state, id, cache) = bumpy(dir.path(), &[[0, 0], [1, 0]]);

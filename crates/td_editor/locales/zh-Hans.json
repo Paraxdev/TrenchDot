@@ -1526,6 +1526,7 @@
   "A scatter set cannot be painted onto itself": "散布集合不能绘制到自身上",
   "Select the surfaces to fill, or pick targets with the eyedropper in the Scatter panel": "请选择要填充的表面，或用散布面板中的吸管选取目标",
   "Scatter set '{name}' has no enabled models to fill with": "散布集合 '{name}' 没有可用于填充的已启用模型",
+  "The area is too large to fill at density {density}, lower the density or fill a smaller area": "区域太大，无法以密度 {density} 填充，请降低密度或填充更小的区域",
   "Nothing under the cursor to target": "光标下没有可作为目标的对象",
   "Scatter target: click a surface or scattered object to add it, click a target to remove it": "散布目标：点击表面或散布对象添加，点击目标移除",
   "entities": "实体",

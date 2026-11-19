@@ -1526,6 +1526,7 @@
   "A scatter set cannot be painted onto itself": "Um conjunto de scatter não pode ser pintado sobre si mesmo",
   "Select the surfaces to fill, or pick targets with the eyedropper in the Scatter panel": "Selecione as superfícies a preencher, ou escolha alvos com o conta-gotas do painel scatter",
   "Scatter set '{name}' has no enabled models to fill with": "O conjunto de scatter '{name}' não tem modelos ativados para preencher",
+  "The area is too large to fill at density {density}, lower the density or fill a smaller area": "A área é grande demais para preencher com densidade {density}, diminua a densidade ou preencha uma área menor",
   "Nothing under the cursor to target": "Nada sob o cursor para escolher como alvo",
   "Scatter target: click a surface or scattered object to add it, click a target to remove it": "Alvo de scatter: clique numa superfície ou objeto espalhado para adicionar, clique num alvo para remover",
   "entities": "entidades",

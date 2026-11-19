@@ -32,6 +32,13 @@ pub fn is_classname(source: &str) -> bool {
     !(crate::models::is_model_path(source) || lower.ends_with(".tscn") || lower.ends_with(".scn"))
 }
 
+/// Whether `source` names a model or scene file the open project lacks. Classnames pass, and so does everything while
+/// no project is open, since nothing can be checked then.
+pub fn missing_model(game: &td_formats::GameConfig, source: &str) -> bool {
+    let path = !is_classname(source) || source.contains(['/', '\\']);
+    game.project_root.is_some() && path && !game.resolve_res(source).is_some_and(|p| p.is_file())
+}
+
 /// Region a dab can place into, tall enough for casts from above hills and into valleys.
 fn dab_region(center: DVec3, radius: f64) -> Aabb {
     Aabb::from_center_size(center, DVec3::new(radius * 2.0 + 64.0, radius * 4.0 + 4096.0, radius * 2.0 + 64.0))
@@ -237,6 +244,23 @@ pub fn set_palette(state: &mut EditorState, id: NodeId, items: &[ScatterItem]) {
             let listed = s.merge_items(items);
             for (k, item) in s.items.iter_mut().enumerate() {
                 item.enabled = listed.contains(&k);
+            }
+        }
+    });
+}
+
+/// Makes `items` the only models of a set: listed ones take the given settings and are switched on, the others go
+/// together with their instances.
+pub fn replace_palette(state: &mut EditorState, id: NodeId, items: &[ScatterItem]) {
+    state.doc.edit("Scatter Models", |m, _| {
+        if let Some(s) = m.scatter_mut(id) {
+            let listed = s.merge_items(items);
+            for k in (0..s.items.len()).rev().filter(|k| !listed.contains(k)) {
+                s.remove_item(k);
+            }
+
+            for item in &mut s.items {
+                item.enabled = true;
             }
         }
     });
@@ -459,6 +483,11 @@ fn godot_can_ground(map: &td_doc::Map, follow: Option<&(NodeId, std::path::PathB
 
 /// Fills the whole area of the active set's targets (or the selected surfaces and sets) with its enabled models.
 pub fn fill(state: &mut EditorState, rng: &mut Rng) -> Result<usize, Msg> {
+    fill_in(state, rng, None)
+}
+
+/// [`fill`] kept to the XZ rectangle from `area.0` to `area.1` when one is given.
+pub fn fill_in(state: &mut EditorState, rng: &mut Rng, area: Option<(DVec2, DVec2)>) -> Result<usize, Msg> {
     let settings = state.prefs.scatter.clone();
     let Some(id) = active_or_new_set(state) else { return Err(state.status_msg()) };
     let Some(mut set) = state.doc.map.scatter(id).cloned() else { return Err("scatter set vanished".into()) };
@@ -480,14 +509,29 @@ pub fn fill(state: &mut EditorState, rng: &mut Rng) -> Result<usize, Msg> {
     load_models(state, &set.targets);
     let follow = state.terrain3d_followed(&set.targets);
     if follow.is_some() {
-        state.load_terrain3d_regions(&[crate::terrain3d::follow::ground(DVec2::splat(-1.0e7), DVec2::splat(1.0e7))]);
+        let (min, max) = area.unwrap_or((DVec2::splat(-1.0e7), DVec2::splat(1.0e7)));
+        state.load_terrain3d_regions(&[crate::terrain3d::follow::ground(min, max)]);
     }
 
     let source = follow.as_ref().and_then(|(_, cache)| state.terrain3d.source(cache));
     let everywhere = Aabb::from_center_size(DVec3::ZERO, DVec3::splat(1.0e7));
     let placed = {
         let caster = SurfaceCaster::with_targets(state, &everywhere, &set.targets);
-        let region = caster.bounds_of(&set.targets);
+        let mut region = caster.bounds_of(&set.targets);
+        if let Some((min, max)) = area {
+            (region.min.x, region.min.z) = (region.min.x.max(min.x), region.min.z.max(min.y));
+            (region.max.x, region.max.z) = (region.max.x.min(max.x), region.max.z.min(max.y));
+            // The caster pads each target's bounds by a unit for its rays, an area that only touches a target overlaps that much.
+            if region.max.x - region.min.x <= 1.0 || region.max.z - region.min.z <= 1.0 {
+                return Err("the area between min and max misses the targets".into());
+            }
+        }
+
+        let density = settings.rules.density;
+        if td_doc::scatter::fill_samples(&region, density) > td_doc::scatter::MAX_FILL_SAMPLES {
+            return Err(msg!("The area is too large to fill at density {density}, lower the density or fill a smaller area", density));
+        }
+
         let others = other_footprints(state, Some(id), &set.targets, &region.expanded(256.0));
         let rules = ScatterRules { items: Some(enabled), only_targets: true, ..settings.rules.clone() };
         set.fill(&region, &rules, rng, &others, |o, d| {
@@ -1167,6 +1211,88 @@ mod tests {
         let refused = fill(&mut state, &mut Rng::new(7)).unwrap_err();
         assert!(refused.en.starts_with("Select the surfaces to fill"), "{refused:?}");
         assert!(refused.shown.starts_with("Die zu füllenden Oberflächen auswählen"), "{refused:?}");
+    }
+
+    #[test]
+    fn a_fill_keeps_to_its_area_and_refuses_one_too_large_for_the_density() {
+        let mut state = EditorState::new(Default::default());
+        let floor = ground(&mut state, [-1024.0, -16.0, -700.0], [1300.0, 0.0, 900.0]);
+        template(&mut state, "res://moss.glb", 10.0, ScatterKind::Foliage);
+        let set = new_set(&mut state, Some("moss"));
+        state.doc.edit("targets", |m, _| m.scatter_mut(set).unwrap().targets = vec![floor]);
+        state.prefs.scatter.rules.density = 2.0;
+        let instances = |state: &EditorState| state.doc.map.scatter(set).unwrap().instances.clone();
+        let inside = |p: DVec3, (min, max): (DVec2, DVec2)| (min.x..=max.x).contains(&p.x) && (min.y..=max.y).contains(&p.z);
+
+        let area = (DVec2::new(-300.5, 120.25), DVec2::new(450.0, 400.0));
+        let placed = fill_in(&mut state, &mut Rng::new(4), Some(area)).unwrap();
+        assert!(placed > 20, "the fill placed {placed}");
+        assert_eq!(instances(&state).len(), placed);
+        assert!(instances(&state).iter().all(|i| inside(i.position, area)));
+
+        let past_the_edge = (DVec2::new(1000.0, -2000.0), DVec2::new(5000.0, -400.0));
+        let more = fill_in(&mut state, &mut Rng::new(5), Some(past_the_edge)).unwrap();
+        assert!(more > 5, "the overlap with the floor is filled: {more}");
+        let overlap = (DVec2::new(1000.0, -700.0), DVec2::new(1300.0, -400.0));
+        assert!(instances(&state)[placed..].iter().all(|i| inside(i.position, overlap)));
+
+        let touching = (DVec2::new(1300.0, 0.0), DVec2::new(3000.0, 100.0));
+        let missed = fill_in(&mut state, &mut Rng::new(4), Some(touching)).unwrap_err();
+        assert!(missed.en.contains("misses the targets"), "{missed:?}");
+
+        // The whole floor is 2324 by 1600 units, 907.8 samples at density 1.
+        state.prefs.scatter.rules.density = 4500.0;
+        let _de = crate::i18n::scope(crate::i18n::Lang::De);
+        let refused = fill(&mut state, &mut Rng::new(4)).unwrap_err();
+        assert_eq!(refused.en, "The area is too large to fill at density 4500, lower the density or fill a smaller area");
+        assert!(refused.shown.starts_with("Die Fläche ist zu groß"), "{refused:?}");
+        assert_eq!(instances(&state).len(), placed + more, "a refused fill places nothing");
+        assert!(fill_in(&mut state, &mut Rng::new(4), Some(area)).unwrap() > 0, "a small area takes the same density");
+    }
+
+    #[test]
+    fn a_missing_model_is_a_file_the_open_project_lacks() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("props")).unwrap();
+        std::fs::write(dir.path().join("props/rock.glb"), "").unwrap();
+        let mut state = EditorState::new(Default::default());
+        assert!(!missing_model(&state.game, "res://props/nope.glb"), "without a project nothing can be checked");
+        state.game.project_root = Some(dir.path().to_path_buf());
+        assert!(!missing_model(&state.game, "res://props/rock.glb"));
+        assert!(!missing_model(&state.game, "props/rock.glb"), "a relative path starts at the project like in Godot");
+        assert!(!missing_model(&state.game, "npc_zombie"), "classnames are no files");
+        assert!(missing_model(&state.game, "res://props/nope.glb"));
+        assert!(missing_model(&state.game, "res://props/rock.tscn"));
+        assert!(missing_model(&state.game, "res://props"), "a folder is no model");
+        assert!(missing_model(&state.game, "res://../props/rock.glb"), "a path out of the project");
+        assert!(missing_model(&state.game, &dir.path().join("props/rock.glb").to_string_lossy()), "an absolute path leads out of the project");
+    }
+
+    #[test]
+    fn replacing_a_palette_drops_the_models_it_leaves_out_with_their_instances() {
+        let mut state = EditorState::new(Default::default());
+        ground(&mut state, [-1024.0, -16.0, -1024.0], [1100.0, 0.0, 900.0]);
+        template(&mut state, "res://rock.glb", 64.0, ScatterKind::Props);
+        state.prefs.scatter.radius = 200.0;
+        state.prefs.scatter.rules.density = 2.0;
+        assert!(paint(&mut state, DVec3::new(-700.0, 0.0, 300.0), DVec3::Y, None, &mut Rng::new(3)) > 0);
+        let id = state.active_scatter.unwrap();
+        set_palette(&mut state, id, &[ScatterItem { spacing: 64.0, ..ScatterItem::new("res://moss.glb") }]);
+        assert!(paint(&mut state, DVec3::new(650.0, 0.0, -250.0), DVec3::Y, None, &mut Rng::new(4)) > 0);
+        let moss = state.doc.map.scatter(id).unwrap().instances.iter().filter(|i| i.item == 1).map(|i| i.position).collect::<Vec<_>>();
+        assert!(!moss.is_empty());
+
+        let undo = state.doc.history.undo_labels().count();
+        replace_palette(&mut state, id, &[ScatterItem { weight: 3.0, ..ScatterItem::new("res://moss.glb") }, ScatterItem::new("res://fern.glb")]);
+        let set = state.doc.map.scatter(id).unwrap();
+        assert_eq!(set.items.iter().map(|i| (i.label(), i.enabled)).collect::<Vec<_>>(), [("moss", true), ("fern", true)]);
+        assert_eq!(set.items[0].weight, 3.0);
+        assert_eq!(set.instances.iter().map(|i| (i.item, i.position)).collect::<Vec<_>>(), moss.iter().map(|p| (0, *p)).collect::<Vec<_>>());
+        assert_eq!(state.doc.history.undo_labels().count(), undo + 1, "one undo step");
+
+        replace_palette(&mut state, id, &[]);
+        let set = state.doc.map.scatter(id).unwrap();
+        assert!(set.items.is_empty() && set.instances.is_empty());
     }
 
     #[test]

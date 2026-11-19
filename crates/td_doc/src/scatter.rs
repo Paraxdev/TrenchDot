@@ -636,8 +636,8 @@ impl Scatter {
         }
 
         let size = bounds.size();
-        let samples = ((size.x.max(1.0) * size.z.max(1.0) / 4096.0) * rules.density).ceil() as usize;
-        if samples > 4_000_000 {
+        let samples = fill_samples(bounds, rules.density);
+        if samples > MAX_FILL_SAMPLES {
             return 0;
         }
 
@@ -832,12 +832,44 @@ pub fn preset(name: &str) -> Option<(ScatterKind, Vec<ScatterItem>)> {
 }
 
 pub const NATURE_DIR: &str = "res://trenchdot/nature";
+
+/// The most samples one fill takes, more keep the editor busy for minutes.
+pub const MAX_FILL_SAMPLES: usize = 4_000_000;
+
+/// How many samples a fill of the XZ area of `bounds` takes at `density`.
+pub fn fill_samples(bounds: &Aabb, density: f64) -> usize {
+    let size = bounds.size();
+    ((size.x.max(1.0) * size.z.max(1.0) / 4096.0) * density).ceil() as usize
+}
 pub const PRESETS: [&str; 10] =
     ["forest", "pines", "mixed woodland", "detailed forest", "low-poly trees", "bushes", "undergrowth", "rocks", "boulders", "grass"];
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_fill_takes_samples_by_area_and_density_and_none_past_the_limit() {
+        let area = |w: f64, d: f64| Aabb::new(DVec3::new(-700.5, -40.0, 1234.25), DVec3::new(-700.5 + w, 300.0, 1234.25 + d));
+        assert_eq!(fill_samples(&area(128.0, 32.0), 0.0), 0);
+        assert_eq!(fill_samples(&area(128.0, 32.0), 1.0), 1);
+        assert_eq!(fill_samples(&area(128.0, 32.0), 2.5), 3);
+        assert_eq!(fill_samples(&area(0.0, 4096.0), 3.0), 3, "a line counts one unit wide");
+        assert_eq!(fill_samples(&area(128_000.0, 128_000.0), 1.0), MAX_FILL_SAMPLES);
+        assert_eq!(fill_samples(&area(128_000.0, 128_001.0), 1.0), 4_000_032);
+
+        let casts = std::cell::Cell::new(0usize);
+        let mut set = Scatter::new("weeds", ScatterKind::Foliage, vec![ScatterItem::new("res://weed.glb")]);
+        let rules = ScatterRules { density: 1.0, ..Default::default() };
+        let cast = |_: DVec3, _: DVec3| {
+            casts.set(casts.get() + 1);
+            None
+        };
+        assert_eq!(set.fill(&area(128_000.0, 128_001.0), &rules, &mut Rng::new(2), &[], cast), 0);
+        assert_eq!(casts.get(), 0, "past the limit nothing is sampled");
+        set.fill(&area(128_000.0, 128_000.0), &rules, &mut Rng::new(2), &[], cast);
+        assert_eq!(casts.get(), MAX_FILL_SAMPLES, "at the limit every sample is cast");
+    }
 
     fn flat(node: NodeId, y: f64) -> impl Fn(DVec3, DVec3) -> Option<SurfaceHit> {
         move |origin: DVec3, dir: DVec3| {

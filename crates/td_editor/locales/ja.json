@@ -1526,6 +1526,7 @@
   "A scatter set cannot be painted onto itself": "散布セットを自分自身にペイントすることはできません",
   "Select the surfaces to fill, or pick targets with the eyedropper in the Scatter panel": "埋める表面を選択するか、散布パネルのスポイトでターゲットを選んでください",
   "Scatter set '{name}' has no enabled models to fill with": "散布セット '{name}' に埋めるための有効なモデルがありません",
+  "The area is too large to fill at density {density}, lower the density or fill a smaller area": "密度 {density} で塗りつぶすには範囲が広すぎます。密度を下げるか、狭い範囲を塗りつぶしてください",
   "Nothing under the cursor to target": "カーソルの下にターゲットにできるものがありません",
   "Scatter target: click a surface or scattered object to add it, click a target to remove it": "散布ターゲット：面か散布オブジェクトをクリックで追加、ターゲットをクリックで削除",
   "entities": "エンティティ",

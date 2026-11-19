@@ -1526,6 +1526,7 @@
   "A scatter set cannot be painted onto itself": "Набор разброса нельзя рисовать на самом себе",
   "Select the surfaces to fill, or pick targets with the eyedropper in the Scatter panel": "Выберите поверхности для заполнения или укажите цели пипеткой на панели разброса",
   "Scatter set '{name}' has no enabled models to fill with": "В наборе разброса '{name}' нет включённых моделей для заполнения",
+  "The area is too large to fill at density {density}, lower the density or fill a smaller area": "Область слишком велика для заполнения с плотностью {density}, уменьшите плотность или заполните меньшую область",
   "Nothing under the cursor to target": "Под курсором нет цели",
   "Scatter target: click a surface or scattered object to add it, click a target to remove it": "Цель разброса: клик по поверхности или разбросанному объекту добавляет, клик по цели убирает",
   "entities": "сущности",

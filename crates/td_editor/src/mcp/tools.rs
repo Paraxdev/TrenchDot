@@ -1897,6 +1897,10 @@ impl App {
                     return err("sprinkle needs items, or an active scatter set with models (or set_editor scatter_items)");
                 }
 
+                if let Some(missing) = a["items"].as_array().and(items.iter().find(|i| crate::scatter_tool::missing_model(&self.state.game, &i.source))) {
+                    return err(format!("items: {} is not a file in the project", missing.source));
+                }
+
                 let radius = a["radius"].as_f64().unwrap_or(self.state.prefs.scatter.radius);
                 let rules =
                     td_doc::scatter::ScatterRules { density: a["density"].as_f64().unwrap_or(1.0), slope: [0.0, 90.0], falloff: 0.0, ..Default::default() };
@@ -2487,6 +2491,11 @@ impl App {
             Ok(e) => e,
             Err(e) => return err(e),
         };
+        let palette = args["scatter_items"].as_array().or(args["sprinkle_items"].as_array());
+        if let Some(missing) = palette.into_iter().flatten().filter_map(|i| i.as_str()).find(|s| crate::scatter_tool::missing_model(&self.state.game, s)) {
+            return err(format!("scatter_items: {missing} is not a file in the project"));
+        }
+
         if args["live_mode"].as_bool() == Some(true) && self.state.restricted() {
             return err(crate::trust::BLOCKED);
         }

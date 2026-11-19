@@ -2850,6 +2850,96 @@ fn script_prefab_library_lists_no_linked_entries() {
     let _ = std::fs::remove_dir_all(&project);
 }
 
+/// A scatter palette names models the project has, `replace` swaps a set's models, `delete` removes a set, and a fill
+/// stays between `min` and `max` and says when its area is too large.
+#[test]
+#[ignore]
+fn scatter_models_must_exist_and_sets_replace_delete_and_fill_an_area() {
+    let dir = linked_project("scatter_palette", json!([]));
+    let nature = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../godot/trenchdot/nature");
+    std::fs::create_dir_all(dir.join("props")).unwrap();
+    for name in ["rock.bbmodel", "boulder.bbmodel", "fern.bbmodel"] {
+        std::fs::copy(nature.join(name), dir.join("props").join(name)).unwrap();
+    }
+
+    let ed = Editor::launch_with("scatter_palette", &["--project", dir.to_str().unwrap()]);
+    let (rock, boulder, fern) = ("res://props/rock.bbmodel", "res://props/boulder.bbmodel", "res://props/fern.bbmodel");
+    let ground = ed.box_brush([-1000.0, -16.0, -600.0], [1400.0, 0.0, 900.0]);
+    let sets = |ed: &Editor| ed.call("scatter", json!({ "op": "get" }))["sets"].as_array().unwrap().clone();
+
+    let e = ed.call_err("scatter", json!({ "op": "new_set", "name": "bad", "items": [rock, "res://props/nope.glb"], "targets": [ground] }));
+    assert!(e.contains("items[1]") && e.contains("res://props/nope.glb"), "{e}");
+    let e = ed.call_err("scatter", json!({ "op": "new_set", "name": "bad", "items": ["props/gone.bbmodel"] }));
+    assert!(e.contains("items[0]") && e.contains("props/gone.bbmodel"), "a path without res:// is checked too: {e}");
+    assert_eq!(sets(&ed), Vec::<Value>::new(), "a refused palette makes no set");
+    let e = ed.call_err("set_editor", json!({ "scatter_items": [rock, "res://props/nope.glb"] }));
+    assert!(e.contains("res://props/nope.glb"), "{e}");
+    let sprinkle = json!({ "action": "sprinkle", "args": { "center": [0, 0, 0], "items": ["res://props/nope.glb"], "seed": 2 } });
+    assert!(ed.call_err("run_action", sprinkle).contains("res://props/nope.glb"));
+
+    let set = ed.call("scatter", json!({ "op": "new_set", "name": "rocks", "items": [rock, boulder], "targets": [ground] }))["id"].clone();
+    let filled = ed.call("scatter", json!({ "op": "fill", "id": set, "density": 0.5, "seed": 7 }));
+    let counts = |set: &Value| set["items"].as_array().unwrap().iter().map(|i| (i["source"].clone(), i["count"].as_u64().unwrap())).collect::<Vec<_>>();
+    let before = counts(&filled["set"]);
+    assert!(before.iter().all(|(_, c)| *c > 0), "both entries placed: {before:?}");
+
+    let e = ed.call_err("scatter", json!({ "op": "palette", "id": set, "items": [fern, "res://props/nope.glb"] }));
+    assert!(e.contains("items[1]"), "{e}");
+    assert_eq!(counts(&ed.call("scatter", json!({ "op": "get", "id": set }))["sets"][0]), before, "a refused palette leaves the set alone");
+    let e = ed.call_err("scatter", json!({ "op": "palette", "id": set, "replace": true }));
+    assert!(e.contains("replace"), "{e}");
+
+    let merged = ed.call("scatter", json!({ "op": "palette", "id": set, "items": [fern] }))["set"].clone();
+    let sources: Vec<&str> = merged["items"].as_array().unwrap().iter().map(|i| i["source"].as_str().unwrap()).collect();
+    assert_eq!(sources, [rock, boulder, fern], "without replace the models add up");
+    let undo = ed.state()["undo"].as_array().unwrap().len();
+    let replaced = ed.call("scatter", json!({ "op": "palette", "id": set, "items": [boulder, fern], "replace": true }))["set"].clone();
+    assert_eq!(counts(&replaced), [(json!(boulder), before[1].1), (json!(fern), 0)], "the listed models stay, in the set's order: {replaced}");
+    assert!(replaced["items"].as_array().unwrap().iter().all(|i| i["enabled"] == true), "{replaced}");
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), undo + 1, "one undo step");
+
+    let grass = ed.call("scatter", json!({ "op": "new_set", "name": "grass", "items": [fern], "targets": [ground] }))["id"].clone();
+    for (area, want) in [
+        (json!({ "min": [-300, 100] }), "together"),
+        (json!({ "min": [500, 100], "max": [-300, 420] }), "below"),
+        (json!({ "min": [-300, 420], "max": [500, 420] }), "below"),
+        (json!({ "min": [-300], "max": [500, 420] }), "[x, z]"),
+        (json!({ "min": [1400, 100], "max": [2000, 420] }), "misses"),
+        (json!({ "density": 1.0e6 }), "too large"),
+    ] {
+        let mut args = json!({ "op": "fill", "id": grass, "density": 2, "seed": 3 });
+        args.as_object_mut().unwrap().extend(area.as_object().unwrap().clone());
+        let e = ed.call_err("scatter", args);
+        assert!(e.contains(want), "{area}: {e}");
+    }
+
+    let filled = ed.call("scatter", json!({ "op": "fill", "id": grass, "density": 2, "seed": 3, "min": [-300, 100], "max": [500, 420] }));
+    let placed = filled["placed"].as_u64().unwrap();
+    assert!(placed > 20, "{filled}");
+    // The bounds hold a 32 unit box around each instance, grown with its scale.
+    let bound = |reply: &Value, end: &str, axis: usize| reply["set"]["bounds"][end][axis].as_f64().unwrap();
+    assert!(bound(&filled, "min", 0) > -364.0 && bound(&filled, "max", 0) < 564.0, "inside the area on x: {filled}");
+    assert!(bound(&filled, "min", 2) > 36.0 && bound(&filled, "max", 2) < 484.0, "inside the area on z: {filled}");
+    let edge = ed.call("scatter", json!({ "op": "fill", "id": grass, "density": 2, "seed": 3, "min": [1100, 600], "max": [2000, 2000] }));
+    assert!(edge["placed"].as_u64().unwrap() > 0, "an area past the edge fills the overlap: {edge}");
+    assert!(bound(&edge, "max", 0) > 1100.0 && bound(&edge, "max", 0) < 1464.0 && bound(&edge, "max", 2) < 964.0, "{edge}");
+
+    ed.call("scatter", json!({ "op": "activate", "id": set }));
+    let e = ed.call_err("scatter", json!({ "op": "delete" }));
+    assert!(e.contains("id"), "the active set is not deleted by accident: {e}");
+    assert_eq!(sets(&ed).len(), 2);
+    let undo = ed.state()["undo"].as_array().unwrap().len();
+    let deleted = ed.call("scatter", json!({ "op": "delete", "id": grass }));
+    assert_eq!((&deleted["deleted"], &deleted["active"]), (&grass, &set), "deleting another set keeps the active one");
+    let left: Vec<Value> = sets(&ed).iter().map(|s| s["id"].clone()).collect();
+    assert_eq!(left, std::slice::from_ref(&set));
+    assert_eq!(ed.state()["undo"].as_array().unwrap().len(), undo + 1, "one undo step");
+    let e = ed.call_err("scatter", json!({ "op": "delete", "id": grass }));
+    assert!(e.contains("not a scatter set"), "a deleted set is gone: {e}");
+    assert_eq!(ed.call("scatter", json!({ "op": "delete", "id": set }))["active"], Value::Null);
+    assert_eq!(sets(&ed), Vec::<Value>::new());
+}
+
 /// Replays the showcase maps in examples/mcp against the demo project, the same way a user or an LLM would build them.
 #[test]
 #[ignore]
@@ -5572,7 +5662,7 @@ fn script_ids_follow_csg_and_night_map_options() {
     let ground = ed.box_brush([-512.0, -16.0, 600.0], [512.0, 0.0, 1600.0]);
     ed.box_brush([-512.0, 200.0, 600.0], [0.0, 204.0, 1600.0]);
     ed.call("select", json!({ "ids": [ground] }));
-    ed.call("scatter", json!({ "op": "new_set", "name": "weeds", "items": ["res://weed.glb"], "kind": "foliage", "targets": [ground] }));
+    ed.call("scatter", json!({ "op": "new_set", "name": "weeds", "items": ["res://trenchdot/nature/grass.bbmodel"], "kind": "foliage", "targets": [ground] }));
     let filled = ed.call("scatter", json!({ "op": "fill", "density": 3, "exposed_only": true, "seed": 3 }));
     assert!(filled["placed"].as_u64().unwrap() > 0, "{filled}");
     assert!(filled["set"]["bounds"]["min"][0].as_f64().unwrap() > -64.0, "no weed under the slab over negative X: {filled}");
@@ -9978,6 +10068,8 @@ fn lone_instance(ed: &Editor, set: &Value) -> Option<[f64; 3]> {
 #[ignore]
 fn terrain3d_scatter_follows_the_surface_after_a_fill_and_a_stroke() {
     let (ed, node) = launch_world("terrain3d_follow", None);
+    // The scatter tool takes only models the project has, an empty file draws nothing like a model that fails to load.
+    std::fs::write(artifacts().join("terrain3d_follow").join("rock.glb"), "").unwrap();
     let cache = artifacts().join("terrain3d_follow").join("terrain").join(td_formats::terrain3d_cache::DIR_NAME);
     ed.call("set_camera", json!({ "view": "top", "center": [512, 0, 512], "zoom": 0.4 }));
     // Narrow dabs all over the first row of regions: a smooth hill is flat enough inside a cell for the triangles to agree.
@@ -10031,6 +10123,8 @@ fn terrain3d_scatter_follows_a_change_made_in_godot() {
     use td_formats::terrain3d_cache::{self, RegionHash};
 
     let (ed, node) = launch_world("terrain3d_follow_godot", None);
+    // The scatter tool takes only models the project has, an empty file draws nothing like a model that fails to load.
+    std::fs::write(artifacts().join("terrain3d_follow_godot").join("rock.glb"), "").unwrap();
     let cache = artifacts().join("terrain3d_follow_godot").join("terrain").join(terrain3d_cache::DIR_NAME);
     ed.call("set_camera", json!({ "view": "top", "center": [512, 0, 512], "zoom": 0.4 }));
     let item = json!({ "source": "res://rock.glb", "spacing": 1.0e6, "scale": 1 });
