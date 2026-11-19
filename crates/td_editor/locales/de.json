@@ -2616,5 +2616,14 @@
   "How much of a circle the arch sweeps, 180 is a half round and less is flatter, springing from the tops of the walls": "Wie viel eines Kreises der Bogen überspannt, 180 ist ein Halbrund und weniger ist flacher, er setzt oben an den Wänden an",
   "The arch is {thickness} u thick at the top": "Der Bogen ist oben {thickness} u dick",
   "The arch needs {angle}° or more to stay 1 u thick": "Der Bogen braucht {angle}° oder mehr, um 1 u dick zu bleiben",
-  "Too low and wide for an arch under 180° at this thickness": "Zu niedrig und breit für einen Bogen unter 180° bei dieser Dicke"
+  "Too low and wide for an arch under 180° at this thickness": "Zu niedrig und breit für einen Bogen unter 180° bei dieser Dicke",
+  "bend": "Biegung",
+  "bend segments": "Biegungssegmente",
+  "The axis the tunnel runs along, Y makes a vertical shaft": "Die Achse, entlang der der Tunnel verläuft, Y ergibt einen senkrechten Schacht",
+  "Turns the far end in an exact arc, 0 keeps the tunnel straight": "Dreht das ferne Ende in einem exakten Bogen, 0 lässt den Tunnel gerade",
+  "Which way the far end turns": "In welche Richtung sich das ferne Ende dreht",
+  "Distance from the center of the turn to the inside wall": "Abstand vom Mittelpunkt der Kurve zur Innenwand",
+  "How far the far end climbs over the box length, negative runs downhill": "Wie weit das ferne Ende über die Länge der Box ansteigt, negativ geht bergab",
+  "Only 90° and 180° bends end on the grid": "Nur 90°- und 180°-Biegungen enden auf dem Raster",
+  "The floor climbs at {angle}°": "Der Boden steigt mit {angle}° an"
 }

@@ -2616,5 +2616,14 @@
   "How much of a circle the arch sweeps, 180 is a half round and less is flatter, springing from the tops of the walls": "Quanto de um círculo o arco percorre, 180 é um semicírculo e menos é mais achatado, saindo do topo das paredes",
   "The arch is {thickness} u thick at the top": "O arco tem {thickness} u de espessura no topo",
   "The arch needs {angle}° or more to stay 1 u thick": "O arco precisa de {angle}° ou mais para manter 1 u de espessura",
-  "Too low and wide for an arch under 180° at this thickness": "Baixo e largo demais para um arco abaixo de 180° com esta espessura"
+  "Too low and wide for an arch under 180° at this thickness": "Baixo e largo demais para um arco abaixo de 180° com esta espessura",
+  "bend": "curva",
+  "bend segments": "segmentos da curva",
+  "The axis the tunnel runs along, Y makes a vertical shaft": "O eixo ao longo do qual o túnel corre, Y faz um poço vertical",
+  "Turns the far end in an exact arc, 0 keeps the tunnel straight": "Gira a extremidade distante em um arco exato, 0 mantém o túnel reto",
+  "Which way the far end turns": "Para onde a extremidade distante vira",
+  "Distance from the center of the turn to the inside wall": "Distância do centro da curva até a parede interna",
+  "How far the far end climbs over the box length, negative runs downhill": "Quanto a extremidade distante sobe ao longo da caixa, negativo desce",
+  "Only 90° and 180° bends end on the grid": "Só curvas de 90° e 180° terminam na grade",
+  "The floor climbs at {angle}°": "O piso sobe {angle}°"
 }

@@ -882,6 +882,65 @@ impl ShapeDialog {
         }
     }
 
+    /// The axis, bend and slope rows. The bend rows only show while there is a bend.
+    fn tunnel_path_fields(&mut self, ui: &mut egui::Ui, bounds: &Aabb) {
+        ui.horizontal(|ui| {
+            ui.label(tr("Axis"));
+            for a in shapes::Axis::ALL {
+                ui.selectable_value(&mut self.tunnel.axis, a, a.label());
+            }
+        })
+        .response
+        .on_hover_text(tr("The axis the tunnel runs along, Y makes a vertical shaft"));
+        let across = shapes::Toward::across(self.tunnel.axis);
+        if !across.contains(&self.tunnel.toward) {
+            self.tunnel.toward = shapes::Toward::default_for(self.tunnel.axis);
+        }
+
+        ui.add(egui::DragValue::new(&mut self.tunnel.bend).range(0.0..=180.0).prefix(format!("{} ", tr(en!("bend")))).suffix("°"))
+            .on_hover_text(tr("Turns the far end in an exact arc, 0 keeps the tunnel straight"));
+        let fitted = self.tunnel_params().fitted(bounds);
+        if fitted.bend > 0.0 {
+            ui.indent("tunnel_bend", |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(tr("Direction")).on_hover_text(tr("Which way the far end turns"));
+                    for t in across {
+                        ui.selectable_value(&mut self.tunnel.toward, t, t.label());
+                    }
+                });
+                ui.add(egui::DragValue::new(&mut self.tunnel.bend_radius).range(0.0..=65536.0).prefix(format!("{} ", tr(en!("inner radius")))).suffix(" u"))
+                    .on_hover_text(tr("Distance from the center of the turn to the inside wall"));
+                let least = (fitted.bend / 90.0).ceil().max(1.0) as usize;
+                let mut segments = fitted.bend_segments;
+                if ui.add(egui::Slider::new(&mut segments, least..=64).text(tr(en!("bend segments")))).changed() {
+                    self.tunnel.bend_segments = segments;
+                }
+
+                if fitted.bend != 90.0 && fitted.bend != 180.0 {
+                    ui.label(RichText::new(tr("Only 90° and 180° bends end on the grid")).weak());
+                }
+            });
+        }
+
+        let length = self.tunnel_length(bounds);
+        ui.add(egui::DragValue::new(&mut self.tunnel.rise).range(-length * 2.0..=length * 2.0).prefix(format!("{} ", tr(en!("slope")))).suffix(" u"))
+            .on_hover_text(tr("How far the far end climbs over the box length, negative runs downhill"));
+        if fitted.rise != 0.0 && length > 0.0 {
+            let angle = (fitted.rise / length).atan().to_degrees();
+            ui.label(RichText::new(trf!("The floor climbs at {angle}°", angle = format!("{angle:.1}"))).weak());
+        }
+    }
+
+    /// The box's size along the tunnel's axis.
+    fn tunnel_length(&self, bounds: &Aabb) -> f64 {
+        let size = bounds.size();
+        match self.tunnel.axis {
+            shapes::Axis::X => size.x,
+            shapes::Axis::Y => size.y,
+            shapes::Axis::Z => size.z,
+        }
+    }
+
     pub fn show(&mut self, ctx: &egui::Context, state: &mut EditorState) {
         if !self.open {
             if self.preview.take().is_some() {
@@ -936,7 +995,7 @@ impl ShapeDialog {
                 ShapeKind::Arch | ShapeKind::Tunnel | ShapeKind::Pipe | ShapeKind::Torus | ShapeKind::ArchWall | ShapeKind::GableRoof | ShapeKind::SpiralStairs
             ) {
                 let max = match self.kind {
-                    ShapeKind::Tunnel => tunnel_thickness_max(&bounds, state.effective_grid()),
+                    ShapeKind::Tunnel => tunnel_thickness_max(&bounds, state.effective_grid(), self.tunnel.axis),
                     ShapeKind::Arch => shapes::arch_thickness_cap(&bounds, self.angle),
                     _ => 4096.0,
                 };
@@ -950,6 +1009,7 @@ impl ShapeDialog {
 
             if self.kind == ShapeKind::Tunnel {
                 self.tunnel_fields(ui, &bounds);
+                self.tunnel_path_fields(ui, &bounds);
             }
 
             if matches!(self.kind, ShapeKind::Cylinder | ShapeKind::Cone) {
@@ -1072,9 +1132,9 @@ fn arch_rise(span: f64, sweep: f64) -> f64 {
     radius - radius * (sweep.to_radians() * 0.5).cos()
 }
 
-/// The thickest wall a tunnel in `bounds` gets, rounded down to the grid while that leaves at least 1.
-fn tunnel_thickness_max(bounds: &Aabb, grid: f64) -> f64 {
-    let cap = shapes::tunnel_thickness(bounds, f64::INFINITY);
+/// The thickest wall a tunnel along `axis` in `bounds` gets, rounded down to the grid while that leaves at least 1.
+fn tunnel_thickness_max(bounds: &Aabb, grid: f64, axis: shapes::Axis) -> f64 {
+    let cap = shapes::Tunnel { axis, ..Default::default() }.thickness_cap(bounds);
     let snapped = if grid > 0.0 { (cap / grid).floor() * grid } else { 0.0 };
     if snapped >= 1.0 { snapped } else { cap }
 }
@@ -2320,6 +2380,19 @@ mod tests {
             key(ShapeKind::Tunnel, 90.0, shapes::Tunnel { walkway_height: walkway.walkway_height + 8.0, ..walkway }),
             "the walkway height rebuilds"
         );
+        let bent = shapes::Tunnel { bend: 90.0, ..a };
+        let others = [
+            shapes::Tunnel { toward: shapes::Toward::MinusX, ..bent },
+            shapes::Tunnel { bend_radius: bent.bend_radius + 8.0, ..bent },
+            shapes::Tunnel { bend_segments: bent.bend_segments + 1, ..bent },
+            shapes::Tunnel { rise: 48.0, ..bent },
+            shapes::Tunnel { axis: shapes::Axis::X, ..bent },
+            shapes::Tunnel { bend: 45.0, ..bent },
+        ];
+        for other in others {
+            assert_ne!(key(ShapeKind::Tunnel, 90.0, bent), key(ShapeKind::Tunnel, 90.0, other), "{other:?}");
+        }
+
         for kind in [ShapeKind::Arch, ShapeKind::ArchWall] {
             assert_eq!(key(kind, 90.0, a), key(kind, 90.0, b));
             assert_ne!(key(kind, 90.0, a), key(kind, 180.0, a));
@@ -2842,9 +2915,16 @@ mod tests {
     #[test]
     fn the_tunnel_thickness_field_shows_the_capped_wall() {
         let source = box_of([0.0, 0.0, 0.0], [128.0, 96.0, 32.0]);
-        assert_eq!(tunnel_thickness_max(&source, 16.0), 32.0);
-        assert!((tunnel_thickness_max(&source, 0.0) - 38.4).abs() < 1e-9);
-        assert!((tunnel_thickness_max(&source, 64.0) - 38.4).abs() < 1e-9, "a grid step too big to fit keeps the cap");
+        let z = shapes::Axis::Z;
+        assert_eq!(tunnel_thickness_max(&source, 16.0, z), 32.0);
+        assert!((tunnel_thickness_max(&source, 0.0, z) - 38.4).abs() < 1e-9);
+        assert!((tunnel_thickness_max(&source, 64.0, z) - 38.4).abs() < 1e-9, "a grid step too big to fit keeps the cap");
+
+        let long = box_of([-8.0, 4.0, 10.0], [292.0, 204.0, 74.0]);
+        assert_eq!(tunnel_thickness_max(&long, 0.0, shapes::Axis::X), 25.6, "an X tunnel's cross section is 200 by 64");
+        assert_eq!(tunnel_thickness_max(&long, 0.0, shapes::Axis::Y), 25.6, "a Y tunnel's cross section is 300 by 64");
+        assert_eq!(tunnel_thickness_max(&long, 0.0, z), 80.0, "a Z tunnel's cross section is 300 by 200");
+        assert_eq!(tunnel_thickness_max(&long, 16.0, shapes::Axis::X), 16.0, "rounded down to the grid");
 
         let mut dialog = ShapeDialog { kind: ShapeKind::Tunnel, thickness: 100.0, ..Default::default() };
         let texts = shape_texts(&mut dialog, &source);
@@ -3014,6 +3094,116 @@ mod tests {
             harness.get_by_label("Walkway").click();
             harness.run();
             assert_eq!(harness.query_all_by_role(SpinButton).count(), 0, "{profile:?} unticked again");
+        }
+    }
+
+    fn path_harness(dialog: ShapeDialog, bounds: Aabb) -> egui_kittest::Harness<'static, ShapeDialog> {
+        let mut harness = egui_kittest::Harness::builder()
+            .with_size(egui::vec2(480.0, 320.0))
+            .build_ui_state(move |ui, d: &mut ShapeDialog| d.tunnel_path_fields(ui, &bounds), dialog);
+        harness.run();
+        harness
+    }
+
+    #[test]
+    fn the_tunnel_axis_is_its_own_and_defaults_to_z() {
+        use egui_kittest::kittest::Queryable;
+        let dialog = ShapeDialog::default();
+        assert_eq!((dialog.tunnel.axis, dialog.axis), (shapes::Axis::Z, shapes::Axis::Y), "tunnels run along Z, cylinders stand on Y");
+        let mut harness = path_harness(ShapeDialog { kind: ShapeKind::Tunnel, ..Default::default() }, box_of([0.0, 0.0, 0.0], [128.0, 96.0, 256.0]));
+        harness.get_by_label("X").click();
+        harness.run();
+        assert_eq!((harness.state().tunnel.axis, harness.state().axis), (shapes::Axis::X, shapes::Axis::Y), "the row sets the tunnel only");
+    }
+
+    #[test]
+    fn the_bend_group_shows_only_while_bent_and_lists_the_crossing_directions() {
+        use egui::accesskit::Role::{Slider, SpinButton};
+        use egui_kittest::kittest::Queryable;
+        let bounds = box_of([0.0, 0.0, 0.0], [128.0, 96.0, 256.0]);
+        let tunnel = |axis, bend| shapes::Tunnel { axis, bend, ..Default::default() };
+        let straight = path_harness(ShapeDialog { tunnel: tunnel(shapes::Axis::Z, 0.0), ..Default::default() }, bounds);
+        assert_eq!(straight.query_all_by_role(SpinButton).count(), 2, "bend and slope");
+        assert_eq!(straight.query_all_by_role(Slider).count(), 0);
+        for label in ["Direction", "+X", "-Y"] {
+            assert!(straight.query_by_label(label).is_none(), "{label} stays hidden at 0");
+        }
+
+        let all = ["+X", "-X", "+Y", "-Y", "+Z", "-Z"];
+        for (axis, shown) in
+            [(shapes::Axis::Z, ["+X", "-X", "+Y", "-Y"]), (shapes::Axis::X, ["+Y", "-Y", "+Z", "-Z"]), (shapes::Axis::Y, ["+X", "-X", "+Z", "-Z"])]
+        {
+            let bent = path_harness(ShapeDialog { tunnel: tunnel(axis, 0.1), ..Default::default() }, bounds);
+            assert_eq!(bent.query_all_by_role(SpinButton).count(), 4, "{axis:?} bend, inner radius, the segments slider's number box and slope");
+            assert_eq!(bent.query_all_by_role(Slider).count(), 1, "{axis:?} bend segments");
+            assert!(bent.query_by_label("Direction").is_some());
+            for label in all {
+                assert_eq!(bent.query_by_label(label).is_some(), shown.contains(&label), "{axis:?} {label}");
+            }
+        }
+    }
+
+    #[test]
+    fn the_direction_snaps_when_the_axis_changes() {
+        use egui_kittest::kittest::Queryable;
+        let bounds = box_of([0.0, 0.0, 0.0], [128.0, 96.0, 256.0]);
+        let tunnel = shapes::Tunnel { bend: 90.0, toward: shapes::Toward::MinusY, ..Default::default() };
+        let mut harness = path_harness(ShapeDialog { tunnel, ..Default::default() }, bounds);
+        harness.get_by_label("Y").click();
+        harness.run();
+        assert_eq!(harness.state().tunnel.toward, shapes::Toward::PlusX, "-Y runs along a Y tunnel, so it falls back");
+        harness.get_by_label("-Z").click();
+        harness.run();
+        harness.get_by_label("Z").click();
+        harness.run();
+        assert_eq!(harness.state().tunnel.toward, shapes::Toward::PlusX, "-Z runs along a Z tunnel");
+        harness.get_by_label("X").click();
+        harness.run();
+        assert_eq!(harness.state().tunnel.toward, shapes::Toward::PlusZ, "+X runs along an X tunnel, so it goes to +Z");
+        harness.get_by_label("-Y").click();
+        harness.get_by_label("Z").click();
+        harness.run();
+        assert_eq!(harness.state().tunnel.toward, shapes::Toward::MinusY, "a direction that still crosses is kept");
+    }
+
+    #[test]
+    fn the_grid_note_shows_for_bends_that_miss_it() {
+        use egui_kittest::kittest::Queryable;
+        let bounds = box_of([0.0, 0.0, 0.0], [128.0, 96.0, 256.0]);
+        for (bend, shown) in [(45.0, true), (89.9, true), (90.0, false), (90.1, true), (180.0, false), (200.0, false)] {
+            let harness = path_harness(ShapeDialog { tunnel: shapes::Tunnel { bend, ..Default::default() }, ..Default::default() }, bounds);
+            assert_eq!(harness.query_by_label("Only 90° and 180° bends end on the grid").is_some(), shown, "{bend}");
+        }
+    }
+
+    #[test]
+    fn the_slope_note_shows_the_climb_angle() {
+        use egui_kittest::kittest::Queryable;
+        let bounds = box_of([0.0, 0.0, 0.0], [128.0, 96.0, 256.0]);
+        let note = |rise| {
+            let harness = path_harness(ShapeDialog { tunnel: shapes::Tunnel { rise, ..Default::default() }, ..Default::default() }, bounds);
+            ["14.0", "-14.0", "63.4", "-63.4"].into_iter().find(|a| harness.query_by_label(&format!("The floor climbs at {a}°")).is_some())
+        };
+        assert_eq!(note(0.0), None);
+        assert_eq!(note(64.0), Some("14.0"));
+        assert_eq!(note(-64.0), Some("-14.0"));
+        assert_eq!(note(900.0), Some("63.4"), "twice the length is the most");
+        assert_eq!(note(-900.0), Some("-63.4"));
+    }
+
+    #[test]
+    fn the_slope_field_stops_at_twice_the_length_along_the_axis() {
+        use egui::accesskit::Role::SpinButton;
+        use egui_kittest::kittest::Queryable;
+        let bounds = box_of([0.0, 0.0, 0.0], [128.0, 96.0, 256.0]);
+        for (axis, most) in [(shapes::Axis::Z, 512.0), (shapes::Axis::X, 256.0), (shapes::Axis::Y, 192.0)] {
+            let mut harness = path_harness(ShapeDialog { tunnel: shapes::Tunnel { axis, ..Default::default() }, ..Default::default() }, bounds);
+            for text in ["5000", "-5000"] {
+                type_into_field(&mut harness, 1, text);
+                assert_eq!(harness.state().tunnel.rise.abs(), most, "{axis:?} {text}");
+            }
+
+            assert_eq!(harness.get_all_by_role(SpinButton).count(), 2);
         }
     }
 

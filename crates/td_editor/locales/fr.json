@@ -2616,5 +2616,14 @@
   "How much of a circle the arch sweeps, 180 is a half round and less is flatter, springing from the tops of the walls": "Quelle part de cercle l'arc balaie, 180 est un demi-cercle et moins est plus plat, il part du haut des murs",
   "The arch is {thickness} u thick at the top": "L'arc fait {thickness} u d'épaisseur en haut",
   "The arch needs {angle}° or more to stay 1 u thick": "L'arc demande {angle}° ou plus pour garder 1 u d'épaisseur",
-  "Too low and wide for an arch under 180° at this thickness": "Trop bas et large pour un arc de moins de 180° avec cette épaisseur"
+  "Too low and wide for an arch under 180° at this thickness": "Trop bas et large pour un arc de moins de 180° avec cette épaisseur",
+  "bend": "courbe",
+  "bend segments": "segments de courbe",
+  "The axis the tunnel runs along, Y makes a vertical shaft": "L'axe le long duquel le tunnel s'étend, Y crée un puits vertical",
+  "Turns the far end in an exact arc, 0 keeps the tunnel straight": "Tourne l'extrémité lointaine selon un arc exact, 0 garde le tunnel droit",
+  "Which way the far end turns": "Le côté vers lequel l'extrémité lointaine tourne",
+  "Distance from the center of the turn to the inside wall": "Distance entre le centre du virage et la paroi intérieure",
+  "How far the far end climbs over the box length, negative runs downhill": "De combien l'extrémité lointaine monte sur la longueur de la boîte, une valeur négative descend",
+  "Only 90° and 180° bends end on the grid": "Seules les courbes de 90° et 180° finissent sur la grille",
+  "The floor climbs at {angle}°": "Le sol monte de {angle}°"
 }

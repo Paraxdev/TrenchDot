@@ -2616,5 +2616,14 @@
   "How much of a circle the arch sweeps, 180 is a half round and less is flatter, springing from the tops of the walls": "Какую часть окружности охватывает арка, 180 это полукруг, а меньше значит площе, арка начинается от верха стен",
   "The arch is {thickness} u thick at the top": "Арка вверху толщиной {thickness} u",
   "The arch needs {angle}° or more to stay 1 u thick": "Арке нужно {angle}° или больше, чтобы остаться толщиной 1 u",
-  "Too low and wide for an arch under 180° at this thickness": "Слишком низко и широко для арки меньше 180° при такой толщине"
+  "Too low and wide for an arch under 180° at this thickness": "Слишком низко и широко для арки меньше 180° при такой толщине",
+  "bend": "изгиб",
+  "bend segments": "сегменты изгиба",
+  "The axis the tunnel runs along, Y makes a vertical shaft": "Ось, вдоль которой идёт туннель, Y делает вертикальную шахту",
+  "Turns the far end in an exact arc, 0 keeps the tunnel straight": "Поворачивает дальний конец по точной дуге, 0 оставляет туннель прямым",
+  "Which way the far end turns": "Куда поворачивает дальний конец",
+  "Distance from the center of the turn to the inside wall": "Расстояние от центра поворота до внутренней стены",
+  "How far the far end climbs over the box length, negative runs downhill": "Насколько дальний конец поднимается на длине бокса, отрицательное значение идёт вниз",
+  "Only 90° and 180° bends end on the grid": "Только изгибы на 90° и 180° заканчиваются на сетке",
+  "The floor climbs at {angle}°": "Пол поднимается под углом {angle}°"
 }

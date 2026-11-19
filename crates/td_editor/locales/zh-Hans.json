@@ -2616,5 +2616,14 @@
   "How much of a circle the arch sweeps, 180 is a half round and less is flatter, springing from the tops of the walls": "拱覆盖圆的多大部分，180 是半圆，越小越平，拱从墙顶起拱",
   "The arch is {thickness} u thick at the top": "拱顶厚 {thickness} u",
   "The arch needs {angle}° or more to stay 1 u thick": "拱至少需要 {angle}° 才能保持 1 u 厚",
-  "Too low and wide for an arch under 180° at this thickness": "在此厚度下，对于小于 180° 的拱来说太低太宽"
+  "Too low and wide for an arch under 180° at this thickness": "在此厚度下，对于小于 180° 的拱来说太低太宽",
+  "bend": "弯曲",
+  "bend segments": "弯曲分段",
+  "The axis the tunnel runs along, Y makes a vertical shaft": "隧道延伸的轴，Y 会得到垂直竖井",
+  "Turns the far end in an exact arc, 0 keeps the tunnel straight": "把远端转成精确的圆弧，0 保持隧道笔直",
+  "Which way the far end turns": "远端转向的方向",
+  "Distance from the center of the turn to the inside wall": "从弯道中心到内侧墙壁的距离",
+  "How far the far end climbs over the box length, negative runs downhill": "远端在方框长度内升高多少，负值向下",
+  "Only 90° and 180° bends end on the grid": "只有 90° 和 180° 的弯曲会终止在网格上",
+  "The floor climbs at {angle}°": "地面以 {angle}° 上升"
 }
