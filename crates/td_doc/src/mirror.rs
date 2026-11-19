@@ -294,6 +294,30 @@ pub fn drifted(map: &Map, sel: &Selection) -> Vec<Drift> {
     drifts
 }
 
+/// The linked groups around the selection whose set holds members of the other handedness, none of which mirrors them
+/// across an axis plane any more, as after a half was rotated. Each comes with the lowest of those members.
+pub fn turned(map: &Map, sel: &Selection) -> Vec<(NodeId, NodeId)> {
+    let groups = linked_around(map, sel);
+    if groups.is_empty() {
+        return Vec::new();
+    }
+
+    let sets = linked::link_sets(map);
+    let mut out = Vec::new();
+    for group in groups {
+        let Some(members) = link_of(map, group).and_then(|link| sets.get(&link)) else { continue };
+        let flipped: Vec<(NodeId, DMat4)> =
+            members.iter().filter(|m| **m != group).filter_map(|m| relation(map, group, *m).filter(|r| r.determinant() < 0.0).map(|r| (*m, r))).collect();
+        if flipped.iter().all(|(_, r)| AxisPlane::of_slid_reflection(r).is_none())
+            && let Some(partner) = flipped.iter().map(|(m, _)| *m).min()
+        {
+            out.push((group, partner));
+        }
+    }
+
+    out
+}
+
 /// Whether a member at `relation` to the half that stays sits slid along the plane the same way as `drift`'s partner:
 /// flipped or not on each axis, and moved by the slide on every axis it is not flipped on other than the plane's.
 fn in_line(relation: &DMat4, drift: &Drift) -> bool {
@@ -1632,6 +1656,30 @@ mod tests {
         select(&mut doc, &[group]);
         assert_eq!(drifted(&doc.map, &doc.selection).len(), 1);
         assert_eq!(selection_planes(&doc.map, &doc.selection), []);
+    }
+
+    #[test]
+    fn a_turned_half_names_its_partner() {
+        let mut doc = Document::new();
+        let group = group_of(&mut doc, wedge(), "half");
+        let copy = mirror(&mut doc, &[group], 0, PlaneAt::Max).0[0];
+        select(&mut doc, &[group]);
+        assert_eq!(turned(&doc.map, &doc.selection), [], "a pair that mirrors");
+        moved(&mut doc, &[copy], DVec3::new(0.0, 0.0, 12.0));
+        select(&mut doc, &[group]);
+        assert_eq!(turned(&doc.map, &doc.selection), [], "a slid pair");
+        doc.undo();
+
+        select(&mut doc, &[copy]);
+        doc.edit("turn", |m, s| ops::transform_selection(m, s, &DMat4::from_rotation_z(0.3), EditOptions::default()));
+        select(&mut doc, &[group]);
+        assert_eq!((selection_planes(&doc.map, &doc.selection), drifted(&doc.map, &doc.selection)), (vec![], vec![]));
+        assert_eq!(turned(&doc.map, &doc.selection), [(group, copy)]);
+        select(&mut doc, &[copy]);
+        assert_eq!(turned(&doc.map, &doc.selection), [(copy, group)]);
+        doc.edit("turn", |m, s| ops::transform_selection(m, s, &DMat4::from_rotation_z(std::f64::consts::PI - 0.3), EditOptions::default()));
+        assert_eq!(turned(&doc.map, &doc.selection), [], "half a turn mirrors it across another axis");
+        assert_eq!(selection_planes(&doc.map, &doc.selection).len() + drifted(&doc.map, &doc.selection).len(), 1);
     }
 
     #[test]

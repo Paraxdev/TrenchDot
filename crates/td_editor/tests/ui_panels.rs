@@ -2114,6 +2114,25 @@ fn mirror_again_shows_only_for_a_slid_half() {
 }
 
 #[test]
+fn a_turned_half_says_why_its_mirror_plane_is_gone() {
+    let (f, rows) = linked_rows_fixture();
+    let mut harness = gap_harness(f, rows.right);
+    let turn = |harness: &mut Harness<'_, Fixture>, angle: f64| {
+        let by = td_core::DMat4::from_rotation_z(angle);
+        harness.state_mut().state.doc.edit("turn", |m, s| ops::transform_selection(m, s, &by, ops::EditOptions::default()));
+        harness.run();
+    };
+    let hint = " was rotated and no longer mirrors its partner. Rotate it back to set the gap or apply the mirror";
+    assert!(harness.query_by_label_contains(hint).is_none());
+    turn(&mut harness, 0.3);
+    harness.get_by_label_contains(hint);
+    assert!(harness.query_by_label("Gap").is_none() && harness.query_by_label("Mirror Again").is_none());
+    turn(&mut harness, -0.3);
+    harness.get_by_label("Mirror plane X = -40");
+    assert!(harness.query_by_label_contains(hint).is_none());
+}
+
+#[test]
 fn the_inspector_offers_apply_mirror_only_for_a_mirrored_half() {
     use td_doc::symmetry::PlaneChoice;
     let mut f = brushes_selected(2);

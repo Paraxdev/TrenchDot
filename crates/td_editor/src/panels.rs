@@ -1236,7 +1236,8 @@ fn selection_summary(ui: &mut Ui, state: &mut EditorState, actions: &mut Vec<Act
 /// Gap, Mirror Again and Apply Mirror of a selected mirrored half, open so they are found right after Mirror Linked.
 fn mirror_section(ui: &mut Ui, state: &mut EditorState, actions: &mut Vec<Action>) {
     let (planes, gaps, drifts) = state.mirror_pairs();
-    if planes.is_empty() && drifts.is_empty() {
+    let turned = state.turned_halves();
+    if planes.is_empty() && drifts.is_empty() && turned.is_empty() {
         return;
     }
 
@@ -1274,6 +1275,13 @@ fn mirror_section(ui: &mut Ui, state: &mut EditorState, actions: &mut Vec<Action
             let (axis, at) = (crate::commands::axis_name(d.plane.axis), crate::gizmos::fmt_num(d.plane.at));
             let distance = crate::gizmos::fmt_num(d.slide.length());
             ui.label(RichText::new(trf!("{name} is slid {distance} units along the mirror plane {axis} = {at}", name, distance, axis, at)).weak());
+        }
+
+        for (group, _) in &turned {
+            let name = state.doc.map.get(*group).map(|n| n.name()).unwrap_or_default();
+            ui.label(
+                RichText::new(trf!("{name} was rotated and no longer mirrors its partner. Rotate it back to set the gap or apply the mirror", name)).weak(),
+            );
         }
 
         if !drifts.is_empty() {

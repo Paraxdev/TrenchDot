@@ -269,7 +269,8 @@ selection. A 2D view that looks along the plane shows it as a thick line reachin
 from the grid and from the edges where the halves meet. The Mirror section in the Inspector reads
 *Mirror plane X = 200*, the position along that axis. Move one half towards the other or away from it and the outline
 moves too, it stays halfway between the halves as in the picture below. Slide a half along the plane, or rotate it so
-it is no longer a plain mirror, and the outline goes away.
+it is no longer a plain mirror, and the outline goes away. For a rotated half the Mirror section says it *was
+rotated and no longer mirrors its partner*, rotate it back to get the plane, **Gap** and **Apply Mirror** back.
 
 ![The 3D view with the halves of a mirrored wedge pair pulled apart, a red outline marks the plane halfway between them](../assets/brushes/mirror-plane.png)
 

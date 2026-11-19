@@ -802,6 +802,7 @@ struct MirrorPairs {
     planes: Vec<td_doc::mirror::MirrorPlane>,
     gaps: Vec<f64>,
     drifts: Vec<td_doc::mirror::Drift>,
+    turned: Vec<(NodeId, NodeId)>,
 }
 
 impl EditorState {
@@ -809,17 +810,33 @@ impl EditorState {
     /// the selection changes, since finding them walks every node of the map and the Inspector and views ask for them
     /// every frame.
     pub fn mirror_pairs(&self) -> (Vec<td_doc::mirror::MirrorPlane>, Vec<f64>, Vec<td_doc::mirror::Drift>) {
-        let (doc, mut cache) = (&self.doc, self.mirror_pairs.borrow_mut());
+        let c = self.mirror_cache();
+        (c.planes.clone(), c.gaps.clone(), c.drifts.clone())
+    }
+
+    /// The halves around the selection turned off their mirror plane when no other half there has a plane, see
+    /// [`td_doc::mirror::turned`], cached with [`Self::mirror_pairs`].
+    pub fn turned_halves(&self) -> Vec<(NodeId, NodeId)> {
+        self.mirror_cache().turned.clone()
+    }
+
+    fn mirror_cache(&self) -> std::cell::RefMut<'_, MirrorPairs> {
+        let doc = &self.doc;
         let key = (doc.content_key(), doc.revision);
-        let c = match &mut *cache {
-            Some(c) if c.key == key && c.selection == doc.selection => c,
-            slot => {
+        let mut cache = self.mirror_pairs.borrow_mut();
+        if cache.as_ref().is_some_and(|c| c.key != key || c.selection != doc.selection) {
+            *cache = None;
+        }
+
+        std::cell::RefMut::map(cache, |cache| {
+            cache.get_or_insert_with(|| {
                 let planes = td_doc::mirror::selection_planes(&doc.map, &doc.selection);
                 let gaps = planes.iter().map(|m| td_doc::mirror::gap(&doc.map, m)).collect();
-                slot.insert(MirrorPairs { key, selection: doc.selection.clone(), planes, gaps, drifts: td_doc::mirror::drifted(&doc.map, &doc.selection) })
-            }
-        };
-        (c.planes.clone(), c.gaps.clone(), c.drifts.clone())
+                let drifts = td_doc::mirror::drifted(&doc.map, &doc.selection);
+                let turned = if planes.is_empty() && drifts.is_empty() { td_doc::mirror::turned(&doc.map, &doc.selection) } else { Vec::new() };
+                MirrorPairs { key, selection: doc.selection.clone(), planes, gaps, drifts, turned }
+            })
+        })
     }
 
     pub fn new(prefs: Prefs) -> Self {

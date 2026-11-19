@@ -2343,6 +2343,7 @@
   "Mirror Again": "Refléter à nouveau",
   "Moves the partner of a half that was slid along the mirror plane back across from it": "Ramène en face la moitié jumelle d'une moitié glissée le long du plan de miroir",
   "Nothing selected was slid along its mirror plane": "Rien de la sélection n'a glissé le long de son plan de miroir",
+  "{name} was rotated and no longer mirrors its partner. Rotate it back to set the gap or apply the mirror": "{name} a été tourné et ne reflète plus son partenaire. Tourne-le en sens inverse pour régler l'écart ou appliquer le miroir",
   "{name} is locked, unlock it to change the mirror gap": "{name} est verrouillé, déverrouillez-le pour changer l'écart du miroir",
   "{name} is locked, unlock it to mirror again": "{name} est verrouillé, déverrouillez-le pour refaire le miroir",
   "{name} is slid {distance} units along the mirror plane {axis} = {at}": "{name} a glissé de {distance} unités le long du plan de miroir {axis} = {at}",
