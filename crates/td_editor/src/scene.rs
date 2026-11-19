@@ -107,6 +107,13 @@ struct TerrainGpu {
     clip: Option<TerrainClip>,
 }
 
+/// How the scene draws a native terrain. `fallback` says why a terrain is drawn with chunks while level of detail is on.
+pub enum TerrainDrawn<'a> {
+    Hidden,
+    Chunks { fallback: Option<&'a str> },
+    Clipmap(&'a td_render::clipmap::native::TerrainClipmap),
+}
+
 /// Which chunk meshes a terrain build makes.
 enum Chunks {
     All,
@@ -2468,6 +2475,15 @@ impl SceneCache {
 
     fn terrain_clipmaps(&self) -> impl Iterator<Item = &td_render::clipmap::native::TerrainClipmap> {
         self.terrains.values().filter_map(|t| t.clip.as_ref()?.clipmap())
+    }
+
+    /// How native terrain `id` is drawn after the last update.
+    pub fn terrain_drawn(&self, id: NodeId) -> TerrainDrawn<'_> {
+        match self.terrains.get(&id) {
+            None => TerrainDrawn::Hidden,
+            Some(TerrainGpu { clip: Some(TerrainClip::Clipmap(clip)), .. }) => TerrainDrawn::Clipmap(clip),
+            Some(t) => TerrainDrawn::Chunks { fallback: t.clip.as_ref().and_then(TerrainClip::fallback) },
+        }
     }
 
     /// Triangles the native terrain clipmaps drew in the last view that showed them, which `stats` leaves out.

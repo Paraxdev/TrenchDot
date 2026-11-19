@@ -58,7 +58,7 @@ const TERRAIN_OPS: [&str; 11] =
     ["sculpt", "sculpt_path", "paint_path", "flatten_rect", "ramp", "erode", "auto_paint", "set_layers", "holes", "clear_layer", "resize"];
 
 fn unknown_terrain_op(op: &str) -> String {
-    format!("unknown terrain op {op}, use {}, or only probe", TERRAIN_OPS.join(", "))
+    format!("unknown terrain op {op}, use {}, info, or only probe", TERRAIN_OPS.join(", "))
 }
 
 /// The `symmetry` argument of sculpt, blend and terrain_edit: "off", "x", "z" or "xz" (planes through each terrain's
@@ -2049,6 +2049,26 @@ impl App {
         ok(out)
     }
 
+    /// terrain_edit info: the terrain's grid and how the views draw it once the scene has caught up with the map.
+    fn terrain_info(&mut self, id: NodeId) -> Value {
+        use crate::scene::TerrainDrawn;
+        self.scene.update(&mut self.renderer, &mut self.state, self.project_generation);
+        let (drawn, fallback, clipmap) = match self.scene.terrain_drawn(id) {
+            TerrainDrawn::Hidden => ("hidden", None, Value::Null),
+            TerrainDrawn::Chunks { fallback } => ("chunks", fallback, Value::Null),
+            TerrainDrawn::Clipmap(c) => {
+                let u = c.uploads();
+                let uploads = json!({ "whole": u.whole, "partial": u.partial, "partial_cells": u.partial_cells });
+                ("clipmap", None, json!({ "gpu_bytes": c.gpu_bytes(), "uploads": uploads, "triangles": c.triangles() }))
+            }
+        };
+        let Some(t) = self.state.doc.map.terrain(id) else { return Value::Null };
+        json!({
+            "id": id.0, "resolution": t.resolution, "cells": t.cells(), "cell_size": t.cell_size, "origin": arr(t.origin),
+            "drawn": drawn, "fallback": fallback, "clipmap": clipmap,
+        })
+    }
+
     pub(crate) fn tool_terrain_edit(&mut self, args: &Value) -> ToolResult {
         use td_doc::terrain::{SculptBrush, SculptMode};
         let given = match optional_id(args, "id") {
@@ -2070,6 +2090,10 @@ impl App {
                 Some(_) => format!("node {} is not a terrain", id.0),
                 None => format!("no node {}", id.0),
             });
+        }
+
+        if args["op"] == "info" {
+            return ok(self.terrain_info(id));
         }
 
         let probe = match &args["probe"] {

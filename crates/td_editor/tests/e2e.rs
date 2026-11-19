@@ -1994,6 +1994,52 @@ fn terrain_resize_over_mcp() {
 
 #[test]
 #[ignore]
+fn terrain_edit_info_says_how_a_terrain_is_drawn() {
+    let ed = Editor::launch("terrain_info");
+    let id = ed.call("create_terrain", json!({ "origin": [-1000.5, 37, 2210], "resolution": 37, "cell_size": 24, "shape": "hills" }))["id"].as_u64().unwrap();
+    let info = |ed: &Editor| ed.call("terrain_edit", json!({ "id": id, "op": "info" }));
+    let uploads = |i: &Value| [&i["clipmap"]["uploads"]["whole"], &i["clipmap"]["uploads"]["partial"]].map(|v| v.as_u64().unwrap());
+
+    let made = info(&ed);
+    assert_eq!((made["id"].clone(), made["resolution"].clone(), made["cells"].clone()), (json!(id), json!([37, 37]), json!([36, 36])));
+    assert_eq!((made["cell_size"].clone(), made["origin"].clone()), (json!(24.0), json!([-1000.5, 37.0, 2210.0])));
+    assert_eq!((made["drawn"].clone(), made["fallback"].clone()), (json!("clipmap"), Value::Null), "{made}");
+    assert_eq!(made["clipmap"]["gpu_bytes"], json!(37 * 37 * 12));
+    assert_eq!(uploads(&made), [1, 0], "a new clipmap gets every texel once");
+    assert!(made["clipmap"]["triangles"].is_u64());
+
+    ed.call("terrain_edit", json!({ "id": id, "op": "sculpt", "mode": "raise", "center": [-700.5, 2500], "radius": 60, "strength": 40 }));
+    let raised = info(&ed);
+    assert_eq!(uploads(&raised), [1, 1], "{raised}");
+    let cells = raised["clipmap"]["uploads"]["partial_cells"].as_u64().unwrap();
+    assert!(cells > 0 && cells < 12 * 12, "only the vertices under a 60 unit brush on 24 unit cells, got {cells}");
+    assert_eq!(uploads(&info(&ed)), [1, 1], "reading writes nothing");
+
+    ed.call("set_editor", json!({ "terrain_lod": false }));
+    let chunks = info(&ed);
+    assert_eq!((chunks["drawn"].clone(), chunks["fallback"].clone(), chunks["clipmap"].clone()), (json!("chunks"), Value::Null, Value::Null));
+    ed.call("set_editor", json!({ "terrain_lod": true }));
+    assert_eq!(uploads(&info(&ed)), [1, 0], "switching back makes a new clipmap");
+
+    ed.call("hierarchy", json!({ "op": "set_flags", "ids": [id], "hidden": true }));
+    let hidden = info(&ed);
+    assert_eq!((hidden["drawn"].clone(), hidden["clipmap"].clone(), hidden["resolution"].clone()), (json!("hidden"), Value::Null, json!([37, 37])));
+    ed.call("hierarchy", json!({ "op": "set_flags", "ids": [id], "hidden": false }));
+    assert_eq!(info(&ed)["drawn"], "clipmap");
+
+    ed.call("terrain_edit", json!({ "id": id, "op": "resize", "east": 4 }));
+    let wider = info(&ed);
+    assert_eq!((wider["resolution"].clone(), wider["clipmap"]["gpu_bytes"].clone()), (json!([41, 37]), json!(41 * 37 * 12)));
+    assert_eq!(uploads(&wider), [1, 0], "a new resolution makes a new clipmap");
+
+    let brush = ed.call("create_brush", json!({ "min": [0, 0, 0], "max": [64, 64, 64] }))["ids"][0].as_u64().unwrap();
+    assert!(ed.call_err("terrain_edit", json!({ "id": brush, "op": "info" })).contains("not a terrain"));
+    assert!(ed.call_err("terrain_edit", json!({ "id": 999999, "op": "info" })).contains("no node"));
+    assert!(ed.call_err("terrain_edit", json!({ "id": id, "op": "infos" })).contains("info"));
+}
+
+#[test]
+#[ignore]
 fn terrain_symmetry_mirrors_strokes_and_mcp_calls() {
     let ed = Editor::launch("terrain_symmetry");
     let height = |ed: &Editor, id: u64, p: [f64; 2]| ed.call("terrain_edit", json!({ "id": id, "probe": p }))["probe_height"].as_f64().unwrap();

@@ -2591,6 +2591,7 @@ impl App {
             ("terrain3d_textures", &mut self.state.prefs.terrain3d_textures),
             ("terrain3d_background", &mut self.state.prefs.terrain3d_background),
             ("terrain3d_water", &mut self.state.prefs.terrain3d_water),
+            ("terrain_lod", &mut self.state.prefs.terrain_lod),
         ] {
             if let Some(on) = args[key].as_bool() {
                 *pref = on;
