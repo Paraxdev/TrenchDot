@@ -798,25 +798,26 @@ struct MirrorPairs {
     key: ((u64, u64, u64), u64),
     selection: td_doc::Selection,
     planes: Vec<td_doc::mirror::MirrorPlane>,
+    gaps: Vec<f64>,
     drifts: Vec<td_doc::mirror::Drift>,
 }
 
 impl EditorState {
-    /// The mirror planes and the pairs slid off their plane around the selection, kept until the map or the selection
-    /// changes, since finding them walks every node of the map and the Inspector and views ask for them every frame.
-    pub fn mirror_pairs(&self) -> (Vec<td_doc::mirror::MirrorPlane>, Vec<td_doc::mirror::Drift>) {
+    /// The mirror planes, the gap of each and the pairs slid off their plane around the selection, kept until the map or
+    /// the selection changes, since finding them walks every node of the map and the Inspector and views ask for them
+    /// every frame.
+    pub fn mirror_pairs(&self) -> (Vec<td_doc::mirror::MirrorPlane>, Vec<f64>, Vec<td_doc::mirror::Drift>) {
         let (doc, mut cache) = (&self.doc, self.mirror_pairs.borrow_mut());
         let key = (doc.content_key(), doc.revision);
         let c = match &mut *cache {
             Some(c) if c.key == key && c.selection == doc.selection => c,
-            slot => slot.insert(MirrorPairs {
-                key,
-                selection: doc.selection.clone(),
-                planes: td_doc::mirror::selection_planes(&doc.map, &doc.selection),
-                drifts: td_doc::mirror::drifted(&doc.map, &doc.selection),
-            }),
+            slot => {
+                let planes = td_doc::mirror::selection_planes(&doc.map, &doc.selection);
+                let gaps = planes.iter().map(|m| td_doc::mirror::gap(&doc.map, m)).collect();
+                slot.insert(MirrorPairs { key, selection: doc.selection.clone(), planes, gaps, drifts: td_doc::mirror::drifted(&doc.map, &doc.selection) })
+            }
         };
-        (c.planes.clone(), c.drifts.clone())
+        (c.planes.clone(), c.gaps.clone(), c.drifts.clone())
     }
 
     pub fn new(prefs: Prefs) -> Self {

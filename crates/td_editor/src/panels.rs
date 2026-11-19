@@ -1235,16 +1235,16 @@ fn selection_summary(ui: &mut Ui, state: &mut EditorState, actions: &mut Vec<Act
 
 /// Gap, Mirror Again and Apply Mirror of a selected mirrored half, open so they are found right after Mirror Linked.
 fn mirror_section(ui: &mut Ui, state: &mut EditorState, actions: &mut Vec<Action>) {
-    let (planes, drifts) = state.mirror_pairs();
+    let (planes, gaps, drifts) = state.mirror_pairs();
     if planes.is_empty() && drifts.is_empty() {
         return;
     }
 
     section(ui, en!("Mirror"), en!("The mirror plane of the selected linked half and the gap to its partner"), true, |ui| {
         let mut meets = false;
-        for m in &planes {
+        for (m, &shown) in planes.iter().zip(&gaps) {
             let (axis, at) = (crate::commands::axis_name(m.plane.axis), crate::gizmos::fmt_num(m.plane.at));
-            let mut gap = td_doc::mirror::gap(&state.doc.map, m);
+            let mut gap = shown;
             meets |= gap <= td_doc::symmetry::MIRROR_TOLERANCE;
             ui.horizontal_wrapped(|ui| {
                 ui.label(RichText::new(trf!("Mirror plane {axis} = {at}", axis, at)).weak());

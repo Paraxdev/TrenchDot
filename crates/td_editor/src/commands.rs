@@ -4949,6 +4949,37 @@ mod tests {
     }
 
     #[test]
+    fn mirror_pairs_keep_the_gap_until_the_map_or_the_selection_changes() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        let brush = slanted_brush(&mut state);
+        state.doc.select(|_, s| s.select_node(brush));
+        execute(&mut state, Action::MirrorLinked { axis: 0, gap: 0.0 }, &ctx);
+        let shown = |state: &EditorState| {
+            let (planes, gaps, _) = state.mirror_pairs();
+            let direct: Vec<f64> = planes.iter().map(|m| td_doc::mirror::gap(&state.doc.map, m)).collect();
+            assert_eq!(gaps, direct, "the cached gaps match a fresh walk");
+            gaps
+        };
+        assert_eq!(shown(&state), [0.0]);
+        for gap in [24.0, -10.0, 7.5] {
+            execute(&mut state, Action::SetMirrorGap { axis: Some(0), gap }, &ctx);
+            assert_eq!(shown(&state), [gap], "a gap change refreshes the cache");
+        }
+
+        let (half, partner) = {
+            let m = &state.mirror_pairs().0[0];
+            (m.group, m.partner)
+        };
+        state.doc.select(|_, s| s.select_node(partner));
+        assert_eq!(shown(&state), [7.5], "the other half selected shows the same gap");
+        state.doc.select(|_, s| s.clear());
+        assert!(shown(&state).is_empty(), "nothing selected has no plane to show");
+        state.doc.select(|_, s| s.select_node(half));
+        assert_eq!(shown(&state), [7.5]);
+    }
+
+    #[test]
     fn set_mirror_gap_without_a_mirrored_half_fails_without_an_undo_step() {
         let ctx = egui::Context::default();
         let mut state = EditorState::new(Default::default());
