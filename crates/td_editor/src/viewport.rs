@@ -1604,6 +1604,22 @@ fn context_menu(ui: &mut Ui, state: &EditorState, actions: &mut Vec<Action>) {
     let layers: Vec<(NodeId, String)> = state.doc.map.layers.iter().filter_map(|l| state.doc.map.get(*l).map(|n| (*l, n.name()))).collect();
     let mut out: Vec<Action> = Vec::new();
 
+    let brush_faces = state.doc.selection.faces.iter().any(|&(id, _)| state.doc.map.brush(id).is_some());
+    if state.prefs.keymap_preset == "blender" && brush_faces {
+        let enabled = state.tool != ToolKind::Mesh;
+        let mut resp = ui.add_enabled(enabled, egui::Button::new(tr(en!("Extrude Faces"))));
+        if let Some(help) = Action::ExtrudeFaces.help() {
+            resp = resp.on_hover_text(tr(help));
+        }
+
+        if resp.clicked() {
+            out.push(Action::ExtrudeFaces);
+            ui.close();
+        }
+
+        ui.separator();
+    }
+
     ui.menu_button(tr("Create Point Entity"), |ui| {
         for c in point_classes {
             if ui.button(&c).clicked() {
@@ -1790,6 +1806,53 @@ mod tests {
         harness.get_by_label("Verknüpfte Gruppen auswählen").click();
         harness.run();
         assert_eq!(harness.state().actions, [Action::Group, Action::SelectLinkedGroups]);
+    }
+
+    #[test]
+    fn the_context_menu_lists_extrude_faces_for_selected_brush_faces_in_blender_only() {
+        use egui_kittest::kittest::Queryable;
+        struct Probe {
+            state: EditorState,
+            actions: Vec<Action>,
+        }
+
+        let mut state = EditorState::new(Default::default());
+        let parent = state.insert_parent();
+        let min = DVec3::new(96.0, -32.0, 8.0);
+        let brush = td_geom::Brush::from_aabb(&td_core::Aabb::new(min, min + DVec3::new(32.0, 64.0, 16.0)), "dev/grey").unwrap();
+        let id = state.doc.edit("Create Brush", |m, _| td_doc::ops::create_brush(m, parent, brush));
+        let mut harness = egui_kittest::Harness::builder()
+            .with_size(Vec2::new(400.0, 500.0))
+            .build_ui_state(|ui, p: &mut Probe| context_menu(ui, &p.state, &mut p.actions), Probe { state, actions: Vec::new() });
+        let shows = |harness: &mut egui_kittest::Harness<'_, Probe>, preset: &str, tool: ToolKind, faces: &[(NodeId, usize)], nodes: &[NodeId]| {
+            let state = &mut harness.state_mut().state;
+            state.prefs.keymap_preset = preset.into();
+            state.tool = tool;
+            state.doc.select(|_, s| {
+                s.clear();
+                s.faces.extend(faces.iter().copied());
+                s.nodes.extend(nodes.iter().copied());
+            });
+            harness.run();
+            harness.query_by_label("Extrude Faces").is_some()
+        };
+
+        assert!(!shows(&mut harness, "blender", ToolKind::Select, &[], &[id]), "an object selection has no faces to extrude");
+        assert!(!shows(&mut harness, "blender", ToolKind::Select, &[], &[]), "nothing selected");
+        assert!(!shows(&mut harness, "trenchbroom", ToolKind::Select, &[(id, 2)], &[]), "TrenchBroom leaves E unbound");
+        assert!(!shows(&mut harness, "hammer", ToolKind::Select, &[(id, 2)], &[]), "Hammer leaves E unbound");
+        assert!(shows(&mut harness, "blender", ToolKind::Select, &[(id, 2)], &[]));
+        assert!(harness.state().actions.is_empty());
+        harness.get_by_label("Extrude Faces").click();
+        harness.run();
+        assert_eq!(harness.state().actions, [Action::ExtrudeFaces]);
+
+        assert!(shows(&mut harness, "blender", ToolKind::Select, &[(id, 0), (id, 4)], &[]), "several faces");
+        assert!(shows(&mut harness, "blender", ToolKind::Select, &[(id, 2)], &[id]), "faces beside a node");
+        assert!(shows(&mut harness, "blender", ToolKind::Mesh, &[(id, 2)], &[]));
+        harness.get_by_label("Extrude Faces").click();
+        harness.run();
+        assert_eq!(harness.state().actions, [Action::ExtrudeFaces], "the Mesh tool owns E, the entry is disabled there");
     }
 
     #[test]

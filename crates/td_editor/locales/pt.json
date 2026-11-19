@@ -2408,6 +2408,7 @@
   "{click} on something without faces ({mode})": "{click} em algo sem faces ({mode})",
   "Face mode": "Modo face",
   "{click} selects faces, Shift+drag a face pushes it, Ctrl+Shift+drag extrudes": "{click} seleciona faces, Shift+arrastar uma face a empurra, Ctrl+Shift+arrastar extrude",
+  "{click} selects faces and E extrudes them into new brushes. Shift+drag a face pushes it, Ctrl+Shift+drag extrudes": "{click} seleciona faces e E as extrude em novos brushes. Shift+arrastar uma face a empurra, Ctrl+Shift+arrastar extrude",
   "{select} a face to sweep, {add} adds more": "{select} numa face a varrer, {add} adiciona mais",
   "Select quad faces ({click}) or brushes with a top face": "Selecione faces de quatro lados ({click}) ou brushes com face superior",
   "Keys": "Teclas",

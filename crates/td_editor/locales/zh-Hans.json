@@ -2408,6 +2408,7 @@
   "{click} on something without faces ({mode})": "对没有面的对象{click}（{mode}）",
   "Face mode": "面模式",
   "{click} selects faces, Shift+drag a face pushes it, Ctrl+Shift+drag extrudes": "{click}选择面，Shift+拖动面可推动，Ctrl+Shift+拖动可挤出",
+  "{click} selects faces and E extrudes them into new brushes. Shift+drag a face pushes it, Ctrl+Shift+drag extrudes": "{click}选择面，按E将其挤出为新的笔刷。Shift+拖动面可推动，Ctrl+Shift+拖动可挤出",
   "{select} a face to sweep, {add} adds more": "{select}要扫掠的面，{add}添加更多",
   "Select quad faces ({click}) or brushes with a top face": "请选择四边形面（{click}）或带顶面的笔刷",
   "Keys": "按键",

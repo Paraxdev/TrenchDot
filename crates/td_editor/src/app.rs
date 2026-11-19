@@ -766,6 +766,11 @@ fn mouse_help(preset: &str) -> String {
         tr("3D gizmo: arrows and squares move, rings rotate, boxes scale").to_string(),
         if preset == "hammer" {
             tr("Shift+A opens the Texture tool, click picks a face, Ctrl+click adds one. Shift+drag copies the selection").to_string()
+        } else if preset == "blender" {
+            trf!(
+                "{click} selects faces and E extrudes them into new brushes. Shift+drag a face pushes it, Ctrl+Shift+drag extrudes",
+                click = crate::mouse_map::chord_label(preset, crate::mouse_map::ClickRule::ReplaceFace)
+            )
         } else {
             trf!(
                 "{click} selects faces, Shift+drag a face pushes it, Ctrl+Shift+drag extrudes",
@@ -4368,7 +4373,9 @@ mod tests {
         assert_eq!(tb.len(), 6);
         assert_eq!(blender.len(), 6);
         assert!(tb[4].starts_with("Shift+click selects faces, Shift+drag a face pushes it"), "{}", tb[4]);
-        assert!(blender[4].starts_with("Click (Face mode) selects faces, Shift+drag a face pushes it"), "{}", blender[4]);
+        assert!(blender[4].starts_with("Click (Face mode) selects faces and E extrudes them into new brushes"), "{}", blender[4]);
+        assert!(blender[4].contains("Shift+drag a face pushes it, Ctrl+Shift+drag extrudes"), "{}", blender[4]);
+        assert!(!tb[4].contains("E extrudes") && !hammer[4].contains("E extrudes"), "only Blender binds E");
         assert_eq!(tb[..4], blender[..4]);
         assert!(tb[2].contains("double click opens"), "{}", tb[2]);
         assert_eq!(tb[5], blender[5]);

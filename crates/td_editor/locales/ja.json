@@ -2408,6 +2408,7 @@
   "{click} on something without faces ({mode})": "面のないものへの{click}（{mode}）",
   "Face mode": "面モード",
   "{click} selects faces, Shift+drag a face pushes it, Ctrl+Shift+drag extrudes": "{click}で面を選択、Shift+ドラッグで面を押し、Ctrl+Shift+ドラッグで押し出し",
+  "{click} selects faces and E extrudes them into new brushes. Shift+drag a face pushes it, Ctrl+Shift+drag extrudes": "{click}で面を選択、Eで新しいブラシに押し出し。Shift+ドラッグで面を押し、Ctrl+Shift+ドラッグで押し出し",
   "{select} a face to sweep, {add} adds more": "スイープする面を{select}、{add}で追加",
   "Select quad faces ({click}) or brushes with a top face": "四角形の面（{click}）か上面のあるブラシを選択してください",
   "Keys": "キー",

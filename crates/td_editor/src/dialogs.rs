@@ -137,6 +137,7 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
         entry(en!("Brush"), en!("CSG Convex Merge"), Action::CsgMerge),
         entry(en!("Brush"), en!("CSG Intersect"), Action::CsgIntersect),
         entry(en!("Brush"), en!("Hollow"), Action::CsgHollow),
+        entry(en!("Brush"), en!("Extrude Faces"), Action::ExtrudeFaces),
         entry(en!("Brush"), en!("Snap Vertices to Grid"), Action::SnapVertices),
         entry(en!("Brush"), en!("Tie to Entity"), Action::TieToEntity),
         entry(en!("Brush"), en!("Move to World"), Action::MoveToWorld),
@@ -2393,6 +2394,17 @@ mod tests {
         let hits = |q: &str| entries.iter().filter(|(label, _)| fuzzy_score(q, &label.en).is_some() && label.en.starts_with("View: Language")).count();
         assert_eq!(hits("language deutsch"), 1);
         assert_eq!(hits("language"), 8);
+    }
+
+    #[test]
+    fn the_palette_lists_extrude_faces_under_brush() {
+        let state = EditorState::new(crate::state::Prefs::default());
+        let entries = palette_entries(&state);
+        let hits: Vec<_> = entries.iter().filter(|(_, a)| *a == Action::ExtrudeFaces).collect();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].0.en, "Brush: Extrude Faces");
+        let matches = ranked("extrude faces", entries);
+        assert_eq!(matches[0].2, Action::ExtrudeFaces);
     }
 
     #[test]
