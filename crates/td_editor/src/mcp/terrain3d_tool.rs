@@ -386,9 +386,17 @@ impl App {
         let changes = link.changed_regions(&source);
         let found = inspector::changes(&changes, |loc| inspector::unsaved_in_godot(state, &cache, loc));
         let installed = state.game.project_root.as_deref().is_some_and(|root| root.join("addons").join("terrain_3d").is_dir());
-        let connection = inspector::connection(installed, state.restricted(), state.godot_has_project(), state.godot.exe.is_some(), &manifest.terrain3d);
+        let connection = inspector::connection(
+            installed,
+            state.restricted(),
+            state.godot_has_project(),
+            inspector::godot_busy(state),
+            state.godot.exe.is_some(),
+            &manifest.terrain3d,
+        );
         let godot = match connection {
             Connection::Connected(_) => "connected",
+            Connection::Busy => "busy",
             Connection::NotRunning => "not_running",
             Connection::NoGodot => "no_godot",
             Connection::NotInstalled => "not_installed",

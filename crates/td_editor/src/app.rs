@@ -2514,6 +2514,9 @@ impl App {
 
         if self.state.link_state.busy {
             rect |= ui.add(egui::Spinner::new().size(size * 0.8)).on_hover_text(tr("Godot is building")).rect;
+        } else if self.state.link_state.stalled {
+            let tip = tr("Godot: busy with a long task, it answers once that is done");
+            rect |= ui.add(egui::Spinner::new().size(size * 0.8)).on_hover_text(tip).rect;
         }
 
         ui.add_space(PROJECT_BUTTON_GAP * 0.5);

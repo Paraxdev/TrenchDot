@@ -2832,6 +2832,8 @@
   "Godot: connected": "Godot: conectado",
   "Godot: connected, Terrain3D {version}": "Godot: conectado, Terrain3D {version}",
   "Godot: not running, a save applies edits with a headless Godot": "Godot: no está abierto, al guardar un Godot sin ventana aplica los cambios",
+  "Godot: busy applying the Terrain3D regions": "Godot: ocupado aplicando las regiones de Terrain3D",
+  "Godot: busy with a long task, it answers once that is done": "Godot: ocupado con una tarea larga, responde al terminarla",
   "No Godot found, edits wait in the data folder": "No se encontró Godot, los cambios esperan en la carpeta de datos",
   "Terrain3D is not installed in this project": "Terrain3D no está instalado en este proyecto",
   "Edit Regions": "Editar regiones",

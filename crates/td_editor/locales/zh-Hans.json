@@ -2832,6 +2832,8 @@
   "Godot: connected": "Godot：已连接",
   "Godot: connected, Terrain3D {version}": "Godot：已连接，Terrain3D {version}",
   "Godot: not running, a save applies edits with a headless Godot": "Godot：未运行，保存时会由无窗口的 Godot 应用修改",
+  "Godot: busy applying the Terrain3D regions": "Godot：正在应用 Terrain3D 区域",
+  "Godot: busy with a long task, it answers once that is done": "Godot：正在执行耗时任务，完成后会响应",
   "No Godot found, edits wait in the data folder": "未找到 Godot，修改会留在数据文件夹中等待",
   "Terrain3D is not installed in this project": "此项目未安装 Terrain3D",
   "Edit Regions": "编辑区域",

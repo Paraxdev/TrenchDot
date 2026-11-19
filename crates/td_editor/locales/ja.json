@@ -2832,6 +2832,8 @@
   "Godot: connected": "Godot: 接続中",
   "Godot: connected, Terrain3D {version}": "Godot: 接続中、Terrain3D {version}",
   "Godot: not running, a save applies edits with a headless Godot": "Godot: 未起動、保存するとウィンドウなしの Godot が変更を適用します",
+  "Godot: busy applying the Terrain3D regions": "Godot: Terrain3D のリージョンを適用中",
+  "Godot: busy with a long task, it answers once that is done": "Godot: 時間のかかる処理中です。終わると応答します",
   "No Godot found, edits wait in the data folder": "Godot が見つかりません、変更はデータフォルダーで待機します",
   "Terrain3D is not installed in this project": "このプロジェクトには Terrain3D がインストールされていません",
   "Edit Regions": "リージョンを編集",

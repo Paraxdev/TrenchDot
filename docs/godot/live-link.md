@@ -14,6 +14,10 @@ Newline delimited JSON over TCP on `127.0.0.1:7842`. Each message has an `event`
 one reply line that echoes the `seq` and has `ok`. Failures reply `ok: false` with an `error`. The editor keeps one
 connection open and sends a `status` heartbeat every second.
 
+The addon answers on Godot's main thread, so a long task there, like applying Terrain3D regions or rebuilding a map,
+holds the replies back. A heartbeat left unanswered for 15 seconds marks Godot as busy and keeps the connection. Only a
+closed connection, or three minutes without any answer, counts as Godot no longer running.
+
 To use another port, change it on both sides: `trenchdot/live_link_port` in Godot's project settings and *Godot live
 link* in *File > Preferences* in TrenchDot.
 

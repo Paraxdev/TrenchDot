@@ -1461,6 +1461,7 @@ impl App {
             "godot": {
                 "executable": s.godot.exe, "connected": s.link_state.connected, "addon_outdated": s.link_state.outdated,
                 "project_open": s.godot_has_project(), "version": s.link_state.godot, "busy": s.link_state.busy,
+                "stalled": s.link_state.stalled,
                 "live_mode": s.prefs.live_mode, "live_session": s.live_active(),
                 "maps": s.link_state.maps.keys().collect::<Vec<_>>(),
                 "missing_classes": s.doc.path.as_deref().and_then(|p| s.link_state.report(p)).map(|r| r.missing.iter().collect::<Vec<_>>()).unwrap_or_default(),

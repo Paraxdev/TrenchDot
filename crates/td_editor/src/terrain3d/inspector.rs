@@ -22,6 +22,9 @@ pub const RESTRICTED_GODOT: &str = en!("Godot: not reached, the project is in Re
 pub enum Connection {
     /// The Godot editor has the project open, with the Terrain3D version of the folder's manifest, empty when unknown.
     Connected(String),
+    /// The Godot editor has the project open but its main thread is busy, applying the regions a save sent or with
+    /// another long task.
+    Busy,
     NotRunning,
     NoGodot,
     NotInstalled,
@@ -29,11 +32,13 @@ pub enum Connection {
     Restricted,
 }
 
-pub fn connection(installed: bool, restricted: bool, godot_open: bool, godot_found: bool, version: &str) -> Connection {
+pub fn connection(installed: bool, restricted: bool, godot_open: bool, godot_busy: bool, godot_found: bool, version: &str) -> Connection {
     if !installed {
         Connection::NotInstalled
     } else if restricted {
         Connection::Restricted
+    } else if godot_open && godot_busy {
+        Connection::Busy
     } else if godot_open {
         Connection::Connected(version.to_string())
     } else if godot_found {
@@ -41,6 +46,11 @@ pub fn connection(installed: bool, restricted: bool, godot_open: bool, godot_fou
     } else {
         Connection::NoGodot
     }
+}
+
+/// Whether Godot is applying the regions a save sent, or has gone quiet on the live link with another long task.
+pub fn godot_busy(state: &EditorState) -> bool {
+    state.terrain3d_bridge.applying() || state.link_state.stalled
 }
 
 /// The regions that wait for Godot, the ones Godot changed too, the ones made at another region size than Godot's
@@ -319,9 +329,11 @@ pub fn inspector(ui: &mut Ui, state: &mut EditorState, id: NodeId, actions: &mut
     let manifest = state.terrain3d.manifest(&cache).cloned();
     let installed = state.game.project_root.as_deref().is_some_and(|root| root.join("addons").join("terrain_3d").is_dir());
     let version = manifest.as_ref().map_or("", |m| m.terrain3d.as_str());
-    match connection(installed, state.restricted(), state.godot_has_project(), state.godot.exe.is_some(), version) {
+    match connection(installed, state.restricted(), state.godot_has_project(), godot_busy(state), state.godot.exe.is_some(), version) {
         Connection::Connected(version) if version.is_empty() => ui.label(tr("Godot: connected")),
         Connection::Connected(version) => ui.label(trf!("Godot: connected, Terrain3D {version}", version)),
+        Connection::Busy if state.terrain3d_bridge.applying() => ui.label(tr("Godot: busy applying the Terrain3D regions")),
+        Connection::Busy => ui.label(tr("Godot: busy with a long task, it answers once that is done")),
         Connection::NotRunning => ui.label(tr("Godot: not running, a save applies edits with a headless Godot")),
         Connection::NoGodot => ui.label(tr("No Godot found, edits wait in the data folder")),
         Connection::NotInstalled => ui.label(tr("Terrain3D is not installed in this project")),
@@ -451,24 +463,28 @@ mod tests {
     #[test]
     fn the_connection_follows_install_then_godot_then_the_executable() {
         let cases = [
-            (false, false, true, true, Connection::NotInstalled),
-            (false, true, false, false, Connection::NotInstalled),
-            (true, true, true, true, Connection::Restricted),
-            (true, true, false, false, Connection::Restricted),
-            (true, false, true, false, Connection::Connected("1.1.0".into())),
-            (true, false, true, true, Connection::Connected("1.1.0".into())),
-            (true, false, false, true, Connection::NotRunning),
-            (true, false, false, false, Connection::NoGodot),
+            (false, false, true, true, true, Connection::NotInstalled),
+            (false, true, false, false, false, Connection::NotInstalled),
+            (true, true, true, true, true, Connection::Restricted),
+            (true, true, false, false, false, Connection::Restricted),
+            (true, false, true, false, false, Connection::Connected("1.1.0".into())),
+            (true, false, true, false, true, Connection::Connected("1.1.0".into())),
+            (true, false, true, true, true, Connection::Busy),
+            (true, false, true, true, false, Connection::Busy),
+            (true, false, false, true, true, Connection::NotRunning),
+            (true, false, false, false, true, Connection::NotRunning),
+            (true, false, false, true, false, Connection::NoGodot),
+            (true, false, false, false, false, Connection::NoGodot),
         ];
-        for (installed, restricted, open, found, want) in cases {
+        for (installed, restricted, open, busy, found, want) in cases {
             assert_eq!(
-                connection(installed, restricted, open, found, "1.1.0"),
+                connection(installed, restricted, open, busy, found, "1.1.0"),
                 want,
-                "installed {installed}, restricted {restricted}, open {open}, found {found}"
+                "installed {installed}, restricted {restricted}, open {open}, busy {busy}, found {found}"
             );
         }
 
-        assert_eq!(connection(true, false, true, true, ""), Connection::Connected(String::new()));
+        assert_eq!(connection(true, false, true, false, true, ""), Connection::Connected(String::new()));
     }
 
     #[test]

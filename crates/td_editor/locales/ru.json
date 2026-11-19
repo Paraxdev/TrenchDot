@@ -2832,6 +2832,8 @@
   "Godot: connected": "Godot: подключён",
   "Godot: connected, Terrain3D {version}": "Godot: подключён, Terrain3D {version}",
   "Godot: not running, a save applies edits with a headless Godot": "Godot: не запущен, при сохранении правки применит Godot без окна",
+  "Godot: busy applying the Terrain3D regions": "Godot: занят, применяет регионы Terrain3D",
+  "Godot: busy with a long task, it answers once that is done": "Godot: занят долгой задачей, ответит после неё",
   "No Godot found, edits wait in the data folder": "Godot не найден, правки ждут в папке данных",
   "Terrain3D is not installed in this project": "Terrain3D не установлен в этом проекте",
   "Edit Regions": "Править регионы",

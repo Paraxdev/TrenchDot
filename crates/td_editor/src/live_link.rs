@@ -2,7 +2,7 @@
 //! Protocol: one JSON object per line over TCP on 127.0.0.1, each answered by one JSON line echoing its `seq`.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::path::Path;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -317,6 +317,8 @@ pub struct LinkState {
     pub maps: BTreeMap<String, u64>,
     /// A long request (rebuild) is running.
     pub busy: bool,
+    /// Godot keeps the connection open but missed a heartbeat, its main thread is busy with a long task.
+    pub stalled: bool,
     /// Goes up whenever live sessions were dropped, so the editor sends its map again.
     pub resync: u64,
     /// By `path_key` of the map.
@@ -427,10 +429,17 @@ pub struct LiveLink {
 impl LiveLink {
     /// `repaint` is asked to redraw whenever the link state changes or a status message arrives.
     pub fn start(repaint: Option<egui::Context>) -> Self {
+        Self::spawn(repaint, QUICK_REPLY, BUILD_REPLY)
+    }
+
+    fn spawn(repaint: Option<egui::Context>, heartbeat_wait: Duration, stall_limit: Duration) -> Self {
         let shared: SharedLock = Arc::new((Mutex::new(Shared { port: DEFAULT_PORT, ..Default::default() }), Condvar::new()));
         let (tx, statuses) = mpsc::channel();
         let worker_shared = shared.clone();
-        std::thread::Builder::new().name("godot-live-link".into()).spawn(move || Worker::new(worker_shared, tx, repaint).run()).expect("spawn live link");
+        std::thread::Builder::new()
+            .name("godot-live-link".into())
+            .spawn(move || Worker { heartbeat_wait, stall_limit, ..Worker::new(worker_shared, tx, repaint) }.run())
+            .expect("spawn live link");
         Self { shared, statuses }
     }
 
@@ -445,6 +454,12 @@ impl LiveLink {
         let (lock, cvar) = &*self.shared;
         let mut s = lock.lock().unwrap_or_else(|e| e.into_inner());
         if s.port != port || s.enabled != enabled {
+            // Note: cleared here and not by the worker, so a frame drawn before the worker wakes shows no Godot from
+            // the old port, and Run Project does not ask a Godot that is gone.
+            if s.port != port {
+                s.state = LinkState { resync: s.state.resync + 1, ..Default::default() };
+            }
+
             s.port = port;
             s.enabled = enabled;
             cvar.notify_all();
@@ -487,6 +502,11 @@ impl LiveLink {
         Self { shared: Arc::default(), statuses: mpsc::channel().1 }
     }
 
+    /// A link that waits `heartbeat_wait` for each status reply and gives Godot up after `stall_limit` of silence.
+    pub(crate) fn start_waiting(heartbeat_wait: Duration, stall_limit: Duration) -> Self {
+        Self::spawn(None, heartbeat_wait, stall_limit)
+    }
+
     pub(crate) fn take_requests(&self) -> Vec<Request> {
         self.with(|s| s.requests.drain(..).collect())
     }
@@ -519,16 +539,38 @@ struct Worker {
     last_attempt: Option<Instant>,
     last_heartbeat: Option<Instant>,
     seq: u64,
+    heartbeat_wait: Duration,
+    stall_limit: Duration,
+    /// When the first heartbeat Godot left unanswered was sent.
+    silent_since: Option<Instant>,
 }
 
 impl Worker {
     fn new(shared: SharedLock, status: Sender<Msg>, repaint: Option<egui::Context>) -> Self {
-        Self { shared, status, repaint, conn: None, port: 0, sessions: HashMap::new(), last_attempt: None, last_heartbeat: None, seq: 0 }
+        Self {
+            shared,
+            status,
+            repaint,
+            conn: None,
+            port: 0,
+            sessions: HashMap::new(),
+            last_attempt: None,
+            last_heartbeat: None,
+            seq: 0,
+            heartbeat_wait: QUICK_REPLY,
+            stall_limit: BUILD_REPLY,
+            silent_since: None,
+        }
     }
 
     fn update(&self, f: impl FnOnce(&mut LinkState)) {
         let changed = {
             let mut s = self.shared.0.lock().unwrap_or_else(|e| e.into_inner());
+            // What the Godot on a port given up since says stays out of the state of the new one.
+            if s.port != self.port {
+                return;
+            }
+
             let before = s.state.clone();
             f(&mut s.state);
             s.state != before
@@ -560,7 +602,9 @@ impl Worker {
 
             if s.port != self.port {
                 self.port = s.port;
+                self.silent_since = None;
                 self.conn = None;
+                self.sessions.clear();
             }
 
             if !s.enabled {
@@ -622,41 +666,55 @@ impl Worker {
 
     fn disconnect(&mut self) {
         self.conn = None;
+        self.silent_since = None;
         let had_sessions = !self.sessions.is_empty();
         self.sessions.clear();
         self.update(|s| *s = LinkState { resync: s.resync + u64::from(had_sessions), ..Default::default() });
     }
 
-    fn call(&mut self, mut message: Value, timeout: Duration) -> Result<Value, String> {
-        let Some(conn) = self.conn.as_mut() else { return Err(NOT_RUNNING.into()) };
+    fn call(&mut self, message: Value, timeout: Duration) -> Result<Value, String> {
+        self.ask(message, timeout).map_err(|e| {
+            self.disconnect();
+            e.to_string()
+        })
+    }
+
+    /// Sends `message` and waits for its reply, leaving the connection as it is when that fails.
+    fn ask(&mut self, mut message: Value, timeout: Duration) -> std::io::Result<Value> {
+        let Some(conn) = self.conn.as_mut() else { return Err(std::io::Error::other(NOT_RUNNING)) };
         self.seq += 1;
         let seq = self.seq;
         message["seq"] = json!(seq);
-        let result = (|| {
-            writeln!(conn.writer, "{message}").map_err(|e| e.to_string())?;
-            conn.reader.get_ref().set_read_timeout(Some(timeout)).map_err(|e| e.to_string())?;
-            loop {
-                let mut line = String::new();
-                if conn.reader.read_line(&mut line).map_err(|e| e.to_string())? == 0 {
-                    return Err(CLOSED.to_string());
-                }
-
-                let Ok(reply) = serde_json::from_str::<Value>(&line) else { continue };
-                // Addons from before the heartbeat answer without a seq.
-                if reply["seq"].as_u64().is_none_or(|s| s == seq) {
-                    return Ok(reply);
-                }
+        writeln!(conn.writer, "{message}")?;
+        conn.reader.get_ref().set_read_timeout(Some(timeout))?;
+        loop {
+            let mut line = String::new();
+            if conn.reader.read_line(&mut line)? == 0 {
+                return Err(std::io::Error::other(CLOSED));
             }
-        })();
-        if result.is_err() {
-            self.disconnect();
-        }
 
-        result
+            let Ok(reply) = serde_json::from_str::<Value>(&line) else { continue };
+            // Addons from before the heartbeat answer without a seq.
+            if reply["seq"].as_u64().is_none_or(|s| s == seq) {
+                self.silent_since = None;
+                return Ok(reply);
+            }
+        }
+    }
+
+    /// Whether a heartbeat that failed with `error` only found Godot busy. The addon answers on Godot's main thread, so
+    /// a long task there, like applying Terrain3D regions, holds every reply back while the connection stays open.
+    fn stalled(&mut self, error: &std::io::Error, sent: Instant) -> bool {
+        let answered = {
+            let s = self.shared.0.lock().unwrap_or_else(|e| e.into_inner());
+            s.state.connected && !s.state.outdated
+        };
+        answered && matches!(error.kind(), ErrorKind::TimedOut | ErrorKind::WouldBlock) && self.silent_since.get_or_insert(sent).elapsed() < self.stall_limit
     }
 
     fn heartbeat(&mut self) {
-        self.last_heartbeat = Some(Instant::now());
+        let sent = Instant::now();
+        self.last_heartbeat = Some(sent);
         if !self.connect(false) {
             if self.last_attempt.is_some() {
                 self.update(|s| s.connected = false);
@@ -665,7 +723,11 @@ impl Worker {
             return;
         }
 
-        let Ok(reply) = self.call(json!({ "event": "status" }), QUICK_REPLY) else { return };
+        let reply = match self.ask(json!({ "event": "status" }), self.heartbeat_wait) {
+            Ok(reply) => reply,
+            Err(e) if self.stalled(&e, sent) => return self.update(|s| s.stalled = true),
+            Err(_) => return self.disconnect(),
+        };
         if reply["ok"].as_bool() != Some(true) {
             self.update(|s| {
                 *s = LinkState { connected: true, outdated: true, resync: s.resync, ..Default::default() };
@@ -694,6 +756,7 @@ impl Worker {
         let dropped = self.sessions.len() != before;
         self.update(|s| {
             s.connected = true;
+            s.stalled = false;
             s.outdated = false;
             s.project = reply["project"].as_str().map(path_key);
             s.godot = reply["godot"].as_str().unwrap_or_default().to_string();
@@ -983,6 +1046,8 @@ fn allow_foreground(_pid: u32) {}
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
     use super::*;
 
     #[test]
@@ -1363,6 +1428,21 @@ mod tests {
     }
 
     #[test]
+    fn a_new_port_forgets_the_godot_on_the_old_one_at_once() {
+        let map_path = std::env::temp_dir().join("td_live_link_test").join("moved.tdm");
+        let (port, _) = fake_godot(godot_path(&map_path), Duration::ZERO);
+        let link = LiveLink::start(None);
+        link.configure(port, true);
+        wait_for("heartbeat", || link.state().connected);
+        let resync = link.state().resync;
+        link.configure(crate::test_ports::CLOSED, true);
+        let state = link.state();
+        assert!(!state.connected && !state.has_map(&map_path) && state.resync > resync, "{state:?}");
+        std::thread::sleep(Duration::from_millis(300));
+        assert!(!link.state().connected, "nothing the old Godot says comes back: {:?}", link.state());
+    }
+
+    #[test]
     fn scenes_built_with_other_definitions_are_told_once() {
         let map_path = std::env::temp_dir().join("td_live_link_test").join("stale.tdm");
         let map = godot_path(&map_path);
@@ -1401,6 +1481,147 @@ mod tests {
         let heartbeats = events(&log, "status");
         std::thread::sleep(Duration::from_millis(1500));
         assert_eq!(events(&log, "status"), heartbeats);
+    }
+
+    /// Answers every status at once, unless told to hold its next reply or to hang up instead, the way the addon goes
+    /// quiet while Godot's main thread works.
+    struct SlowGodot {
+        port: u16,
+        hold: Arc<Mutex<Option<Duration>>>,
+        hang_up: Arc<AtomicBool>,
+        connections: Arc<AtomicUsize>,
+    }
+
+    fn slow_godot() -> SlowGodot {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let godot = SlowGodot { port: listener.local_addr().unwrap().port(), hold: Arc::default(), hang_up: Arc::default(), connections: Arc::default() };
+        let (hold, hang_up, connections) = (godot.hold.clone(), godot.hang_up.clone(), godot.connections.clone());
+        std::thread::spawn(move || {
+            for stream in listener.incoming() {
+                let Ok(stream) = stream else { return };
+                connections.fetch_add(1, Ordering::SeqCst);
+                let mut reader = BufReader::new(stream.try_clone().unwrap());
+                loop {
+                    let mut line = String::new();
+                    if reader.read_line(&mut line).unwrap_or(0) == 0 || hang_up.swap(false, Ordering::SeqCst) {
+                        break;
+                    }
+
+                    let wait = hold.lock().unwrap().take();
+                    if let Some(wait) = wait {
+                        std::thread::sleep(wait);
+                    }
+
+                    let msg: Value = serde_json::from_str(&line).unwrap();
+                    let reply = json!({ "ok": true, "seq": msg["seq"], "project": "C:/game/", "maps": [], "godot": "4.7.2" });
+                    if writeln!(&stream, "{reply}").is_err() {
+                        break;
+                    }
+                }
+            }
+        });
+        godot
+    }
+
+    /// Watches the link for `time` and returns whether it stayed connected throughout and whether it ever said stalled.
+    fn watch(link: &LiveLink, time: Duration) -> (bool, bool) {
+        let start = Instant::now();
+        let (mut connected, mut stalled) = (true, false);
+        while start.elapsed() < time {
+            let state = link.state();
+            connected &= state.connected;
+            stalled |= state.stalled;
+            std::thread::sleep(Duration::from_millis(5));
+        }
+
+        (connected, stalled)
+    }
+
+    const WAIT: Duration = Duration::from_millis(200);
+    const STALL_LIMIT: Duration = Duration::from_millis(1500);
+
+    #[test]
+    fn a_godot_busy_past_the_heartbeat_wait_stays_connected_and_shows_stalled() {
+        let godot = slow_godot();
+        let link = LiveLink::start_waiting(WAIT, STALL_LIMIT);
+        link.configure(godot.port, true);
+        wait_for("heartbeat", || link.state().connected);
+        assert!(!link.state().stalled);
+
+        *godot.hold.lock().unwrap() = Some(Duration::from_millis(900));
+        wait_for("the held heartbeat", || godot.hold.lock().unwrap().is_none());
+        assert_eq!(watch(&link, STALL_LIMIT - WAIT), (true, true), "connected all along, stalled while Godot was quiet");
+        wait_for("the late reply", || !link.state().stalled);
+        let state = link.state();
+        assert!(state.connected && state.project.is_some() && state.godot == "4.7.2", "{state:?}");
+        assert_eq!(godot.connections.load(Ordering::SeqCst), 1, "the busy Godot kept its connection");
+    }
+
+    #[test]
+    fn a_godot_quiet_past_the_stall_limit_is_given_up_and_found_again() {
+        let godot = slow_godot();
+        let link = LiveLink::start_waiting(WAIT, STALL_LIMIT);
+        link.configure(godot.port, true);
+        wait_for("heartbeat", || link.state().connected);
+
+        *godot.hold.lock().unwrap() = Some(STALL_LIMIT * 2);
+        wait_for("the held heartbeat", || godot.hold.lock().unwrap().is_none());
+        let quiet = Instant::now();
+        assert_eq!(watch(&link, STALL_LIMIT - WAIT), (true, true), "stalled, not gone, under the limit");
+        wait_for("given up", || !link.state().connected);
+        assert!(quiet.elapsed() >= STALL_LIMIT, "gave up after {:?}", quiet.elapsed());
+        assert!(!link.state().stalled);
+        wait_for("connected again", || link.state().connected);
+        assert!(godot.connections.load(Ordering::SeqCst) >= 2);
+    }
+
+    #[test]
+    fn a_stalled_link_moved_to_another_port_is_neither_connected_nor_stalled() {
+        let godot = slow_godot();
+        let link = LiveLink::start_waiting(WAIT, STALL_LIMIT);
+        link.configure(godot.port, true);
+        wait_for("heartbeat", || link.state().connected);
+
+        *godot.hold.lock().unwrap() = Some(STALL_LIMIT * 2);
+        wait_for("stalled", || link.state().stalled);
+        let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        link.configure(closed, true);
+        wait_for("moved", || !link.state().connected);
+        let start = Instant::now();
+        while start.elapsed() < STALL_LIMIT {
+            let state = link.state();
+            assert!(!state.connected && !state.stalled, "nothing answers on the new port: {state:?}");
+            std::thread::sleep(Duration::from_millis(5));
+        }
+    }
+
+    #[test]
+    fn a_godot_that_hangs_up_or_never_answered_is_not_stalled() {
+        let godot = slow_godot();
+        let link = LiveLink::start_waiting(WAIT, STALL_LIMIT);
+        link.configure(godot.port, true);
+        wait_for("heartbeat", || link.state().connected);
+
+        godot.hang_up.store(true, Ordering::SeqCst);
+        let hung_up = Instant::now();
+        let mut stalled = false;
+        wait_for("hung up", || {
+            let state = link.state();
+            stalled |= state.stalled;
+            !state.connected
+        });
+        assert!(hung_up.elapsed() < STALL_LIMIT && !stalled, "a closed connection is gone at once");
+
+        let fresh = slow_godot();
+        *fresh.hold.lock().unwrap() = Some(Duration::from_millis(900));
+        let link = LiveLink::start_waiting(WAIT, STALL_LIMIT);
+        link.configure(fresh.port, true);
+        let start = Instant::now();
+        while start.elapsed() < Duration::from_millis(800) {
+            let state = link.state();
+            assert!(!state.connected && !state.stalled, "a first heartbeat that times out finds no Godot: {state:?}");
+            std::thread::sleep(Duration::from_millis(5));
+        }
     }
 
     #[test]
