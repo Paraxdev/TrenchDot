@@ -15,7 +15,7 @@ use td_doc::terrain3d::{RegionChange, RegionEdit, Removal, Terrain3DLink};
 use td_formats::terrain3d_cache::{self, CacheError, PendingRegion, RegionHash};
 use td_geom::terrain3d::{Grid, Loc, Region3D};
 
-use crate::i18n::{Msg, msg, msg_n};
+use crate::i18n::{Msg, en, msg, msg_n};
 use crate::live_link;
 
 const CLI_SCRIPT: &str = "res://addons/func_godot/src/trenchdot/terrain3d_cli.gd";
@@ -460,7 +460,7 @@ pub struct Settings {
 const OLD_ADDON_SETTINGS: &str = "Update the TrenchDot addon in Godot to change Terrain3D settings";
 pub const OLD_ADDON_LOOK: &str = "Update the TrenchDot addon in Godot to pick the Terrain3D material, assets or ocean";
 const NO_SCENE_SETTINGS: &str = "Open the scene that shows this Terrain3D in the Godot editor first";
-pub const LINK_OFF_SETTINGS: &str = "Turn on the live link, TrenchDot only rewrites the region files when it can tell no Godot editor has them open";
+pub const LINK_OFF_SETTINGS: &str = en!("Turn on the live link, TrenchDot only rewrites the region files when it can tell no Godot editor has them open");
 const HEADLESS_LOOK: &str = "Open the scene that shows this Terrain3D in the Godot editor to pick its material, assets or ocean";
 
 fn settings_message(request: &SettingsRequest) -> Value {

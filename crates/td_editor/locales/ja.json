@@ -2903,5 +2903,12 @@
   "Autoshader": "オートシェーダー",
   "roughness": "粗さ",
   "What Paint Layer paints on Terrain3D, Shift takes it away again": "Terrain3D でレイヤーを描くモードが描くもの、Shift を押すと消去します",
-  "Negative is wetter and shinier in Godot, positive is drier": "マイナスは Godot でより濡れて光沢が出て、プラスはより乾きます"
+  "Negative is wetter and shinier in Godot, positive is drier": "マイナスは Godot でより濡れて光沢が出て、プラスはより乾きます",
+  "Needs the Godot editor open with this scene, or the Godot executable set in Preferences": "このシーンを開いた Godot エディター、または環境設定での Godot 実行ファイルの指定が必要です",
+  "Send your edits first, edits made at the old region size cannot be sent after it changes": "先に編集を送ってください、古いリージョンサイズでの編集は変更後に送れなくなります",
+  "Turn on the live link, TrenchDot only rewrites the region files when it can tell no Godot editor has them open": "ライブリンクをオンにしてください、TrenchDot はどの Godot エディターもリージョンファイルを開いていないと確認できるときだけ書き換えます",
+  "Changing the Terrain3D settings…": "Terrain3D の設定を変更中…",
+  "Rewrote {n} region file at region size {size} and vertex spacing {spacing}. Godot uses the new spacing the next time it opens the scene": { "other": "{n} 個のリージョンファイルをリージョンサイズ {size}、頂点間隔 {spacing} で書き換えました。Godot は次にシーンを開いたときに新しい間隔を使います" },
+  "Godot reported: {problems}": "Godot の報告: {problems}",
+  "Rewrite the {n} region file with a headless Godot? A backup is kept in the data folder": { "other": "ウィンドウなしの Godot で {n} 個のリージョンファイルをすべて書き換えますか？データフォルダーにバックアップが残ります" }
 }

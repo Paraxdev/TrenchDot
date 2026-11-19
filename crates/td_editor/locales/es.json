@@ -2903,5 +2903,12 @@
   "Autoshader": "Autoshader",
   "roughness": "rugosidad",
   "What Paint Layer paints on Terrain3D, Shift takes it away again": "Lo que Pintar capa pinta en Terrain3D, Shift lo quita de nuevo",
-  "Negative is wetter and shinier in Godot, positive is drier": "Negativo es más húmedo y brillante en Godot, positivo es más seco"
+  "Negative is wetter and shinier in Godot, positive is drier": "Negativo es más húmedo y brillante en Godot, positivo es más seco",
+  "Needs the Godot editor open with this scene, or the Godot executable set in Preferences": "Necesita el editor de Godot abierto con esta escena, o el ejecutable de Godot en Preferencias",
+  "Send your edits first, edits made at the old region size cannot be sent after it changes": "Envía primero tus cambios, los hechos con el tamaño de región anterior no se podrán enviar después",
+  "Turn on the live link, TrenchDot only rewrites the region files when it can tell no Godot editor has them open": "Activa el enlace en vivo, TrenchDot solo reescribe los archivos de región cuando puede saber que ningún editor de Godot los tiene abiertos",
+  "Changing the Terrain3D settings…": "Cambiando los ajustes de Terrain3D…",
+  "Rewrote {n} region file at region size {size} and vertex spacing {spacing}. Godot uses the new spacing the next time it opens the scene": { "one": "Se reescribió {n} archivo de región con tamaño de región {size} y espaciado de vértices {spacing}. Godot usará el nuevo espaciado la próxima vez que abra la escena", "other": "Se reescribieron {n} archivos de región con tamaño de región {size} y espaciado de vértices {spacing}. Godot usará el nuevo espaciado la próxima vez que abra la escena" },
+  "Godot reported: {problems}": "Godot informó: {problems}",
+  "Rewrite the {n} region file with a headless Godot? A backup is kept in the data folder": { "one": "¿Reescribir {n} archivo de región con un Godot sin ventana? Se guarda una copia de seguridad en la carpeta de datos", "other": "¿Reescribir todos los {n} archivos de región con un Godot sin ventana? Se guarda una copia de seguridad en la carpeta de datos" }
 }

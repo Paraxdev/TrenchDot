@@ -2903,5 +2903,12 @@
   "Autoshader": "Автошейдер",
   "roughness": "шероховатость",
   "What Paint Layer paints on Terrain3D, Shift takes it away again": "Что режим рисования слоя рисует на Terrain3D, Shift убирает это обратно",
-  "Negative is wetter and shinier in Godot, positive is drier": "Отрицательное значение делает поверхность влажнее и глянцевее в Godot, положительное суше"
+  "Negative is wetter and shinier in Godot, positive is drier": "Отрицательное значение делает поверхность влажнее и глянцевее в Godot, положительное суше",
+  "Needs the Godot editor open with this scene, or the Godot executable set in Preferences": "Нужен открытый редактор Godot с этой сценой или исполняемый файл Godot в настройках",
+  "Send your edits first, edits made at the old region size cannot be sent after it changes": "Сначала отправьте правки, правки со старым размером региона нельзя будет отправить после изменения",
+  "Turn on the live link, TrenchDot only rewrites the region files when it can tell no Godot editor has them open": "Включите живую связь, TrenchDot перезаписывает файлы регионов, только когда может убедиться, что ни один редактор Godot их не открыл",
+  "Changing the Terrain3D settings…": "Изменение настроек Terrain3D…",
+  "Rewrote {n} region file at region size {size} and vertex spacing {spacing}. Godot uses the new spacing the next time it opens the scene": { "one": "Перезаписан {n} файл региона с размером региона {size} и шагом вершин {spacing}. Godot возьмёт новый шаг, когда в следующий раз откроет сцену", "few": "Перезаписаны {n} файла регионов с размером региона {size} и шагом вершин {spacing}. Godot возьмёт новый шаг, когда в следующий раз откроет сцену", "many": "Перезаписано {n} файлов регионов с размером региона {size} и шагом вершин {spacing}. Godot возьмёт новый шаг, когда в следующий раз откроет сцену" },
+  "Godot reported: {problems}": "Godot сообщил: {problems}",
+  "Rewrite the {n} region file with a headless Godot? A backup is kept in the data folder": { "one": "Перезаписать {n} файл региона с помощью Godot без окна? Резервная копия останется в папке данных", "few": "Перезаписать все {n} файла региона с помощью Godot без окна? Резервная копия останется в папке данных", "many": "Перезаписать все {n} файлов региона с помощью Godot без окна? Резервная копия останется в папке данных" }
 }

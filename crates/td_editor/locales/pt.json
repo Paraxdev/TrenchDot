@@ -2903,5 +2903,12 @@
   "Autoshader": "Autoshader",
   "roughness": "rugosidade",
   "What Paint Layer paints on Terrain3D, Shift takes it away again": "O que Pintar camada pinta no Terrain3D, Shift tira de volta",
-  "Negative is wetter and shinier in Godot, positive is drier": "Negativo é mais úmido e brilhante no Godot, positivo é mais seco"
+  "Negative is wetter and shinier in Godot, positive is drier": "Negativo é mais úmido e brilhante no Godot, positivo é mais seco",
+  "Needs the Godot editor open with this scene, or the Godot executable set in Preferences": "Precisa do editor do Godot aberto com esta cena, ou do executável do Godot definido em Preferências",
+  "Send your edits first, edits made at the old region size cannot be sent after it changes": "Envie suas alterações primeiro, as feitas com o tamanho de região antigo não podem ser enviadas depois",
+  "Turn on the live link, TrenchDot only rewrites the region files when it can tell no Godot editor has them open": "Ative o link ao vivo, o TrenchDot só reescreve os arquivos de região quando consegue saber que nenhum editor do Godot os tem abertos",
+  "Changing the Terrain3D settings…": "Alterando os ajustes do Terrain3D…",
+  "Rewrote {n} region file at region size {size} and vertex spacing {spacing}. Godot uses the new spacing the next time it opens the scene": { "one": "{n} arquivo de região reescrito com tamanho de região {size} e espaçamento dos vértices {spacing}. O Godot usa o novo espaçamento na próxima vez que abrir a cena", "other": "{n} arquivos de região reescritos com tamanho de região {size} e espaçamento dos vértices {spacing}. O Godot usa o novo espaçamento na próxima vez que abrir a cena" },
+  "Godot reported: {problems}": "O Godot relatou: {problems}",
+  "Rewrite the {n} region file with a headless Godot? A backup is kept in the data folder": { "one": "Reescrever {n} arquivo de região com um Godot sem janela? Um backup fica na pasta de dados", "other": "Reescrever todos os {n} arquivos de região com um Godot sem janela? Um backup fica na pasta de dados" }
 }

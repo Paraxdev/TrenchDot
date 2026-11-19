@@ -2903,5 +2903,12 @@
   "Autoshader": "Autoshader",
   "roughness": "rugosité",
   "What Paint Layer paints on Terrain3D, Shift takes it away again": "Ce que Peindre une couche peint sur Terrain3D, Shift l'enlève de nouveau",
-  "Negative is wetter and shinier in Godot, positive is drier": "Négatif est plus humide et plus brillant dans Godot, positif est plus sec"
+  "Negative is wetter and shinier in Godot, positive is drier": "Négatif est plus humide et plus brillant dans Godot, positif est plus sec",
+  "Needs the Godot editor open with this scene, or the Godot executable set in Preferences": "Nécessite l'éditeur Godot ouvert avec cette scène, ou l'exécutable Godot défini dans les Préférences",
+  "Send your edits first, edits made at the old region size cannot be sent after it changes": "Envoyez d'abord vos modifications, celles faites avec l'ancienne taille de région ne pourront plus être envoyées ensuite",
+  "Turn on the live link, TrenchDot only rewrites the region files when it can tell no Godot editor has them open": "Activez le lien live, TrenchDot ne réécrit les fichiers de région que s'il peut savoir qu'aucun éditeur Godot ne les a ouverts",
+  "Changing the Terrain3D settings…": "Modification des réglages de Terrain3D…",
+  "Rewrote {n} region file at region size {size} and vertex spacing {spacing}. Godot uses the new spacing the next time it opens the scene": { "one": "{n} fichier de région réécrit avec la taille de région {size} et l'espacement des sommets {spacing}. Godot prendra le nouvel espacement à la prochaine ouverture de la scène", "other": "{n} fichiers de région réécrits avec la taille de région {size} et l'espacement des sommets {spacing}. Godot prendra le nouvel espacement à la prochaine ouverture de la scène" },
+  "Godot reported: {problems}": "Godot signale : {problems}",
+  "Rewrite the {n} region file with a headless Godot? A backup is kept in the data folder": { "one": "Réécrire {n} fichier de région avec un Godot sans fenêtre ? Une sauvegarde est gardée dans le dossier de données", "other": "Réécrire tous les {n} fichiers de région avec un Godot sans fenêtre ? Une sauvegarde est gardée dans le dossier de données" }
 }

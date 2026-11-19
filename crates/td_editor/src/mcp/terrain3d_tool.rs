@@ -198,6 +198,14 @@ fn parse_settings(a: &Value) -> Result<(Option<u32>, Option<f64>, LookChange), S
 /// when the grid changed, else nothing happened and it is an error.
 fn settings_reply(id: NodeId, regrid: bool, asked: &LookChange, before: Option<&Look>, answer: &Settings) -> Result<Value, String> {
     let mut reply = json!({ "id": id.0, "changed": regrid, "region_size": answer.region_size, "vertex_spacing": answer.spacing });
+    if answer.route == Route::Headless {
+        reply["route"] = json!("headless");
+        reply["backup"] = json!(answer.backup);
+        reply["problems"] = json!(answer.problems);
+    } else {
+        reply["route"] = json!("live_link");
+    }
+
     match &answer.look {
         Some(now) => {
             reply["changed"] = json!(regrid || before != Some(now));
@@ -470,18 +478,12 @@ impl App {
             return Err(refusal);
         }
 
-        if !self.state.godot_has_project() {
-            return Err("Needs the Godot editor open with this scene, the settings live in the scene there and Godot rewrites the region files".into());
-        }
-
         let before = self.state.terrain3d.manifest(&cache).and_then(look_of);
-        let folder = cache.parent().ok_or("no folder")?.to_path_buf();
-        let (port, project) = (Some(self.state.prefs.live_link_port), self.state.game.project_root.clone().unwrap_or_default());
-        let request = bridge::SettingsRequest { port, project, godot: None, folder, region_size: size, spacing, look };
+        let request = self.state.terrain3d_settings_request(id, &cache, size, spacing, look).map_err(|why| why.en)?;
         let answer = bridge::settings(&request)?;
         self.state.terrain3d.recheck();
         let reply = settings_reply(id, regrid, &request.look, before.as_ref(), &answer)?;
-        self.state.set_status(crate::i18n::msg!("Godot changed the Terrain3D settings, save the scene in Godot to keep them"));
+        self.state.set_status(crate::terrain3d::settings_status(&answer));
         Ok(reply)
     }
 
@@ -787,11 +789,11 @@ mod tests {
         let id = NodeId(7);
         let look = Look { material: "res://t/m.tres".into(), assets: String::new(), ocean_enabled: true };
         let asked = LookChange { material: Some("res://t/m.tres".into()), ocean_enabled: Some(true), ..Default::default() };
-        let answer = Settings { region_size: 128, spacing: 0.5, look: Some(look.clone()), ..Default::default() };
+        let answer = Settings { region_size: 128, spacing: 0.5, look: Some(look.clone()), route: Route::LiveLink, ..Default::default() };
         assert_eq!(
             settings_reply(id, false, &asked, None, &answer),
             Ok(
-                json!({ "id": 7, "changed": true, "region_size": 128, "vertex_spacing": 0.5, "material": "res://t/m.tres", "assets": "", "ocean_enabled": true })
+                json!({ "id": 7, "changed": true, "region_size": 128, "vertex_spacing": 0.5, "route": "live_link", "material": "res://t/m.tres", "assets": "", "ocean_enabled": true })
             )
         );
         let changed = |regrid, before: &Look| settings_reply(id, regrid, &asked, Some(before), &answer).unwrap()["changed"].clone();
@@ -799,15 +801,30 @@ mod tests {
         assert_eq!(changed(true, &look), json!(true));
         assert_eq!(changed(false, &Look { ocean_enabled: false, ..look.clone() }), json!(true));
 
-        let old = Settings { region_size: 128, spacing: 0.5, ..Default::default() };
+        let old = Settings { region_size: 128, spacing: 0.5, route: Route::LiveLink, ..Default::default() };
         assert_eq!(settings_reply(id, false, &asked, Some(&look), &old), Err(bridge::OLD_ADDON_LOOK.to_string()));
         assert_eq!(
             settings_reply(id, true, &asked, None, &old),
-            Ok(json!({ "id": 7, "changed": true, "region_size": 128, "vertex_spacing": 0.5, "note": bridge::OLD_ADDON_LOOK }))
+            Ok(json!({ "id": 7, "changed": true, "region_size": 128, "vertex_spacing": 0.5, "route": "live_link", "note": bridge::OLD_ADDON_LOOK }))
         );
         assert_eq!(
             settings_reply(id, true, &LookChange::default(), None, &old),
-            Ok(json!({ "id": 7, "changed": true, "region_size": 128, "vertex_spacing": 0.5 }))
+            Ok(json!({ "id": 7, "changed": true, "region_size": 128, "vertex_spacing": 0.5, "route": "live_link" }))
+        );
+
+        let backup = "C:/game/terrain/.trenchdot/backups/20261119T101500";
+        let headless = Settings {
+            region_size: 64,
+            spacing: 2.0,
+            route: Route::Headless,
+            backup: backup.into(),
+            regions: 4,
+            problems: vec!["slow".into()],
+            ..Default::default()
+        };
+        assert_eq!(
+            settings_reply(id, true, &LookChange::default(), None, &headless),
+            Ok(json!({ "id": 7, "changed": true, "region_size": 64, "vertex_spacing": 2.0, "route": "headless", "backup": backup, "problems": ["slow"] }))
         );
     }
 

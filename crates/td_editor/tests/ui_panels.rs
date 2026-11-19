@@ -3887,28 +3887,106 @@ fn connect_godot(state: &mut td_editor::state::EditorState) {
     state.link_state.project = Some(td_editor::live_link::path_key(&td_editor::live_link::godot_path(&root)));
 }
 
+/// A script that stands in for the Godot executable: it records its arguments next to itself and prints `reply`.
+fn fake_headless_godot(dir: &std::path::Path, reply: &str) -> std::path::PathBuf {
+    let args = dir.join("args.txt");
+    let (path, script) = if cfg!(windows) {
+        (dir.join("godot.cmd"), format!("@echo off\r\necho %* > \"{}\"\r\necho {reply}\r\n", args.display()))
+    } else {
+        (dir.join("godot.sh"), format!("#!/bin/sh\necho \"$@\" > '{}'\necho '{reply}'\n", args.display()))
+    };
+    std::fs::write(&path, script).unwrap();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+
+    path
+}
+
 #[test]
-fn the_terrain3d_settings_wait_for_a_confirmation_that_only_the_open_godot_editor_can_give() {
+fn the_terrain3d_settings_wait_for_the_open_godot_editor_or_a_headless_godot() {
     use egui_kittest::kittest::NodeT;
+    const HEADLESS: &str = "Rewrite the 1 region file with a headless Godot? A backup is kept in the data folder";
     let (mut f, id) = terrain3d_fixture("settings_confirm");
+    let root = f.state.game.project_root.clone().unwrap();
+    f.state.godot.exe = Some(root.join("godot.exe"));
     f.state.terrain3d_settings = Some((id, 128, 0.25));
     let mut harness = Harness::builder()
         .with_size(egui::vec2(420.0, 700.0))
         .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+    let disabled = |h: &Harness<'_, Fixture>| h.get_by_label("Change Settings").accesskit_node().is_disabled();
     harness.run();
     harness.get_by_label("Region Size");
     harness.get_by_label("Vertex Spacing");
     harness.get_by_label("Rewrite the 1 region file?");
-    assert!(harness.get_by_label("Change Settings").accesskit_node().is_disabled(), "Godot is not open");
+    assert!(disabled(&harness), "the project is in Restricted Mode");
     assert!(!harness.get_by_label("Cancel").accesskit_node().is_disabled());
+
+    harness.state_mut().state.trust_project(&root, false);
+    harness.run();
+    harness.get_by_label(HEADLESS);
+    assert!(!disabled(&harness), "a headless Godot rewrites the files");
+
+    harness.state_mut().state.prefs.live_link = false;
+    harness.run();
+    assert!(disabled(&harness), "without the live link nothing tells whether a Godot editor has the files open");
+    harness.state_mut().state.prefs.live_link = true;
+    harness.state_mut().state.godot.exe = None;
+    harness.run();
+    harness.get_by_label("Rewrite the 1 region file?");
+    assert!(disabled(&harness), "no Godot to run");
 
     connect_godot(&mut harness.state_mut().state);
     harness.run();
-    assert!(!harness.get_by_label("Change Settings").accesskit_node().is_disabled());
+    harness.get_by_label("Rewrite the 1 region file?");
+    assert!(!disabled(&harness), "the open Godot editor rewrites the files");
+
+    let state = &mut harness.state_mut().state;
+    state.link_state.connected = false;
+    state.godot.exe = Some(root.join("godot.exe"));
+    state.doc.edit("edits", |m, _| drop(m.terrain3d_mut(id).unwrap().edits.insert([0, 0], edit_at([0, 0], Some([7; 32])))));
+    harness.run();
+    harness.get_by_label(HEADLESS);
+    assert!(disabled(&harness), "an unsent edit would not fit the new region size");
+
     harness.get_by_label("Cancel").click();
     harness.run();
     assert!(harness.state().state.terrain3d_settings.is_none());
-    assert!(harness.query_by_label("Rewrite the 1 region file?").is_none());
+    assert!(harness.query_by_label(HEADLESS).is_none());
+}
+
+#[test]
+fn confirming_the_terrain3d_settings_with_godot_closed_runs_a_headless_godot() {
+    let (mut f, id) = terrain3d_fixture("settings_headless");
+    let root = f.state.game.project_root.clone().unwrap();
+    let reply = r#"{"ok":true,"error":"","backup":"backups/1","written":[[0,0]],"removed":[],"problems":["slow"]}"#;
+    f.state.godot.exe = Some(fake_headless_godot(&root, reply));
+    f.state.trust_project(&root, false);
+    f.state.prefs.live_link_port = 1;
+    f.state.terrain3d_settings = Some((id, 128, 0.5));
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(420.0, 700.0))
+        .build_ui_state(|ui, f: &mut Fixture| panels::inspector(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+    harness.run();
+    harness.get_by_label("Change Settings").click();
+    harness.run();
+    let state = &mut harness.state_mut().state;
+    assert!(state.terrain3d_settings.is_none(), "the confirmation is spent");
+    assert_eq!(state.status, "Changing the Terrain3D settings…");
+
+    let start = std::time::Instant::now();
+    while state.terrain3d_bridge.busy() && start.elapsed() < std::time::Duration::from_secs(20) {
+        state.poll_terrain3d();
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+
+    let want =
+        "Rewrote 1 region file at region size 128 and vertex spacing 0.5. Godot uses the new spacing the next time it opens the scene. Godot reported: slow";
+    assert_eq!(state.status, want);
+    let args = std::fs::read_to_string(root.join("args.txt")).unwrap();
+    assert!(args.contains(" -- settings ") && args.trim_end().ends_with(" 128 0.5"), "{args}");
 }
 
 #[test]

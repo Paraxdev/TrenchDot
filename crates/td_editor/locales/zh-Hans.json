@@ -2903,5 +2903,12 @@
   "Autoshader": "自动着色器",
   "roughness": "粗糙度",
   "What Paint Layer paints on Terrain3D, Shift takes it away again": "在 Terrain3D 上绘制图层模式所绘制的内容，按住 Shift 可将其擦除",
-  "Negative is wetter and shinier in Godot, positive is drier": "负值在 Godot 中更湿润、更有光泽，正值更干燥"
+  "Negative is wetter and shinier in Godot, positive is drier": "负值在 Godot 中更湿润、更有光泽，正值更干燥",
+  "Needs the Godot editor open with this scene, or the Godot executable set in Preferences": "需要在 Godot 编辑器中打开此场景，或在偏好设置中设置 Godot 可执行文件",
+  "Send your edits first, edits made at the old region size cannot be sent after it changes": "请先发送你的修改，按旧区域大小做的修改在更改后无法再发送",
+  "Turn on the live link, TrenchDot only rewrites the region files when it can tell no Godot editor has them open": "请打开实时链接，只有在能确认没有 Godot 编辑器打开区域文件时，TrenchDot 才会重写它们",
+  "Changing the Terrain3D settings…": "正在更改 Terrain3D 设置…",
+  "Rewrote {n} region file at region size {size} and vertex spacing {spacing}. Godot uses the new spacing the next time it opens the scene": { "other": "已按区域大小 {size} 和顶点间距 {spacing} 重写 {n} 个区域文件。Godot 下次打开场景时会采用新的间距" },
+  "Godot reported: {problems}": "Godot 报告：{problems}",
+  "Rewrite the {n} region file with a headless Godot? A backup is kept in the data folder": { "other": "用无窗口的 Godot 重写全部 {n} 个区域文件？数据文件夹中会保留一份备份" }
 }

@@ -2903,5 +2903,12 @@
   "Autoshader": "Autoshader",
   "roughness": "Rauheit",
   "What Paint Layer paints on Terrain3D, Shift takes it away again": "Was Ebene malen auf Terrain3D malt, Shift nimmt es wieder weg",
-  "Negative is wetter and shinier in Godot, positive is drier": "Negativ ist nasser und glänzender in Godot, positiv ist trockener"
+  "Negative is wetter and shinier in Godot, positive is drier": "Negativ ist nasser und glänzender in Godot, positiv ist trockener",
+  "Needs the Godot editor open with this scene, or the Godot executable set in Preferences": "Braucht den geöffneten Godot-Editor mit dieser Szene oder das Godot-Programm in den Einstellungen",
+  "Send your edits first, edits made at the old region size cannot be sent after it changes": "Sende zuerst deine Änderungen, Änderungen bei der alten Regionsgröße lassen sich danach nicht mehr senden",
+  "Turn on the live link, TrenchDot only rewrites the region files when it can tell no Godot editor has them open": "Schalte den Live-Link ein, TrenchDot schreibt die Regionsdateien nur neu, wenn es erkennen kann, dass kein Godot-Editor sie geöffnet hat",
+  "Changing the Terrain3D settings…": "Terrain3D-Einstellungen werden geändert…",
+  "Rewrote {n} region file at region size {size} and vertex spacing {spacing}. Godot uses the new spacing the next time it opens the scene": { "one": "{n} Regionsdatei mit Regionsgröße {size} und Vertexabstand {spacing} neu geschrieben. Godot übernimmt den neuen Abstand, wenn es die Szene das nächste Mal öffnet", "other": "{n} Regionsdateien mit Regionsgröße {size} und Vertexabstand {spacing} neu geschrieben. Godot übernimmt den neuen Abstand, wenn es die Szene das nächste Mal öffnet" },
+  "Godot reported: {problems}": "Godot meldet: {problems}",
+  "Rewrite the {n} region file with a headless Godot? A backup is kept in the data folder": { "one": "Die {n} Regionsdatei mit einem Godot ohne Fenster neu schreiben? Eine Sicherung bleibt im Datenordner", "other": "Alle {n} Regionsdateien mit einem Godot ohne Fenster neu schreiben? Eine Sicherung bleibt im Datenordner" }
 }

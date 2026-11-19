@@ -25,7 +25,7 @@ use td_doc::terrain3d::{RegionHash, RegionSource, Settled};
 use td_formats::terrain3d_cache;
 use td_geom::terrain3d::{Loc, Region3D};
 
-use crate::i18n::{msg, tr};
+use crate::i18n::{Msg, en, msg, msg_n, tr};
 use crate::state::{EditorState, Prefs};
 
 /// The switch of the experimental bridge, the same in the setup wizard and the Preferences.
@@ -57,6 +57,9 @@ pub const POLL_EVERY: Duration = Duration::from_secs(1);
 
 /// How long after a Godot editor quit its caches are exported again, so a save before the quit is on disk by then.
 const HEAL_DELAY: Duration = Duration::from_secs(2);
+
+pub const SETTINGS_NEED_GODOT: &str = en!("Needs the Godot editor open with this scene, or the Godot executable set in Preferences");
+pub const SETTINGS_UNSENT: &str = en!("Send your edits first, edits made at the old region size cannot be sent after it changes");
 
 impl EditorState {
     pub(crate) fn terrain3d_links(&self) -> Vec<(NodeId, PathBuf)> {
@@ -224,15 +227,67 @@ impl EditorState {
 
     fn send_terrain3d_settings(&mut self, id: NodeId, region_size: u32, spacing: f64, look: bridge::LookChange) -> bool {
         let Some((_, cache)) = self.terrain3d_links().into_iter().find(|(node, _)| *node == id) else { return false };
-        let Some(folder) = cache.parent().map(PathBuf::from) else { return false };
-        if !self.godot_has_project() {
-            self.fail_status(msg!("Needs the Godot editor open with this scene"));
-            return false;
-        }
+        match self.terrain3d_settings_request(id, &cache, region_size, spacing, look) {
+            Ok(request) => {
+                if request.godot.is_some() {
+                    self.set_status(msg!("Changing the Terrain3D settings…"));
+                }
 
-        let (port, project) = (Some(self.prefs.live_link_port), self.game.project_root.clone().unwrap_or_default());
-        self.terrain3d_bridge.send_settings(bridge::SettingsRequest { port, project, godot: None, folder, region_size, spacing, look });
-        true
+                self.terrain3d_bridge.send_settings(request);
+                true
+            }
+            Err(why) => {
+                self.fail_status(why);
+                false
+            }
+        }
+    }
+
+    /// Whether the Godot editor or a headless Godot could change the Terrain3D settings at all: the editor that has the
+    /// project open, else a headless Godot, which TrenchDot only starts when the live link can tell no editor runs.
+    pub fn terrain3d_settings_reach(&self) -> Result<bridge::Route, Msg> {
+        if self.godot_has_project() {
+            Ok(bridge::Route::LiveLink)
+        } else if self.restricted() {
+            Err(Msg::key(inspector::RESTRICTED_GODOT))
+        } else if !self.prefs.live_link {
+            Err(Msg::key(bridge::LINK_OFF_SETTINGS))
+        } else if self.godot.exe.is_none() || self.game.project_root.is_none() {
+            Err(Msg::key(SETTINGS_NEED_GODOT))
+        } else {
+            Ok(bridge::Route::Headless)
+        }
+    }
+
+    /// How a change of the region size or vertex spacing of node `id` reaches Godot, or why it cannot or has to wait.
+    pub fn terrain3d_settings_route(&self, id: NodeId, cache: &Path) -> Result<bridge::Route, Msg> {
+        let route = self.terrain3d_settings_reach()?;
+        let unsent = || match (self.doc.map.terrain3d(id), self.terrain3d.source(cache)) {
+            (Some(link), Some(source)) => !link.changed_regions(&source).is_empty(),
+            _ => false,
+        };
+        if route == bridge::Route::Headless && unsent() { Err(Msg::key(SETTINGS_UNSENT)) } else { Ok(route) }
+    }
+
+    pub(crate) fn terrain3d_settings_request(
+        &self,
+        id: NodeId,
+        cache: &Path,
+        region_size: u32,
+        spacing: f64,
+        look: bridge::LookChange,
+    ) -> Result<bridge::SettingsRequest, Msg> {
+        let route = self.terrain3d_settings_route(id, cache)?;
+        let folder = cache.parent().map(PathBuf::from).unwrap_or_default();
+        Ok(bridge::SettingsRequest {
+            port: Some(self.prefs.live_link_port),
+            project: self.game.project_root.clone().unwrap_or_default(),
+            godot: if route == bridge::Route::Headless { self.godot.exe.clone() } else { None },
+            folder,
+            region_size,
+            spacing,
+            look,
+        })
     }
 
     /// Takes back the edits an earlier session saved and Godot has not applied yet, so the map shows them again. A node
@@ -294,12 +349,13 @@ impl EditorState {
         if let Some(answer) = self.terrain3d_bridge.poll_settings() {
             match answer {
                 Ok(settings) => {
+                    let status = settings_status(&settings);
                     if let Some(ahead) = &mut self.terrain3d_look_shown {
                         ahead.look = settings.look.unwrap_or_else(|| ahead.look.clone());
                         ahead.answered = Some(Instant::now());
                     }
 
-                    self.set_status(msg!("Godot changed the Terrain3D settings, save the scene in Godot to keep them"));
+                    self.set_status(status);
                 }
                 Err(problem) => {
                     self.terrain3d_look_shown = None;
@@ -496,6 +552,23 @@ impl EditorState {
 
         b
     }
+}
+
+/// What a settings change did: the Godot editor's waits for a save there, a headless Godot rewrote the region files.
+pub(crate) fn settings_status(settings: &bridge::Settings) -> Msg {
+    if settings.route != bridge::Route::Headless {
+        return msg!("Godot changed the Terrain3D settings, save the scene in Godot to keep them");
+    }
+
+    let (size, spacing) = (settings.region_size, settings.spacing);
+    let done = msg_n!(
+        settings.regions,
+        "Rewrote {n} region file at region size {size} and vertex spacing {spacing}. Godot uses the new spacing the next time it opens the scene",
+        "Rewrote {n} region files at region size {size} and vertex spacing {spacing}. Godot uses the new spacing the next time it opens the scene",
+        size,
+        spacing
+    );
+    if settings.problems.is_empty() { done } else { done.then(". ", msg!("Godot reported: {problems}", problems = settings.problems.join("; "))) }
 }
 
 fn links_in(map: &td_doc::Map, root: &Path) -> Vec<(NodeId, PathBuf)> {

@@ -149,7 +149,7 @@ pub fn region_size_refusal(state: &EditorState, id: NodeId, cache: &std::path::P
 }
 
 /// The Region Size and Vertex Spacing block. Godot rewrites every region file for a change, so a change waits for a
-/// confirmation, and only the open Godot editor can make it.
+/// confirmation. The open Godot editor makes it, or a headless Godot when no editor runs.
 fn settings(ui: &mut Ui, state: &mut EditorState, id: NodeId, cache: &std::path::Path) {
     let Some(grid) = state.terrain3d.grid(cache) else { return };
     let files = state.terrain3d.manifest(cache).map_or(0, |m| m.regions.len());
@@ -157,8 +157,10 @@ fn settings(ui: &mut Ui, state: &mut EditorState, id: NodeId, cache: &std::path:
         Some((node, size, spacing)) if node == id => (size, spacing),
         _ => (grid.region_size, grid.spacing),
     };
-    let reachable = state.godot_has_project();
-    let hint = tr("Needs the Godot editor open with this scene");
+    let reach = state.terrain3d_settings_reach();
+    let reachable = reach.is_ok();
+    let hint = reach.as_ref().err().map_or_else(String::new, |why| why.shown.clone());
+    let hint = hint.as_str();
     let fits: Vec<bool> = REGION_SIZES.iter().map(|s| region_size_refusal(state, id, cache, *s).is_none()).collect();
     ui.add_enabled_ui(reachable, |ui| {
         egui::Grid::new("terrain3d_settings").num_columns(2).show(ui, |ui| {
@@ -187,12 +189,22 @@ fn settings(ui: &mut Ui, state: &mut EditorState, id: NodeId, cache: &std::path:
         return;
     }
 
-    ui.label(tr_n!(files, "Rewrite the {n} region file?", "Rewrite all {n} region files?"));
+    let route = state.terrain3d_settings_route(id, cache);
+    if matches!(reach, Ok(bridge::Route::Headless)) {
+        ui.label(tr_n!(
+            files,
+            "Rewrite the {n} region file with a headless Godot? A backup is kept in the data folder",
+            "Rewrite all {n} region files with a headless Godot? A backup is kept in the data folder"
+        ));
+    } else {
+        ui.label(tr_n!(files, "Rewrite the {n} region file?", "Rewrite all {n} region files?"));
+    }
+
     let (mut change, mut cancel) = (false, false);
     ui.horizontal_wrapped(|ui| {
-        let refusal = region_size_refusal(state, id, cache, size).map(|e| problem(&e));
-        let button = ui.add_enabled(reachable && refusal.is_none(), egui::Button::new(tr("Change Settings")));
-        change = button.on_disabled_hover_text(refusal.unwrap_or_else(|| hint.to_string())).clicked();
+        let refusal = route.err().map(|why| why.shown).or_else(|| region_size_refusal(state, id, cache, size).map(|e| problem(&e)));
+        let button = ui.add_enabled(refusal.is_none(), egui::Button::new(tr("Change Settings")));
+        change = button.on_disabled_hover_text(refusal.unwrap_or_default()).clicked();
         cancel = ui.button(tr("Cancel")).clicked();
     });
 
