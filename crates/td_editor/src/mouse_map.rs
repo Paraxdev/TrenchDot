@@ -224,6 +224,19 @@ pub fn empty_drag(preset: &str, tool: ToolKind, chord: Chord, in_2d: bool) -> Em
     }
 }
 
+/// What a left drag does while Space is held.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CameraDrag {
+    Look,
+    Pan,
+}
+
+/// Hammer's temporary camera, a left drag with Space held pans a 2D view and looks around in 3D. The other presets
+/// leave Space alone.
+pub fn space_camera(preset: &str, in_2d: bool) -> Option<CameraDrag> {
+    (preset == "hammer").then_some(if in_2d { CameraDrag::Pan } else { CameraDrag::Look })
+}
+
 /// Whether Shift changes what a click does. The Hammer preset keeps Shift for cloning, so a Shift+click there is a plain
 /// click, also for stepping through stacked objects in a 2D view.
 pub fn shift_counts_on_click(preset: &str) -> bool {
@@ -304,6 +317,8 @@ pub enum Bound {
     Drag(Chord, DragHit, SelectionDrag),
     /// A drag off the selection with the Select tool, in a 2D view, the 3D view or, with `None`, both.
     EmptyDrag(Chord, Option<bool>, EmptyDrag),
+    /// A left drag with Space held, in a 2D view or the 3D view.
+    Space(bool, CameraDrag),
     Outliner(Chord, RowClick),
 }
 
@@ -359,6 +374,7 @@ pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
         bound: Some(Bound::EmptyDrag(chord(Button::Drag, mods), in_2d, d)),
         ..fixed(VIEWS, gesture, what)
     };
+    let space = |gesture: &'static str, what: &'static str, in_2d, d| MouseRow { bound: Some(Bound::Space(in_2d, d)), ..fixed(VIEWS, gesture, what) };
     let outliner = |mods: &str, gesture: &'static str, what: &'static str, g| MouseRow {
         bound: Some(Bound::Outliner(chord(Button::Click, mods), g)),
         ..fixed(OUTLINER, gesture, what)
@@ -400,6 +416,8 @@ pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
             drag("s", en!("Shift+drag the selection"), en!("Copy it and move the copy"), DragHit::Selected, SelectionDrag::Copy),
             drag("c", en!("Ctrl+drag the selection"), en!("Copy it and move the copy"), DragHit::Selected, SelectionDrag::Copy),
             drag("", en!("Drag a selection edge (2D)"), en!("Resize along it. Shift or Ctrl copies instead"), DragHit::Edge2d, SelectionDrag::Resize),
+            space(en!("Space+drag (2D)"), en!("Pan"), true, CameraDrag::Pan),
+            space(en!("Space+drag (3D)"), en!("Look around, WASD flies, Q and E go down and up"), false, CameraDrag::Look),
         ]);
     } else {
         rows.extend([
@@ -415,6 +433,8 @@ pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
         fixed(VIEWS, en!("Right drag (3D)"), en!("Look around, WASD flies, Q and E go down and up")),
         fixed(VIEWS, en!("Middle drag"), en!("Pan")),
         fixed(VIEWS, en!("Alt+left drag (3D)"), en!("Orbit")),
+        fixed(VIEWS, en!("Wheel (3D)"), en!("Move forward and back")),
+        fixed(VIEWS, en!("Wheel (2D)"), en!("Zoom at the cursor")),
         texture(Button::Click, "", en!("Click a face"), en!("Select the face"), TextureGesture::Select),
         texture(Button::Click, "c", en!("Ctrl+click a face"), en!("Add the face to the selection or remove it"), TextureGesture::Toggle),
         texture(Button::Click, "a", en!("Alt+click a face"), en!("Pick its material and alignment"), TextureGesture::Pick),
@@ -680,6 +700,7 @@ mod tests {
 
                     assert!(row.gesture.starts_with(&chord_prefix(chord)), "{} is not {:?}", row.gesture, chord);
                 }
+                Some(Bound::Space(in_2d, d)) => assert_eq!(space_camera("trenchbroom", in_2d), Some(d), "{}", row.gesture),
                 Some(Bound::Outliner(chord, click)) => {
                     assert_eq!(row_click(chord.command, chord.shift), click, "{}", row.gesture);
                     assert!(row.gesture.starts_with(&chord_prefix(chord)), "{} is not {:?}", row.gesture, chord);
@@ -713,7 +734,7 @@ mod tests {
         }
 
         for preset in ["hammer", "blender"] {
-            let fixed = |r: &&MouseRow| r.bound.is_some() && !matches!(r.bound, Some(Bound::Drag(..) | Bound::EmptyDrag(..)));
+            let fixed = |r: &&MouseRow| r.bound.is_some() && !matches!(r.bound, Some(Bound::Drag(..) | Bound::EmptyDrag(..) | Bound::Space(..)));
             let other: Vec<_> = mouse_rows(preset).iter().filter(fixed).cloned().collect();
             assert_eq!(other, rows.iter().filter(fixed).cloned().collect::<Vec<_>>(), "{preset}");
         }
@@ -740,6 +761,23 @@ mod tests {
                     assert_eq!(empty_drag("hammer", ToolKind::Select, c, v.unwrap()), d, "{gesture}");
                 }
             }
+        }
+    }
+
+    #[test]
+    fn space_drags_the_hammer_camera_and_nothing_elsewhere() {
+        for in_2d in [false, true] {
+            assert_eq!(space_camera("trenchbroom", in_2d), None);
+            assert_eq!(space_camera("blender", in_2d), None);
+            assert_eq!(space_camera("hammer", in_2d), Some(if in_2d { CameraDrag::Pan } else { CameraDrag::Look }));
+        }
+
+        let rows: Vec<_> =
+            mouse_rows("hammer").into_iter().filter_map(|r| if let Some(Bound::Space(v, d)) = r.bound { Some((r.gesture, v, d)) } else { None }).collect();
+        assert_eq!(rows.len(), 2);
+        for (gesture, in_2d, d) in rows {
+            assert!(gesture.starts_with("Space+drag") && gesture.ends_with(if in_2d { "(2D)" } else { "(3D)" }), "{gesture}");
+            assert_eq!(space_camera("hammer", in_2d), Some(d), "{gesture}");
         }
     }
 

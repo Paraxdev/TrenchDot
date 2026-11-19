@@ -819,6 +819,11 @@ pub fn shortcuts(prefs: &Prefs) -> Vec<(KeyboardShortcut, Action)> {
     list
 }
 
+/// Whether plain Space runs an action, which turns the Hammer preset's Space camera off.
+pub fn plain_space_bound(prefs: &Prefs) -> bool {
+    shortcuts(prefs).iter().any(|(s, _)| s.modifiers.is_none() && s.logical_key == Key::Space)
+}
+
 /// How a new shortcut takes a chord another action holds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Resolve {
@@ -4284,6 +4289,19 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn binding_plain_space_turns_the_space_camera_off() {
+        for preset in PRESETS {
+            assert!(!plain_space_bound(&Prefs { keymap_preset: preset.into(), ..Default::default() }), "{preset} binds plain Space");
+        }
+
+        let mut prefs = Prefs { keymap_preset: "hammer".into(), ..Default::default() };
+        prefs.key_overrides.insert(Action::ToggleMaximizeView.binding_id(), "Space".into());
+        assert!(plain_space_bound(&prefs));
+        prefs.key_overrides.insert(Action::ToggleMaximizeView.binding_id(), "Shift+Space".into());
+        assert!(!plain_space_bound(&prefs));
     }
 
     #[test]

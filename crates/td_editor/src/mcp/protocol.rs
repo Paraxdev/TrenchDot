@@ -520,7 +520,8 @@ pub fn tool_definitions() -> Vec<Value> {
                     "modifiers": { "type": "array", "items": { "type": "string", "enum": ["ctrl", "shift", "alt"] } },
                     "key": { "type": "string" }, "text": { "type": "string" }, "delta": { "type": "number" },
                     "steps": { "type": "integer", "description": "frames used for a drag, default 8" },
-                    "release": { "type": "boolean", "description": "drag only: false keeps the button held at the drag's end until a release event, default true" }
+                    "release": { "type": "boolean", "description": "drag only: false keeps the button held at the drag's end until a release event, default true" },
+                    "keys": { "type": "array", "items": { "type": "string" }, "description": "drag only: keys held from before the press until after the release, like [\"Space\"] for the Hammer preset's camera. Needs a drag that releases" }
                 }, "required": ["type"] } }
             }, "required": ["events"] }
         }),

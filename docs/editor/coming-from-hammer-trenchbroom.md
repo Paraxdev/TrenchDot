@@ -98,12 +98,12 @@ what the TrenchDot column says.
 
 | Gesture | TrenchBroom | TrenchDot | Hammer preset |
 | --- | --- | --- | --- |
-| Look around in 3D | Right drag | Right drag | Same |
+| Look around in 3D | Right drag | Right drag | Same, or Space+drag |
 | Fly in 3D | WASD while the right button is held | WASD while the right button is held, Q and E go down and up, Shift is faster | Same |
 | Move forward and back in 3D | Wheel | Wheel | Same |
 | Pan in 3D | Middle drag | Middle drag | Same |
 | Orbit | Alt+right drag | Alt+left drag | Same |
-| Pan in a 2D view | Middle or right drag | Middle or right drag | Same |
+| Pan in a 2D view | Middle or right drag | Middle or right drag | Same, or Space+drag |
 | Zoom in a 2D view | Wheel | Wheel | Same |
 | Select | Click | Click | Same |
 | Add to or remove from the selection | Ctrl+click | Ctrl+click | Same |

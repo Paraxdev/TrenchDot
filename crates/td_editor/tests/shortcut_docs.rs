@@ -186,6 +186,19 @@ fn the_mouse_tables_name_every_drag_off_the_selection() {
 }
 
 #[test]
+fn the_hammer_mouse_table_names_its_space_camera() {
+    let cells = mouse_cells(&table("Hammer input").rows);
+    let rows: Vec<_> = mouse_rows("hammer").into_iter().filter(|r| matches!(r.bound, Some(Bound::Space(..)))).collect();
+    assert_eq!(rows.len(), 2);
+    for row in rows {
+        let label = row.gesture.to_ascii_lowercase();
+        assert!(cells.contains(&label), "the Hammer input table has no {label:?} row");
+    }
+
+    assert!(mouse_rows("trenchbroom").iter().all(|r| !matches!(r.bound, Some(Bound::Space(..)))));
+}
+
+#[test]
 fn the_hammer_mouse_table_names_its_clicks_and_leaves_shift_to_cloning() {
     let cells = mouse_cells(&table("Hammer input").rows);
     for rule in [ClickRule::Clear, ClickRule::Keep, ClickRule::ReplaceObject, ClickRule::ToggleObject, ClickRule::ReplaceFace, ClickRule::ToggleFace] {

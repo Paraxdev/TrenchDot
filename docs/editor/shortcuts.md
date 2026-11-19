@@ -96,6 +96,8 @@ mode.
 | Ctrl+Shift+drag a selected face (3D) | Extrude a new brush. The Hammer preset copies the selection instead |
 | Right drag (3D) | Look around. Hold it and use WASD to fly, Q and E to go down and up |
 | Middle drag | Pan |
+| Wheel (3D) | Move forward and back |
+| Wheel (2D) | Zoom at the cursor |
 | Alt+left drag (3D) | Orbit. In the Select tool a drag that starts on the selection or its gizmo moves it vertically instead |
 | Ctrl+wheel (Sculpt, Blend, Paint, Scatter) | Resize the brush |
 
@@ -194,6 +196,8 @@ moves the brush.
 | Drag off the selection (2D) | Draw a selection box. It waits until you press Enter or click inside it, then selects every object lying wholly inside, at any depth. Esc or a click outside drops it |
 | Ctrl+drag off the selection (2D) | Draw a selection box that adds to the selection |
 | Drag off the selection (3D) | Nothing. Pick the Block tool (Shift+B) to draw brushes |
+| Space+drag (2D) | Pan, like a middle drag. Binding plain Space to an action turns the Space camera off |
+| Space+drag (3D) | Look around, like a right drag. WASD flies while you hold it |
 
 | Key | Blender preset |
 | --- | --- |

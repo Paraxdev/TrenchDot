@@ -3045,7 +3045,13 @@ impl App {
                     let from = self.resolve_pos(target, ev, "x", "world")?;
                     let to = self.resolve_pos(target, ev, "to", "to_world")?;
                     let n = ev["steps"].as_u64().unwrap_or(8).max(2) as usize;
-                    steps.push_back(step(vec![Event::PointerMoved(from)]));
+                    let keys = drag_keys(ev)?;
+                    if !keys.is_empty() && ev["release"] == false {
+                        return Err("a drag with keys has to release, the keys go up after the button".into());
+                    }
+
+                    let key = |key: Key, pressed| Event::Key { key, physical_key: None, pressed, repeat: false, modifiers };
+                    steps.push_back(step(keys.iter().map(|k| key(*k, true)).chain([Event::PointerMoved(from)]).collect()));
                     steps.push_back(step(vec![press(from, true)]));
                     for i in 1..=n {
                         steps.push_back(step(vec![Event::PointerMoved(from.lerp(to, i as f32 / n as f32))]));
@@ -3055,6 +3061,7 @@ impl App {
                         held = Some(HeldDrag { button, pos: to, modifiers });
                     } else {
                         steps.push_back(step(vec![press(to, false)]));
+                        steps.push_back(step(keys.iter().map(|k| key(*k, false)).collect()));
                     }
 
                     steps.push_back(step(vec![]));
@@ -3087,6 +3094,11 @@ impl App {
     }
 }
 
+/// The keys a simulated drag holds from before its press until after its release, like Space for the Hammer camera.
+fn drag_keys(ev: &Value) -> Result<Vec<Key>, String> {
+    ev["keys"].as_array().into_iter().flatten().map(|k| k.as_str().and_then(Key::from_name).ok_or_else(|| format!("unknown key {k} in keys"))).collect()
+}
+
 /// run_action mesh_op names, derived from the mesh tool's menu so the list cannot drift.
 pub fn mesh_op_names() -> Vec<String> {
     crate::mesh_tool::MeshOp::ALL.iter().map(|o| o.label().to_ascii_lowercase().replace(' ', "_")).collect()
@@ -3111,6 +3123,14 @@ mod tests {
 
     fn state() -> EditorState {
         EditorState::new(Default::default())
+    }
+
+    #[test]
+    fn drag_keys_are_key_names() {
+        assert_eq!(drag_keys(&json!({ "type": "drag" })), Ok(vec![]));
+        assert_eq!(drag_keys(&json!({ "keys": ["Space", "Z"] })), Ok(vec![Key::Space, Key::Z]));
+        assert_eq!(drag_keys(&json!({ "keys": ["Nope"] })), Err("unknown key \"Nope\" in keys".to_string()));
+        assert_eq!(drag_keys(&json!({ "keys": [3] })), Err("unknown key 3 in keys".to_string()));
     }
 
     #[test]

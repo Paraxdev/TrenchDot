@@ -4520,6 +4520,41 @@ fn hammer_select_box_waits_for_enter_or_a_click_inside() {
     assert_eq!(ed.brushes(), 4, "TrenchBroom draws a brush");
 }
 
+#[test]
+#[ignore]
+fn hammer_space_drag_pans_and_looks() {
+    let ed = Editor::launch("hammer_space_drag");
+    let a = ed.box_brush([0.0, 0.0, 0.0], [64.0, 64.0, 64.0]);
+    ed.call("set_editor", json!({ "grid": 8, "snap": true, "keymap": "hammer" }));
+    ed.call("set_camera", json!({ "view": "top", "center": [100, 0, 120], "zoom": 1.0 }));
+    ed.call("select", json!({ "ids": [a] }));
+    let camera = |view: &str| ed.state()["cameras"].as_array().unwrap().iter().find(|c| c["view"] == view).unwrap().clone();
+    let space_drag = |view: &str, from: [i64; 3], to: [i64; 3]| {
+        ed.input(view, json!([{ "type": "drag", "world": from, "to_world": to, "keys": ["Space"], "steps": 12 }]));
+    };
+
+    let before = camera("top")["center"].clone();
+    space_drag("top", [200, 0, 200], [280, 0, 160]);
+    let after = camera("top")["center"].clone();
+    let (dx, dz) = (after[0].as_f64().unwrap() - before[0].as_f64().unwrap(), after[2].as_f64().unwrap() - before[2].as_f64().unwrap());
+    assert!((-81.0..=-40.0).contains(&dx) && (20.0..=41.0).contains(&dz), "Space+drag pans the 2D view by the drag, {dx} {dz}");
+    assert_eq!(ed.brushes(), 1);
+    assert_eq!(selected(&ed), [a], "and leaves the selection alone");
+    assert!(ed.state()["editor"]["selection_box"].is_null());
+
+    ed.call("set_camera", json!({ "view": "3d", "position": [-300, 250, 300], "look_at": [0, 0, 0] }));
+    let before = camera("3d");
+    space_drag("3d", [200, 0, -200], [300, 0, -150]);
+    let after = camera("3d");
+    assert_ne!(after["forward"], before["forward"], "Space+drag looks around in 3D");
+    assert_eq!(after["position"], before["position"]);
+    assert_eq!(ed.brushes(), 1);
+
+    ed.call("set_editor", json!({ "keymap": "trenchbroom" }));
+    space_drag("top", [200, 0, 200], [280, 0, 280]);
+    assert_eq!(ed.brushes(), 2, "TrenchBroom leaves Space alone and draws a brush");
+}
+
 /// The Hammer preset clones on Shift+drag, Ctrl+drag too, and has no Shift axis lock. TrenchBroom keeps Shift as the
 /// axis lock and as the face push in 3D.
 #[test]

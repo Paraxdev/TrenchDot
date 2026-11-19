@@ -8,8 +8,8 @@ use crate::camera::{Camera, ViewKind};
 use crate::commands::Action;
 use crate::i18n::{en, msg, msg_n, tr, trf};
 use crate::mouse_map::{
-    Button, Chord, ClickHit, ClickRule, DoubleClick, DoubleClickHit, DragHit, EmptyDrag, SelectionDrag, click_rule, double_click, empty_drag,
-    grabs_slanted_edges, selection_drag, shift_counts_on_click, shift_locks_axis,
+    Button, CameraDrag, Chord, ClickHit, ClickRule, DoubleClick, DoubleClickHit, DragHit, EmptyDrag, SelectionDrag, click_rule, double_click, empty_drag,
+    grabs_slanted_edges, selection_drag, shift_counts_on_click, shift_locks_axis, space_camera,
 };
 use crate::panels::DndPayload;
 use crate::picking::{self, Hit};
@@ -132,6 +132,10 @@ impl Viewport {
             cx.tools.viewport_input(ui, &response, &self.camera, rect, hover, cx.state);
         }
 
+        if self.hovered && self.space_drag(ui, cx.state).is_some() {
+            ui.ctx().set_cursor_icon(if self.is_camera_drag() { CursorIcon::Grabbing } else { CursorIcon::Grab });
+        }
+
         self.handle_drop(ui, &response, cx);
         self.update_cursor_world(&response, cx);
 
@@ -187,15 +191,24 @@ impl Viewport {
         matches!(self.drag, Some(Drag::Look))
     }
 
+    /// What a left drag does now that Space is held, Hammer's temporary camera. Off while a text field has the
+    /// keyboard, and when plain Space is bound to an action so that binding keeps working.
+    fn space_drag(&self, ui: &Ui, state: &EditorState) -> Option<CameraDrag> {
+        let drag = space_camera(&state.prefs.keymap_preset, self.camera.kind.is_2d())?;
+        let held = ui.input(|i| i.key_down(Key::Space)) && !ui.ctx().egui_wants_keyboard_input();
+        (held && !crate::commands::plain_space_bound(&state.prefs)).then_some(drag)
+    }
+
     fn handle_camera(&mut self, ui: &Ui, response: &Response, cx: &mut ViewCtx) {
         let rect = self.rect;
+        let space = response.drag_started_by(PointerButton::Primary).then(|| self.space_drag(ui, cx.state)).flatten();
         let (delta, scroll, modifiers, dt, press_origin) =
             ui.input(|i| (i.pointer.delta(), i.smooth_scroll_delta.y, i.modifiers, i.stable_dt as f64, i.pointer.press_origin()));
         let scroll = if cx.tools.mesh.takes_wheel() && cx.state.tool == ToolKind::Mesh { 0.0 } else { scroll };
         let (invert_y, look_sensitivity, fly_speed) = (cx.state.prefs.invert_y, cx.state.prefs.look_sensitivity, cx.state.prefs.fly_speed);
         match self.camera.kind {
             ViewKind::Perspective => {
-                if response.drag_started_by(PointerButton::Secondary) {
+                if response.drag_started_by(PointerButton::Secondary) || space == Some(CameraDrag::Look) {
                     self.drag = Some(Drag::Look);
                     self.looked = true;
                 } else if response.drag_started_by(PointerButton::Middle) {
@@ -273,7 +286,7 @@ impl Viewport {
                 }
             }
             _ => {
-                if response.drag_started_by(PointerButton::Secondary) || response.drag_started_by(PointerButton::Middle) {
+                if response.drag_started_by(PointerButton::Secondary) || response.drag_started_by(PointerButton::Middle) || space == Some(CameraDrag::Pan) {
                     self.drag = Some(Drag::Pan);
                 }
 
@@ -570,7 +583,7 @@ impl Viewport {
             }
         }
 
-        if response.drag_started_by(PointerButton::Primary) && !matches!(self.drag, Some(Drag::Orbit { .. })) {
+        if response.drag_started_by(PointerButton::Primary) && !self.is_camera_drag() {
             self.press_modifiers = modifiers;
             self.last_click = None;
             cx.state.drop_selection_box();
