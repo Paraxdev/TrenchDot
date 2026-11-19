@@ -1994,6 +1994,7 @@ impl App {
             "toggle_walkable" => Action::ToggleWalkable,
             "send_terrain3d" => Action::SendTerrain3D,
             "toggle_void_preview" => Action::ToggleVoidPreview,
+            "toggle_terrain_lod" => Action::ToggleTerrainLod,
             "insert_prefab" => {
                 let Some(path) = a["path"].as_str() else { return err("path required") };
                 let parent = match resolve_parent(&self.state, &a["parent"], Child::Other) {

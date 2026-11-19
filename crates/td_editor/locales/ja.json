@@ -2916,5 +2916,10 @@
   "Rewrote {n} region file at region size {size} and vertex spacing {spacing}. Godot uses the new spacing the next time it opens the scene": { "other": "{n} 個のリージョンファイルをリージョンサイズ {size}、頂点間隔 {spacing} で書き換えました。Godot は次にシーンを開いたときに新しい間隔を使います" },
   "Godot reported: {problems}": "Godot の報告: {problems}",
   "Rewrite the {n} region file with a headless Godot? A backup is kept in the data folder": { "other": "ウィンドウなしの Godot で {n} 個のリージョンファイルをすべて書き換えますか？データフォルダーにバックアップが残ります" },
-  "Terrain {name} is drawn without level of detail, the GPU cannot hold it": "地形 {name} は詳細度なしで描画されます。GPU が保持できません"
+  "Terrain {name} is drawn without level of detail, the GPU cannot hold it": "地形 {name} は詳細度なしで描画されます。GPU が保持できません",
+  "Terrain Level of Detail": "地形の詳細度",
+  "Toggle Terrain Level of Detail": "地形の詳細度を切替",
+  "Draws far terrain with fewer triangles so big terrains stay fast. Off draws every cell": "遠くの地形を少ない三角形で描画し、大きな地形でも高速に保ちます。オフにするとすべてのセルを描画します",
+  "Terrain level of detail on": "地形の詳細度をオン",
+  "Terrain level of detail off": "地形の詳細度をオフ"
 }

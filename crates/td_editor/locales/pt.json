@@ -2916,5 +2916,10 @@
   "Rewrote {n} region file at region size {size} and vertex spacing {spacing}. Godot uses the new spacing the next time it opens the scene": { "one": "{n} arquivo de região reescrito com tamanho de região {size} e espaçamento dos vértices {spacing}. O Godot usa o novo espaçamento na próxima vez que abrir a cena", "other": "{n} arquivos de região reescritos com tamanho de região {size} e espaçamento dos vértices {spacing}. O Godot usa o novo espaçamento na próxima vez que abrir a cena" },
   "Godot reported: {problems}": "O Godot relatou: {problems}",
   "Rewrite the {n} region file with a headless Godot? A backup is kept in the data folder": { "one": "Reescrever {n} arquivo de região com um Godot sem janela? Um backup fica na pasta de dados", "other": "Reescrever todos os {n} arquivos de região com um Godot sem janela? Um backup fica na pasta de dados" },
-  "Terrain {name} is drawn without level of detail, the GPU cannot hold it": "O terreno {name} é desenhado sem nível de detalhe, a GPU não consegue armazená-lo"
+  "Terrain {name} is drawn without level of detail, the GPU cannot hold it": "O terreno {name} é desenhado sem nível de detalhe, a GPU não consegue armazená-lo",
+  "Terrain Level of Detail": "Nível de detalhe do terreno",
+  "Toggle Terrain Level of Detail": "Alternar nível de detalhe do terreno",
+  "Draws far terrain with fewer triangles so big terrains stay fast. Off draws every cell": "Simplifica o terreno distante para terrenos grandes ficarem rápidos. Desligado desenha cada célula",
+  "Terrain level of detail on": "Nível de detalhe do terreno ativado",
+  "Terrain level of detail off": "Nível de detalhe do terreno desativado"
 }

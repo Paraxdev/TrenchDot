@@ -70,6 +70,7 @@ pub enum Action {
     ToggleGodotOverlays,
     /// Hides the faces the build drops because they face the void.
     ToggleVoidPreview,
+    ToggleTerrainLod,
     /// Shows where an agent can walk, baked by the connected Godot editor.
     ToggleWalkable,
     ToggleTextured,
@@ -354,6 +355,7 @@ impl Action {
             Action::ToggleXray => en!("X-Ray"),
             Action::ToggleGodotOverlays => en!("Toggle Godot Overlays"),
             Action::ToggleVoidPreview => en!("Preview void culling"),
+            Action::ToggleTerrainLod => en!("Toggle Terrain Level of Detail"),
             Action::ToggleWalkable => en!("Toggle Walkable Area"),
             Action::ToggleTextured => en!("Cycle Shading"),
             Action::SetShade(s) => return trf!("Shading: {shade}", shade = tr(s.title())),
@@ -580,6 +582,7 @@ impl Action {
             Action::ToggleLiveMode => en!("Sends every edit to the scene open in the Godot editor before you save"),
             Action::ToggleWalkable => en!("Shades the floors a player can walk on, baked by Godot"),
             Action::ToggleVoidPreview => en!("Hides the faces the build drops because they face the void"),
+            Action::ToggleTerrainLod => en!("Draws far terrain with fewer triangles so big terrains stay fast. Off draws every cell"),
             Action::BakeLighting => en!("Traces sun, light and sky into light maps stored in the map"),
             Action::ToggleBoxSelect => en!("A drag off the selection draws a box that selects, Shift adds and Ctrl removes"),
             Action::ToggleXray => en!("The selection box also takes faces facing away or hidden behind others"),
@@ -1000,6 +1003,7 @@ pub fn bindable_actions() -> Vec<Action> {
         Action::ToggleTransformGizmo,
         Action::ToggleGodotOverlays,
         Action::ToggleVoidPreview,
+        Action::ToggleTerrainLod,
         Action::ToggleWalkable,
         Action::BakeLighting,
         Action::SetShade(Shade::Baked),
@@ -1691,6 +1695,10 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         Action::ToggleVoidPreview => {
             state.prefs.preview_void_cull = !state.prefs.preview_void_cull;
             state.set_status(if state.prefs.preview_void_cull { msg!("Void culling preview on") } else { msg!("Void culling preview off") });
+        }
+        Action::ToggleTerrainLod => {
+            state.prefs.terrain_lod = !state.prefs.terrain_lod;
+            state.set_status(if state.prefs.terrain_lod { msg!("Terrain level of detail on") } else { msg!("Terrain level of detail off") });
         }
         Action::ToggleWalkable => toggle_walkable(state),
         Action::ToggleTextured => {

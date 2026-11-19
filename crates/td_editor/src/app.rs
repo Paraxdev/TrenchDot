@@ -2077,6 +2077,7 @@ impl App {
                 }
 
                 m.toggle(ui, en!("Preview void culling"), self.state.prefs.preview_void_cull, Action::ToggleVoidPreview);
+                m.toggle(ui, en!("Terrain Level of Detail"), self.state.prefs.terrain_lod, Action::ToggleTerrainLod);
                 sub_menu(ui, None, en!("Walkable Area"), |ui| {
                     m.toggle(ui, en!("Show Walkable Area"), self.state.walkable.on, Action::ToggleWalkable);
                     ui.separator();
