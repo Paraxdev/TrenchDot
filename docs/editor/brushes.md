@@ -265,9 +265,11 @@ The setting is shared by every map tab and is not saved, it starts at **max side
 
 While a half of a mirrored pair is selected, the views draw the plane as an outline in the color of its axis, red for
 X, green for Y and blue for Z, and the other half gets a violet outline so you can see which one belongs to your
-selection. The Mirror section in the Inspector reads *Mirror plane X = 200*, the position along that axis. Move one half
-towards the other or away from it and the outline moves too, it stays halfway between the halves as in the picture
-below. Slide a half along the plane, or rotate it so it is no longer a plain mirror, and the outline goes away.
+selection. A 2D view that looks along the plane shows it as a thick line reaching past both halves, so it stands out
+from the grid and from the edges where the halves meet. The Mirror section in the Inspector reads
+*Mirror plane X = 200*, the position along that axis. Move one half towards the other or away from it and the outline
+moves too, it stays halfway between the halves as in the picture below. Slide a half along the plane, or rotate it so
+it is no longer a plain mirror, and the outline goes away.
 
 ![The 3D view with the halves of a mirrored wedge pair pulled apart, a red outline marks the plane halfway between them](../assets/brushes/mirror-plane.png)
 

@@ -7,6 +7,7 @@ use td_geom::Terrain;
 use td_render::LineVertex;
 
 use crate::blend_tool::{self, StrokeScope};
+use crate::camera::Camera;
 use crate::i18n::{en, tr};
 use crate::scene::v3;
 use crate::state::EditorState;
@@ -15,6 +16,8 @@ use crate::{mesh_tool, theme, toolset};
 
 /// How far a plane rectangle reaches above and below what it mirrors, one meter.
 const PLANE_MARGIN: f64 = 32.0;
+/// How far a 2D plane bar reaches past what it mirrors at the least, in points, so it shows when zoomed far out.
+const BAR_REACH: f64 = 24.0;
 const GROUND_SEGMENTS: u32 = 256;
 const RING_SEGMENTS: usize = 40;
 
@@ -324,10 +327,32 @@ pub fn edit_lines(state: &EditorState, out: &mut Vec<LineVertex>) {
     }
 }
 
-/// The mirror planes between the selected linked groups and their mirrored partners.
-pub fn mirror_link_lines(state: &EditorState, out: &mut Vec<LineVertex>) {
+/// The mirror planes between the selected linked groups and their mirrored partners. A 2D view that sees a plane edge
+/// on draws it as a bar three points wide, so it reads apart from the grid and from the brush edges it covers at gap 0.
+pub fn mirror_link_lines(state: &EditorState, cam: &Camera, out: &mut Vec<LineVertex>) {
+    let depth = cam.kind.is_2d().then(|| cam.kind.depth_axis());
     for m in state.mirror_pairs().0 {
-        plane_rect(m.plane.axis, m.plane.at, &m.span, out);
+        match depth {
+            Some(depth) if depth != m.plane.axis => plane_bar(m.plane.axis, m.plane.at, &m.span, depth, cam.zoom, out),
+            _ => plane_rect(m.plane.axis, m.plane.at, &m.span, out),
+        }
+    }
+}
+
+/// The plane at `at` on `axis` seen edge on from `depth` at `zoom` points per unit, as three lines a point apart that
+/// reach past `span` by the plane margin or [`BAR_REACH`] points, whichever is longer.
+fn plane_bar(axis: usize, at: f64, span: &Aabb, depth: usize, zoom: f64, out: &mut Vec<LineVertex>) {
+    let color = plane_color(axis);
+    let along = 3 - axis - depth;
+    let point = 1.0 / zoom.max(1e-9);
+    let reach = PLANE_MARGIN.max(BAR_REACH * point);
+    for offset in [-point, 0.0, point] {
+        let mut a = span.center();
+        a[axis] = at + offset;
+        a[along] = span.min[along] - reach;
+        let mut b = a;
+        b[along] = span.max[along] + reach;
+        segment(out, a, b, color);
     }
 }
 

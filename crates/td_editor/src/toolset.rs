@@ -1383,7 +1383,7 @@ impl ToolSet {
             _ => {}
         }
 
-        crate::symmetry::mirror_link_lines(state, &mut out);
+        crate::symmetry::mirror_link_lines(state, cam, &mut out);
         crate::gizmos::lines(state, &mut out);
         for b in &state.sweep_preview {
             for (a, c) in b.edges() {
@@ -3664,6 +3664,26 @@ mod tests {
         sorted(vec![(p(u0, v0), p(u1, v0)), (p(u1, v0), p(u1, v1)), (p(u1, v1), p(u0, v1)), (p(u0, v1), p(u0, v0))])
     }
 
+    /// The plane at `at` on `axis` as a 2D view looking along `depth` at `zoom` draws it, three lines a point apart over
+    /// `lo` to `hi` grown by one meter.
+    fn bar_outline(axis: usize, at: f32, lo: [f32; 3], hi: [f32; 3], depth: usize, zoom: f64) -> Vec<Segment> {
+        let along = 3 - axis - depth;
+        let point = 1.0 / zoom;
+        sorted(
+            [-point, 0.0, point]
+                .map(|o| {
+                    let mut a = [0.0; 3];
+                    a[depth] = (lo[depth] + hi[depth]) * 0.5;
+                    a[axis] = (at as f64 + o) as f32;
+                    a[along] = lo[along] - 32.0;
+                    let mut b = a;
+                    b[along] = hi[along] + 32.0;
+                    (a, b)
+                })
+                .to_vec(),
+        )
+    }
+
     fn select_only(state: &mut EditorState, ids: &[NodeId]) {
         state.doc.select(|_, s| {
             s.clear();
@@ -3688,7 +3708,9 @@ mod tests {
             for id in [copy, group] {
                 select_only(&mut state, &[id]);
                 for cam in all_cameras() {
-                    assert_eq!(plane_segments(&tools, &state, &cam), expected, "axis {axis}");
+                    let depth = cam.kind.depth_axis();
+                    let want = if cam.kind.is_2d() && depth != axis { bar_outline(axis, hi[axis], lo, both, depth, cam.zoom) } else { expected.clone() };
+                    assert_eq!(plane_segments(&tools, &state, &cam), want, "axis {axis} {:?}", cam.kind);
                 }
             }
 
