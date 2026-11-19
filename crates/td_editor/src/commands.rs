@@ -1343,8 +1343,8 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             if let Some((copies, plane)) = mirrored {
                 state.set_status(msg_n!(
                     copies.len(),
-                    "Made {n} mirrored copy across {axis} at {at} u. Edits in either half show in both",
-                    "Made {n} mirrored copies across {axis} at {at} u. Edits in either half show in both",
+                    "Made {n} mirrored copy across the mirror plane {axis} = {at}. Editing either half changes both",
+                    "Made {n} mirrored copies across the mirror plane {axis} = {at}. Editing either half changes both",
                     axis = axis_name(axis),
                     at = crate::gizmos::fmt_num(plane.at)
                 ));
@@ -1398,10 +1398,10 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
                 if applied.joined == 0 && applied.welded == 0 {
                     state.set_status(msg!("Applied the mirror. The halves do not form one convex brush, so they stay separate brushes"));
                 } else {
-                    state.set_status(msg!(
-                        "Applied the mirror: {brushes} brush(es) joined, {meshes} mesh(es) welded",
-                        brushes = applied.joined,
-                        meshes = applied.welded
+                    state.set_status(msg_n!(
+                        applied.joined + applied.welded,
+                        "Applied the mirror, {n} piece now spans both halves",
+                        "Applied the mirror, {n} pieces now span both halves"
                     ));
                 }
 
@@ -4765,7 +4765,11 @@ mod tests {
 
                 assert_eq!(sorted(copied.vertices.iter().copied()), sorted(expected), "{case}");
                 let at_text = crate::gizmos::fmt_num(plane);
-                assert!(state.status.contains(&format!("1 mirrored copy across {} at {at_text} u", axis_name(axis))), "{case}: {}", state.status);
+                assert!(
+                    state.status.contains(&format!("1 mirrored copy across the mirror plane {} = {at_text}.", axis_name(axis))),
+                    "{case}: {}",
+                    state.status
+                );
             }
         }
     }
@@ -4788,7 +4792,7 @@ mod tests {
             }
 
             assert_eq!(sorted(copy.vertices.iter().copied()), sorted(expected), "gap {gap}");
-            assert!(state.status.contains(&format!("at {} u", crate::gizmos::fmt_num(plane))), "gap {gap}: {}", state.status);
+            assert!(state.status.contains(&format!("X = {}.", crate::gizmos::fmt_num(plane))), "gap {gap}: {}", state.status);
         }
     }
 
@@ -4829,7 +4833,7 @@ mod tests {
         assert_eq!(state.doc.map.get(grouped).unwrap().parent, Some(group), "the selected group is not wrapped again");
         assert_eq!(state.doc.map.brushes().count(), 4, "both the group and the loose box got a mirrored copy");
         assert_eq!(state.doc.selection.nodes.len(), 2, "the two copies are selected");
-        assert!(state.status.starts_with("Made 2 mirrored copies across X"), "{}", state.status);
+        assert!(state.status.starts_with("Made 2 mirrored copies across the mirror plane X"), "{}", state.status);
         let mirrored = |id: NodeId| td_doc::mirror::partners(&state.doc.map, id).len();
         assert_eq!((mirrored(group), mirrored(wrapper)), (1, 1));
     }
@@ -4899,7 +4903,7 @@ mod tests {
 
         execute(&mut state, Action::ApplyMirror { distance: 0.5 }, &ctx);
         assert!(!state.status_failed(), "{}", state.status);
-        assert_eq!(state.status, "Applied the mirror: 1 brush(es) joined, 0 mesh(es) welded");
+        assert_eq!(state.status, "Applied the mirror, 1 piece now spans both halves");
         assert_eq!(state.doc.history.undo_labels().count(), steps + 1);
         assert_eq!(state.doc.history.undo_labels().next(), Some("Apply Mirror"));
         let brushes: Vec<_> = state.doc.map.brushes().map(|(id, b)| (id, b.bounds())).collect();
