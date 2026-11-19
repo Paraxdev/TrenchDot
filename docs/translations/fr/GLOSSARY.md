@@ -19,6 +19,9 @@ Un mode de transparence de Godot qui coupe net une texture à un seuil d'alpha, 
 ## Autoload { #autoload data-forms="Autoloads" }
 Un script ou une scène que Godot charge une fois au démarrage et garde en vie pendant tout le jeu, réglé sous Project Settings > Globals > Autoload. Le code valable pour tout le jeu y vit, comme un compteur de score ou l'écouteur du hot reload.
 
+## autoshader { #autoshader }
+Le texturage automatique de Terrain3D. Là où le sol est marqué pour lui et où le matériau l'active, Terrain3D mélange deux textures selon la pente et la hauteur du sol, ainsi les pentes et le sol plat ont leur propre texture sans que vous peigniez chacune à la main.
+
 ## Éclairage précalculé { #baked-lighting }
 De la lumière calculée une seule fois à l'avance et stockée, au lieu d'être recalculée à chaque image. Godot > Précalculer l'éclairage précalcule le soleil, le ciel, les lampes et les matériaux lumineux dans une lightmap, et Godot l'affiche avec un LightmapGI.
 
@@ -42,6 +45,9 @@ Un carré de la grille d'un terrain, entre quatre sommets voisins. Un terrain co
 
 ## clipmap { #clipmap data-forms="clipmaps" }
 Une façon de dessiner un immense paysage: un ensemble fixe d'anneaux carrés autour de la caméra, où chaque anneau a deux fois moins de détail que celui qu'il entoure, le tout suivant la caméra. Le sol proche est dessiné finement et le sol lointain grossièrement, donc le coût reste le même quelle que soit la taille du monde. TrenchDot dessine Terrain3D avec une clipmap, comme Terrain3D lui-même.
+
+## carte de couleur { #color-map data-forms="cartes de couleur" }
+Une image que Terrain3D garde par région, avec une couleur pour chaque sommet. La couleur teinte les textures du sol à cet endroit, ainsi une zone d'herbe peut paraître plus sèche, plus sombre ou plus boueuse sans texture à elle. Son alpha contient l'humidité.
 
 ## convexe { #convex data-forms="convexes" }
 Bombé vers l'extérieur partout, sans creux ni bosses rentrantes, comme une boîte, un coin ou un cylindre. Chaque brush doit être convexe, c'est pourquoi l'éditeur refuse les déplacements de sommets qui en feraient un creux. Pour les formes concaves, convertissez le brush en mesh.
@@ -142,6 +148,9 @@ Model Context Protocol, une façon standard pour les agents IA et les scripts d'
 ## MultiMeshes { #multimeshes data-forms="MultiMesh" }
 La façon dont Godot dessine de nombreuses copies d'un même mesh en une seule passe. Les arbres, rochers et herbes de scatter sont construits en MultiMeshes, ce qui permet d'en afficher des milliers à bas coût.
 
+## zone navigable { #navigable-area data-forms="zones navigables" }
+Le sol d'un paysage Terrain3D marqué comme praticable. Le précalcul de navigation de Terrain3D ne construit un maillage de navigation que sur ce sol, donc les falaises et l'eau que vous laissez sans marque en restent exclues.
+
 ## maillage de navigation { #navigation-mesh data-forms="maillages de navigation" }
 Un contour simplifié des sols sur lesquels les agents IA peuvent marcher, que Godot utilise pour trouver des chemins. TrenchDotNav en précalcule un à partir de la collision d'une carte construite.
 
@@ -234,6 +243,9 @@ Un ensemble nommé d'objets dans Hammer que l'on affiche ou masque ensemble. Les
 
 ## espacement des sommets { #vertex-spacing }
 La distance en mètres entre deux sommets voisins d'un paysage Terrain3D. À 1, une région de 256 sommets couvre 256 mètres, à 2 elle en couvre 512.
+
+## humidité { #wetness }
+Le nom que Terrain3D donne à la peinture de rugosité sur le sol. Un sol humide est plus lisse et plus brillant dans Godot, un sol sec plus rugueux et plus mat. Elle est stockée dans l'alpha de la carte de couleur, comme un écart de -100 à 100 pour cent par rapport à la rugosité propre des textures.
 
 ## arrière-plan du monde { #world-background }
 Ce que Terrain3D dessine au-delà de ses régions, réglé sur son matériau sur Aucun, Plat ou Bruit. Plat prolonge le sol en un plan à la hauteur du sol, Bruit ajoute des collines issues d'une fonction de bruit, Aucun ne dessine rien.

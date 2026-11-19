@@ -19,6 +19,9 @@ Un modo de transparencia de Godot que recorta la textura de golpe en un umbral d
 ## autoload { #autoload data-forms="autoloads" }
 Un script o escena que Godot carga una vez al arrancar y mantiene vivo durante todo el juego, configurado en Project Settings > Globals > Autoload. El código de todo el juego, como un contador de puntos o el oyente de la recarga en caliente, vive en uno.
 
+## autoshader { #autoshader }
+El texturizado automático de Terrain3D. Donde el suelo está marcado para él y el material lo tiene activado, Terrain3D mezcla dos texturas según la pendiente y la altura del suelo, así las laderas y el suelo llano tienen su propia textura sin que pintes cada una a mano.
+
 ## Iluminación precalculada { #baked-lighting data-forms="iluminaciones precalculadas|iluminación horneada" }
 Luz que se calcula una sola vez de antemano y se guarda, en lugar de calcularse en cada fotograma. Godot > Precalcular iluminación precalcula el sol, el cielo, las lámparas y los materiales brillantes en un lightmap, y Godot lo dibuja mediante un LightmapGI.
 
@@ -42,6 +45,9 @@ Un cuadrado de la cuadrícula de un terreno, entre cuatro vértices vecinos. Un 
 
 ## clipmap { #clipmap data-forms="clipmaps" }
 Una forma de dibujar un paisaje enorme: un conjunto fijo de anillos cuadrados alrededor de la cámara, donde cada anillo tiene la mitad de detalle que el interior y todo el conjunto se mueve con la cámara. El suelo cercano se dibuja con detalle y el lejano de forma tosca, así que el coste es el mismo sea cual sea el tamaño del mundo. TrenchDot dibuja Terrain3D con uno, igual que el propio Terrain3D.
+
+## mapa de color { #color-map data-forms="mapas de color" }
+Una imagen que Terrain3D guarda por región, con un color para cada vértice. El color tiñe las texturas del suelo en ese punto, así una zona de hierba puede verse más seca, más oscura o más embarrada sin una textura propia. Su alfa guarda la humedad.
 
 ## convexa { #convex data-forms="convexo|convexos|convexas" }
 Abultada hacia fuera por todas partes, sin hendiduras ni huecos, como una caja, una cuña o un cilindro. Todo brush tiene que ser convexo, por eso el editor rechaza los movimientos de vértices que lo abollarían. Para formas cóncavas, convierte el brush en malla.
@@ -142,6 +148,9 @@ Model Context Protocol, una forma estándar de que agentes de IA y scripts llame
 ## MultiMeshes { #multimeshes }
 La forma de Godot de dibujar muchas copias de una malla en una sola pasada. Los árboles, rocas y hierba de scatter se construyen como MultiMeshes, lo que mantiene barato renderizar miles de ellos.
 
+## área navegable { #navigable-area data-forms="áreas navegables" }
+El suelo de un paisaje Terrain3D marcado como transitable. El precálculo de navegación de Terrain3D solo construye una malla de navegación sobre este suelo, así que los acantilados y el agua que dejes sin marcar quedan fuera.
+
 ## malla de navegación { #navigation-mesh data-forms="mallas de navegación" }
 Un contorno simplificado de los suelos por los que pueden caminar los agentes de IA, que Godot usa para encontrar rutas. TrenchDotNav precalcula una a partir de la colisión de un mapa construido.
 
@@ -234,6 +243,9 @@ Un conjunto con nombre de objetos de Hammer que muestras u ocultas a la vez. Las
 
 ## espaciado de vértices { #vertex-spacing }
 La distancia en metros entre dos vértices vecinos de un paisaje Terrain3D. Con 1, una región de 256 vértices cubre 256 metros, con 2 cubre 512.
+
+## humedad { #wetness }
+El nombre que Terrain3D da a pintar rugosidad sobre el suelo. El suelo húmedo es más liso y brillante en Godot, el seco más rugoso y mate. Se guarda en el alfa del mapa de color, como un cambio de -100 a 100 por ciento sobre la rugosidad propia de las texturas.
 
 ## fondo del mundo { #world-background }
 Lo que Terrain3D dibuja más allá de sus regiones, ajustado en su material como Ninguno, Plano o Ruido. Plano continúa el suelo como un plano a la altura del suelo, Ruido añade colinas hechas con una función de ruido, Ninguno no dibuja nada.

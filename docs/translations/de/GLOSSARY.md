@@ -19,6 +19,9 @@ Ein Transparenzmodus von Godot, der eine Textur an einem Alpha-Schwellwert hart 
 ## Autoload { #autoload data-forms="Autoloads" }
 Ein Skript oder eine Szene, die Godot einmal beim Start lädt und für das ganze Spiel am Leben hält, eingerichtet unter Project Settings > Globals > Autoload. Spielweiter Code lebt darin, zum Beispiel ein Punktezähler oder der Hot-Reload-Listener.
 
+## Autoshader { #autoshader }
+Die automatische Texturierung von Terrain3D. Wo der Boden dafür markiert ist und das Material sie eingeschaltet hat, mischt Terrain3D zwei Texturen nach Neigung und Höhe des Bodens, so bekommen Hänge und ebener Boden ihre eigene Textur, ohne dass du jede von Hand malst.
+
 ## Gebackene Beleuchtung { #baked-lighting data-forms="gebackenen Beleuchtung|gebackener Beleuchtung" }
 Licht, das einmal im Voraus berechnet und gespeichert wird, statt in jedem Frame neu ausgerechnet zu werden. Godot > Beleuchtung backen backt Sonne, Himmel, Lampen und leuchtende Materialien in eine Lightmap, und Godot zeichnet sie über ein LightmapGI.
 
@@ -42,6 +45,9 @@ Ein Quadrat im Raster eines Terrains, zwischen vier benachbarten Vertices. Ein T
 
 ## Clipmap { #clipmap data-forms="Clipmaps" }
 Eine Art, eine riesige Landschaft zu zeichnen: ein fester Satz quadratischer Ringe um die Kamera, wobei jeder Ring halb so fein ist wie der innere und der ganze Satz mit der Kamera wandert. Der Boden in der Nähe wird fein gezeichnet und der ferne grob, so bleibt der Aufwand gleich, egal wie groß die Welt ist. TrenchDot zeichnet Terrain3D mit einer, so wie Terrain3D selbst.
+
+## Farbkarte { #color-map data-forms="Farbkarten" }
+Ein Bild, das Terrain3D pro Region führt, mit einer Farbe für jeden Vertex. Die Farbe tönt dort die Texturen des Bodens, so kann ein Stück Gras trockener, dunkler oder schlammiger aussehen, ohne eine eigene Textur. Ihr Alphakanal hält die Nässe.
 
 ## konvex { #convex data-forms="konvexe|konvexen|konvexer|konvexes" }
 Überall nach außen gewölbt, ohne Dellen oder Mulden, wie ein Quader, ein Keil oder ein Zylinder. Jeder Brush muss konvex sein, deshalb lehnt der Editor Vertex-Verschiebungen ab, die ihn eindellen würden. Für konkave Formen wandelst du den Brush in ein Mesh um.
@@ -142,6 +148,9 @@ Model Context Protocol, ein Standardweg für KI-Agenten und Skripte, die Werkzeu
 ## MultiMeshes { #multimeshes }
 Godots Art, viele Kopien eines Meshes in einem einzigen Durchgang zu zeichnen. Verteilte Bäume, Felsen und Gras werden als MultiMeshes gebaut, sodass Tausende davon günstig zu rendern bleiben.
 
+## Befahrbarer Bereich { #navigable-area data-forms="Befahrbaren Bereich|Befahrbaren Bereiche|Befahrbaren Bereichs" }
+Der als begehbar markierte Boden einer Terrain3D-Landschaft. Das Navigations-Backen von Terrain3D baut ein Navigationsmesh nur über diesem Boden, so bleiben Klippen und Wasser, die du nicht markierst, draußen.
+
 ## Navigationsmesh { #navigation-mesh data-forms="Navigationsmeshes" }
 Ein vereinfachter Umriss der Böden, auf denen KI-Agenten laufen können und mit dem Godot Wege findet. TrenchDotNav backt eines aus der Kollision einer gebauten Karte.
 
@@ -234,6 +243,9 @@ Eine benannte Menge von Objekten in Hammer, die du gemeinsam ein- oder ausblende
 
 ## Vertexabstand { #vertex-spacing }
 Der Abstand in Metern zwischen zwei benachbarten Vertices einer Terrain3D-Landschaft. Bei 1 deckt eine Region mit 256 Vertices 256 Meter ab, bei 2 sind es 512.
+
+## Nässe { #wetness }
+Der Name von Terrain3D für das Malen der Rauheit auf den Boden. Nasser Boden ist in Godot glatter und glänzender, trockener rauer und matter. Sie steht im Alphakanal der Farbkarte, als Änderung der eigenen Rauheit der Texturen zwischen -100 und 100 Prozent.
 
 ## Welthintergrund { #world-background }
 Was Terrain3D hinter seinen Regionen zeichnet, am Material als Keine, Flach oder Rauschen eingestellt. Flach setzt den Boden als Ebene auf der Bodenhöhe fort, Rauschen fügt Hügel aus einer Rauschfunktion hinzu, Keine zeichnet nichts.

@@ -251,7 +251,8 @@ draw flat until Godot exports again.
 
 With the node selected, the **Sculpt** tool (G) works on it with the same brush ring, radius and strength as on a TrenchDot
 terrain. Raise, Lower, Smooth, Flatten, Noise, Terrace, Hole and Unhole work, and strokes cross region borders without a
-seam. **Paint Layer** sets a texture id instead of one of four layers. Paint Alpha and Erase Alpha are for
+seam. **Paint Layer** paints a texture id instead of one of four layers, or the color, wetness and marks described
+[below](#color-wetness-and-navigation). Paint Alpha and Erase Alpha are for
 displacements and leave Terrain3D as it is. The mode menu scrolls, Paint Layer, Hole and Unhole sit at its bottom.
 
 > [!TIP]
@@ -273,13 +274,44 @@ displacements and leave Terrain3D as it is. The mode menu scrolls, Paint Layer, 
 | **Paint** | Replaces the base texture under the brush with the chosen id |
 | **Spray** | Sets the overlay texture to the chosen id and raises how much of it shows, a little with every dab |
 
-TrenchDot changes only the part of Terrain3D's data a stroke is about. The texture scale, rotation, the navigation and
-autoshader bits and the color map stay as they were.
+A stroke changes only the part of Terrain3D's data it is about, so painting a texture keeps the color and marks of the
+ground. The texture scale and rotation you paint in Godot always stay as they are, TrenchDot has no brush for them.
 
 > [!NOTE]
 > The 3D view draws up to 32 textures, the ids 0 to 31, so it can look simpler than Godot for a texture beyond that.
-> The data keeps all of them. Dual scaling, macro variation and projection are exported but not drawn yet, so a close
-> up of the ground can look a little flatter than in Godot.
+> The data keeps all of them. Macro variation and projection are exported but not drawn yet, so a close up of the
+> ground can look a little flatter than in Godot.
+
+### Color, wetness and navigation
+
+Paint Layer paints textures until you pick something else in the menu right after it. The other entries paint the
+rest of what Terrain3D keeps for every vertex, the same things its own brushes in Godot paint.
+
+![The Sculpt tool bar in Paint Layer mode with the channel menu open, listing Texture, Color, Wetness, Navigable Area and Autoshader](../assets/terrain3d/paint-channels.png)
+
+| Entry | What a stroke paints |
+| --- | --- |
+| **Texture** | A texture id, with Paint or Spray as above |
+| **Color** | A tint toward the color of the button next to the menu, a sandy brown at first. Use it to make grass look dry or muddy in patches |
+| **Wetness** | The **roughness** value next to the menu, -50 % at first. Negative ground is wetter and shinier in Godot, positive is drier |
+| **Navigable Area** | A mark that the ground is walkable. Terrain3D's navigation baking in Godot only covers marked ground |
+| **Autoshader** | A mark that Godot textures this ground by its slope and height, while the autoshader is on in the material |
+
+![The Wetness entry with its roughness field at -50 % and the tooltip saying negative is wetter and shinier in Godot](../assets/terrain3d/paint-wetness.png)
+
+Color and wetness build up the longer you hold the mouse button, faster at a higher strength, and fade out toward the
+edge of the ring. The two marks are on or off, every vertex inside the ring gets them at once. Hold Shift to take paint
+away again: color goes back to white, which tints nothing, wetness back to 0 and the marks are cleared. Each stroke is
+one undo step, and a save sends it to Godot like any other edit.
+
+You see the color right away in the Textured, Lit and Baked views. Wetness and the marks are hard to see on their own,
+so while you paint one of them the 3D view washes the ground with it: navigable ground purple, autoshader ground
+brown, wet ground blue and dry ground brown, stronger the further the value is from 0. The wash goes away when you pick
+another entry or tool.
+
+![Grass tinted brown in a patch by the Color entry](../assets/terrain3d/paint-color.jpg)
+
+![A path painted as Navigable Area, washed purple across the grass while the entry is picked](../assets/terrain3d/paint-navigation.jpg)
 
 ## Sending your edits to Godot
 
@@ -375,7 +407,7 @@ folder's files like a new one. To refresh those from the folder, delete `manifes
 | Navigation | The navigation bake of TrenchDot reads collision from the map. Use Terrain3D's own navigation baking for the ground |
 | Not shown | The instancer meshes of Terrain3D are not drawn in TrenchDot, and their heights follow the ground when it changes. The meshes of a kept [overlay](overlays.md), like a tunnel, show as a dashed box too |
 | Not the same | The ocean is a plain tinted plane, not the waves of the ocean shader, and the Noise background matches Godot in shape, not in every detail. Picking and sculpting never use either |
-| Not painted | Color, roughness, navigation and autoshader are left as they are |
+| Not painted | The texture scale and rotation of Terrain3D are left as Godot painted them |
 | Units | Terrain3D works in meters, TrenchDot converts with the units per meter of your game, 32 by default |
 
 <div class="td-mcp" markdown>
@@ -396,7 +428,11 @@ and `clipmap`, the layers and regions held, the GPU bytes and the triangles of t
 `terrain3d_textures`, `terrain3d_background` and `terrain3d_water`, the switches of **View > Terrain3D**.
 
 `terrain_edit` and `scatter` accept the id of the Terrain3D node. Its `paint_texture` op takes a `texture` id and
-`mode: "base"` or `"spray"`. The showcase [script](https://github.com/Paraxdev/TrenchDot/blob/main/examples/mcp/terrain3d_valley.json)
+`mode: "base"` or `"spray"`. `paint_color` takes a `color` and `paint_wetness` a `roughness`, both blend in by
+`strength` and take `erase`, and `paint_navigation` and `paint_autoshader` take `on`. Each paints at a `center` or
+along `points`. `probe` adds the `navigation` and `auto` marks, the `color` and the `roughness` of the nearest vertex.
+`run_action sculpt` takes `channel`, `color`, `roughness` and `erase`, and `set_editor` sets the entry and its values
+of the tool bar with `terrain3d_paint`. The showcase [script](https://github.com/Paraxdev/TrenchDot/blob/main/examples/mcp/terrain3d_valley.json)
 builds the valley from the picture above this way, see [MCP scripts](../mcp-scripts.md). Its description lists what
 the project needs: the showcase materials, the glTF nature pack for its trees, and texture assets 0 to 3 for the paint
 to show.

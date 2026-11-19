@@ -15,6 +15,9 @@ A Godot transparency mode that cuts a texture off hard at an alpha threshold, so
 ## autoload
 A script or scene that Godot loads once at startup and keeps alive for the whole game, set up under Project Settings > Globals > Autoload. Game wide code, such as a score keeper or the hot reload listener, lives in one.
 
+## autoshader
+Terrain3D's automatic texturing. Where the ground is marked for it and the material has it turned on, Terrain3D mixes two textures by the slope and height of the ground, so slopes and flat ground get their own texture without you painting each one by hand.
+
 ## baked lighting
 Light that's traced once ahead of time and stored, instead of worked out every frame. Godot > Bake Lighting bakes the sun, sky, lamps and glowing materials into a light map, and Godot draws it through a LightmapGI.
 
@@ -38,6 +41,9 @@ One square of a terrain's grid, between four neighboring vertices. A terrain is 
 
 ## clipmap
 A way to draw a huge landscape: a fixed set of square rings around the camera, where each ring has half the detail of the one inside it and the whole set moves with the camera. Near ground is drawn finely and far ground coarsely, so the cost stays the same however big the world is. TrenchDot draws Terrain3D with one, the way Terrain3D does.
+
+## color map
+An image Terrain3D keeps per region with one color for every vertex. The color tints the textures of the ground there, so a patch of grass can look drier, darker or muddier without a texture of its own. Its alpha holds the wetness.
 
 ## convex
 Bulging outward everywhere, with no dents or hollows, like a box, a wedge or a cylinder. Every brush has to be convex, which is why the editor refuses vertex moves that would dent one. For concave shapes, convert the brush to a mesh.
@@ -150,6 +156,9 @@ The flat plane across which a linked copy is reflected, and the plane the Vertex
 ## MultiMeshes
 Godot's way of drawing many copies of one mesh in a single pass. Scattered trees, rocks and grass are built as MultiMeshes, which keeps thousands of them cheap to render.
 
+## navigable area
+The ground of a Terrain3D landscape marked as walkable. Terrain3D's navigation baking only builds a navigation mesh over this ground, so cliffs and water you leave unmarked stay out of it.
+
 ## navigation mesh
 A simplified outline of the floors that AI agents can walk on, which Godot uses to find paths. TrenchDotNav bakes one from the collision of a built map.
 
@@ -251,6 +260,9 @@ A named set of objects in Hammer that you show or hide together. TrenchDot's lay
 
 ## vertex spacing
 The distance in meters between two neighboring vertices of a Terrain3D landscape. At 1 a region of 256 vertices covers 256 meters, at 2 it covers 512.
+
+## wetness
+Terrain3D's name for painting roughness onto the ground. Wet ground is smoother and shinier in Godot, dry ground rougher and duller. It is stored in the alpha of the color map, as a change from the textures' own roughness between -100 and 100 percent.
 
 ## world background
 What Terrain3D draws beyond its regions, set on its material as None, Flat or Noise. Flat continues the ground as a plane at the ground level, Noise adds hills made from a noise function, None draws nothing.
