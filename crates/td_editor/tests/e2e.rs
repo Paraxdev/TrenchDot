@@ -2040,6 +2040,19 @@ fn terrain_edit_info_says_how_a_terrain_is_drawn() {
 
 #[test]
 #[ignore]
+fn the_terrain_level_of_detail_toggle_switches_how_a_terrain_is_drawn() {
+    let ed = Editor::launch("terrain_lod_toggle");
+    let id = ed.call("create_terrain", json!({ "center": [0, 0, 0], "resolution": 33, "cell_size": 32, "shape": "hills" }))["id"].as_u64().unwrap();
+    let drawn = |ed: &Editor| ed.call("terrain_edit", json!({ "id": id, "op": "info" }))["drawn"].clone();
+    assert_eq!(drawn(&ed), "clipmap");
+    ed.call("run_action", json!({ "action": "toggle_terrain_lod" }));
+    assert_eq!((drawn(&ed), ed.state()["status"].clone()), (json!("chunks"), json!("Terrain level of detail off")));
+    ed.call("run_action", json!({ "action": "toggle_terrain_lod" }));
+    assert_eq!((drawn(&ed), ed.state()["status"].clone()), (json!("clipmap"), json!("Terrain level of detail on")));
+}
+
+#[test]
+#[ignore]
 fn terrain_symmetry_mirrors_strokes_and_mcp_calls() {
     let ed = Editor::launch("terrain_symmetry");
     let height = |ed: &Editor, id: u64, p: [f64; 2]| ed.call("terrain_edit", json!({ "id": id, "probe": p }))["probe_height"].as_f64().unwrap();
@@ -10440,4 +10453,91 @@ fn terrain3d_tool_send_leaves_edits_pending_without_godot() {
         Ok(_) => {}
         Err(e) => assert!(found && e.contains("not applied"), "{e}"),
     }
+}
+
+/// Pixels where any channel of `a` and `b` differs by more than `levels`.
+fn pixels_apart(a: &image::RgbaImage, b: &image::RgbaImage, levels: u8) -> Vec<(u32, u32)> {
+    assert_eq!(a.dimensions(), b.dimensions());
+    a.enumerate_pixels().filter(|(x, y, p)| p.0.iter().zip(b.get_pixel(*x, *y).0).any(|(c, d)| c.abs_diff(d) > levels)).map(|(x, y, _)| (x, y)).collect()
+}
+
+#[test]
+#[ignore]
+fn native_terrain_clipmap_draws_like_the_chunks_up_close() {
+    let ed = Editor::launch("terrain_clip_look");
+    let terrain = json!({ "origin": [-1000.5, 37, 2210], "resolution": 37, "cell_size": 24, "shape": "hills", "height": 160, "seed": 4 });
+    let id = ed.call("create_terrain", terrain)["id"].as_u64().unwrap();
+    ed.call("terrain_edit", json!({ "id": id, "op": "set_layers", "layers": [["dev/green", 256], ["dev/grey", 256], ["dev/blue", 256], ["dev/orange", 256]] }));
+    ed.call("terrain_edit", json!({ "id": id, "op": "auto_paint", "sea_level": 60 }));
+    ed.call("terrain_edit", json!({ "id": id, "op": "paint_path", "points": [[-900, 2300], [-500, 2700]], "layer": 3, "radius": 40 }));
+    ed.call("terrain_edit", json!({ "id": id, "op": "holes", "min": [-640, 2560], "max": [-560, 2640], "hole": true }));
+    ed.call("set_camera", json!({ "view": "3d", "position": [-1150, 380, 2050], "look_at": [-560, 60, 2650] }));
+    let args = json!({ "target": "3d", "width": 480, "height": 360 });
+    for shade in ["textured", "lit"] {
+        ed.call("set_editor", json!({ "shade": shade, "tool": "select", "terrain_lod": true }));
+        let clip = shot(&ed, args.clone(), &format!("{shade}_clipmap"));
+        assert_eq!(ed.call("terrain_edit", json!({ "id": id, "op": "info" }))["drawn"], "clipmap");
+        ed.call("set_editor", json!({ "terrain_lod": false }));
+        let chunks = shot(&ed, args.clone(), &format!("{shade}_chunks"));
+        let (mean, apart) = (image_difference(&clip, &chunks), pixels_apart(&clip, &chunks, 6).len());
+        assert!(mean < 1.0 && apart < 480 * 360 / 100, "{shade}: mean difference {mean}, {apart} pixels apart by more than 6 levels");
+    }
+}
+
+#[test]
+#[ignore]
+fn native_terrain_clipmap_uploads_only_what_an_edit_changed() {
+    let ed = Editor::launch("terrain_clip_edits");
+    let id =
+        ed.call("create_terrain", json!({ "center": [0, 0, 0], "resolution": 65, "cell_size": 32, "shape": "hills", "height": 120 }))["id"].as_u64().unwrap();
+    let uploads = |ed: &Editor| ed.call("terrain_edit", json!({ "id": id, "op": "info" }))["clipmap"]["uploads"].clone();
+    let count = |u: &Value| [&u["whole"], &u["partial"]].map(|v| v.as_u64().unwrap());
+    ed.call("set_editor", json!({ "shade": "textured", "tool": "select" }));
+    ed.call("set_camera", json!({ "view": "3d", "position": [0, 1400, 1], "look_at": [0, 0, 0] }));
+    let args = json!({ "target": "3d", "width": 480, "height": 360 });
+    let before = shot(&ed, args.clone(), "before");
+    assert_eq!(count(&uploads(&ed)), [1, 0]);
+
+    ed.call("run_action", json!({ "action": "select_none" }));
+    ed.call("select", json!({ "ids": [id] }));
+    assert_eq!(count(&uploads(&ed)), [1, 0], "selecting changes the uniform only");
+
+    ed.call("terrain_edit", json!({ "id": id, "op": "sculpt", "mode": "raise", "center": [16, 16], "radius": 64, "strength": 48 }));
+    let dab = uploads(&ed);
+    assert_eq!(count(&dab), [1, 1], "{dab}");
+    let cells = dab["partial_cells"].as_u64().unwrap();
+    assert!(cells > 0 && cells <= 5 * 5, "a 64 unit brush on 32 unit cells writes at most 5 by 5 vertices, got {cells}");
+    let after = shot(&ed, args.clone(), "after");
+    let changed = pixels_apart(&before, &after, 2);
+    assert!(!changed.is_empty(), "the dab shows");
+    assert!(
+        changed.iter().all(|(x, y)| (120..360).contains(x) && (90..270).contains(y)),
+        "pixels changed away from the brush: {:?}",
+        &changed[..changed.len().min(10)]
+    );
+
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(count(&uploads(&ed)), [1, 2], "undo writes the same rectangle back");
+    assert!(pixels_apart(&before, &shot(&ed, args.clone(), "undone"), 0).is_empty(), "undo draws the terrain as before");
+    ed.call("run_action", json!({ "action": "redo" }));
+    assert_eq!(count(&uploads(&ed)), [1, 3]);
+    assert_eq!(uploads(&ed)["partial_cells"], json!(cells * 3));
+}
+
+#[test]
+#[ignore]
+fn native_terrain_triangles_stay_about_the_same_for_a_bigger_terrain() {
+    let ed = Editor::launch("terrain_clip_triangles");
+    let camera = json!({ "view": "3d", "position": [300, 200, 500], "look_at": [2300, 0, 3000] });
+    let triangles = |ed: &Editor, resolution: u64| {
+        let id = ed.call("create_terrain", json!({ "origin": [0, 0, 0], "resolution": resolution, "cell_size": 32, "shape": "flat" }))["id"].as_u64().unwrap();
+        ed.call("set_camera", camera.clone());
+        shot(ed, json!({ "target": "3d", "width": 480, "height": 360 }), &format!("{resolution}"));
+        let info = ed.call("terrain_edit", json!({ "id": id, "op": "info" }));
+        ed.call("hierarchy", json!({ "op": "set_flags", "ids": [id], "hidden": true }));
+        assert_eq!(info["drawn"], "clipmap", "{info}");
+        info["clipmap"]["triangles"].as_u64().unwrap()
+    };
+    let (small, big) = (triangles(&ed, 257), triangles(&ed, 2049));
+    assert!(small > 1000 && big < small * 2, "257 vertices a side draw {small} triangles, 2049 draw {big}");
 }
