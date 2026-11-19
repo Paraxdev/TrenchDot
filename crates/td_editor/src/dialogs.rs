@@ -1311,7 +1311,7 @@ struct TakenChord {
 }
 
 /// Everything that reacts to `chord`'s key, with any modifier: the bound actions in the grid's order, then the keys
-/// the tools read. Rows with exactly the pressed chord come first in each list.
+/// the tools read, the preset's own included. Rows with exactly the pressed chord come first in each list.
 pub fn key_uses(prefs: &crate::state::Prefs, chord: &egui::KeyboardShortcut) -> (Vec<Action>, Vec<&'static ToolKeyRow>) {
     let exact = commands::shortcut_to_text(chord);
     let active = commands::shortcuts(prefs);
@@ -1324,7 +1324,7 @@ pub fn key_uses(prefs: &crate::state::Prefs, chord: &egui::KeyboardShortcut) -> 
         })
         .collect();
     actions.sort_by_key(|(is_exact, _)| !is_exact);
-    let mut rows: Vec<&ToolKeyRow> = tool_key_rows().iter().filter(|r| r.key == chord.logical_key).collect();
+    let mut rows: Vec<&ToolKeyRow> = tool_key_rows().iter().chain(preset_rows(&prefs.keymap_preset)).filter(|r| r.key == chord.logical_key).collect();
     rows.sort_by_key(|r| r.chord() != exact);
     (actions.into_iter().map(|(_, a)| a).collect(), rows)
 }
@@ -2975,6 +2975,12 @@ mod tests {
         assert_eq!(key_uses(&prefs, &alt_a).0[0], Action::SelectAll, "no Alt+A in TrenchBroom, so the grid order stands");
         assert_eq!(key_uses(&prefs, &chord(egui::Modifiers::COMMAND, Key::A)).0[0], Action::SelectAll);
         assert_eq!(key_uses(&prefs, &chord(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::A)).0[0], Action::SelectNone);
+
+        let ctrl_a = chord(egui::Modifiers::COMMAND, Key::A);
+        let texture_rows = |prefs: &crate::state::Prefs| key_uses(prefs, &ctrl_a).1.iter().filter(|r| r.tool == ToolKind::Texture).count();
+        assert_eq!(texture_rows(&prefs), 0);
+        prefs.keymap_preset = "hammer".into();
+        assert_eq!(texture_rows(&prefs), 1, "the Hammer Texture tool row");
 
         prefs.keymap_preset = "blender".into();
         assert_eq!(key_uses(&prefs, &alt_a).0[0], Action::SelectNone);
