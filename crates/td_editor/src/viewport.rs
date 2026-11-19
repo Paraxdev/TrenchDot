@@ -50,8 +50,6 @@ pub struct Viewport {
     looked: bool,
     /// Moving the mouse turns this 3D view with no button held, see `App::drive_mouse_look`.
     pub(crate) mouse_look: bool,
-    /// A press ended mouse look, the view ignores the buttons until they are all up again.
-    swallowing: bool,
 }
 
 // Linear values, the targets are sRGB.
@@ -77,7 +75,6 @@ impl Viewport {
             pixels_per_point: 1.0,
             looked: false,
             mouse_look: false,
-            swallowing: false,
         }
     }
 
@@ -123,16 +120,13 @@ impl Viewport {
             }
         }
 
-        let swallowed = self.swallow_press(ui);
-        if !swallowed {
-            self.handle_camera(ui, &response, cx);
-        }
+        self.handle_camera(ui, &response, cx);
 
         self.handle_keys(ui, cx);
         self.hover_edge = None;
         // While a menu is open a click in the view only closes it, like in most programs.
         let closing_menu = self.popup_open && self.drag.is_none();
-        let passive = closing_menu || swallowed;
+        let passive = closing_menu;
         let extruding = cx.tools.extrude.active();
         if !passive && extruding && !self.is_camera_drag() {
             cx.tools.extrude.input(ui, &response, &self.camera, rect, cx.state);
@@ -169,7 +163,7 @@ impl Viewport {
         }
 
         // Right click applies materials in the texture tool. The right click that cancels an extrude opens no menu.
-        if cx.state.tool != ToolKind::Texture && !extruding && !swallowed {
+        if cx.state.tool != ToolKind::Texture && !extruding {
             response.context_menu(|ui| context_menu(ui, cx.state, cx.actions));
         }
     }
@@ -205,19 +199,6 @@ impl Viewport {
     pub(crate) fn start_mouse_look(&mut self) {
         self.mouse_look = true;
         self.looked = true;
-    }
-
-    /// Any press ends mouse look and does nothing else, through the frame its button comes up.
-    fn swallow_press(&mut self, ui: &Ui) -> bool {
-        let (pressed, released, down) = ui.input(|i| (i.pointer.any_pressed(), i.pointer.any_released(), i.pointer.any_down()));
-        if self.mouse_look && pressed {
-            self.mouse_look = false;
-            self.swallowing = true;
-        } else if self.swallowing && !down && !released {
-            self.swallowing = false;
-        }
-
-        self.swallowing
     }
 
     /// What a left drag does now that Space is held, Hammer's temporary camera. Off while a text field has the

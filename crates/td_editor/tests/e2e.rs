@@ -4644,6 +4644,16 @@ fn hammer_mouse_look_toggles_with_z() {
     ed.input("3d", json!([{ "type": "click", "world": [32, 32, 32] }]));
     assert_eq!(selected(&ed), [a], "the next click selects again");
 
+    // On Windows the hidden cursor sits in the middle of the window, which can lie over another view.
+    ed.call("run_action", json!({ "action": "select_none" }));
+    z("3d");
+    ed.input("top", json!([{ "type": "click", "world": [32, 32, 32] }]));
+    assert!(!looking(), "a click over another view stops it");
+    assert!(selected(&ed).is_empty(), "and that view sees no click");
+    assert!(ed.state()["editor"]["selection_box"].is_null());
+    ed.input("top", json!([{ "type": "click", "world": [32, 32, 32] }]));
+    assert_eq!(selected(&ed), [a], "the next click there selects");
+
     z("top");
     assert!(!looking(), "a 2D view has no mouse look");
     assert_eq!(ed.state()["status"], "Mouse look works in the 3D view");

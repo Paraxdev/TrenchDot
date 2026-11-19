@@ -106,6 +106,8 @@ pub struct App {
     confirm_close: bool,
     offscreen: bool,
     mouse_look: Option<MouseLook>,
+    /// Presses that ended mouse look, held back from the UI until their buttons come up.
+    held_presses: usize,
     /// Asking whether to save the active map before its tab closes.
     confirm_tab_close: bool,
     allow_close: bool,
@@ -865,6 +867,8 @@ const BOTTOM_ROOM: f32 = 0.55;
 struct MouseLook {
     /// Where the cursor was when the look started, it goes back there afterwards.
     from: Option<egui::Pos2>,
+    /// Where the hidden cursor really is, which the UI no longer sees, see `App::hold_pointer_in_mouse_look`.
+    cursor: Option<egui::Pos2>,
 }
 
 /// Whether `tab` is open and the one showing in its leaf.
@@ -1093,6 +1097,7 @@ impl App {
             confirm_close: false,
             offscreen: args.offscreen,
             mouse_look: None,
+            held_presses: 0,
             confirm_tab_close: false,
             allow_close: false,
             show_prefs: false,
@@ -1424,16 +1429,16 @@ impl App {
         match (center, self.mouse_look.is_some()) {
             (Some(center), started) => {
                 if !started {
-                    self.mouse_look = Some(MouseLook { from: self.pointer });
+                    self.mouse_look = Some(MouseLook { from: self.pointer, cursor: self.pointer });
                     if !self.offscreen {
                         ctx.send_viewport_cmd(egui::ViewportCommand::CursorGrab(egui::viewport::CursorGrab::Confined));
                     }
                 }
 
                 ctx.set_cursor_icon(egui::CursorIcon::None);
-                // In the middle of the view the hidden cursor hovers nothing else, and the click that ends the look
-                // lands in the view.
-                if !self.offscreen && self.pointer.is_none_or(|p| p.distance(center) > 1.0) {
+                // Where the window cannot confine the cursor, this keeps it from wandering out of the window.
+                let cursor = self.mouse_look.as_ref().and_then(|m| m.cursor);
+                if !self.offscreen && cursor.is_none_or(|p| p.distance(center) > 1.0) {
                     ctx.send_viewport_cmd(egui::ViewportCommand::CursorPosition(center));
                 }
             }
@@ -1449,6 +1454,44 @@ impl App {
                 self.state.set_status(msg!("Mouse look off"));
             }
             (None, false) => {}
+        }
+    }
+
+    /// While mouse look runs the UI sees the pointer stay where the look started and gets no buttons. winit on Windows
+    /// holds a hidden grabbed cursor in the middle of the window, which may lie over another view or a panel. A press
+    /// ends the look and is held back with its release.
+    fn hold_pointer_in_mouse_look(&mut self, raw: &mut egui::RawInput) {
+        let looking = self.viewports.iter().any(|v| v.mouse_look);
+        let (mut cursor, mut ended, held) = (None, false, &mut self.held_presses);
+        raw.events.retain(|e| match e {
+            egui::Event::PointerMoved(p) if looking => {
+                cursor = Some(*p);
+                false
+            }
+            egui::Event::PointerButton { pressed: true, .. } if looking || *held > 0 => {
+                ended |= looking;
+                *held += 1;
+                false
+            }
+            egui::Event::PointerButton { pressed: false, .. } if *held > 0 => {
+                *held -= 1;
+                false
+            }
+            egui::Event::WindowFocused(false) => {
+                *held = 0;
+                true
+            }
+            _ => true,
+        });
+
+        if let Some(look) = self.mouse_look.as_mut()
+            && cursor.is_some()
+        {
+            look.cursor = cursor;
+        }
+
+        if ended {
+            self.viewports.iter_mut().for_each(|v| v.mouse_look = false);
         }
     }
 
@@ -3299,6 +3342,7 @@ fn language_pref(ui: &mut Ui, prefs: &mut Prefs) {
 impl eframe::App for App {
     fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         self.feed_input_script(raw_input);
+        self.hold_pointer_in_mouse_look(raw_input);
     }
 
     fn ui(&mut self, ui: &mut Ui, _frame: &mut eframe::Frame) {
