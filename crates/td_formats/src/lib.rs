@@ -2,6 +2,7 @@ pub mod bbmodel;
 pub mod game;
 pub mod godot_api;
 pub mod godot_material;
+pub mod godot_res;
 pub mod idmodel;
 pub mod nature;
 pub mod quake_map;
