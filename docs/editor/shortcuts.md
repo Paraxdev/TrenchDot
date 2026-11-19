@@ -92,8 +92,8 @@ mode.
 | Click on empty space | Clear the selection |
 | Ctrl+click on empty space | Keep the selection, so a missed Ctrl+click costs nothing |
 | Shift+click in the Outliner | Select the rows from the last clicked one |
-| Shift+drag a selected face (3D) | Push or pull it. The Hammer preset copies the selection instead |
-| Ctrl+Shift+drag a selected face (3D) | Extrude a new brush. The Hammer preset copies the selection instead |
+| Shift+drag a selected face (3D) | Push or pull a face of a selected brush. The whole brush has to be selected, a face picked with Shift+click alone is not enough. The Hammer preset copies the selection instead |
+| Ctrl+Shift+drag a selected face (3D) | Extrude a new brush out of a face of a selected brush. The Hammer preset copies the selection instead |
 | Right drag (3D) | Look around. Hold it and use WASD to fly, Q and E to go down and up |
 | Middle drag | Pan |
 | Wheel (3D) | Move forward and back |
@@ -193,7 +193,7 @@ moves the brush.
 | Ctrl+click in the Texture tool | Add a face to the selection or remove it |
 | Drag the selection | Move it, with no axis lock |
 | Drag a selection edge (2D) | Resize along it. Shift or Ctrl copies instead |
-| Shift+drag the selection, Ctrl+drag the selection | Copy it and move the copy, in every view, as one undo step. On a selected face in 3D it copies too, it does not push the face |
+| Shift+drag the selection, Ctrl+drag the selection | Copy it and move the copy, in every view, as one undo step. On a face of a selected brush in 3D it copies too, it does not push the face |
 | Drag off the selection (2D) | Draw a selection box. It waits until you press Enter or click inside it, then selects every object lying wholly inside, at any depth. Esc or a click outside drops it |
 | Ctrl+drag off the selection (2D) | Draw a selection box that adds to the selection |
 | Drag off the selection (3D) | Nothing. Pick the Block tool (Shift+B) to draw brushes |

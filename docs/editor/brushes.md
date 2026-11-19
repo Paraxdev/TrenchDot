@@ -57,8 +57,8 @@ You can reshape a selected brush without leaving the Select tool:
 
 | Input | Result |
 | --- | --- |
-| Shift+drag a selected face (3D), TrenchBroom preset | Push or pull that face |
-| Ctrl+Shift+drag a selected face (3D), TrenchBroom preset | Extrude a new brush out of it |
+| Shift+drag a face of a selected brush (3D), TrenchBroom preset | Push or pull that face. Click the brush to select it first, a face picked with Shift+click alone is not enough and the drag draws a new brush instead |
+| Ctrl+Shift+drag a face of a selected brush (3D), TrenchBroom preset | Extrude a new brush out of that face |
 | Drag a selection edge (2D) | Resize along that side. The side lights up yellow and the cursor changes where a drag resizes. Ctrl copies the selection instead, and so does Shift in the Hammer preset |
 | E, with brush faces selected | Extrude each selected face into a new brush, in the Blender preset, see [below](#extrude-faces-with-e) |
 

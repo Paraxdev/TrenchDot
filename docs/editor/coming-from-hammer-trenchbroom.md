@@ -122,8 +122,8 @@ what the TrenchDot column says.
 | Move vertically in 3D | Alt+drag | Alt+drag | Same |
 | Lock the move to one axis | Shift while dragging | Shift while dragging | Drag a gizmo arrow, Shift does not lock |
 | Duplicate while dragging | Ctrl+drag | Ctrl+drag | Shift+drag or Ctrl+drag |
-| Push or pull a face | Shift+drag | Shift+drag a selected face in 3D | None, Shift+drag copies |
-| Extrude a new brush | Ctrl+Shift+drag | Ctrl+Shift+drag a selected face in 3D | None, Ctrl+Shift+drag copies |
+| Push or pull a face | Shift+drag | Shift+drag a face of a selected brush in 3D | None, Shift+drag copies |
+| Extrude a new brush | Ctrl+Shift+drag | Ctrl+Shift+drag a face of a selected brush in 3D | None, Ctrl+Shift+drag copies |
 | Change the grid size | Ctrl+Alt+wheel | `[` and `]` | Same |
 | Open the context menu | Right click | Right click | Same |
 
