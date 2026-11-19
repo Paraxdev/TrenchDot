@@ -91,6 +91,10 @@ and the command palette, and you can bind them on the **Keys** tab of *Help > Ke
 sits right of Select in the toolbar, and mouse look under *View > Mouse Look*. In the Hammer preset, Rotate Y 90 moved
 to Ctrl+Shift+R, because Ctrl+L flips. The full list of keys is on [Shortcuts](shortcuts.md).
 
+Select Touching and Select Inside work as in TrenchBroom in every preset. The brushes you select with are deleted
+afterwards, even when nothing touches them or lies inside, and Ctrl+Z brings them back. Touching means overlapping, a
+brush that only shares a face with them is left out, so a floor does not pick up the pillars standing on it.
+
 ## Mouse
 
 Hammer lets you pick its camera controls in its options, so the camera rows compare TrenchBroom, whose gestures TrenchDot

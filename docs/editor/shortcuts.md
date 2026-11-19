@@ -113,7 +113,7 @@ mode.
 | Delete or Backspace | Delete |
 | Ctrl+A, Ctrl+Shift+A, Ctrl+I | Select all objects, select none, select inverse. Ctrl+A also drops any selected faces, and in the Blender preset it switches to Object mode. In the Hammer preset Ctrl+Shift+A selects every face of the selected brushes and meshes instead, and select inverse is Ctrl+Shift+I because Ctrl+I flips, see [Other presets](#other-presets) |
 | Ctrl+F | Find entities and replace a material, see [Find and Replace](find-replace.md) |
-| Ctrl+T, Ctrl+E | Use the selected brushes as a stencil and select what they touch, or what lies inside them. The stencil brushes are deleted. Both need brushes selected, faces alone are refused |
+| Ctrl+T, Ctrl+E | Use the selected brushes as a stencil and select what they touch, or what lies inside them. Touching means overlapping, a brush that only shares a face with a stencil is left out. The stencil brushes are deleted, even when nothing touches them or lies inside, and Ctrl+Z brings them back. Both need brushes selected, faces alone are refused |
 | Ctrl+G, Ctrl+Shift+G | Group, ungroup |
 | Ctrl+H, Ctrl+J, Ctrl+Shift+H | Hide the selection, isolate it by hiding everything else, show all |
 | Arrows, Page Up, Page Down | Nudge by one grid step |
@@ -166,7 +166,7 @@ A preset only changes the keys and mouse gestures below, everything else stays a
 | Shift+S, Shift+B, Shift+X, Shift+V, Shift+A | Select, block, clip, vertex, texture tool |
 | H, Ctrl+H, U | Hide, isolate, show all |
 | Ctrl+W | Move brushes to world |
-| Ctrl+T, Ctrl+Shift+T | Tie to Entity, and Select Touching, which moved to Ctrl+Shift+T. Ctrl+T opens the class list with `func_detail` highlighted, so Ctrl+T then Enter makes the selected brushes one detail entity. Type to filter, Esc cancels. A selection that already is a whole brush entity is selected instead, change its class in the Inspector. Also under Brush > Tie to Entity |
+| Ctrl+T, Ctrl+Shift+T | Tie to Entity, and Select Touching, which moved to Ctrl+Shift+T and still deletes the brushes you select with. It only takes what overlaps them, sharing a face is not enough. Ctrl+T opens the class list with `func_detail` highlighted, so Ctrl+T then Enter makes the selected brushes one detail entity. Type to filter, Esc cancels. A selection that already is a whole brush entity is selected instead, change its class in the Inspector. Also under Brush > Tie to Entity |
 | Ctrl+M | Transform Selection, a window that moves, rotates or scales the selection by typed numbers. The shape generator stays on Ctrl+Shift+B |
 | Ctrl+L, Ctrl+I | Flip Horizontal, Flip Vertical. They mirror the selection across its center along the screen axes of the view under the pointer, like Hammer. In 3D, horizontal is whichever of X or Z lies closer to the camera's right. While snapping is on the center snaps to half the grid, so a selection centered between those lines shifts by up to half a grid step. Ctrl+Shift+R pivots on the full grid, so it moves a selection centered off the grid too. Turn snapping off to flip or rotate in place. In the Mesh tool Ctrl+L still selects linked |
 | Ctrl+Shift+I, Ctrl+Shift+R | Select inverse, rotate 90° around the vertical axis |
