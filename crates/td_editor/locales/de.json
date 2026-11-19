@@ -2602,5 +2602,7 @@
   "Opened group {name}, click a part to select it": "Gruppe {name} geöffnet, klicke auf ein Teil, um es zu wählen",
   "Group {name} is already open": "Gruppe {name} ist schon offen",
   "Select a group to open it": "Wähle eine Gruppe, um sie zu öffnen",
-  "Closed groups {names}": "Gruppen {names} geschlossen"
+  "Closed groups {names}": "Gruppen {names} geschlossen",
+  "Nothing inside, deleted {n} selecting brush": { "one": "Nichts darin, der auswählende Brush wurde gelöscht", "other": "Nichts darin, {n} auswählende Brushes gelöscht" },
+  "Nothing touching, deleted {n} selecting brush": { "one": "Nichts berührt ihn, der auswählende Brush wurde gelöscht", "other": "Nichts berührt sie, {n} auswählende Brushes gelöscht" }
 }

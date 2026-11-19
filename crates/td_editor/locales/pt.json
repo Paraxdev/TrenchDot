@@ -2602,5 +2602,7 @@
   "Opened group {name}, click a part to select it": "Grupo {name} aberto, clique numa peça para selecioná-la",
   "Group {name} is already open": "O grupo {name} já está aberto",
   "Select a group to open it": "Selecione um grupo para abri-lo",
-  "Closed groups {names}": "Grupos {names} fechados"
+  "Closed groups {names}": "Grupos {names} fechados",
+  "Nothing inside, deleted {n} selecting brush": { "one": "Nada dentro, {n} brush de seleção apagado", "other": "Nada dentro, {n} brushes de seleção apagados" },
+  "Nothing touching, deleted {n} selecting brush": { "one": "Nada encostando, {n} brush de seleção apagado", "other": "Nada encostando, {n} brushes de seleção apagados" }
 }

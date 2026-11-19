@@ -1480,9 +1480,14 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             } else {
                 ("Select Touching", msg!("Select Touching needs brushes selected."))
             };
+            let stencils = state.doc.selection.brushes(&state.doc.map).len();
             if edit_or(state, label, why, |m, s| (!s.brushes(m).is_empty()).then(|| ops::select_touching(m, s, &open_groups, inside))).is_some() {
                 let n = state.doc.selection.nodes.len();
-                state.set_status(msg_n!(n, "Selected {n} object", "Selected {n} objects"));
+                state.set_status(match (n, inside) {
+                    (0, true) => msg_n!(stencils, "Nothing inside, deleted {n} selecting brush", "Nothing inside, deleted {n} selecting brushes"),
+                    (0, false) => msg_n!(stencils, "Nothing touching, deleted {n} selecting brush", "Nothing touching, deleted {n} selecting brushes"),
+                    _ => msg_n!(n, "Selected {n} object", "Selected {n} objects"),
+                });
             }
 
             state.bind_status_to_selection();
@@ -4467,8 +4472,13 @@ mod tests {
         let empty = box_at(&mut state, DVec3::new(900.0, -40.0, 24.0), DVec3::new(64.0, 48.0, 80.0));
         state.doc.select(|_, s| s.select_node(empty));
         execute(&mut state, Action::SelectInside, &ctx);
-        assert_eq!((state.status_failed(), state.status.as_str()), (false, "Selected 0 objects"), "the refusal does not linger");
+        assert_eq!((state.status_failed(), state.status.as_str()), (false, "Nothing inside, deleted 1 selecting brush"), "the refusal does not linger");
         assert!(!state.doc.map.contains(empty));
+
+        let pair = [0.0, 300.0].map(|x| box_at(&mut state, DVec3::new(900.0 + x, -40.0, 24.0), DVec3::new(64.0, 48.0, 80.0)));
+        state.doc.select(|_, s| s.nodes.extend(pair));
+        execute(&mut state, Action::SelectTouching, &ctx);
+        assert_eq!(state.status, "Nothing touching, deleted 2 selecting brushes");
     }
 
     #[test]

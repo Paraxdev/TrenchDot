@@ -2602,5 +2602,7 @@
   "Opened group {name}, click a part to select it": "グループ {name} を開きました。パーツをクリックすると選択できます",
   "Group {name} is already open": "グループ {name} はすでに開いています",
   "Select a group to open it": "開くグループを選択してください",
-  "Closed groups {names}": "グループ {names} を閉じました"
+  "Closed groups {names}": "グループ {names} を閉じました",
+  "Nothing inside, deleted {n} selecting brush": { "other": "内側には何もありません。選択に使ったブラシ {n} 個を削除しました" },
+  "Nothing touching, deleted {n} selecting brush": { "other": "接触するものはありません。選択に使ったブラシ {n} 個を削除しました" }
 }

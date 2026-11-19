@@ -2602,5 +2602,7 @@
   "Opened group {name}, click a part to select it": "Группа {name} открыта, щёлкни по части, чтобы выбрать её",
   "Group {name} is already open": "Группа {name} уже открыта",
   "Select a group to open it": "Выбери группу, чтобы открыть её",
-  "Closed groups {names}": "Группы {names} закрыты"
+  "Closed groups {names}": "Группы {names} закрыты",
+  "Nothing inside, deleted {n} selecting brush": { "one": "Внутри ничего нет, удалён {n} выделяющий браш", "few": "Внутри ничего нет, удалено {n} выделяющих браша", "many": "Внутри ничего нет, удалено {n} выделяющих брашей" },
+  "Nothing touching, deleted {n} selecting brush": { "one": "Ничто не касается, удалён {n} выделяющий браш", "few": "Ничто не касается, удалено {n} выделяющих браша", "many": "Ничто не касается, удалено {n} выделяющих брашей" }
 }
