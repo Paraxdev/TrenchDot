@@ -34,6 +34,7 @@ static func run(t) -> void:
 	await _test_cli_instances(t)
 	await _test_cli_settings(t)
 	await _test_settings_refusals(t)
+	await _test_settings_save_fails(t)
 	await _test_scene_spacing(t)
 	_test_new_folder_settings(t)
 	await _test_lost_settings(t)
@@ -630,6 +631,23 @@ static func _test_settings_refusals(t) -> void:
 	t.check(cli.refusal(PackedStringArray(["settings", wide, "2048", "100"])) == "", "it takes the largest size and spacing")
 	var wrong := Export._cli(["settings", wide, "100", "2.5"])
 	t.check(wrong[0] == 1 and wrong[1].get("ok") == false and str(wrong[1].get("error")).contains("no region size 100") and _tree(wide) == untouched, "a wrong size exits with 1 and names it, got %s" % [wrong])
+
+## A region that cannot be saved at the new size puts the region files back from the backup and leaves the cache as
+## it was.
+static func _test_settings_save_fails(t) -> void:
+	var folder := WORK.path_join("settings_blocked")
+	(await _world(t, "settings_blocked")).free()
+	# (3, -2) at size 64 lands at (1, -1) at size 128, a folder of that file name keeps it from being saved.
+	DirAccess.make_dir_absolute(folder.path_join(TrenchDotTerrain3DCache.region_stem(Vector2i(1, -1)) + ".res"))
+	var before := _tree(folder)
+	var failed := Export._cli(["settings", folder, "128", "2.5"])
+	var error := str(failed[1].get("error"))
+	t.check(failed[0] == 1 and failed[1].get("ok") == false and error.contains("(1, -1)") and error.contains("put back") and DirAccess.dir_exists_absolute(failed[1].get("backup", "")), "a region that fails to save is named and the files are put back, got %s" % [failed])
+	var after := _tree(folder)
+	for path: String in after.keys():
+		if path.begins_with(".trenchdot/backups"):
+			after.erase(path)
+	t.check(after == before, "the region files and the cache are as they were, got %s for %s" % [after.keys(), before.keys()])
 
 ## A scene's Terrain3D on [param folder] at the spacing the test worlds have, in a slot under a map node.
 static func _reopened(t, folder: String) -> TrenchDotTerrain3D:
