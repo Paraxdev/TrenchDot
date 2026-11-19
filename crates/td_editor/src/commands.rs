@@ -858,6 +858,22 @@ pub fn apply_rebind(prefs: &mut Prefs, id: &str, chord: &KeyboardShortcut, how: 
     prefs.key_overrides.insert(id.to_string(), text);
 }
 
+fn chords_in(list: Vec<(KeyboardShortcut, Action)>, action: &Action) -> std::collections::BTreeSet<String> {
+    list.into_iter().filter(|(_, a)| a == action).map(|(s, _)| shortcut_to_text(&s)).collect()
+}
+
+/// Whether `action` has other chords than the preset gives it, from its own override or from one that took its chord.
+pub fn differs_from_preset(prefs: &Prefs, action: &Action) -> bool {
+    prefs.key_overrides.contains_key(&action.binding_id()) || chords_in(shortcuts(prefs), action) != chords_in(preset_bindings(&prefs.keymap_preset), action)
+}
+
+/// Gives `action` its preset chords back, also from the overrides that took them, whose actions return to their own.
+pub fn restore_default(prefs: &mut Prefs, action: &Action) {
+    prefs.key_overrides.remove(&action.binding_id());
+    let defaults = chords_in(preset_bindings(&prefs.keymap_preset), action);
+    prefs.key_overrides.retain(|_, text| !parse_shortcut(text).is_some_and(|s| defaults.contains(&shortcut_to_text(&s))));
+}
+
 /// Every action that can carry a key binding, for the keymap editor.
 pub fn bindable_actions() -> Vec<Action> {
     let mut out: Vec<Action> = trenchbroom_bindings().into_iter().map(|(_, a)| a).collect();

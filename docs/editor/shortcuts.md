@@ -30,6 +30,9 @@ answer.
 | **Swap** | The other command gets the key the first one had. Greyed out when the first one had none |
 | **Cancel** | Nothing changes |
 
+Changed your mind after **Replace**? Press **Default** on the row of the command that lost the key. It gets the key
+back, and the command that took it returns to its own key.
+
 A key that a tool reads itself, such as K for the knife in the Mesh tool, asks too, since that tool takes the key first
 while it is active. Press **Set anyway** to use it for the command everywhere else, or **Cancel**.
 

@@ -1503,8 +1503,8 @@ impl KeymapWindow {
                         self.taken = None;
                     }
 
-                    if state.prefs.key_overrides.contains_key(&id) && ui.small_button(tr("Default")).clicked() {
-                        state.prefs.key_overrides.remove(&id);
+                    if commands::differs_from_preset(&state.prefs, action) && ui.small_button(tr("Default")).clicked() {
+                        commands::restore_default(&mut state.prefs, action);
                         self.taken = None;
                     }
                 });
@@ -3194,6 +3194,21 @@ mod tests {
         h.run();
         assert!(h.state().0.taken.is_none(), "Default");
         assert!(overrides(&h).is_empty());
+    }
+
+    #[test]
+    fn a_command_that_lost_its_key_to_replace_takes_it_back_with_default() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        let ctrl_e = egui::KeyboardShortcut::new(egui::Modifiers::COMMAND, Key::E);
+        commands::apply_rebind(&mut h.state_mut().1.prefs, &Action::CsgSubtract.binding_id(), &ctrl_e, commands::Resolve::Replace);
+        assert!(!h.state().1.prefs.key_overrides.contains_key(&Action::SelectInside.binding_id()));
+        h.state_mut().0.filter = Action::SelectInside.title();
+        h.run();
+        h.get_by_label("Default").click();
+        h.run();
+        assert!(overrides(&h).is_empty(), "Ctrl+E goes back to Select Inside and Ctrl+K to CSG Subtract");
+        assert!(!commands::differs_from_preset(&h.state().1.prefs, &Action::SelectInside));
     }
 
     #[test]
