@@ -9769,8 +9769,11 @@ fn terrain3d_terrain_edit_over_mcp() {
     assert_eq!(painted["regions"], json!([[0, 0]]), "{painted}");
     let sprayed = probe(300.0, 400.0)["probe"].clone();
     assert_eq!((sprayed["base"].as_u64(), sprayed["overlay"].as_u64()), (Some(1), Some(2)));
-    ed.call("terrain_edit", json!({ "id": node, "op": "paint_texture", "center": [300.0, 100.0], "radius": 24.0, "texture": 7 }));
-    assert_eq!(probe(300.0, 100.0)["probe"]["base"], 7);
+    let unknown = ed.call_err("terrain_edit", json!({ "id": node, "op": "paint_texture", "center": [300.0, 100.0], "radius": 24.0, "texture": 7 }));
+    assert!(unknown.contains("texture 7") && unknown.ends_with("1, 2"), "{unknown}");
+    assert_eq!(probe(300.0, 100.0)["probe"]["base"], 1);
+    let based = ed.call("terrain_edit", json!({ "id": node, "op": "paint_texture", "center": [300.0, 100.0], "radius": 24.0, "texture": 2 }));
+    assert_eq!((probe(300.0, 100.0)["probe"]["base"].clone(), based.get("note")), (json!(2), None), "{based}");
     ed.call("terrain_edit", json!({ "id": node, "op": "holes", "center": [200.0, 200.0], "radius": 12.0 }));
     assert_eq!(probe(200.0, 200.0)["probe"]["hole"], true);
     assert_eq!(probe(200.0, 200.0)["probe_height"], Value::Null);

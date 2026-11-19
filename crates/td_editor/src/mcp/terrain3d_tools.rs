@@ -46,6 +46,25 @@ fn positive(name: &str, v: f64) -> Result<(), String> {
     if v > 0.0 { within(name, v, REACH_LIMIT) } else { Err(format!("{name} {v} must be above 0")) }
 }
 
+/// Checks a paint_texture id against the texture ids the node's cache manifest lists. A listed set refuses an id outside
+/// it, an empty list (an old cache, or a folder with no texture assets yet) accepts any id and returns a note.
+fn check_texture_known(id: u8, known: &[u32]) -> Result<Option<String>, String> {
+    if known.is_empty() {
+        return Ok(Some(format!(
+            "the node lists no textures, so texture {id} was not checked and may show nothing until Godot has a texture asset with that id"
+        )));
+    }
+
+    if known.contains(&u32::from(id)) {
+        return Ok(None);
+    }
+
+    let mut ids = known.to_vec();
+    ids.sort_unstable();
+    let list: Vec<String> = ids.iter().map(u32::to_string).collect();
+    Err(format!("texture {id} is not one of the texture ids this Terrain3D node has: {}", list.join(", ")))
+}
+
 fn xz(p: DVec3) -> DVec2 {
     DVec2::new(p.x, p.z)
 }
@@ -231,11 +250,18 @@ impl EditorState {
     }
 
     /// Runs `job` on the regions of node `id` as one undo step. Height jobs put the scatter that follows the node back on
-    /// the new ground in the same step. Returns the regions changed, none leaves no undo step.
-    pub(crate) fn run_terrain3d_job(&mut self, id: NodeId, job: &Job, label: &str, seed: u32) -> Result<Vec<Loc>, String> {
+    /// the new ground in the same step. Returns the regions changed, none leaves no undo step, and a note for the reply
+    /// when a paint could not be checked against the node's textures.
+    pub(crate) fn run_terrain3d_job(&mut self, id: NodeId, job: &Job, label: &str, seed: u32) -> Result<(Vec<Loc>, Option<String>), String> {
         let (min, max) = job.bounds();
         self.load_terrain3d_rect(id, min, max)?;
         let (_, cache) = self.terrain3d_links().into_iter().find(|(node, _)| *node == id).ok_or("no Terrain3D cache")?;
+        let mut note = None;
+        if let Job::Paint { paint: Paint::Texture { id: texture, .. }, .. } = job {
+            let known: Vec<u32> = self.terrain3d.manifest(&cache).map(|m| m.textures.iter().map(|t| t.id).collect()).unwrap_or_default();
+            note = check_texture_known(*texture, &known)?;
+        }
+
         let source = self.terrain3d.source(&cache).ok_or("no Terrain3D cache")?;
         let done = self.doc.try_edit(label, |m, _| {
             let Some(link) = m.terrain3d_mut(id) else { return Err("the Terrain3D node vanished".to_string()) };
@@ -270,8 +296,8 @@ impl EditorState {
             if locs.is_empty() { Err(String::new()) } else { Ok(locs) }
         });
         match done {
-            Ok(locs) => Ok(locs),
-            Err(e) if e.is_empty() => Ok(Vec::new()),
+            Ok(locs) => Ok((locs, note)),
+            Err(e) if e.is_empty() => Ok((Vec::new(), note)),
             Err(e) => Err(e),
         }
     }
@@ -332,8 +358,12 @@ impl App {
         };
         let seed = args["seed"].as_u64().unwrap_or(7) as u32;
         match self.state.run_terrain3d_job(id, &job, &format!("Terrain {op}"), seed) {
-            Ok(locs) => {
+            Ok((locs, note)) => {
                 let mut out = json!({ "id": id.0, "changed": !locs.is_empty(), "regions": locs });
+                if let Some(note) = note {
+                    out["note"] = json!(note);
+                }
+
                 if let Some(p) = probe {
                     match self.state.probe_terrain3d(id, p.x, p.z) {
                         Ok(v) => out["probe_height"] = v["height"].clone(),
@@ -465,6 +495,22 @@ mod tests {
 
         assert_eq!(at("paint_wetness", json!({ "roughness": 20, "erase": true })).unwrap().0, Paint::Wetness { roughness: 20, erase: true });
         assert!(at("paint_wetness", json!({ "radius": 1.0e9 })).unwrap_err().contains("radius"));
+    }
+
+    #[test]
+    fn a_texture_id_must_be_one_the_node_lists_unless_it_lists_none() {
+        assert_eq!(check_texture_known(0, &[0, 1]), Ok(None));
+        assert_eq!(check_texture_known(1, &[0, 1]), Ok(None));
+        let refused = check_texture_known(2, &[1, 0]).unwrap_err();
+        assert!(refused.contains("texture 2") && refused.ends_with("0, 1"), "{refused}");
+        assert_eq!(check_texture_known(5, &[2, 5, 9]), Ok(None));
+        assert!(check_texture_known(4, &[2, 5, 9]).unwrap_err().ends_with("2, 5, 9"));
+        assert!(check_texture_known(31, &[31]).unwrap().is_none());
+        assert!(check_texture_known(30, &[31]).is_err());
+        let note = check_texture_known(17, &[]).unwrap().expect("an empty list notes it");
+        assert!(note.contains("17") && note.contains("no textures"), "{note}");
+        assert!(check_texture_known(0, &[]).unwrap().is_some());
+        assert!(check_texture_known(31, &[]).unwrap().is_some());
     }
 
     #[test]

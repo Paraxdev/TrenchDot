@@ -475,7 +475,9 @@ wait for those files to be read. `settings` replies with its `route`, `"live_lin
 `assets` and `ocean_enabled`, which need the scene.
 
 `terrain_edit` and `scatter` accept the id of the Terrain3D node. Its `paint_texture` op takes a `texture` id and
-`mode: "base"` or `"spray"`. `paint_color` takes a `color` and `paint_wetness` a `roughness`, both blend in by
+`mode: "base"` or `"spray"`. The id is 0 to 31. When the node's textures are listed, the id has to be one of them, and
+the reply names the ids the node has when it is not. When Godot lists no textures yet, any id from 0 to 31 is accepted
+and the reply carries a `note`. `paint_color` takes a `color` and `paint_wetness` a `roughness`, both blend in by
 `strength` and take `erase`, and `paint_navigation` and `paint_autoshader` take `on`. Each paints at a `center` or
 along `points`. `probe` adds the `navigation` and `auto` marks, the `color` and the `roughness` of the nearest vertex.
 `run_action sculpt` takes `channel`, `color`, `roughness` and `erase`, and `set_editor` sets the entry and its values

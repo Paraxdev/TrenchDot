@@ -165,7 +165,7 @@ fn terrain_edit_schema() -> Value {
                 "layers": { "type": "array", "items": { "type": "array", "items": { "type": ["string", "number"] }, "description": "[material, tile, detile, sharpen]" } },
                 "hole": { "type": "boolean" }, "probe": numbers(), "sea_level": { "type": "number" }, "seed": { "type": "integer" },
                 "symmetry": symmetry_schema(),
-                "texture": { "type": "integer", "description": "paint_texture on Terrain3D: the texture id, 0 to 31" },
+                "texture": { "type": "integer", "description": "paint_texture on Terrain3D: the texture id, 0 to 31, and one of the node's textures when it lists any" },
                 "color": { "type": "string", "description": "paint_color on Terrain3D: #rrggbb" },
                 "roughness": { "type": "number", "description": "paint_wetness on Terrain3D: -100 to 100 percent, negative is wetter" },
                 "erase": { "type": "boolean", "description": "paint_color and paint_wetness on Terrain3D: take the paint away again" },

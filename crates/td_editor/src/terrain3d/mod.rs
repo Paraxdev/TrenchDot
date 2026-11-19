@@ -1267,6 +1267,41 @@ exit 3
     }
 
     #[test]
+    fn paint_texture_refuses_an_id_the_manifest_lacks_and_notes_an_empty_list() {
+        use crate::mcp::terrain3d_tools::Job;
+        use td_geom::terrain3d_tile::{Paint, PaintMode};
+
+        let dir = tempfile::tempdir().unwrap();
+        let (mut state, id, cache) = state_over(dir.path(), &[L, M]);
+        let paint = |texture: u8| Job::Paint {
+            paint: Paint::Texture { id: texture, mode: PaintMode::Spray },
+            strength: 1.0,
+            radius: 300.0,
+            points: vec![DVec3::new(L[0] as f64 * 5120.0 + 1300.0, 0.0, L[1] as f64 * 5120.0 + 2100.0)],
+        };
+        let texture = |id| terrain3d_cache::ManifestTexture { id, ..Default::default() };
+        let undo = state.doc.history.undo_labels().count();
+
+        rewrite_manifest(&mut state, &cache, |m| m.textures = vec![texture(1), texture(0)]);
+        let refused = state.run_terrain3d_job(id, &paint(2), "Terrain paint_texture", 7).unwrap_err();
+        assert!(refused.contains("texture 2") && refused.ends_with("0, 1"), "{refused}");
+        assert_eq!(state.doc.history.undo_labels().count(), undo, "a refused paint leaves no step");
+        assert!(state.doc.map.terrain3d(id).unwrap().edits.is_empty());
+
+        let (locs, note) = state.run_terrain3d_job(id, &paint(1), "Terrain paint_texture", 7).unwrap();
+        assert_eq!((locs, note), (vec![L], None));
+        assert_eq!(state.doc.history.undo_labels().count(), undo + 1);
+
+        rewrite_manifest(&mut state, &cache, |m| m.textures = vec![texture(2)]);
+        assert!(state.run_terrain3d_job(id, &paint(1), "Terrain paint_texture", 7).is_err(), "the list is read again, not kept from before");
+        assert!(state.run_terrain3d_job(id, &paint(2), "Terrain paint_texture", 7).is_ok());
+
+        rewrite_manifest(&mut state, &cache, |m| m.textures.clear());
+        let (_, note) = state.run_terrain3d_job(id, &paint(31), "Terrain paint_texture", 7).unwrap();
+        assert!(note.is_some_and(|n| n.contains("31")), "an empty list accepts the id with a note");
+    }
+
+    #[test]
     fn a_cache_without_textures_is_told_apart_from_one_that_is_not_read() {
         let dir = tempfile::tempdir().unwrap();
         let (mut state, _, cache) = state_over(dir.path(), &[L, M]);
