@@ -2596,5 +2596,6 @@
   "Pulls the selected brush faces out into new brushes, one per face": "将选中的笔刷面挤出为新笔刷，每个面一个",
   "Extrude {dist}": "挤出 {dist}",
   "Select brush faces to extrude": "请选择要挤出的笔刷面",
-  "Extrude: move the mouse or type a length, click or Enter confirms, Esc or right click cancels": "挤出：移动鼠标或输入长度，点击或 Enter 确认，Esc 或右键取消"
+  "Extrude: move the mouse or type a length, click or Enter confirms, Esc or right click cancels": "挤出：移动鼠标或输入长度，点击或 Enter 确认，Esc 或右键取消",
+  "Open group, Esc closes it": "已打开的组，按 Esc 关闭"
 }

@@ -2596,5 +2596,6 @@
   "Pulls the selected brush faces out into new brushes, one per face": "Выдавливает выбранные грани браша в новые браши, по одному на грань",
   "Extrude {dist}": "Выдавить {dist}",
   "Select brush faces to extrude": "Выберите грани браша для выдавливания",
-  "Extrude: move the mouse or type a length, click or Enter confirms, Esc or right click cancels": "Выдавливание: двигайте мышь или введите длину, щелчок или Enter подтверждает, Esc или правый щелчок отменяет"
+  "Extrude: move the mouse or type a length, click or Enter confirms, Esc or right click cancels": "Выдавливание: двигайте мышь или введите длину, щелчок или Enter подтверждает, Esc или правый щелчок отменяет",
+  "Open group, Esc closes it": "Открытая группа, Esc закрывает её"
 }

@@ -3443,3 +3443,52 @@ fn outliner_double_click_far_right_of_a_group_row_opens_it() {
     harness.run();
     assert_eq!(harness.state().state.open_groups, [r.right], "a double click right of the label opens the group");
 }
+
+#[test]
+fn outliner_hover_says_which_linked_copy_is_the_open_group() {
+    const OPEN: &str = "Open group, Esc closes it";
+    let mut f = Fixture::new();
+    let layer = f.state.doc.map.default_layer();
+    f.state.doc.edit("add", |m, s| {
+        let id = m.insert(layer, NodeKind::Brush(Brush::from_aabb(&Aabb::new(DVec3::new(8.0, 40.0, 3.0), DVec3::new(72.0, 90.0, 61.0)), "dev/grey").unwrap()));
+        s.select_node(id);
+    });
+    let original = f.state.doc.edit("group", |m, s| ops::group_selection(m, s, "room", layer)).unwrap();
+    let copy = f.state.doc.edit("link", |m, s| ops::duplicate_linked(m, s, DVec3::new(128.0, 0.0, 0.0), Default::default()))[0];
+    f.state.doc.select(|_, s| s.clear());
+    f.state.open_groups = vec![copy];
+    let mut harness = Harness::builder()
+        .with_size(egui::vec2(360.0, 400.0))
+        .build_ui_state(|ui, f: &mut Fixture| panels::outliner(ui, &mut f.state, &mut f.panels, &mut f.actions), f);
+    harness.run();
+    harness.get_by_label("Expand").click();
+    harness.run();
+    assert_eq!(harness.get_all_by_label("room (linked)").count(), 2, "both copies read the same");
+
+    let tip = |harness: &mut Harness<'_, Fixture>, row: usize| {
+        harness.get_all_by_label("room (linked)").nth(row).unwrap().hover();
+        harness.run_steps(60);
+        harness.query_by_label(OPEN).is_some()
+    };
+    assert!(!tip(&mut harness, 0), "the closed copy {original:?} says nothing about being open");
+    assert!(tip(&mut harness, 1), "the open copy {copy:?} says Esc closes it");
+
+    // Open groups inside each other are each marked.
+    let inner = harness.state_mut().state.doc.edit("add", |m, s| {
+        let id = m.insert(copy, NodeKind::Brush(Brush::from_aabb(&Aabb::new(DVec3::new(300.0, 5.0, 7.0), DVec3::new(340.0, 45.0, 37.0)), "dev/grey").unwrap()));
+        s.clear();
+        s.select_node(id);
+        ops::group_selection(m, s, "shelf", copy).unwrap()
+    });
+    {
+        let st = &mut harness.state_mut().state;
+        st.doc.select(|_, s| s.clear());
+        st.open_groups = vec![copy, inner];
+        st.outliner_reveal = Some(inner);
+    }
+
+    harness.run();
+    harness.get_by_label("shelf").hover();
+    harness.run_steps(60);
+    harness.get_by_label(OPEN);
+}

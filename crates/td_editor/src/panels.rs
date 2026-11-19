@@ -230,6 +230,12 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
                     NodeKind::Scatter(_) => (icons::SCATTER, theme::colors().teal),
                 };
                 let panel = theme::colors();
+                let open = matches!(node.kind, NodeKind::Group(_)) && state.open_groups.contains(id);
+                let (icon, color) = match (open, selected) {
+                    (true, false) => (icons::OPEN, panel.accent),
+                    (true, true) => (icons::OPEN, panel.fg),
+                    (false, _) => (icon, color),
+                };
                 ui.add(icon.image(icons::SMALL).tint(panel.readable(color, panel.gray_1)));
                 let mut label = node.name();
                 if let NodeKind::Layer(_) = node.kind {
@@ -262,7 +268,10 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
 
                 // Justified so the label takes the rest of the row, the empty part right of the text is a target too.
                 let resp = ui
-                    .with_layout(egui::Layout::left_to_right(egui::Align::Center).with_main_justify(true), |ui| ui.selectable_label(selected, label))
+                    .with_layout(egui::Layout::left_to_right(egui::Align::Center).with_main_justify(true), |ui| {
+                        let text = RichText::new(label);
+                        ui.selectable_label(selected, if open && !selected { text.color(panel.readable(panel.accent, panel.gray_1)) } else { text })
+                    })
                     .inner
                     .interact(Sense::drag());
                 if resp.hovered() {
@@ -302,7 +311,7 @@ pub fn outliner(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, actio
                 let resp = if matches!(node.kind, NodeKind::Layer(_)) || resp.dragged() || egui::DragAndDrop::has_any_payload(ui.ctx()) {
                     resp
                 } else {
-                    resp.on_hover_ui(|ui| outliner_tooltip(ui, map, *id, node))
+                    resp.on_hover_ui(|ui| outliner_tooltip(ui, map, *id, node, open))
                 };
                 if resp.clicked() {
                     // A layer click also makes it current; selecting it as well lets Delete and the other node ops act on it.
@@ -648,8 +657,12 @@ fn xyz(v: DVec3, sep: &str) -> String {
     [v.x, v.y, v.z].map(widgets::format_number).join(sep)
 }
 
-fn outliner_tooltip(ui: &mut Ui, map: &td_doc::Map, id: NodeId, node: &td_doc::Node) {
+fn outliner_tooltip(ui: &mut Ui, map: &td_doc::Map, id: NodeId, node: &td_doc::Node, open: bool) {
     ui.label(RichText::new(node.name()).strong());
+    if open {
+        ui.label(tr("Open group, Esc closes it"));
+    }
+
     if node.label.is_some() && !node.kind.has_own_name() {
         ui.label(RichText::new(node.default_name()).weak());
     }

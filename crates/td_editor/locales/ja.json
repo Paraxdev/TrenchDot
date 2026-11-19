@@ -2596,5 +2596,6 @@
   "Pulls the selected brush faces out into new brushes, one per face": "選択したブラシの面を新しいブラシとして押し出します。面ごとに 1 つです",
   "Extrude {dist}": "押し出し {dist}",
   "Select brush faces to extrude": "押し出すブラシの面を選択してください",
-  "Extrude: move the mouse or type a length, click or Enter confirms, Esc or right click cancels": "押し出し：マウスを動かすか長さを入力、クリックか Enter で確定、Esc か右クリックで取消"
+  "Extrude: move the mouse or type a length, click or Enter confirms, Esc or right click cancels": "押し出し：マウスを動かすか長さを入力、クリックか Enter で確定、Esc か右クリックで取消",
+  "Open group, Esc closes it": "開いているグループです。Esc で閉じます"
 }

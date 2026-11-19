@@ -2596,5 +2596,6 @@
   "Pulls the selected brush faces out into new brushes, one per face": "Saca las caras de brush seleccionadas como brushes nuevos, uno por cara",
   "Extrude {dist}": "Extruir {dist}",
   "Select brush faces to extrude": "Seleccione caras de brush para extruir",
-  "Extrude: move the mouse or type a length, click or Enter confirms, Esc or right click cancels": "Extruir: mueva el ratón o escriba una longitud, clic o Enter confirma, Esc o clic derecho cancela"
+  "Extrude: move the mouse or type a length, click or Enter confirms, Esc or right click cancels": "Extruir: mueva el ratón o escriba una longitud, clic o Enter confirma, Esc o clic derecho cancela",
+  "Open group, Esc closes it": "Grupo abierto, Esc lo cierra"
 }
