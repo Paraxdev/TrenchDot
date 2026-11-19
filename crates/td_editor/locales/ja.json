@@ -2576,5 +2576,11 @@
   "Flip Horizontal": "水平反転",
   "Flip Vertical": "垂直反転",
   "Mirrors the selection across its center left to right in the view under the pointer": "ポインターの下のビューで、選択範囲を中心を軸に左右に反転します",
-  "Mirrors the selection across its center top to bottom in the view under the pointer": "ポインターの下のビューで、選択範囲を中心を軸に上下に反転します"
+  "Mirrors the selection across its center top to bottom in the view under the pointer": "ポインターの下のビューで、選択範囲を中心を軸に上下に反転します",
+  "Transform Selection": "選択範囲を変形",
+  "Transform Selection…": "選択範囲を変形…",
+  "Select objects to transform": "変形するオブジェクトを選択してください",
+  "A scale factor cannot be 0": "スケール係数は0にできません",
+  "The values change nothing": "この値では何も変わりません",
+  "Moves, turns or scales the selection by typed numbers": "入力した数値で選択範囲を移動、回転、拡縮します"
 }

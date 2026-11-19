@@ -153,6 +153,7 @@ pub enum Action {
     ShowShapeDialog,
     ShowSweepDialog,
     ShowArrayDialog,
+    ShowTransformDialog,
     ShowFindDialog,
     ShowSplineDialog,
     ShowTrimDialog,
@@ -392,6 +393,7 @@ impl Action {
             Action::ShowShapeDialog => en!("Shape Generator"),
             Action::ShowSweepDialog => en!("Sweep Faces"),
             Action::ShowArrayDialog => en!("Array Copies"),
+            Action::ShowTransformDialog => en!("Transform Selection"),
             Action::ShowFindDialog => en!("Find and Replace"),
             Action::ShowSplineDialog => en!("Place Along Path"),
             Action::ShowTrimDialog => en!("Add Trim"),
@@ -507,6 +509,7 @@ impl Action {
             Action::SelectAllInMode => en!("Selects every object, in Face mode every face of the visible brushes and meshes"),
             Action::IsolateSelected => en!("Hides everything except the selection, Show All brings it back"),
             Action::DuplicateLinked => en!("Copies the selection as a linked group, editing one copy changes every copy"),
+            Action::ShowTransformDialog => en!("Moves, turns or scales the selection by typed numbers"),
             Action::FlipHorizontal => en!("Mirrors the selection across its center left to right in the view under the pointer"),
             Action::FlipVertical => en!("Mirrors the selection across its center top to bottom in the view under the pointer"),
             Action::MirrorLinked { .. } => en!("Copies the selection as a linked group mirrored across a plane, edits in either half show in both"),
@@ -719,7 +722,7 @@ pub fn preset_bindings(preset: &str) -> Vec<(KeyboardShortcut, Action)> {
             (sc(CTRL, Key::I), Action::FlipVertical),
             (sc(CTRL_SHIFT, Key::I), Action::SelectInverse),
             (sc(CTRL_SHIFT, Key::R), Action::Rotate { axis: 1, degrees: 90.0 }),
-            (sc(CTRL, Key::M), Action::ShowShapeDialog),
+            (sc(CTRL, Key::M), Action::ShowTransformDialog),
             (sc(SHIFT, Key::A), Action::SetTool(ToolKind::Texture)),
             (sc(CTRL, Key::F4), Action::CloseTab),
             (sc(CTRL_SHIFT, Key::M), Action::CsgMerge),
@@ -1759,6 +1762,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         | Action::ShowShapeDialog
         | Action::ShowSweepDialog
         | Action::ShowArrayDialog
+        | Action::ShowTransformDialog
         | Action::FlipHorizontal
         | Action::FlipVertical
         | Action::ShowFindDialog
@@ -3497,6 +3501,9 @@ mod tests {
             assert_eq!(has(Action::FlipHorizontal, sc(CTRL, Key::L)), hammer, "{preset}");
             assert_eq!(has(Action::FlipVertical, sc(CTRL, Key::I)), hammer, "{preset}");
             assert_eq!(has(Action::Rotate { axis: 1, degrees: 90.0 }, sc(CTRL_SHIFT, Key::R)), hammer, "{preset}");
+            assert_eq!(has(Action::ShowTransformDialog, sc(CTRL, Key::M)), hammer, "{preset}");
+            assert_eq!(bindings.iter().any(|(_, a)| *a == Action::ShowTransformDialog), hammer, "{preset}: only Hammer binds Transform Selection");
+            assert!(has(Action::ShowShapeDialog, sc(CTRL_SHIFT, Key::B)), "{preset}: the Shape Generator keeps its base key");
             assert_eq!(bindings.iter().any(|(_, a)| matches!(a, Action::FlipHorizontal | Action::FlipVertical | Action::Rotate { .. })), hammer, "{preset}");
             let blender = preset == "blender";
             assert_eq!(has(Action::ObjectMode, sc(NONE, Key::Num1)), blender, "{preset}");

@@ -65,6 +65,7 @@ pub mod theme;
 pub mod tool_keys;
 pub mod tools;
 pub mod toolset;
+pub mod transform_dialog;
 pub mod transform_gizmo;
 pub mod trim;
 pub mod trust;

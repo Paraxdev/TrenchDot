@@ -2576,5 +2576,11 @@
   "Flip Horizontal": "Отразить по горизонтали",
   "Flip Vertical": "Отразить по вертикали",
   "Mirrors the selection across its center left to right in the view under the pointer": "Отражает выделение относительно его центра слева направо в виде под указателем",
-  "Mirrors the selection across its center top to bottom in the view under the pointer": "Отражает выделение относительно его центра сверху вниз в виде под указателем"
+  "Mirrors the selection across its center top to bottom in the view under the pointer": "Отражает выделение относительно его центра сверху вниз в виде под указателем",
+  "Transform Selection": "Преобразовать выделение",
+  "Transform Selection…": "Преобразовать выделение…",
+  "Select objects to transform": "Выберите объекты для преобразования",
+  "A scale factor cannot be 0": "Коэффициент масштаба не может быть 0",
+  "The values change nothing": "Эти значения ничего не меняют",
+  "Moves, turns or scales the selection by typed numbers": "Перемещает, поворачивает или масштабирует выделение по введённым числам"
 }

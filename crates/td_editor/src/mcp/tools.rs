@@ -642,6 +642,14 @@ fn dialog_action(name: &str) -> Option<&'static str> {
     })
 }
 
+/// Actions that open a window of fields, with the MCP call that takes the same numbers.
+fn window_action(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "transform_selection" => "transform {translate, rotate, scale}",
+        _ => return None,
+    })
+}
+
 /// Actions that act along the screen axes of the view under the pointer, which an MCP call has none of, with the call to
 /// use instead.
 fn view_action(name: &str) -> Option<&'static str> {
@@ -1367,6 +1375,10 @@ impl App {
         let a = &args["args"];
         if let Some(instead) = dialog_action(name) {
             return err(format!("{name} opens a native file dialog, which MCP cannot answer, use {instead} instead"));
+        }
+
+        if let Some(instead) = window_action(name) {
+            return err(format!("{name} opens a window to type numbers into, which MCP has no use for, use {instead} instead"));
         }
 
         if let Some(instead) = view_action(name) {
@@ -3421,6 +3433,8 @@ mod tests {
         assert_eq!(view_action("flip_horizontal"), Some("flip {axis}"));
         assert_eq!(view_action("flip_vertical"), Some("flip {axis}"));
         assert!(view_action("flip").is_none());
+        assert_eq!(window_action("transform_selection"), Some("transform {translate, rotate, scale}"));
+        assert!(window_action("transform").is_none());
 
         // Commands report failures through fail_status, which run_action turns into errors whatever the wording.
         let ctx = egui::Context::default();

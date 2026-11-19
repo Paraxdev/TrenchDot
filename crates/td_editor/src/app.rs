@@ -133,6 +133,7 @@ pub struct App {
     trim_dialog: crate::trim::TrimDialog,
     sweep_dialog: crate::sweep_dialog::SweepDialog,
     array_dialog: crate::array_dialog::ArrayDialog,
+    transform_dialog: crate::transform_dialog::TransformDialog,
     find_dialog: crate::find_dialog::FindDialog,
     spline_dialog: crate::spline_dialog::SplineDialog,
     fill_dialog: crate::random_fill::RandomFillDialog,
@@ -191,11 +192,12 @@ pub struct App {
     pub(crate) tool_options_rect: egui::Rect,
 }
 
-const WINDOW_TITLES: [&str; 16] = [
+const WINDOW_TITLES: [&str; 17] = [
     "Shape Generator",
     "Add Trim",
     "Sweep Faces",
     "Array Copies",
+    "Transform Selection",
     "Find and Replace",
     "Place Along Path",
     "Random Fill",
@@ -1094,6 +1096,7 @@ impl App {
             trim_dialog: Default::default(),
             sweep_dialog: Default::default(),
             array_dialog: Default::default(),
+            transform_dialog: Default::default(),
             find_dialog: Default::default(),
             spline_dialog: Default::default(),
             fill_dialog: Default::default(),
@@ -1217,6 +1220,7 @@ impl App {
             Action::ShowTrimDialog => self.trim_dialog.open = true,
             Action::ShowSweepDialog => self.sweep_dialog.open = true,
             Action::ShowArrayDialog => self.array_dialog.open = true,
+            Action::ShowTransformDialog => self.transform_dialog.open(),
             Action::FlipHorizontal | Action::FlipVertical => {
                 let view = self.view_to_maximize();
                 let axis = self.viewports.get(view).map_or(0, |v| v.camera.flip_axis(action == Action::FlipHorizontal));
@@ -1555,6 +1559,7 @@ impl App {
                     }
 
                     ui.separator();
+                    m.item(ui, None, en!("Transform Selection…"), Action::ShowTransformDialog);
                     m.item(ui, None, en!("Flip Horizontal"), Action::FlipHorizontal);
                     m.item(ui, None, en!("Flip Vertical"), Action::FlipVertical);
                     for axis in 0..3 {
@@ -3334,6 +3339,7 @@ impl eframe::App for App {
         self.trim_dialog.show(&ctx, &mut self.state);
         self.sweep_dialog.show(&ctx, &mut self.state);
         self.array_dialog.show(&ctx, &mut self.state);
+        self.transform_dialog.show(&ctx, &mut self.state);
         self.find_dialog.show(&ctx, &mut self.state);
         self.spline_dialog.show(&ctx, &mut self.state);
         self.fill_dialog.show(&ctx, &mut self.state);

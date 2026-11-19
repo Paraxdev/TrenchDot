@@ -157,7 +157,7 @@ A preset only changes the keys below, everything else stays as above. Your own b
 | Shift+S, Shift+X, Shift+V, Shift+A | Select, clip, vertex, texture tool |
 | H, Ctrl+H, U | Hide, isolate, show all |
 | Ctrl+W | Move brushes to world |
-| Ctrl+M | Shape generator |
+| Ctrl+M | Transform Selection, a window that moves, rotates or scales the selection by typed numbers. The shape generator stays on Ctrl+Shift+B |
 | Ctrl+L, Ctrl+I | Flip Horizontal, Flip Vertical. They mirror the selection across its center along the screen axes of the view under the pointer, like Hammer. In 3D, horizontal is whichever of X or Z lies closer to the camera's right. In the Mesh tool Ctrl+L still selects linked |
 | Ctrl+Shift+I, Ctrl+Shift+R | Select inverse, rotate 90° around the vertical axis |
 | Ctrl+Shift+M, Ctrl+Shift+L | CSG convex merge, intersect |

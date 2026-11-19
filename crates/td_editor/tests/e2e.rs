@@ -3907,6 +3907,37 @@ fn hammer_ctrl_l_and_ctrl_i_flip_along_the_view_under_the_pointer() {
     assert_eq!(verts(), flipped_xy, "and Ctrl+L stays a CSG intersect, which leaves a lone brush alone");
 }
 
+/// Ctrl+M opens the Transform Selection window in the Hammer preset and still merges brushes in TrenchBroom, where the
+/// window has no key.
+#[test]
+#[ignore]
+fn ctrl_m_opens_transform_selection_in_hammer_and_merges_in_trenchbroom() {
+    let ed = Editor::launch("hammer_transform_dialog");
+    let a = ed.box_brush([40.0, 8.0, -72.0], [104.0, 72.0, -20.0]);
+    let b = ed.box_brush([104.0, 8.0, -72.0], [136.0, 72.0, -20.0]);
+    ed.call("select", json!({ "ids": [a, b] }));
+    let press = |mods: &[&str]| ed.input("top", json!([{ "type": "move" }, { "type": "key", "key": "M", "modifiers": mods }]));
+
+    ed.call("set_editor", json!({ "keymap": "trenchbroom" }));
+    press(&["ctrl"]);
+    assert!(!window_titles(&ed).contains(&"Transform Selection".to_string()), "{:?}", window_titles(&ed));
+    assert_eq!(selected(&ed).len(), 1, "TrenchBroom Ctrl+M merges the two brushes into one");
+    ed.call("run_action", json!({ "action": "undo" }));
+    assert_eq!(ed.state()["selection"]["nodes"].as_array().unwrap().len(), 2);
+
+    ed.call("set_editor", json!({ "keymap": "hammer" }));
+    ed.call("select", json!({ "ids": [a, b] }));
+    press(&["ctrl", "shift"]);
+    assert_eq!(selected(&ed).len(), 1, "the merge moved to Ctrl+Shift+M in Hammer");
+    ed.call("run_action", json!({ "action": "undo" }));
+    ed.call("select", json!({ "ids": [a, b] }));
+    press(&["ctrl"]);
+    assert!(window_titles(&ed).contains(&"Transform Selection".to_string()), "{:?}", window_titles(&ed));
+    assert_eq!(selected(&ed).len(), 2, "Hammer Ctrl+M leaves the brushes alone");
+
+    assert!(ed.call_err("run_action", json!({ "action": "transform_selection" })).contains("transform {translate, rotate, scale}"));
+}
+
 #[test]
 #[ignore]
 fn the_mesh_tool_keeps_ctrl_l_for_select_linked_in_the_hammer_preset() {

@@ -2576,5 +2576,11 @@
   "Flip Horizontal": "Espelhar na horizontal",
   "Flip Vertical": "Espelhar na vertical",
   "Mirrors the selection across its center left to right in the view under the pointer": "Espelha a seleção em torno do centro, da esquerda para a direita, na vista sob o ponteiro",
-  "Mirrors the selection across its center top to bottom in the view under the pointer": "Espelha a seleção em torno do centro, de cima para baixo, na vista sob o ponteiro"
+  "Mirrors the selection across its center top to bottom in the view under the pointer": "Espelha a seleção em torno do centro, de cima para baixo, na vista sob o ponteiro",
+  "Transform Selection": "Transformar seleção",
+  "Transform Selection…": "Transformar seleção…",
+  "Select objects to transform": "Selecione objetos para transformar",
+  "A scale factor cannot be 0": "Um fator de escala não pode ser 0",
+  "The values change nothing": "Os valores não mudam nada",
+  "Moves, turns or scales the selection by typed numbers": "Move, gira ou escala a seleção com números digitados"
 }

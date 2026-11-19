@@ -89,6 +89,7 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
         entry(en!("Edit"), en!("Redo"), Action::Redo),
         entry(en!("Edit"), en!("Duplicate"), Action::Duplicate),
         entry(en!("Edit"), en!("Array Copies of the selection"), Action::ShowArrayDialog),
+        entry(en!("Transform"), en!("Transform Selection"), Action::ShowTransformDialog),
         entry(en!("Transform"), en!("Flip Horizontal"), Action::FlipHorizontal),
         entry(en!("Transform"), en!("Flip Vertical"), Action::FlipVertical),
         entry(en!("Edit"), en!("Rename"), Action::Rename),
@@ -323,6 +324,7 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
 fn aliases(action: &Action) -> &'static [&'static str] {
     match action {
         Action::UnlinkGroups => &["Make Unique", "Make Single User", "Unlink Groups"],
+        Action::ShowTransformDialog => &["Transformations"],
         _ => &[],
     }
 }
