@@ -1691,9 +1691,10 @@ impl KeymapWindow {
                 fixed_cell(ui, columns.keys, |ui| {
                     ui.label(RichText::new(row.chord()).monospace());
                 });
-                ui.allocate_ui(egui::vec2(what_width, 0.0), |ui| {
-                    ui.add(egui::Label::new(describe(row)).wrap());
-                });
+                // Laid out up front, since the grid centers each cell on its row and a cell that grows as it fills would
+                // start at the middle.
+                let what = egui::WidgetText::from(describe(row)).into_galley(ui, Some(egui::TextWrapMode::Wrap), what_width, egui::TextStyle::Body);
+                ui.label(what);
                 ui.end_row();
             }
         });
@@ -3619,6 +3620,9 @@ mod tests {
         assert_eq!(h.get_by_label(Action::SelectAll.title().as_str()).rect().min.x, mesh.min.x);
         let chords: Vec<f32> = h.get_all_by_label("Ctrl+A").map(|n| n.rect().min.x).collect();
         assert!(chords.len() >= 2 && chords.iter().all(|x| *x == chords[0]), "{chords:?}");
+        let rows: Vec<f32> = h.get_all_by_label("Mesh").map(|n| n.rect().center().y).collect();
+        let what: Vec<f32> = h.get_all_by_label("Select all in the current mode").map(|n| n.rect().center().y).collect();
+        assert!(what.len() == 2 && what.iter().all(|w| rows.iter().any(|r| (w - r).abs() < 1.0)), "descriptions {what:?} beside rows {rows:?}");
     }
 
     #[test]
