@@ -554,7 +554,8 @@ fn open_outliner_row(state: &mut EditorState, ps: &mut PanelState, id: NodeId) {
     let group_row = matches!(map.get(id).map(|n| &n.kind), Some(NodeKind::Group(_)));
     let around = map.ancestors(id);
     let closes_another = state.open_groups.iter().any(|g| *g != id && !around.contains(g));
-    if !state.open_groups_to(id) {
+    let opened = if group_row { state.open_group_unselected(id) } else { state.open_groups_to(id) };
+    if !opened {
         if closes_another {
             let target = state.doc.map.click_target(id, &state.open_groups);
             state.doc.select(|_, s| {
@@ -571,7 +572,6 @@ fn open_outliner_row(state: &mut EditorState, ps: &mut PanelState, id: NodeId) {
 
     if group_row {
         ps.expanded.insert(id);
-        state.doc.select(|_, s| s.clear());
     } else {
         state.doc.select(|_, s| {
             s.clear();

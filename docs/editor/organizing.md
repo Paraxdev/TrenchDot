@@ -76,7 +76,9 @@ inside picks single objects. A brush you draw while a group is open lands in tha
 Clicking something outside the open group closes it, so a new brush never ends up in a group you forgot about. With
 groups inside groups, each double click opens one level and each double click on empty space or Esc press closes one.
 Esc only does this once nothing is selected and the Select tool is active, see [Shortcuts](shortcuts.md#tools).
-*Edit > Groups > Open Group* opens the selected group, and *Close Group* closes the open one and selects it.
+*Edit > Groups > Open Group* opens the selected group, and so does a double click on its Outliner row. Neither has a cursor to
+pick a part with, so nothing is selected afterwards and the status bar says to click a part. *Close Group* closes the open
+one and selects it.
 Shift+click still picks a single face inside a closed group. The Hammer preset differs here, Shift+click selects the
 group like a plain click and you pick a face with the Texture tool. So does the Blender preset, where Shift+click and
 Ctrl+click both add or remove the whole group in Object mode and you pick a single face in Face mode, see

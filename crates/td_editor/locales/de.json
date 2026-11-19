@@ -2597,5 +2597,9 @@
   "Extrude {dist}": "Extrudieren {dist}",
   "Select brush faces to extrude": "Brush-Flächen zum Extrudieren auswählen",
   "Extrude: move the mouse or type a length, click or Enter confirms, Esc or right click cancels": "Extrudieren: Maus bewegen oder eine Länge eintippen, Klick oder Enter bestätigt, Esc oder Rechtsklick bricht ab",
-  "Open group, Esc closes it": "Offene Gruppe, Esc schließt sie"
+  "Open group, Esc closes it": "Offene Gruppe, Esc schließt sie",
+  "Opened group {name}, click a part to select it": "Gruppe {name} geöffnet, klicke auf ein Teil, um es zu wählen",
+  "Group {name} is already open": "Gruppe {name} ist schon offen",
+  "Select a group to open it": "Wähle eine Gruppe, um sie zu öffnen",
+  "Closed groups {names}": "Gruppen {names} geschlossen"
 }

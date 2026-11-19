@@ -3105,6 +3105,8 @@ fn outliner_double_click_opens_the_group_and_reaches_the_row() {
     double(&mut harness, r.right);
     assert_eq!(harness.state().state.open_groups, [r.right], "opening another half closes the first one");
     assert!(selection(&harness).is_empty(), "a group row opens the group and clears the selection");
+    let status = harness.state().state.status.clone();
+    assert!(status.starts_with("Opened group") && status.ends_with("click a part to select it"), "{status}");
 
     let rows = |h: &Harness<'_, Fixture>| h.query_all_by_label(&row_label(h, r.right_brushes[0])).count();
     let shown = rows(&harness);

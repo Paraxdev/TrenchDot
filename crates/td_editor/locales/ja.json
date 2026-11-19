@@ -2597,5 +2597,9 @@
   "Extrude {dist}": "押し出し {dist}",
   "Select brush faces to extrude": "押し出すブラシの面を選択してください",
   "Extrude: move the mouse or type a length, click or Enter confirms, Esc or right click cancels": "押し出し：マウスを動かすか長さを入力、クリックか Enter で確定、Esc か右クリックで取消",
-  "Open group, Esc closes it": "開いているグループです。Esc で閉じます"
+  "Open group, Esc closes it": "開いているグループです。Esc で閉じます",
+  "Opened group {name}, click a part to select it": "グループ {name} を開きました。パーツをクリックすると選択できます",
+  "Group {name} is already open": "グループ {name} はすでに開いています",
+  "Select a group to open it": "開くグループを選択してください",
+  "Closed groups {names}": "グループ {names} を閉じました"
 }

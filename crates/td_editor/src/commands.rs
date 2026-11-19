@@ -1796,9 +1796,15 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
                 .copied()
                 .filter(|id| matches!(state.doc.map.get(*id).map(|n| &n.kind), Some(td_doc::NodeKind::Group(_))))
                 .collect();
-            if let Some(g) = groups.first() {
-                state.open_groups_to(*g);
-                state.doc.select(|_, s| s.clear());
+            match groups.first() {
+                Some(g) if state.open_groups.contains(g) => {
+                    let name = state.doc.map.get(*g).map(|n| n.name()).unwrap_or_default();
+                    state.set_status(msg!("Group {name} is already open", name));
+                }
+                Some(g) => {
+                    state.open_group_unselected(*g);
+                }
+                None => state.fail_status(msg!("Select a group to open it")),
             }
         }
         Action::CloseGroup => {
@@ -3814,6 +3820,39 @@ mod tests {
         state.set_status(msg!("marker"));
         execute(&mut state, Action::Cancel, &ctx);
         assert_eq!(state.status, "marker", "other messages stay");
+    }
+
+    #[test]
+    fn open_group_says_what_it_opened_and_why_it_did_nothing() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        let (brush, inner, outer) = nested_groups(&mut state);
+        state.doc.select(|_, s| s.clear());
+        state.set_status(msg!("marker"));
+        execute(&mut state, Action::OpenGroup, &ctx);
+        assert_eq!((state.open_groups.is_empty(), state.status.as_str()), (true, "Select a group to open it"));
+
+        state.doc.select(|_, s| s.select_node(brush));
+        state.set_status(msg!("marker"));
+        execute(&mut state, Action::OpenGroup, &ctx);
+        assert_eq!((state.open_groups.is_empty(), state.status.as_str()), (true, "Select a group to open it"), "a brush is no group");
+
+        state.doc.select(|_, s| s.select_node(outer));
+        execute(&mut state, Action::OpenGroup, &ctx);
+        assert_eq!(state.open_groups, [outer]);
+        assert!(state.doc.selection.nodes.is_empty(), "no cursor to pick a part from");
+        assert_eq!(state.status, "Opened group Outer, click a part to select it");
+
+        state.doc.select(|_, s| s.select_node(inner));
+        execute(&mut state, Action::OpenGroup, &ctx);
+        assert_eq!(state.open_groups, [outer, inner]);
+        assert_eq!(state.status, "Opened group Inner, click a part to select it");
+
+        state.doc.select(|_, s| s.select_node(inner));
+        execute(&mut state, Action::OpenGroup, &ctx);
+        assert_eq!(state.open_groups, [outer, inner]);
+        assert_eq!(state.doc.selection.nodes.iter().copied().collect::<Vec<_>>(), [inner], "an open group stays selected");
+        assert_eq!(state.status, "Group Inner is already open");
     }
 
     #[test]

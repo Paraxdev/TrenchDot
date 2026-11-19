@@ -2597,5 +2597,9 @@
   "Extrude {dist}": "挤出 {dist}",
   "Select brush faces to extrude": "请选择要挤出的笔刷面",
   "Extrude: move the mouse or type a length, click or Enter confirms, Esc or right click cancels": "挤出：移动鼠标或输入长度，点击或 Enter 确认，Esc 或右键取消",
-  "Open group, Esc closes it": "已打开的组，按 Esc 关闭"
+  "Open group, Esc closes it": "已打开的组，按 Esc 关闭",
+  "Opened group {name}, click a part to select it": "已打开组 {name}，点击某个部件可选择它",
+  "Group {name} is already open": "组 {name} 已经打开",
+  "Select a group to open it": "请先选择一个组再打开",
+  "Closed groups {names}": "已关闭组 {names}"
 }
