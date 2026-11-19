@@ -1,4 +1,4 @@
-//! Primitive generators. All shapes fit inside `bounds` and use Y as the height axis.
+//! Primitive generators. All shapes but a sloped tunnel fit inside `bounds`, and they use Y as the height axis.
 
 use std::f64::consts::TAU;
 

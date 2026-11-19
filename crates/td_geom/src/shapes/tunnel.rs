@@ -2,7 +2,7 @@
 
 use std::f64::consts::FRAC_PI_2;
 
-use td_core::{Aabb, DVec2, DVec3};
+use td_core::{Aabb, DVec2, DVec3, Plane};
 
 use super::{ARCH_MIN_ANGLE, Axis, arch_quads, arch_radius, arch_sweep, hull, ring};
 use crate::brush::Brush;
@@ -59,6 +59,9 @@ pub struct Tunnel {
     pub walkway_height: f64,
     /// The world axis the tunnel runs along. Along Y it is a shaft whose ceiling side faces -Z.
     pub axis: Axis,
+    /// How far the far end climbs toward the ceiling side, at most twice the length either way. Both ends stay plumb
+    /// on the box's end planes.
+    pub rise: f64,
 }
 
 impl Default for Tunnel {
@@ -74,6 +77,7 @@ impl Default for Tunnel {
             walkway_width: 32.0,
             walkway_height: 16.0,
             axis: Axis::Z,
+            rise: 0.0,
         }
     }
 }
@@ -88,7 +92,7 @@ impl Tunnel {
             _ => self.angle,
         };
         let walkway = walkways(bounds, self, thickness).0;
-        Tunnel { thickness, angle, walkway_width: walkway.x, walkway_height: walkway.y, ..*self }
+        Tunnel { thickness, angle, walkway_width: walkway.x, walkway_height: walkway.y, rise: tunnel_rise(bounds, self.rise), ..*self }
     }
 
     /// The thickest wall [`tunnel`] builds in `bounds`, 40% of the smaller side of the cross section.
@@ -120,12 +124,23 @@ pub fn tunnel_thickness(bounds: &Aabb, thickness: f64) -> f64 {
     thickness.max(1.0).min(size.x.min(size.y) * 0.4)
 }
 
-/// Tunnel filling the bounds along its axis. The side walls run the full height, the ceiling and floor sit between
-/// them, then come the walkways. An arched tunnel stands its walls up to where the arch begins, the arch rising at
-/// most `min(width, height) / 2`.
+/// The rise a tunnel really gets, at most twice its length either way.
+fn tunnel_rise(bounds: &Aabb, rise: f64) -> f64 {
+    let most = bounds.size().z * 2.0;
+    rise.clamp(-most, most)
+}
+
+/// Tunnel filling the bounds along its axis, its far end raised by the rise and left sticking out of them. The side
+/// walls run the full height, the ceiling and floor sit between them, then come the walkways. An arched tunnel stands
+/// its walls up to where the arch begins, the arch rising at most `min(width, height) / 2`.
 pub fn tunnel(bounds: &Aabb, params: &Tunnel, material: &str) -> Vec<Brush> {
     let frame = Frame::new(bounds, params.axis);
-    section(&frame.upright, params).iter().filter_map(|piece| place_straight(piece, &frame.upright, material)).map(|b| frame.lay(b)).collect()
+    let rise = tunnel_rise(&frame.upright, params.rise);
+    section(&frame.upright, params)
+        .iter()
+        .filter_map(|piece| place_straight(piece, &frame.upright, material))
+        .map(|b| frame.lay(slope(b, &frame.upright, rise)))
+        .collect()
 }
 
 /// The upright box a tunnel is built in, width along X, up along Y and length along Z, and the turn that lays it
@@ -361,6 +376,36 @@ fn place_straight(piece: &Piece, bounds: &Aabb, material: &str) -> Option<Brush>
         Piece::Rect(min, max) => Brush::from_aabb(&Aabb::new(min.extend(near), max.extend(far)), material).ok(),
         Piece::Poly(points) => hull(&points.iter().flat_map(|p| [p.extend(near), p.extend(far)]).collect::<Vec<_>>(), material),
     }
+}
+
+/// Shears a straight piece so its far end climbs `rise` along +Y, each end staying on its plane. The finished corners
+/// are moved rather than hulled again, since a new hull would cut them from its planes and land a hair off.
+fn slope(mut brush: Brush, bounds: &Aabb, rise: f64) -> Brush {
+    if rise == 0.0 {
+        return brush;
+    }
+
+    let (near, length) = (bounds.min.z, bounds.size().z);
+    for v in &mut brush.vertices {
+        if v.z - near > length * 0.5 {
+            v.y += rise;
+        }
+    }
+
+    // A point moves by k (z - near) along Y, so the plane n.p = d becomes (n.x, n.y, n.z - k n.y).p = d - k near n.y.
+    // Planes with no Y in their normal, the end faces among them, keep it exactly.
+    let k = rise / length;
+    for f in &mut brush.faces {
+        let (n, d) = (f.plane.normal, f.plane.dist);
+        if n.y != 0.0 {
+            let sheared = DVec3::new(n.x, n.y, n.z - k * n.y);
+            let len = sheared.length();
+            f.plane = Plane::new(sheared / len, (d - k * near * n.y) / len);
+            f.data.uv = FaceUv::paraxial(f.plane.normal, f.data.uv.scale);
+        }
+    }
+
+    brush
 }
 
 #[cfg(test)]
@@ -1027,6 +1072,143 @@ mod tests {
             assert!(filled(DVec3::new(c.x + 9.0, c.y + 50.0, a.z + 8.0)), "floor {has_floor} the ceiling side faces -Z");
             assert_eq!(filled(DVec3::new(c.x - 7.0, c.y - 70.0, b.z - 8.0)), has_floor, "floor {has_floor} the open side faces +Z");
             assert!(!filled(c), "floor {has_floor} leaves the middle empty");
+        }
+    }
+
+    fn lined(profile: TunnelProfile, angle: f64, ceiling: bool) -> Tunnel {
+        Tunnel { profile, sides: 7, angle, floor: true, ceiling, ..walkway(20.5, 12.25) }
+    }
+
+    fn every_profile() -> [Tunnel; 5] {
+        [
+            lined(TunnelProfile::Square, 180.0, true),
+            lined(TunnelProfile::Square, 180.0, false),
+            lined(TunnelProfile::Arched, 180.0, true),
+            lined(TunnelProfile::Arched, 120.0, true),
+            lined(TunnelProfile::Round, 180.0, true),
+        ]
+    }
+
+    /// Checks that `sloped` is `flat` with every vertex past `far` (along `along`) moved by `shift` and every other
+    /// vertex left where it was, to within `hair`.
+    fn assert_sheared(flat: &[Brush], sloped: &[Brush], along: impl Fn(DVec3) -> f64, far: f64, shift: DVec3, hair: f64, what: &str) {
+        assert_eq!(sloped.len(), flat.len(), "{what}");
+        for (i, (piece, flat_piece)) in sloped.iter().zip(flat).enumerate() {
+            assert_eq!(piece.vertices.len(), flat_piece.vertices.len(), "{what} piece {i}");
+            for (got, v) in piece.vertices.iter().zip(&flat_piece.vertices) {
+                let want = if along(*v) > far { *v + shift } else { *v };
+                assert!((*got - want).abs().max_element() <= hair, "{what} piece {i} has {got} for {want}");
+            }
+
+            assert_eq!(piece.faces.len(), flat_piece.faces.len(), "{what} piece {i}");
+            for f in &piece.faces {
+                assert_eq!(f.data.uv, FaceUv::paraxial(f.plane.normal, DVec2::ONE), "{what} piece {i} keeps paraxial UVs");
+            }
+        }
+
+        assert_apart(sloped, what);
+    }
+
+    #[test]
+    fn a_sloped_tunnel_raises_its_far_end() {
+        let bounds = off_origin();
+        let (a, b, c) = (bounds.min, bounds.max, bounds.center());
+        let length = bounds.size().z;
+        for rise in [1.0, 48.0, -40.0] {
+            for params in every_profile() {
+                let what = format!("rise {rise} {:?} {} ceiling {}", params.profile, params.angle, params.ceiling);
+                let sloped_params = Tunnel { rise, ..params };
+                assert_eq!(sloped_params.fitted(&bounds).rise, rise, "{what}");
+                let (flat, sloped) = (tunnel(&bounds, &params, "m"), tunnel(&bounds, &sloped_params, "m"));
+                assert_sheared(&flat, &sloped, |v| v.z, c.z, DVec3::new(0.0, rise, 0.0), 0.0, &what);
+                // A hull cuts its corners from its planes, so on an end off the grid a curved piece's corners may sit a
+                // hair off the end plane. The plane itself is exact.
+                let hair = if params.profile == TunnelProfile::Square { 0.0 } else { 1e-9 };
+                for (i, piece) in sloped.iter().enumerate() {
+                    let on = |z: f64, v: DVec3| (v.z - z).abs() <= hair;
+                    let at = |z: f64| piece.faces.iter().filter(|f| f.indices.iter().all(|k| on(z, piece.vertices[*k as usize]))).collect::<Vec<_>>();
+                    let (start, end) = (at(a.z), at(b.z));
+                    assert!(start.len() == 1 && end.len() == 1, "{what} piece {i} has one face on each end plane");
+                    assert_eq!((start[0].plane.normal, start[0].plane.dist), (DVec3::NEG_Z, -a.z), "{what} piece {i} start");
+                    assert_eq!((end[0].plane.normal, end[0].plane.dist), (DVec3::Z, b.z), "{what} piece {i} end");
+                    assert!(piece.vertices.iter().all(|v| on(a.z, *v) || on(b.z, *v)), "{what} piece {i} ends on the box's end planes");
+                }
+
+                let filled = |p: DVec3| sloped.iter().any(|piece| piece.contains_point(p));
+                for along in [0.0, 0.25, 0.5, 0.75, 1.0] {
+                    let probe = DVec3::new(c.x, c.y + rise * along, a.z + length * along);
+                    assert!(!filled(probe), "{what} leaves the sloped middle line empty at {along}");
+                }
+            }
+        }
+
+        let ceiling = &tunnel(&bounds, &Tunnel { rise: 48.0, ..Tunnel::default() }, "m")[2];
+        let top = ceiling.faces.iter().find(|f| f.plane.normal.y > 0.5).unwrap();
+        let want = DVec3::new(0.0, length, -48.0).normalize();
+        assert!((top.plane.normal - want).length() < 1e-12, "the ceiling climbs 48 over {length}: {:?}", top.plane.normal);
+    }
+
+    #[test]
+    fn the_rise_is_clamped() {
+        let bounds = tunnel_bounds();
+        let flat = Tunnel { floor: true, ..Tunnel::default() };
+        for (given, kept) in
+            [(320.0, 320.0), (319.5, 319.5), (320.5, 320.0), (1e9, 320.0), (-320.0, -320.0), (-319.5, -319.5), (-320.5, -320.0), (f64::NEG_INFINITY, -320.0)]
+        {
+            let params = Tunnel { rise: given, ..flat };
+            assert_eq!(params.fitted(&bounds).rise, kept, "{given}");
+            let made = tunnel(&bounds, &params, "m");
+            assert_eq!(made, tunnel(&bounds, &Tunnel { rise: kept, ..flat }, "m"), "{given}");
+            let what = format!("rise {given}");
+            assert_sheared(&tunnel(&bounds, &flat, "m"), &made, |v| v.z, bounds.center().z, DVec3::new(0.0, kept, 0.0), 0.0, &what);
+        }
+
+        for rise in [0.0, -0.0] {
+            for name in LEGACY {
+                let (profile, floor) = TunnelProfile::parse(name).unwrap();
+                let params = Tunnel { profile, floor, sides: 6, rise, ..Tunnel::default() };
+                let (made, old) = (tunnel(&bounds, &params, "m"), old_tunnel(&bounds, name, 6, 16.0));
+                assert_eq!(format!("{made:?}"), format!("{old:?}"), "rise {rise} {name} builds the flat tunnel");
+            }
+        }
+
+        for (axis, most) in [(Axis::X, 256.0), (Axis::Y, 200.0), (Axis::Z, 320.0)] {
+            let steep = Tunnel { axis, rise: 1e6, ..Tunnel::default() };
+            assert_eq!(steep.fitted(&bounds).rise, most, "{axis:?} rises at most twice its own length");
+            assert_eq!(Tunnel { rise: -1e6, ..steep }.fitted(&bounds).rise, -most, "{axis:?}");
+        }
+    }
+
+    #[test]
+    fn an_x_tunnel_rises_along_y_and_a_shaft_along_minus_z() {
+        // 129 wide, 99 tall and 157 long, so the center sits on half units.
+        let bounds = Aabb::new(DVec3::new(-61.0, 13.0, 203.0), DVec3::new(68.0, 112.0, 360.0));
+        let (c, h) = (bounds.center(), bounds.size() * 0.5);
+        type Turn = fn(DVec3) -> DVec3;
+        type Along = fn(DVec3) -> f64;
+        let turns: [(Axis, DVec3, Turn, Along, DVec3); 2] = [
+            (Axis::X, DVec3::new(h.z, h.y, h.x), |d| DVec3::new(d.z, d.y, -d.x), |v| v.x, DVec3::Y),
+            (Axis::Y, DVec3::new(h.x, h.z, h.y), |d| DVec3::new(d.x, d.z, -d.y), |v| v.y, DVec3::NEG_Z),
+        ];
+        for (axis, half, turn, along, up) in turns {
+            let upright = Aabb::new(c - half, c + half);
+            for rise in [48.0, -40.0] {
+                for params in every_profile() {
+                    let what = format!("{axis:?} rise {rise} {:?} {} ceiling {}", params.profile, params.angle, params.ceiling);
+                    let sloped = Tunnel { axis, rise, ..params };
+                    let got = tunnel(&bounds, &sloped, "m");
+                    // Turning adds the rise before taking the center back off, so a far corner off the grid may be an ulp
+                    // away from the flat one plus the rise.
+                    assert_sheared(&tunnel(&bounds, &Tunnel { axis, ..params }, "m"), &got, along, along(c), up * rise, 1e-12, &what);
+                    let want = tunnel(&upright, &Tunnel { rise, ..params }, "m");
+                    for (i, (piece, upright_piece)) in got.iter().zip(&want).enumerate() {
+                        let mapped: Vec<DVec3> = upright_piece.vertices.iter().map(|v| c + turn(*v - c)).collect();
+                        assert_eq!(piece.vertices, mapped, "{what} piece {i} is the sloped upright tunnel turned");
+                    }
+
+                    assert_eq!(sloped.fitted(&bounds).rise, rise, "{what}");
+                }
+            }
         }
     }
 }
