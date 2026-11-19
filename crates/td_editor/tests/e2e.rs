@@ -3244,6 +3244,108 @@ fn a_tunnel_makes_its_pieces_for_every_profile() {
     assert_eq!(thick(0.25)["thickness"].as_f64(), Some(1.0));
 }
 
+fn tunnel_vertices(ed: &Editor, reply: &Value) -> Vec<[f64; 3]> {
+    reply["ids"].as_array().unwrap().iter().flat_map(|id| mesh_vertices(ed, id.as_u64().unwrap())).collect()
+}
+
+#[test]
+#[ignore]
+fn a_tunnel_takes_its_options_over_mcp() {
+    let ed = Editor::launch("tunnel_options");
+    let make = |max: [i32; 3], extra: Value| {
+        let mut args = json!({ "shape": "tunnel", "min": [0, 0, 0], "max": max });
+        args.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        let reply = ed.call("create_brush", args);
+        let bounds = ed.selection_bounds();
+        (reply, bounds)
+    };
+    let note = |reply: &Value| reply["note"].as_str().unwrap_or_default().to_string();
+    let cube = [128, 128, 256];
+
+    let (plain, along_z) = make(cube, json!({}));
+    assert!(plain["note"].is_null(), "{plain}");
+    assert_eq!(along_z, (vec![0.0, 0.0, 0.0], vec![128.0, 128.0, 256.0]), "no axis keeps the tunnel along Z");
+    assert_eq!(tunnel_vertices(&ed, &make(cube, json!({ "axis": "z" })).0), tunnel_vertices(&ed, &plain));
+    let shaft = make([128, 256, 128], json!({ "axis": "y" })).0;
+    for id in shaft["ids"].as_array().unwrap() {
+        let ys: Vec<f64> = mesh_vertices(&ed, id.as_u64().unwrap()).iter().map(|v| v[1]).collect();
+        assert_eq!((ys.iter().cloned().fold(f64::INFINITY, f64::min), ys.iter().cloned().fold(f64::NEG_INFINITY, f64::max)), (0.0, 256.0), "a shaft runs up Y");
+    }
+
+    let walked = make(cube, json!({ "walkway": true })).0;
+    assert_eq!(walked["ids"].as_array().unwrap().len(), plain["ids"].as_array().unwrap().len() + 2, "two walkways: {walked}");
+    let wide = make(cube, json!({ "walkway": true, "walkway_width": 90, "walkway_height": 200 })).0;
+    assert!((wide["walkway_width"].as_f64().unwrap() - 38.4).abs() < 1e-9 && wide["walkway_height"].as_f64() == Some(56.0), "{wide}");
+    assert!(note(&wide).contains("40 percent of the opening") && note(&wide).contains("half the clear height"), "{wide}");
+    assert!(make(cube, json!({ "walkway_width": 90 })).0["note"].is_null(), "walkway sizes without walkways are not reported");
+
+    let arched = |max: [i32; 3], angle: f64, thickness: f64| make(max, json!({ "profile": "arched", "angle": angle, "thickness": thickness })).0;
+    let flatter = arched(cube, 120.0, 16.0);
+    assert!(flatter["note"].is_null(), "{flatter}");
+    assert_ne!(tunnel_vertices(&ed, &flatter), tunnel_vertices(&ed, &arched(cube, 180.0, 16.0)), "the angle reshapes the arch");
+    let outside = arched(cube, 200.0, 16.0);
+    assert_eq!(outside["angle"].as_f64(), Some(180.0), "{outside}");
+    assert!(note(&outside).contains("outside 10 to 180"), "{outside}");
+    let low = arched([256, 96, 256], 150.0, 16.0);
+    assert!(low["angle"].as_f64().unwrap() < 150.0 && note(&low).contains("rise above half"), "{low}");
+    let thin = arched(cube, 30.0, 2.0);
+    assert!(thin["angle"].as_f64().unwrap() > 30.0 && note(&thin).contains("under 1 u thick"), "{thin}");
+    let flat = arched([128, 24, 256], 30.0, 2.0);
+    assert_eq!(flat["angle"].as_f64(), Some(180.0), "{flat}");
+    assert!(note(&flat).contains("half ellipse"), "{flat}");
+    assert!(make(cube, json!({ "angle": 30 })).0["note"].is_null(), "a square tunnel ignores the angle");
+
+    let steep = make(cube, json!({ "rise": 900 })).0;
+    assert_eq!(steep["rise"].as_f64(), Some(512.0), "{steep}");
+    assert!(note(&steep).contains("twice the length"), "{steep}");
+    let (_, sloped) = make(cube, json!({ "rise": 64 }));
+    assert_eq!(sloped.1[1], 192.0, "the far end climbs 64");
+
+    let over = make(cube, json!({ "bend_angle": 270, "bend_segments": 1 })).0;
+    assert_eq!((over["bend_angle"].as_f64(), over["bend_segments"].as_u64()), (Some(180.0), Some(2)), "{over}");
+    assert!(note(&over).contains("outside 0 to 180, the tunnel bends 180") && note(&over).contains("one per quarter turn"), "{over}");
+    let (back, straight) = make(cube, json!({ "bend_angle": -10 }));
+    assert!(note(&back).contains("stays straight"), "{back}");
+    assert_eq!(straight, along_z);
+    let (_, bent) = make(cube, json!({ "bend_angle": 90 }));
+    assert_eq!(bent, (vec![0.0, 0.0, 0.0], vec![192.0, 128.0, 448.0]), "a quarter turn toward +x round a 64 radius");
+    let (_, left) = make(cube, json!({ "bend_angle": 90, "bend_toward": "-x" }));
+    assert_eq!(left, (vec![-64.0, 0.0, 0.0], vec![128.0, 128.0, 448.0]));
+
+    for (args, error) in [
+        (json!({ "bend_angle": 90, "bend_toward": "up" }), "bend_toward is +x, -x, +y, -y, +z or -z"),
+        (json!({ "bend_angle": 90, "bend_toward": "+z" }), "a tunnel along z turns toward x or y"),
+        (json!({ "axis": "x", "bend_angle": 90, "bend_toward": "x" }), "a tunnel along x turns toward y or z"),
+        (json!({ "walkway": "yes" }), "walkway must be true or false"),
+        (json!({ "rise": "high" }), "rise must be a number"),
+        (json!({ "bend_segments": 2.5 }), "bend_segments must be a whole number"),
+    ] {
+        let mut full = json!({ "shape": "tunnel", "min": [0, 0, 0], "max": cube });
+        full.as_object_mut().unwrap().extend(args.as_object().unwrap().clone());
+        assert!(ed.call_err("create_brush", full).contains(error), "{args}");
+    }
+}
+
+#[test]
+#[ignore]
+fn a_bent_tunnel_ends_square_on_the_grid_over_mcp() {
+    let ed = Editor::launch("tunnel_bend");
+    for profile in ["arched", "square", "round"] {
+        let args = json!({ "shape": "tunnel", "min": [0, 0, 0], "max": [128, 128, 256], "profile": profile, "bend_angle": 90, "bend_toward": "+x", "bend_radius": 64 });
+        let reply = ed.call("create_brush", args);
+        let vertices = tunnel_vertices(&ed, &reply);
+        let end: Vec<&[f64; 3]> = vertices.iter().filter(|v| v[0] > 191.0).collect();
+        assert!(end.iter().all(|v| v[0] == 192.0), "{profile} far end leaves x 192: {end:?}");
+        let zs = end.iter().map(|v| v[2]);
+        assert_eq!(
+            (zs.clone().fold(f64::INFINITY, f64::min), zs.fold(f64::NEG_INFINITY, f64::max)),
+            (320.0, 448.0),
+            "{profile} far end spans the tunnel width"
+        );
+        assert!(vertices.iter().all(|v| v[2] >= 0.0 && v[2] <= 448.0), "{profile} start stays on z 0");
+    }
+}
+
 #[test]
 #[ignore]
 fn sweep_faces_runs_a_corridor_round_a_bend() {

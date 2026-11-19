@@ -520,6 +520,119 @@ pub(super) fn rock_params(args: &Value) -> Result<td_geom::rock::Rock, String> {
     })
 }
 
+/// The reply key, fitted value and note of an option create_brush had to change.
+type Adjusted = (&'static str, Value, String);
+
+/// A tunnel from create_brush's options, with an [`Adjusted`] for every option the bounds cut back.
+pub(super) fn tunnel_args(args: &Value, bounds: &Aabb, sides: usize, thickness: f64) -> Result<(shapes::Tunnel, Vec<Adjusted>), String> {
+    let d = shapes::Tunnel::default();
+    let num = |key: &str, default: f64| match &args[key] {
+        Value::Null => Ok(default),
+        v => v.as_f64().ok_or_else(|| format!("{key} must be a number, got {v}")),
+    };
+    let Some((profile, floor)) = shapes::TunnelProfile::parse(args["profile"].as_str().unwrap_or("square")) else {
+        return Err("profile is square, arched, round, open_bottom or closed".into());
+    };
+    if profile == shapes::TunnelProfile::Arched && sides < 2 {
+        return Err("an arched tunnel needs at least 2 sides, one side would lie flat and leave no roof".into());
+    }
+
+    let axis = match args["axis"].as_str().map(shapes::Axis::parse) {
+        None => shapes::Axis::Z,
+        Some(Some(a)) => a,
+        Some(None) => return Err("axis is x, y or z".into()),
+    };
+    let toward = match &args["bend_toward"] {
+        Value::Null => shapes::Toward::default_for(axis),
+        v => {
+            let toward = v.as_str().and_then(shapes::Toward::parse).ok_or("bend_toward is +x, -x, +y, -y, +z or -z")?;
+            if !shapes::Toward::across(axis).contains(&toward) {
+                let along = axis.label().to_ascii_lowercase();
+                let [a, b]: [&str; 2] = ["x", "y", "z"].into_iter().filter(|l| *l != along).collect::<Vec<_>>().try_into().unwrap();
+                return Err(format!("bend_toward must cross the tunnel, a tunnel along {along} turns toward {a} or {b}"));
+            }
+
+            toward
+        }
+    };
+    let bend_segments = match &args["bend_segments"] {
+        Value::Null => d.bend_segments,
+        v => v.as_u64().ok_or_else(|| format!("bend_segments must be a whole number, got {v}"))? as usize,
+    };
+    let angle = if profile == shapes::TunnelProfile::Arched { arch_angle_arg(&args["angle"])? } else { d.angle };
+    let want = shapes::Tunnel {
+        profile,
+        sides,
+        thickness,
+        angle,
+        floor: bool_arg(args, "floor")?.unwrap_or(floor),
+        ceiling: bool_arg(args, "ceiling")?.unwrap_or(d.ceiling),
+        walkway: bool_arg(args, "walkway")?.unwrap_or(d.walkway),
+        walkway_width: num("walkway_width", d.walkway_width)?,
+        walkway_height: num("walkway_height", d.walkway_height)?,
+        axis,
+        rise: num("rise", d.rise)?,
+        bend: num("bend_angle", d.bend)?,
+        toward,
+        bend_radius: num("bend_radius", d.bend_radius)?,
+        bend_segments,
+    };
+
+    let got = want.fitted(bounds);
+    let mut notes: Vec<Adjusted> = Vec::new();
+    if got.thickness != thickness {
+        let why = if thickness < got.thickness { "is under 1" } else { "is over 40 percent of the smaller of the width and height" };
+        notes.push(("thickness", json!(got.thickness), format!("thickness {thickness} {why}, the walls are {} thick", round2(got.thickness))));
+    }
+
+    if got.angle != angle {
+        let swept = format!("the arch sweeps {} degrees", round2(got.angle));
+        let note = if !(shapes::ARCH_MIN_ANGLE..=180.0).contains(&angle) {
+            format!("angle {angle} is outside 10 to 180, {swept}")
+        } else if got.angle >= 180.0 {
+            format!("angle {angle} does not fit this low, wide box, the arch is a half ellipse")
+        } else if got.angle < angle {
+            format!("angle {angle} would rise above half the smaller of the width and height, {swept}")
+        } else {
+            format!("angle {angle} would leave the arch under 1 u thick, {swept}")
+        };
+        notes.push(("angle", json!(got.angle), note));
+    }
+
+    if want.walkway {
+        for (key, asked, used, room, size) in [
+            ("walkway_width", want.walkway_width, got.walkway_width, "40 percent of the opening", "wide"),
+            ("walkway_height", want.walkway_height, got.walkway_height, "half the clear height", "high"),
+        ] {
+            if used != asked {
+                let why = if asked < used { "is under 1".to_string() } else { format!("is over {room}") };
+                notes.push((key, json!(used), format!("{key} {asked} {why}, the walkways are {} {size}", round2(used))));
+            }
+        }
+    }
+
+    if got.rise != want.rise {
+        notes.push(("rise", json!(got.rise), format!("rise {} is over twice the length, the far end rises {}", want.rise, round2(got.rise))));
+    }
+
+    if got.bend != want.bend {
+        let ends = if got.bend > 0.0 { format!("the tunnel bends {} degrees", round2(got.bend)) } else { "the tunnel stays straight".to_string() };
+        notes.push(("bend_angle", json!(got.bend), format!("bend_angle {} is outside 0 to 180, {ends}", want.bend)));
+    }
+
+    if got.bend > 0.0 && got.bend_radius != want.bend_radius {
+        let why = if want.bend_radius < got.bend_radius { "is under 0" } else { "is over 65536" };
+        notes.push(("bend_radius", json!(got.bend_radius), format!("bend_radius {} {why}, the radius is {}", want.bend_radius, round2(got.bend_radius))));
+    }
+
+    if got.bend > 0.0 && got.bend_segments != want.bend_segments {
+        let why = if want.bend_segments < got.bend_segments { "is under one per quarter turn" } else { "is over 64" };
+        notes.push(("bend_segments", json!(got.bend_segments), format!("bend_segments {} {why}, the bend has {}", want.bend_segments, got.bend_segments)));
+    }
+
+    Ok((want, notes))
+}
+
 /// Whether a gable ridge runs along X. create_brush names it `ridge_x` and create_mesh `ridge_z`, so both take either;
 /// `default_x` is the tool's own axis when neither is given.
 pub(super) fn ridge_along_x(args: &Value, default_x: bool) -> Result<bool, String> {
@@ -2444,7 +2557,7 @@ impl App {
         };
         let (upright, _) = axis.frame(&bounds);
         let mut letter_bounds: Vec<Aabb> = Vec::new();
-        let mut adjusted: Vec<(&str, f64, String)> = Vec::new();
+        let mut adjusted: Vec<Adjusted> = Vec::new();
         let brushes: Vec<Brush> = match args["shape"].as_str().unwrap_or("box") {
             "box" => Brush::from_aabb(&bounds, &material).into_iter().collect(),
             "cylinder" => shapes::cylinder(&upright, sides, &material).map(|b| axis.lay(b, &bounds)).into_iter().collect(),
@@ -2468,34 +2581,24 @@ impl App {
                 let sweep = shapes::arch_sweep(bounds.size().x, bounds.size().y, angle);
                 if sweep != angle {
                     let why = if (shapes::ARCH_MIN_ANGLE..=180.0).contains(&angle) { "would rise above the bounds" } else { "is outside 10 to 180" };
-                    adjusted.push(("angle", sweep, format!("angle {angle} {why}, the arch sweeps {} degrees", round2(sweep))));
+                    adjusted.push(("angle", json!(sweep), format!("angle {angle} {why}, the arch sweeps {} degrees", round2(sweep))));
                 }
 
                 let wall = shapes::arch_thickness(&bounds, angle, thickness);
                 if wall != thickness {
                     let why = if thickness < wall { "is under 1" } else { "is over the most this arch can take" };
-                    adjusted.push(("thickness", wall, format!("thickness {thickness} {why}, the arch is {} thick", round2(wall))));
+                    adjusted.push(("thickness", json!(wall), format!("thickness {thickness} {why}, the arch is {} thick", round2(wall))));
                 }
 
                 shapes::arch(&bounds, sides, thickness, angle, &material)
             }
-            "tunnel" => {
-                let Some((profile, floor)) = shapes::TunnelProfile::parse(args["profile"].as_str().unwrap_or("square")) else {
-                    return err("profile is square, arched, round, open_bottom or closed");
-                };
-                if profile == shapes::TunnelProfile::Arched && sides < 2 {
-                    return err("an arched tunnel needs at least 2 sides, one side would lie flat and leave no roof");
+            "tunnel" => match tunnel_args(args, &bounds, sides, thickness) {
+                Ok((tunnel, notes)) => {
+                    adjusted.extend(notes);
+                    shapes::tunnel(&bounds, &tunnel, &material)
                 }
-
-                let wall = shapes::tunnel_thickness(&bounds, thickness);
-                if wall != thickness {
-                    let why = if thickness < wall { "is under 1" } else { "is over 40 percent of the smaller of the width and height" };
-                    adjusted.push(("thickness", wall, format!("thickness {thickness} {why}, the walls are {} thick", round2(wall))));
-                }
-
-                let (floor, ceiling) = (args["floor"].as_bool().unwrap_or(floor), args["ceiling"].as_bool().unwrap_or(true));
-                shapes::tunnel(&bounds, &shapes::Tunnel { profile, sides, thickness, floor, ceiling, ..Default::default() }, &material)
-            }
+                Err(e) => return err(e),
+            },
             "pipe" => shapes::pipe(&bounds, sides, thickness, &material),
             "stairs" => shapes::stairs(&bounds, args["steps"].as_u64().unwrap_or(8) as usize, &material),
             "spiral_stairs" => {
@@ -2616,7 +2719,7 @@ impl App {
         let mut reply = json!({ "ids": ids, "entity": entity_id.map(|e| e.0) });
         let mut notes = Vec::new();
         for (key, value, note) in adjusted {
-            reply[key] = json!(value);
+            reply[key] = value;
             notes.push(note);
         }
 
