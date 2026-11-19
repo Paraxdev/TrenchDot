@@ -2587,5 +2587,8 @@
   "Already a {class}, change its class in the Inspector": "C'est déjà {class}, changez sa classe dans l'Inspecteur",
   "Type a class…": "Saisir une classe…",
   "Shift+drag clones, Ctrl+M transforms, Ctrl+T ties to an entity, Shift+A textures.": "Shift+glisser clone, Ctrl+M transforme, Ctrl+T lie à une entité, Shift+A texture.",
-  "Select every face of the selected brushes": "Sélectionne chaque face des brushes sélectionnés"
+  "Select every face of the selected brushes": "Sélectionne chaque face des brushes sélectionnés",
+  "Drag a selection edge (2D)": "Glisser un bord de la sélection (2D)",
+  "Resize along it, slanted edges too. Ctrl copies instead": "Redimensionner le long du bord, bords obliques compris. Ctrl copie à la place",
+  "Resize along it. Shift or Ctrl copies instead": "Redimensionner le long du bord. Shift ou Ctrl copie à la place"
 }

@@ -77,6 +77,7 @@ mode.
 | --- | --- |
 | Drag off the selection | Draw a brush |
 | Drag the selection | Move. Ctrl copies, Shift locks the axis, Alt moves vertically in 3D. The Hammer preset copies with Shift too and has no axis lock, see [Other presets](#other-presets) |
+| Drag a selection edge (2D) | Resize the selection along that side, slanted sides of one brush too. Hold Ctrl when you press the button to copy the selection instead |
 | Click | Select the object under the cursor, or the whole group around it. Clicking an object while faces are selected leaves face selection |
 | Double click a group | Open it, so clicks reach what is inside |
 | Double click an entity brush | Select every brush of the entity |
@@ -168,8 +169,10 @@ In the Hammer preset, Ctrl+A with the Texture tool active selects every face of 
 objects, which is what you want before aligning a whole room.
 
 Shift is for cloning in the Hammer preset. Hold it when you press the button, so a Shift pressed later during a plain
-drag does nothing. The 2D edge drag that resizes a selection and the transform gizmo work as in every preset, which
-is how you resize by edges or move along one axis there.
+drag does nothing. The 2D edge drag that resizes a selection and the transform gizmo are still there, which is how you
+resize by edges or move along one axis. Holding Shift or Ctrl on a side clones instead of resizing, and then the side
+does not light up either. In this preset only the sides of the selection's outer box grab, a drag on a slanted outline
+moves the brush.
 
 | Hammer input | Result |
 | --- | --- |
@@ -180,6 +183,7 @@ is how you resize by edges or move along one axis there.
 | Click in the Texture tool | Select that one face, replacing the selection. Shift+A opens the tool |
 | Ctrl+click in the Texture tool | Add a face to the selection or remove it |
 | Drag the selection | Move it, with no axis lock |
+| Drag a selection edge (2D) | Resize along it. Shift or Ctrl copies instead |
 | Shift+drag the selection, Ctrl+drag the selection | Copy it and move the copy, in every view, as one undo step. On a selected face in 3D it copies too, it does not push the face |
 
 | Key | Blender preset |

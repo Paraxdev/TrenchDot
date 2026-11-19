@@ -2587,5 +2587,8 @@
   "Already a {class}, change its class in the Inspector": "已经是 {class},请在检查器中更改其类别",
   "Type a class…": "输入类别…",
   "Shift+drag clones, Ctrl+M transforms, Ctrl+T ties to an entity, Shift+A textures.": "Shift+拖动 克隆,Ctrl+M 变换,Ctrl+T 绑定到实体,Shift+A 贴图。",
-  "Select every face of the selected brushes": "选择所选 brush 的每个面"
+  "Select every face of the selected brushes": "选择所选 brush 的每个面",
+  "Drag a selection edge (2D)": "拖动选择的边缘 (2D)",
+  "Resize along it, slanted edges too. Ctrl copies instead": "沿边缘调整大小，斜边也可以。按住 Ctrl 则改为复制",
+  "Resize along it. Shift or Ctrl copies instead": "沿边缘调整大小。按住 Shift 或 Ctrl 则改为复制"
 }

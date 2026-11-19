@@ -157,6 +157,8 @@ impl Chord {
 pub enum DragHit {
     /// A face of a selected brush in the 3D view.
     SelectedFace3d,
+    /// A side of the selection under the pointer in a 2D view.
+    Edge2d,
     /// Anything else selected, in any view.
     Selected,
 }
@@ -166,6 +168,8 @@ pub enum DragHit {
 pub enum SelectionDrag {
     Move,
     Copy,
+    /// Resize the grabbed side of the selection along its normal.
+    Resize,
     PushFace,
     ExtrudeFace,
 }
@@ -175,10 +179,15 @@ pub enum SelectionDrag {
 pub fn selection_drag(preset: &str, chord: Chord, hit: DragHit) -> SelectionDrag {
     let Chord { command, shift, .. } = chord;
     if preset == "hammer" {
-        return if command || shift { SelectionDrag::Copy } else { SelectionDrag::Move };
+        return match hit {
+            _ if command || shift => SelectionDrag::Copy,
+            DragHit::Edge2d => SelectionDrag::Resize,
+            _ => SelectionDrag::Move,
+        };
     }
 
     match hit {
+        DragHit::Edge2d if !command => SelectionDrag::Resize,
         DragHit::SelectedFace3d if shift && command => SelectionDrag::ExtrudeFace,
         DragHit::SelectedFace3d if shift => SelectionDrag::PushFace,
         _ if command => SelectionDrag::Copy,
@@ -341,10 +350,12 @@ pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
             drag("", en!("Drag the selection"), en!("Move it"), DragHit::Selected, SelectionDrag::Move),
             drag("s", en!("Shift+drag the selection"), en!("Copy it and move the copy"), DragHit::Selected, SelectionDrag::Copy),
             drag("c", en!("Ctrl+drag the selection"), en!("Copy it and move the copy"), DragHit::Selected, SelectionDrag::Copy),
+            drag("", en!("Drag a selection edge (2D)"), en!("Resize along it. Shift or Ctrl copies instead"), DragHit::Edge2d, SelectionDrag::Resize),
         ]);
     } else {
         rows.extend([
             drag("", en!("Drag the selection"), en!("Move it. Ctrl copies, Shift locks the axis"), DragHit::Selected, SelectionDrag::Move),
+            drag("", en!("Drag a selection edge (2D)"), en!("Resize along it, slanted edges too. Ctrl copies instead"), DragHit::Edge2d, SelectionDrag::Resize),
             drag("s", en!("Shift+drag a selected face (3D)"), en!("Push or pull the face"), DragHit::SelectedFace3d, SelectionDrag::PushFace),
             drag("cs", en!("Ctrl+Shift+drag a selected face (3D)"), en!("Extrude a new brush"), DragHit::SelectedFace3d, SelectionDrag::ExtrudeFace),
         ]);
@@ -689,6 +700,17 @@ mod tests {
     }
 
     #[test]
+    fn a_side_drag_resizes_unless_ctrl_or_hammer_shift_copies() {
+        for preset in ["trenchbroom", "blender", "hammer", "unknown"] {
+            for (command, shift, alt) in MODS {
+                let copies = command || (shift && preset == "hammer");
+                let want = if copies { SelectionDrag::Copy } else { SelectionDrag::Resize };
+                assert_eq!(selection_drag(preset, drag(command, shift, alt), DragHit::Edge2d), want, "{preset} {command} {shift} {alt}");
+            }
+        }
+    }
+
+    #[test]
     fn only_hammer_has_no_shift_axis_lock() {
         for preset in ["trenchbroom", "blender", "unknown", ""] {
             assert!(shift_locks_axis(preset), "{preset}");
@@ -721,6 +743,10 @@ mod tests {
             }
 
             let has = |d| drags.iter().any(|(.., x)| *x == d);
+            let edge_rows: Vec<_> = drags.iter().filter(|(_, _, h, _)| *h == DragHit::Edge2d).collect();
+            assert_eq!(edge_rows.len(), 1, "{preset}");
+            assert_eq!(edge_rows[0].3, SelectionDrag::Resize, "{preset}");
+            assert!(has(SelectionDrag::Resize), "{preset}");
             assert!(has(SelectionDrag::Move), "{preset}");
             assert_eq!(has(SelectionDrag::Copy), preset == "hammer", "{preset}");
             assert_eq!(has(SelectionDrag::PushFace), preset != "hammer", "{preset}");

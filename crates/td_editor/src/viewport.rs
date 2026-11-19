@@ -581,6 +581,7 @@ impl Viewport {
             && let Some(pos) = response.hover_pos()
             && let Some((normal, segment)) = self
                 .edge_under_cursor(pos, cx.state)
+                .filter(|_| side_drag_resizes(&cx.state.prefs.keymap_preset, ui.input(|i| i.modifiers)))
                 .map(|e| (e.normal, e.segment))
                 .or_else(|| self.terrain_edge_under(pos, cx.state).map(|(_, n, s)| (n, s)))
                 .or_else(|| self.box_side_under(pos, cx.state))
@@ -605,7 +606,9 @@ impl Viewport {
             return Some(Drag::Transform(drag));
         }
 
+        let preset = cx.state.prefs.keymap_preset.clone();
         if self.camera.kind.is_2d()
+            && side_drag_resizes(&preset, modifiers)
             && let Some(edge) = self.edge_under_cursor(origin, cx.state)
         {
             let origin_world = self.camera.screen_to_plane(self.rect, origin);
@@ -621,7 +624,6 @@ impl Viewport {
             return Some(Drag::TerrainEdge { id, origin: self.camera.screen_to_plane(self.rect, origin), normal });
         }
 
-        let preset = cx.state.prefs.keymap_preset.clone();
         let state = &mut *cx.state;
         let map = &state.doc.map;
         let ray = self.camera.ray(self.rect, origin);
@@ -1487,6 +1489,11 @@ fn nearest_side(pos: Pos2, sides: &[FaceSide]) -> Option<usize> {
     }
 
     best.map(|(i, _)| i)
+}
+
+/// Whether a press with `modifiers` on a side of the selection resizes it, or lets the press copy the selection.
+fn side_drag_resizes(preset: &str, modifiers: egui::Modifiers) -> bool {
+    selection_drag(preset, Chord::new(Button::Drag, modifiers), DragHit::Edge2d) == SelectionDrag::Resize
 }
 
 /// The resize arrow closest to a side's outward screen normal, straight within 22.5 degrees of a screen axis.

@@ -2587,5 +2587,8 @@
   "Already a {class}, change its class in the Inspector": "すでに{class}です。クラスはインスペクターで変更してください",
   "Type a class…": "クラスを入力…",
   "Shift+drag clones, Ctrl+M transforms, Ctrl+T ties to an entity, Shift+A textures.": "Shift+ドラッグで複製、Ctrl+Mで変形、Ctrl+Tでエンティティに結び付け、Shift+Aでテクスチャ。",
-  "Select every face of the selected brushes": "選択したブラシの全ての面を選択します"
+  "Select every face of the selected brushes": "選択したブラシの全ての面を選択します",
+  "Drag a selection edge (2D)": "選択範囲の辺をドラッグ (2D)",
+  "Resize along it, slanted edges too. Ctrl copies instead": "辺に沿ってサイズ変更します。斜めの辺も対象です。Ctrl を押すとコピーします",
+  "Resize along it. Shift or Ctrl copies instead": "辺に沿ってサイズ変更します。Shift または Ctrl を押すとコピーします"
 }

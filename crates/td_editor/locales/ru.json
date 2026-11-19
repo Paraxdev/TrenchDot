@@ -2587,5 +2587,8 @@
   "Already a {class}, change its class in the Inspector": "Уже {class}, смените класс в инспекторе",
   "Type a class…": "Введите класс…",
   "Shift+drag clones, Ctrl+M transforms, Ctrl+T ties to an entity, Shift+A textures.": "Shift+перетаскивание клонирует, Ctrl+M трансформирует, Ctrl+T привязывает к сущности, Shift+A текстурирует.",
-  "Select every face of the selected brushes": "Выделяет каждую грань выбранных брашей"
+  "Select every face of the selected brushes": "Выделяет каждую грань выбранных брашей",
+  "Drag a selection edge (2D)": "Тянуть за ребро выделения (2D)",
+  "Resize along it, slanted edges too. Ctrl copies instead": "Менять размер вдоль него, в том числе у наклонных рёбер. Ctrl вместо этого копирует",
+  "Resize along it. Shift or Ctrl copies instead": "Менять размер вдоль него. Shift или Ctrl вместо этого копирует"
 }

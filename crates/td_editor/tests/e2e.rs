@@ -711,6 +711,65 @@ fn a_slanted_side_resizes_in_2d_and_a_selected_face_drags_alone() {
     assert!(max[1] > 0.0 && max[1] < 64.0 && max[2] > 0.0 && max[2] < 128.0, "past the collapse the wedge keeps its last valid shape {max:?}");
 }
 
+/// Ctrl on a side copies the selection instead of resizing it, and so does Shift in the Hammer preset. TrenchBroom and
+/// Blender keep Shift for the resize.
+#[test]
+#[ignore]
+fn ctrl_or_hammer_shift_on_a_side_copies_instead_of_resizing() {
+    let ed = Editor::launch("side_drag_copies");
+    let id = ed.box_brush([-40.0, 8.0, -24.0], [88.0, 72.0, 40.0]);
+    ed.call("set_editor", json!({ "grid": 16, "snap": true }));
+    ed.call("set_camera", json!({ "view": "front", "center": [24, 40, 0], "zoom": 1.5 }));
+    let bounds = || -> Vec<[[i64; 3]; 2]> {
+        let nodes = ed.call("list_nodes", json!({ "type": "brush" }));
+        let mut all: Vec<_> = nodes["nodes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|n| ["min", "max"].map(|end| [0, 1, 2].map(|i| n["bounds"][end][i].as_f64().unwrap().round() as i64)))
+            .collect();
+        all.sort();
+        all
+    };
+    let home = [[-40, 8, -24], [88, 72, 40]];
+    let resized = [[-40, 8, -24], [128, 72, 40]];
+    let try_drag = |keymap: &str, mods: &[&str]| {
+        ed.call("set_editor", json!({ "keymap": keymap }));
+        ed.call("select", json!({ "ids": [id] }));
+        ed.input("front", json!([{ "type": "drag", "world": [85, 40, 0], "to_world": [121, 40, 0], "modifiers": mods }]));
+        let after = bounds();
+        let top = ed.state()["undo"][0].as_str().unwrap().to_string();
+        ed.call("run_action", json!({ "action": "undo" }));
+        assert_eq!(bounds(), vec![home], "undo restores the single brush after {keymap} {mods:?}");
+        (after, top)
+    };
+    let expect_resize = |keymap: &str, mods: &[&str]| {
+        let (after, top) = try_drag(keymap, mods);
+        assert_eq!(after, vec![resized], "{keymap} {mods:?} resizes the side");
+        assert_eq!(top, "Resize Brushes", "{keymap} {mods:?}");
+    };
+    let expect_copy = |keymap: &str, mods: &[&str]| {
+        let (after, top) = try_drag(keymap, mods);
+        assert_eq!(after.len(), 2, "{keymap} {mods:?} adds a brush {after:?}");
+        let copy = after.iter().find(|b| **b != home).unwrap_or_else(|| panic!("{keymap} {mods:?} left only the original {after:?}"));
+        assert!(after.contains(&home), "{keymap} {mods:?} leaves the original at max x 88 {after:?}");
+        let shift = copy[0][0] - home[0][0];
+        assert!(shift > 0 && shift % 16 == 0, "{keymap} {mods:?} moves the copy along +X in grid steps {after:?}");
+        assert_eq!(*copy, [[home[0][0] + shift, 8, -24], [home[1][0] + shift, 72, 40]], "{keymap} {mods:?} keeps the size");
+        assert_eq!(top, "Duplicate Objects", "{keymap} {mods:?}");
+    };
+
+    expect_resize("trenchbroom", &[]);
+    expect_resize("trenchbroom", &["shift"]);
+    expect_copy("trenchbroom", &["ctrl"]);
+    expect_copy("trenchbroom", &["ctrl", "shift"]);
+    expect_resize("hammer", &[]);
+    expect_copy("hammer", &["shift"]);
+    expect_copy("hammer", &["ctrl"]);
+    expect_resize("blender", &[]);
+    expect_copy("blender", &["ctrl"]);
+}
+
 fn selected(ed: &Editor) -> Vec<u64> {
     ed.state()["selection"]["nodes"].as_array().unwrap().iter().map(|n| n.as_u64().unwrap()).collect()
 }
