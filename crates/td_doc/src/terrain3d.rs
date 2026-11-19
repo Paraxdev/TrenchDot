@@ -8,12 +8,13 @@ use serde::{Deserialize, Serialize};
 use td_core::{DVec2, DVec3, Mirror, NodeId};
 use td_geom::heightfield::Terrain;
 use td_geom::terrain3d::{Control, EdgeBlend, Grid, LOC_MAX, LOC_MIN, Loc, Region3D, loc_in_range, surface_height};
-use td_geom::terrain3d_tile::{self, PaintMode};
+use td_geom::terrain3d_tile::{self, Paint, PaintMode};
 
 use crate::map::{Map, NodeKind};
 use crate::terrain::{SculptBrush, SculptMode, sculpt_terrains_single};
 
-/// The sha256 Godot computes over a region's height, control and color bytes. TrenchDot only echoes it back.
+/// The sha256 Godot computes over a region's height, control and color bytes, the color only when it is not blank.
+/// TrenchDot only echoes it back.
 pub type RegionHash = [u8; 32];
 
 /// What Godot last exported for a linked folder. The editor's cache store implements it.
@@ -268,9 +269,26 @@ impl Terrain3DLink {
         self.edit_window(source, a.min(b) - reach, a.max(b) + reach, |t| t.ramp(from, to, width, margin))
     }
 
+    /// One dab of `paint`, see `terrain3d_tile::paint`. Returns the regions that changed.
+    pub fn paint(&mut self, source: &dyn RegionSource, center: DVec3, radius: f64, paint: &Paint, amount: f32) -> Vec<Loc> {
+        self.brush_regions(source, center, radius, |g, r| {
+            if !terrain3d_tile::paint(g, r, center, radius, paint, amount) {
+                return false;
+            }
+
+            // An empty color in a pending file leaves Godot's color map alone, so a region that had none is sent
+            // without one when painted back to blank, and counts as unchanged then.
+            if source.region(r.loc).is_some_and(|s| s.color.is_empty()) && !r.color.is_empty() && r.color_is_blank() {
+                r.color = Vec::new();
+            }
+
+            true
+        })
+    }
+
     /// One texture dab, Terrain3D's Paint or Spray. Returns the regions that changed.
     pub fn paint_texture(&mut self, source: &dyn RegionSource, center: DVec3, radius: f64, id: u8, mode: PaintMode, strength: f32) -> Vec<Loc> {
-        self.brush_regions(source, center, radius, |g, r| terrain3d_tile::paint_texture(g, r, center, radius, id, mode, strength))
+        self.paint(source, center, radius, &Paint::Texture { id, mode }, strength)
     }
 
     /// Adds blank regions like Terrain3D's `add_region_blank`. A location that has a region already is left alone.
@@ -821,7 +839,8 @@ mod tests {
 
 #[cfg(test)]
 mod edit_tests {
-    use td_geom::terrain3d::Control;
+    use td_geom::terrain3d::{BLANK_COLOR, Control};
+    use td_geom::terrain3d_tile::Flag;
 
     use super::*;
     use crate::scatter::{Scatter, ScatterInstance, ScatterItem, ScatterKind};
@@ -1135,6 +1154,93 @@ mod edit_tests {
         };
         assert_regions(&link, &source, &[[-1, 0], [0, 0]], ground, painted);
         assert!(link.paint_texture(&source, DVec3::new(5000.0, 0.0, 5000.0), 90.0, 7, PaintMode::Base, 1.0).is_empty());
+    }
+
+    #[test]
+    fn a_flag_brush_across_a_region_border_changes_both_sides_in_one_undo_step() {
+        let source = Fake::new(&[[-3, -2], [-2, -2], [-2, -1]]);
+        let border = grid().position(grid().vgrid_of([-2, -2], [0, 40]));
+        let center = DVec3::new(border.x + 5.0, -7.0, border.y - 3.0);
+        let mut map = Map::new();
+        let layer = map.default_layer();
+        let id = map.insert(layer, NodeKind::Terrain3D(Terrain3DLink::new("res://t3d")));
+        let mut doc = Document::from_map(map, None);
+        let off = Paint::Flag { flag: Flag::Navigation, on: false };
+        let painted = doc.edit("Paint", |m, _| m.terrain3d_mut(id).unwrap().paint(&source, center, 40.0, &off, 0.0));
+        assert_eq!(painted, vec![[-3, -2], [-2, -2]]);
+
+        let link = doc.map.terrain3d(id).unwrap();
+        let cleared = |v: [i64; 2]| if distance(v, center) <= 40.0 { Control(control()).with_navigation(false).0 } else { control() };
+        assert_regions(link, &source, &[[-3, -2], [-2, -2], [-2, -1]], ground, cleared);
+        assert!(vertices([-3, -2]).filter(|(_, v)| distance(*v, center) <= 40.0).count() > 1);
+        assert!(vertices([-2, -2]).filter(|(_, v)| distance(*v, center) <= 40.0).count() > 1);
+        assert_eq!(link.changed_regions(&source).len(), 2);
+        assert!(link.clone().paint(&source, center, 40.0, &off, 1.0).is_empty(), "already clear");
+
+        doc.undo();
+        assert!(doc.map.terrain3d(id).unwrap().edits.is_empty());
+        assert_regions(doc.map.terrain3d(id).unwrap(), &source, &[[-3, -2], [-2, -2]], ground, |_| control());
+    }
+
+    fn colorless(locs: &[Loc]) -> Fake {
+        let mut source = Fake::new(locs);
+        for &loc in locs {
+            let mut r = slanted(loc);
+            r.color = Vec::new();
+            source.export(r, 1);
+        }
+
+        source
+    }
+
+    #[test]
+    fn color_painted_back_to_blank_is_unchanged_only_where_the_cache_had_no_color_map() {
+        let on = |loc: Loc, px: [u32; 2]| {
+            let p = grid().position(grid().vgrid_of(loc, px));
+            DVec3::new(p.x, 2.0, p.y)
+        };
+        let (a, b) = (on([-2, 1], [9, 50]), on([-1, 1], [0, 3]));
+        let sand = Paint::Color { rgb: [180, 150, 110], erase: false };
+        let rinse = Paint::Color { rgb: [180, 150, 110], erase: true };
+        let wet = Paint::Wetness { roughness: -50, erase: false };
+        let dry = Paint::Wetness { roughness: 20, erase: true };
+
+        let source = colorless(&[[-2, 1], [-1, 1]]);
+        let mut link = Terrain3DLink::new("res://t3d");
+        for center in [a, b] {
+            assert_eq!(link.paint(&source, center, 10.0, &sand, 1.0).len(), 1);
+            assert_eq!(link.paint(&source, center, 10.0, &wet, 1.0).len(), 1);
+        }
+
+        let painted = link.region(&source, [-2, 1]).unwrap();
+        let k = painted.index([9, 50]);
+        assert_eq!(painted.color.len(), (SIZE * SIZE * 4) as usize);
+        assert_eq!(painted.color[k * 4..k * 4 + 4], [180, 150, 110, 63]);
+        assert_eq!(painted.color.as_chunks::<4>().0.iter().filter(|p| **p != BLANK_COLOR).count(), 1);
+        assert_eq!(link.changed_regions(&source).len(), 2);
+
+        for center in [a, b] {
+            assert_eq!(link.paint(&source, center, 10.0, &rinse, 1.0).len(), 1);
+            assert_eq!(link.paint(&source, center, 10.0, &dry, 1.0).len(), 1, "the dab back to blank still changed the region");
+        }
+
+        for loc in [[-2, 1], [-1, 1]] {
+            assert_eq!(*link.region(&source, loc).unwrap(), *source.region(loc).unwrap(), "{loc:?}");
+        }
+
+        assert!(link.changed_regions(&source).is_empty());
+        assert!(link.paint(&source, a, 10.0, &rinse, 1.0).is_empty());
+
+        let mut tinted = colorless(&[[-2, 1], [-1, 1]]);
+        let mut r = slanted([-2, 1]);
+        r.color[k * 4..k * 4 + 4].copy_from_slice(&[10, 20, 30, 40]);
+        tinted.export(r, 2);
+        let mut link = Terrain3DLink::new("res://t3d");
+        assert_eq!(link.paint(&tinted, a, 10.0, &rinse, 1.0), vec![[-2, 1]]);
+        assert_eq!(link.paint(&tinted, a, 10.0, &dry, 1.0), vec![[-2, 1]]);
+        let rinsed = link.region(&tinted, [-2, 1]).unwrap();
+        assert_eq!(rinsed.color, BLANK_COLOR.repeat((SIZE * SIZE) as usize), "a color map Godot has is sent whole");
+        assert_eq!(link.changed_regions(&tinted).len(), 1);
     }
 
     #[test]

@@ -2,7 +2,7 @@
 //! write TrenchDot strokes back into region data.
 
 use crate::heightfield::{MAX_CELL_SIZE, MAX_LAYERS, MIN_CELL_SIZE, Terrain, TerrainLayer, falloff};
-use crate::terrain3d::{Control, Grid, Loc, Region3D};
+use crate::terrain3d::{BLANK_COLOR, Control, Grid, Loc, Region3D, roughness_alpha};
 use td_core::{DVec2, DVec3};
 
 /// Vertex strides of the LOD levels, coarsest last.
@@ -305,6 +305,26 @@ pub fn write_window(grid: &Grid, window: &Window, region: &mut Region3D) -> bool
     changed
 }
 
+/// Calls `f` with the index and brush falloff of each vertex of the region at `loc` within `radius` of `center` (map
+/// units). Returns true if any call did.
+fn brush_vertices(grid: &Grid, loc: Loc, center: DVec3, radius: f64, mut f: impl FnMut(usize, f32) -> bool) -> bool {
+    let c = DVec2::new(center.x, center.z);
+    let (min, max) = grid.vgrid_rect(c - DVec2::splat(radius), c + DVec2::splat(radius), 0);
+    let origin = grid.vgrid_of(loc, [0, 0]);
+    let size = grid.region_size as i64;
+    let mut changed = false;
+    for z in min[1].max(origin[1])..=max[1].min(origin[1] + size - 1) {
+        for x in min[0].max(origin[0])..=max[0].min(origin[0] + size - 1) {
+            let d = (grid.position([x, z]) - c).length();
+            if d <= radius {
+                changed |= f(((z - origin[1]) * size + x - origin[0]) as usize, falloff(d, radius) as f32);
+            }
+        }
+    }
+
+    changed
+}
+
 /// Runs `f` on each control word of `region` whose vertex is within `radius` of `center` (map units), with the
 /// brush falloff there. Returns true if any word changed.
 fn brush_controls(grid: &Grid, region: &mut Region3D, center: DVec3, radius: f64, mut f: impl FnMut(Control, f32) -> Control) -> bool {
@@ -312,28 +332,30 @@ fn brush_controls(grid: &Grid, region: &mut Region3D, center: DVec3, radius: f64
         return false;
     }
 
-    let c = DVec2::new(center.x, center.z);
-    let (min, max) = grid.vgrid_rect(c - DVec2::splat(radius), c + DVec2::splat(radius), 0);
-    let origin = grid.vgrid_of(region.loc, [0, 0]);
-    let size = region.size as i64;
-    let mut changed = false;
-    for z in min[1].max(origin[1])..=max[1].min(origin[1] + size - 1) {
-        for x in min[0].max(origin[0])..=max[0].min(origin[0] + size - 1) {
-            let d = (grid.position([x, z]) - c).length();
-            if d > radius {
-                continue;
-            }
+    let control = &mut region.control;
+    brush_vertices(grid, region.loc, center, radius, |k, alpha| {
+        let next = f(Control(control[k]), alpha).0;
+        std::mem::replace(&mut control[k], next) != next
+    })
+}
 
-            let k = region.index([(x - origin[0]) as u32, (z - origin[1]) as u32]);
-            let next = f(Control(region.control[k]), falloff(d, radius) as f32);
-            if next.0 != region.control[k] {
-                region.control[k] = next.0;
-                changed = true;
-            }
-        }
+/// `brush_controls` for the RGBA color pixels. A region without a color map gets the blank one once a pixel changes.
+fn brush_colors(grid: &Grid, region: &mut Region3D, center: DVec3, radius: f64, mut f: impl FnMut([u8; 4], f32) -> [u8; 4]) -> bool {
+    if region.size != grid.region_size || region.check().is_err() {
+        return false;
     }
 
-    changed
+    brush_vertices(grid, region.loc, center, radius, |k, alpha| {
+        let old = region.color.as_chunks::<4>().0.get(k).copied().unwrap_or(BLANK_COLOR);
+        let next = f(old, alpha);
+        if next == old {
+            return false;
+        }
+
+        region.fill_color();
+        region.color.as_chunks_mut::<4>().0[k] = next;
+        true
+    })
 }
 
 /// Sets or clears the hole bit of every vertex within `radius`. Nothing else in the control word changes.
@@ -360,6 +382,51 @@ pub fn paint_texture(grid: &Grid, region: &mut Region3D, center: DVec3, radius: 
         PaintMode::Base => c,
         PaintMode::Spray => spray(c, alpha, id, strength),
     })
+}
+
+/// A Terrain3D control bit that a brush sets or clears on every vertex inside its circle.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Flag {
+    Navigation,
+    Autoshader,
+}
+
+/// What a dab paints, after Terrain3D's texture, navigation, autoshader, color and roughness tools. `roughness` is
+/// Terrain3D's modifier, -100 to 100 % with negative wetter. `erase` is Terrain3D's Remove Color and Remove Wetness,
+/// back to white and to roughness 0 %.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Paint {
+    Texture { id: u8, mode: PaintMode },
+    Flag { flag: Flag, on: bool },
+    Color { rgb: [u8; 3], erase: bool },
+    Wetness { roughness: i8, erase: bool },
+}
+
+/// One dab. `amount` is Terrain3D's 0 to 1 strength: texture as in `paint_texture`, color and wetness blend toward
+/// their target by falloff times `amount` like Terrain3D's COLOR and ROUGHNESS operations, color keeping the alpha and
+/// wetness the color. Flags ignore it and change every vertex inside the circle. Returns true if anything changed.
+pub fn paint(grid: &Grid, region: &mut Region3D, center: DVec3, radius: f64, paint: &Paint, amount: f32) -> bool {
+    match *paint {
+        Paint::Texture { id, mode } => paint_texture(grid, region, center, radius, id, mode, amount),
+        Paint::Flag { flag: Flag::Navigation, on } => brush_controls(grid, region, center, radius, |c, _| c.with_navigation(on)),
+        Paint::Flag { flag: Flag::Autoshader, on } => brush_controls(grid, region, center, radius, |c, _| c.with_auto(on)),
+        Paint::Color { .. } | Paint::Wetness { .. } if amount.is_nan() || amount <= 0.0 => false,
+        Paint::Color { rgb, erase } => {
+            let to = if erase { [255; 3] } else { rgb };
+            brush_colors(grid, region, center, radius, |p, alpha| {
+                let t = alpha * amount;
+                [blend(p[0], to[0], t), blend(p[1], to[1], t), blend(p[2], to[2], t), p[3]]
+            })
+        }
+        Paint::Wetness { roughness, erase } => {
+            let to = roughness_alpha(if erase { 0 } else { roughness });
+            brush_colors(grid, region, center, radius, |p, alpha| [p[0], p[1], p[2], blend(p[3], to, alpha * amount)])
+        }
+    }
+}
+
+fn blend(from: u8, to: u8, t: f32) -> u8 {
+    (from as f32 + (to as f32 - from as f32) * t.min(1.0)).round() as u8
 }
 
 fn spray(c: Control, alpha: f32, id: u8, strength: f32) -> Control {
@@ -663,12 +730,225 @@ mod tests {
         assert!(!set_hole_vertices(&g, &mut r, DVec3::new(0.0, 0.0, 0.0), 48.0, true), "brush outside the region");
     }
 
+    fn varied(k: usize) -> u32 {
+        [0x7FC0_0004, 0xFF80_0001, patterned().with_navigation(false).0, 0xA5C3_96E1][k % 4]
+    }
+
+    fn center_at(g: &Grid, loc: Loc, pixel: [u32; 2], offset: DVec2) -> DVec3 {
+        let p = g.position(g.vgrid_of(loc, pixel)) + offset;
+        DVec3::new(p.x, 5.0, p.y)
+    }
+
+    fn distances(g: &Grid, r: &Region3D, center: DVec3) -> Vec<f64> {
+        let c = DVec2::new(center.x, center.z);
+        (0..r.size).flat_map(|z| (0..r.size).map(move |x| [x, z])).map(|px| (g.position(g.vgrid_of(r.loc, px)) - c).length()).collect()
+    }
+
+    fn flagged(before: &Region3D, d: &[f64], radius: f64, set: impl Fn(Control) -> Control) -> Vec<u32> {
+        before.control.iter().zip(d).map(|(c, d)| if *d <= radius { set(Control(*c)).0 } else { *c }).collect()
+    }
+
+    fn patterned_colors(r: &mut Region3D) {
+        for (k, p) in r.color.as_chunks_mut::<4>().0.iter_mut().enumerate() {
+            *p = [(k * 7) as u8, (k * 13) as u8, (k * 31 + 5) as u8, (k * 5) as u8];
+        }
+    }
+
+    fn pixel(r: &Region3D, k: usize) -> [u8; 4] {
+        r.color.as_chunks::<4>().0[k]
+    }
+
+    fn blended(from: u8, to: u8, t: f32) -> u8 {
+        (from as f32 + (to as f32 - from as f32) * t).round() as u8
+    }
+
+    fn every_paint() -> [Paint; 6] {
+        [
+            Paint::Texture { id: 3, mode: PaintMode::Base },
+            Paint::Flag { flag: Flag::Navigation, on: true },
+            Paint::Flag { flag: Flag::Autoshader, on: false },
+            Paint::Color { rgb: [180, 150, 110], erase: false },
+            Paint::Color { rgb: [180, 150, 110], erase: true },
+            Paint::Wetness { roughness: -50, erase: false },
+        ]
+    }
+
+    #[test]
+    fn flags_change_only_their_bit_on_every_vertex_inside_the_circle() {
+        let g = Grid { region_size: 64, spacing: 2.5, upm: 32.0 };
+        let mut r = slanted([-2, 1], 64);
+        for (k, c) in r.control.iter_mut().enumerate() {
+            *c = varied(k);
+        }
+
+        let before = r.clone();
+        let nav = |on| Paint::Flag { flag: Flag::Navigation, on };
+
+        let between = center_at(&g, [-2, 1], [20, 30], DVec2::new(40.0, 40.0));
+        assert!(!paint(&g, &mut r, between, 30.0, &nav(true), 1.0), "no vertex inside a radius below the spacing");
+        assert_eq!(r, before);
+
+        let near = center_at(&g, [-2, 1], [20, 30], DVec2::new(7.0, -5.0));
+        assert!(paint(&g, &mut r, near, 30.0, &nav(true), 0.0), "flags ignore the amount");
+        let k = r.index([20, 30]);
+        let changed: Vec<usize> = (0..r.control.len()).filter(|i| r.control[*i] != before.control[*i]).collect();
+        assert_eq!(changed, vec![k]);
+        assert_eq!(r.control[k], Control(varied(k)).with_navigation(true).0);
+        assert!(!paint(&g, &mut r, near, 30.0, &nav(true), 1.0), "already set");
+
+        let on_vertex = center_at(&g, [-2, 1], [40, 9], DVec2::ZERO);
+        for (radius, count) in [(79.99, 1), (80.0, 5)] {
+            let mut r = before.clone();
+            assert!(paint(&g, &mut r, on_vertex, radius, &nav(true), 1.0));
+            let d = distances(&g, &r, on_vertex);
+            assert_eq!(r.control, flagged(&before, &d, radius, |c| c.with_navigation(true)), "radius {radius}");
+            assert_eq!(d.iter().filter(|d| **d <= radius).count(), count, "a vertex on the radius is inside");
+            assert!(paint(&g, &mut r, on_vertex, radius, &nav(false), 1.0));
+            assert_eq!(r, before, "every other bit and the NaN patterns kept");
+        }
+    }
+
+    #[test]
+    fn an_autoshader_brush_across_four_regions_flips_every_vertex_inside_the_circle() {
+        let g = Grid { region_size: 256, spacing: 2.5, upm: 32.0 };
+        let corner = g.position(g.vgrid_of([-2, -1], [0, 0]));
+        let center = DVec3::new(corner.x + 13.0, -40.0, corner.y - 29.0);
+        let mut inside = BTreeMap::new();
+        for loc in [[-3, -2], [-2, -2], [-3, -1], [-2, -1]] {
+            let mut r = slanted(loc, 256);
+            for (k, c) in r.control.iter_mut().enumerate() {
+                *c = varied(k);
+            }
+
+            let before = r.clone();
+            let d = distances(&g, &r, center);
+            assert!(paint(&g, &mut r, center, 250.0, &Paint::Flag { flag: Flag::Autoshader, on: false }, 1.0), "{loc:?}");
+            assert_eq!(r.control, flagged(&before, &d, 250.0, |c| c.with_auto(false)), "{loc:?}");
+            assert_eq!((&r.heights, &r.color), (&before.heights, &before.color));
+            assert!(paint(&g, &mut r, center, 250.0, &Paint::Flag { flag: Flag::Autoshader, on: true }, 1.0), "{loc:?}");
+            assert_eq!(r.control, flagged(&before, &d, 250.0, |c| c.with_auto(true)), "{loc:?}");
+            inside.insert(loc, d.iter().filter(|d| **d <= 250.0).count());
+        }
+
+        assert_eq!(inside, BTreeMap::from([([-3, -2], 5), ([-2, -2], 9), ([-3, -1], 5), ([-2, -1], 10)]));
+    }
+
+    #[test]
+    fn color_blends_toward_the_target_by_falloff_and_amount_and_keeps_the_alpha() {
+        let g = Grid { region_size: 64, spacing: 2.5, upm: 32.0 };
+        let mut r = slanted([3, -4], 64);
+        patterned_colors(&mut r);
+        let k = r.index([33, 12]);
+        r.color[k * 4..k * 4 + 4].copy_from_slice(&[20, 200, 99, 33]);
+        let before = r.clone();
+        let center = center_at(&g, [3, -4], [33, 12], DVec2::ZERO);
+        let sand = Paint::Color { rgb: [180, 150, 110], erase: false };
+        for amount in [0.0, -0.5, f32::NAN] {
+            assert!(!paint(&g, &mut r, center, 200.0, &sand, amount), "amount {amount}");
+        }
+
+        assert_eq!(r, before);
+
+        assert!(paint(&g, &mut r, center, 200.0, &sand, 0.5));
+        assert_eq!(pixel(&r, k), [100, 175, 105, 33]);
+        let d = distances(&g, &r, center);
+        let expected: Vec<u8> = before
+            .color
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .zip(&d)
+            .flat_map(|(p, d)| {
+                let t = falloff(*d, 200.0) as f32 * 0.5;
+                [blended(p[0], 180, t), blended(p[1], 150, t), blended(p[2], 110, t), p[3]]
+            })
+            .collect();
+        assert_eq!(r.color, expected);
+        assert!(d.iter().filter(|d| **d < 200.0).count() > 1);
+        assert_eq!((&r.heights, &r.control), (&before.heights, &before.control));
+
+        assert!(paint(&g, &mut r, center, 200.0, &sand, 1.0));
+        assert_eq!(pixel(&r, k), [180, 150, 110, 33]);
+        assert!(paint(&g, &mut r, center, 200.0, &Paint::Color { rgb: [1, 2, 3], erase: true }, 1.0));
+        assert_eq!(pixel(&r, k), [255, 255, 255, 33]);
+
+        let mut strong = before.clone();
+        assert!(paint(&g, &mut strong, center, 200.0, &sand, 4.0));
+        for (i, (p, q)) in before.color.as_chunks::<4>().0.iter().zip(strong.color.as_chunks::<4>().0).enumerate() {
+            let between = |c: usize, to: u8| p[c].min(to) <= q[c] && q[c] <= p[c].max(to);
+            assert!(between(0, 180) && between(1, 150) && between(2, 110) && p[3] == q[3], "pixel {i} overshot: {p:?} to {q:?}");
+        }
+    }
+
+    #[test]
+    fn wetness_blends_the_alpha_toward_the_roughness_and_keeps_the_color() {
+        let g = Grid { region_size: 256, spacing: 2.5, upm: 32.0 };
+        let mut before = slanted([-1, -3], 256);
+        patterned_colors(&mut before);
+        let k = before.index([100, 200]);
+        before.color[k * 4..k * 4 + 4].copy_from_slice(&[20, 200, 99, 33]);
+        let center = center_at(&g, [-1, -3], [100, 200], DVec2::ZERO);
+        let d = distances(&g, &before, center);
+        for (roughness, alpha) in [(-100, 0), (0, 127), (100, 255)] {
+            let mut r = before.clone();
+            assert!(paint(&g, &mut r, center, 300.0, &Paint::Wetness { roughness, erase: false }, 1.0));
+            assert_eq!(pixel(&r, k), [20, 200, 99, alpha]);
+            let expected: Vec<u8> =
+                before.color.as_chunks::<4>().0.iter().zip(&d).flat_map(|(p, d)| [p[0], p[1], p[2], blended(p[3], alpha, falloff(*d, 300.0) as f32)]).collect();
+            assert_eq!(r.color, expected, "{roughness} %");
+            assert_eq!((&r.heights, &r.control), (&before.heights, &before.control));
+
+            assert!(paint(&g, &mut r, center, 300.0, &Paint::Wetness { roughness: 77, erase: true }, 1.0));
+            assert_eq!(pixel(&r, k), [20, 200, 99, 127]);
+        }
+    }
+
+    #[test]
+    fn a_region_without_a_color_map_gets_the_blank_one_once_a_dab_changes_it() {
+        let g = Grid { region_size: 64, spacing: 2.5, upm: 32.0 };
+        let mut r = slanted([-2, -2], 64);
+        r.color.clear();
+        let center = center_at(&g, [-2, -2], [5, 60], DVec2::new(-11.0, 17.0));
+        let blank_already = [
+            Paint::Color { rgb: [255; 3], erase: false },
+            Paint::Color { rgb: [9, 9, 9], erase: true },
+            Paint::Wetness { roughness: 0, erase: false },
+            Paint::Wetness { roughness: -40, erase: true },
+        ];
+        for p in blank_already {
+            assert!(!paint(&g, &mut r, center, 150.0, &p, 1.0), "{p:?}");
+        }
+
+        assert!(paint(&g, &mut r, center, 150.0, &Paint::Flag { flag: Flag::Navigation, on: true }, 1.0));
+        assert!(paint(&g, &mut r, center, 150.0, &Paint::Texture { id: 9, mode: PaintMode::Base }, 1.0));
+        assert!(r.color.is_empty());
+
+        let before = r.clone();
+        assert!(paint(&g, &mut r, center, 150.0, &Paint::Wetness { roughness: -50, erase: false }, 0.5));
+        let d = distances(&g, &r, center);
+        let expected: Vec<u8> = d.iter().flat_map(|d| [255, 255, 255, blended(127, 63, falloff(*d, 150.0) as f32 * 0.5)]).collect();
+        assert_eq!(r.color, expected);
+        assert!(r.color.as_chunks::<4>().0.iter().filter(|p| **p != BLANK_COLOR).count() > 1);
+        assert_eq!((&r.heights, &r.control), (&before.heights, &before.control));
+    }
+
     #[test]
     fn brushes_refuse_a_region_of_another_size() {
         let g = grid(64);
         let mut r = Region3D::blank([0, 0], 128);
         assert!(!set_hole_vertices(&g, &mut r, DVec3::ZERO, 100.0, true));
         assert!(!paint_texture(&g, &mut r, DVec3::ZERO, 100.0, 3, PaintMode::Base, 1.0));
+        let mut short = Region3D::blank([0, 0], 64);
+        short.color.pop();
+        for p in every_paint() {
+            assert!(!paint(&g, &mut r, DVec3::ZERO, 100.0, &p, 1.0), "{p:?}");
+            assert!(!paint(&g, &mut short, DVec3::ZERO, 100.0, &p, 1.0), "{p:?} on a broken color map");
+            let mut fits = Region3D::blank([0, 0], 64);
+            fits.color = vec![9; 64 * 64 * 4];
+            assert!(paint(&g, &mut fits, DVec3::new(31.0, 0.0, 17.0), 100.0, &p, 1.0), "{p:?} on a region of the grid size");
+        }
+
+        assert_eq!(r, Region3D::blank([0, 0], 128));
         let w = world(&[[0, 0]], 64);
         let win = window(&g, |l| w.get(&l), [0, 0], [3, 3]).unwrap();
         assert!(!write_window(&g, &win, &mut r));

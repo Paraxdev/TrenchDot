@@ -22,6 +22,18 @@ pub fn loc_in_range(loc: Loc) -> bool {
     loc.iter().all(|v| (LOC_MIN..=LOC_MAX).contains(v))
 }
 
+/// The color map alpha of Terrain3D's roughness modifier, -100 to 100 % with negative wetter, stored as
+/// `0.5 + percent / 200` through Godot's truncating RGBA8 conversion, so 0 % is the blank alpha.
+pub fn roughness_alpha(percent: i8) -> u8 {
+    (255 * (percent.clamp(-100, 100) as i32 + 100) / 200) as u8
+}
+
+/// The modifier whose `roughness_alpha` is `alpha`. An alpha no modifier stores reads as the next one up, so every
+/// modifier round trips although the alpha has more steps.
+pub fn roughness_percent(alpha: u8) -> i8 {
+    ((200 * alpha as i32 + 254) / 255 - 100) as i8
+}
+
 /// One control map pixel. Setters mask the value like Terrain3D's `enc_*` functions and leave every other bit as it
 /// was, including the reserved ones Terrain3D's own brushes clear.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -106,6 +118,18 @@ impl Region3D {
         }
 
         Ok(())
+    }
+
+    /// Gives a region whose cache left the color map out the blank one Godot holds for it.
+    pub fn fill_color(&mut self) {
+        if self.color.is_empty() {
+            self.color = BLANK_COLOR.repeat(self.size as usize * self.size as usize);
+        }
+    }
+
+    /// True when every color pixel is blank, also without a color map.
+    pub fn color_is_blank(&self) -> bool {
+        self.color.as_chunks::<4>().0.iter().all(|p| *p == BLANK_COLOR)
     }
 
     pub fn index(&self, pixel: [u32; 2]) -> usize {
@@ -564,5 +588,44 @@ mod tests {
         assert_eq!(r.coarse(64).map(|c| c.0), Some(vec![r.heights[0]]));
         assert_eq!(r.coarse(3), None);
         assert_eq!(r.coarse(0), None);
+    }
+
+    #[test]
+    fn roughness_modifiers_round_trip_through_the_stored_alpha() {
+        let fixed = [(-128, 0), (-100, 0), (-99, 1), (-50, 63), (-1, 126), (0, 127), (1, 128), (50, 191), (100, 255), (127, 255)];
+        for (percent, alpha) in fixed {
+            assert_eq!(roughness_alpha(percent), alpha, "{percent} %");
+        }
+
+        assert_eq!(roughness_alpha(0), BLANK_COLOR[3]);
+        for percent in -100..=100 {
+            assert_eq!(roughness_percent(roughness_alpha(percent)), percent);
+        }
+
+        for alpha in 0..=255u8 {
+            let p = roughness_percent(alpha);
+            assert!((-100..=100).contains(&p) && roughness_alpha(p) >= alpha, "alpha {alpha} reads {p}");
+            assert!(p == -100 || roughness_alpha(p - 1) < alpha, "alpha {alpha} reads {p}, not the next one up");
+        }
+    }
+
+    #[test]
+    fn an_empty_color_map_fills_blank_and_a_filled_one_stays() {
+        let mut r = slanted([-2, 1], 64);
+        r.color.clear();
+        assert!(r.color_is_blank());
+        r.fill_color();
+        assert_eq!(r.color, BLANK_COLOR.repeat(64 * 64));
+        assert!(r.color_is_blank() && r.check().is_ok());
+
+        let at = r.index([63, 0]) * 4;
+        r.color[at + 3] = 128;
+        assert!(!r.color_is_blank(), "one alpha off blank");
+        let tinted = r.color.clone();
+        r.fill_color();
+        assert_eq!(r.color, tinted);
+        r.color[at..at + 4].copy_from_slice(&BLANK_COLOR);
+        r.color[0] = 254;
+        assert!(!r.color_is_blank(), "one red off blank");
     }
 }
