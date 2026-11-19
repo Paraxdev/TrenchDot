@@ -4,6 +4,7 @@ use egui::RichText;
 use td_core::DVec3;
 use td_doc::ops;
 
+use crate::commands::{self, Action};
 use crate::i18n::{Msg, en, msg, tr};
 use crate::state::EditorState;
 
@@ -89,8 +90,23 @@ impl TransformDialog {
         self.focus = true;
     }
 
+    pub fn toggle(&mut self) {
+        if self.open {
+            self.open = false;
+        } else {
+            self.open();
+        }
+    }
+
     pub fn show(&mut self, ctx: &egui::Context, state: &mut EditorState) {
         if !self.open {
+            return;
+        }
+
+        // The X field holds the keyboard from the start, so the app's own shortcuts never see these keys.
+        let keys: Vec<_> = commands::shortcuts(&state.prefs).into_iter().filter(|(_, a)| *a == Action::ShowTransformDialog).map(|(s, _)| s).collect();
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape) || keys.iter().any(|s| commands::consume_shortcut(i, s))) {
+            self.open = false;
             return;
         }
 
@@ -421,5 +437,28 @@ mod tests {
         let harness = harness(state);
         assert!(spin(&harness, 0).accesskit_node().is_focused());
         assert!(!spin(&harness, 1).accesskit_node().is_focused());
+    }
+
+    #[test]
+    fn escape_or_the_dialog_shortcut_closes_it_from_the_focused_field() {
+        let (mut state, _) = two_brushes();
+        state.prefs.keymap_preset = "hammer".into();
+        let mut harness = harness(state);
+        assert!(spin(&harness, 0).accesskit_node().is_focused());
+        harness.key_press(egui::Key::Escape);
+        harness.run();
+        assert!(!harness.state().dialog.open, "Escape");
+
+        harness.state_mut().dialog.open();
+        harness.run();
+        assert!(spin(&harness, 0).accesskit_node().is_focused());
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::M);
+        harness.run();
+        assert!(!harness.state().dialog.open, "Ctrl+M");
+
+        harness.state_mut().dialog.toggle();
+        assert!(harness.state().dialog.open, "the menu or a shortcut outside the window opens it again");
+        harness.state_mut().dialog.toggle();
+        assert!(!harness.state().dialog.open);
     }
 }

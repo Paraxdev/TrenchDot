@@ -1255,7 +1255,7 @@ impl App {
             Action::ShowTrimDialog => self.trim_dialog.open = true,
             Action::ShowSweepDialog => self.sweep_dialog.open = true,
             Action::ShowArrayDialog => self.array_dialog.open = true,
-            Action::ShowTransformDialog => self.transform_dialog.open(),
+            Action::ShowTransformDialog => self.transform_dialog.toggle(),
             Action::TieToEntity => {
                 if let Some(class) = commands::tie_to_entity_check(&mut self.state) {
                     self.palette.open_class_picker(&self.state, &class);
