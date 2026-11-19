@@ -11,7 +11,7 @@ use crate::commands::{self, Action, ModelImport};
 use crate::i18n::{self, Lang, Msg, en, tr, tr_n, trf};
 use crate::mesh_tool::MeshOp;
 use crate::state::{EditorState, Shade};
-use crate::tool_keys::{ToolKeyRow, describe, tool_key_rows, tools_reading};
+use crate::tool_keys::{ToolKeyRow, describe, preset_rows, tool_key_rows, tools_reading};
 use crate::tools::ToolKind;
 use crate::widgets;
 
@@ -1384,7 +1384,7 @@ impl KeymapWindow {
                 ui.selectable_value(&mut self.tab, KeymapTab::ToolKeys, tr("Tool keys"));
             });
             if self.tab == KeymapTab::ToolKeys {
-                self.tool_keys_tab(ui);
+                self.tool_keys_tab(ui, &state.prefs.keymap_preset);
                 return;
             }
 
@@ -1553,7 +1553,7 @@ impl KeymapWindow {
         }
     }
 
-    fn tool_keys_tab(&mut self, ui: &mut egui::Ui) {
+    fn tool_keys_tab(&mut self, ui: &mut egui::Ui, preset: &str) {
         ui.add(egui::TextEdit::singleline(&mut self.tool_filter).hint_text(tr("filter")).desired_width(160.0));
         ui.label(RichText::new(tr("Keys a tool reads while it is the active tool. They are fixed and cannot be rebound.")).weak());
         ui.separator();
@@ -1561,6 +1561,7 @@ impl KeymapWindow {
             for tool in ToolKind::all() {
                 let rows: Vec<&ToolKeyRow> = tool_key_rows()
                     .iter()
+                    .chain(preset_rows(preset))
                     .filter(|r| r.tool == tool)
                     .filter(|r| {
                         self.tool_filter.is_empty()
@@ -2798,6 +2799,69 @@ mod tests {
         h.run();
         assert_eq!(h.state().1.prefs.keymap_preset, "hammer");
         assert!(h.query_by_label("Double click a group").is_some(), "the Hammer preset names it too");
+    }
+
+    fn switch_preset(h: &mut egui_kittest::Harness<'static, (KeymapWindow, EditorState)>, preset: &str) {
+        use egui_kittest::kittest::Queryable;
+        h.get_by_role(egui::accesskit::Role::ComboBox).click();
+        h.run();
+        h.get_by_label(commands::preset_label(preset)).click();
+        h.run();
+        assert_eq!(h.state().1.prefs.keymap_preset, preset);
+    }
+
+    #[test]
+    fn the_mouse_tab_lists_the_copy_drag_for_hammer_and_the_face_click_for_trenchbroom() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        h.get_by_label("Mouse").click();
+        h.run();
+        assert!(h.query_by_label("Shift+click").is_some());
+        assert!(h.query_by_label("Shift+drag the selection").is_none());
+        assert!(h.query_by_label("Ctrl+drag the selection").is_none());
+        assert!(h.query_by_label("Move it. Ctrl copies, Shift locks the axis").is_some());
+        assert!(h.query_by_label("Shift+drag a selected face (3D)").is_some());
+
+        switch_preset(&mut h, "hammer");
+        assert!(h.query_by_label("Shift+drag the selection").is_some());
+        assert!(h.query_by_label("Ctrl+drag the selection").is_some());
+        assert!(h.query_by_label("Shift+click").is_none());
+        assert!(h.query_by_label("Ctrl+Shift+click").is_none());
+        assert!(h.query_by_label("Shift+drag a selected face (3D)").is_none());
+        assert!(h.query_by_label("Ctrl+Shift+drag a selected face (3D)").is_none());
+
+        switch_preset(&mut h, "trenchbroom");
+        assert!(h.query_by_label("Shift+click").is_some());
+        assert!(h.query_by_label("Shift+drag the selection").is_none());
+    }
+
+    #[test]
+    fn the_tool_keys_tab_lists_the_texture_tool_select_all_only_for_hammer() {
+        use egui_kittest::kittest::Queryable;
+        const ROW: &str = "Select every face of the selected brushes (with faces or brushes selected)";
+        let mut h = keymap_harness();
+        h.get_by_label("Tool keys").click();
+        h.run();
+        const SLIDE: &str = "Slide the texture one grid step (with faces or brushes selected)";
+        assert_eq!(h.query_all_by_label(SLIDE).count(), 4);
+        assert!(h.query_by_label(ROW).is_none());
+
+        h.get_by_label("Keys").click();
+        h.run();
+        switch_preset(&mut h, "hammer");
+        h.get_by_label("Tool keys").click();
+        h.run();
+        assert!(h.query_by_label(ROW).is_some());
+        assert_eq!(h.query_all_by_label(SLIDE).count(), 4);
+
+        h.state_mut().0.tool_filter = "every face".into();
+        h.run();
+        assert!(h.query_by_label(ROW).is_some());
+        assert_eq!(h.query_all_by_label(SLIDE).count(), 0);
+
+        h.state_mut().1.prefs.keymap_preset = "blender".into();
+        h.run();
+        assert!(h.query_by_label(ROW).is_none());
     }
 
     #[test]

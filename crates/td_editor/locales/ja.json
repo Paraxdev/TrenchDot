@@ -2369,7 +2369,6 @@
   "Play in Godot": "Godotで遊ぶ",
   "Use the keys of the editor you know:": "使い慣れたエディタのキー配置を選べます:",
   "Q selects, C clips, Ctrl+K subtracts.": "Qで選択、Cでクリップ、Ctrl+Kで減算。",
-  "Shift+S, Shift+X, Shift+V pick Select, Clip, Vertex, H hides.": "Shift+S、Shift+X、Shift+Vで選択、クリップ、頂点、Hで非表示。",
   "A selects all, X deletes, Shift+D duplicates, S scales.": "Aで全選択、Xで削除、Shift+Dで複製、Sで拡大縮小。",
   "Skip": "スキップ",
   "File > Preferences > Keymap preset changes it later": "ファイル > 環境設定 > キーマッププリセットで後から変更できます",
@@ -2586,5 +2585,7 @@
   "Tie to Entity": "エンティティに紐付け",
   "Turns the selected brushes into a brush entity picked from a list, like a door or a trigger": "選択したブラシを、リストから選んだドアやトリガーなどのブラシエンティティにします",
   "Already a {class}, change its class in the Inspector": "すでに{class}です。クラスはインスペクターで変更してください",
-  "Type a class…": "クラスを入力…"
+  "Type a class…": "クラスを入力…",
+  "Shift+drag clones, Ctrl+M transforms, Ctrl+T ties to an entity, Shift+A textures.": "Shift+ドラッグで複製、Ctrl+Mで変形、Ctrl+Tでエンティティに結び付け、Shift+Aでテクスチャ。",
+  "Select every face of the selected brushes": "選択したブラシの全ての面を選択します"
 }

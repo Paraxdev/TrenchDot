@@ -2369,7 +2369,6 @@
   "Play in Godot": "Играть в Godot",
   "Use the keys of the editor you know:": "Выбери сочетания клавиш редактора, который знаешь:",
   "Q selects, C clips, Ctrl+K subtracts.": "Q выбирает, C отсекает, Ctrl+K вычитает.",
-  "Shift+S, Shift+X, Shift+V pick Select, Clip, Vertex, H hides.": "Shift+S, Shift+X и Shift+V включают выбор, отсечение и вершины, H скрывает.",
   "A selects all, X deletes, Shift+D duplicates, S scales.": "A выбирает всё, X удаляет, Shift+D дублирует, S масштабирует.",
   "Skip": "Пропустить",
   "File > Preferences > Keymap preset changes it later": "Файл > Настройки > Набор сочетаний клавиш изменит это позже",
@@ -2586,5 +2585,7 @@
   "Tie to Entity": "Привязать к сущности",
   "Turns the selected brushes into a brush entity picked from a list, like a door or a trigger": "Превращает выбранные брашы в браш-сущность из списка, например дверь или триггер",
   "Already a {class}, change its class in the Inspector": "Уже {class}, смените класс в инспекторе",
-  "Type a class…": "Введите класс…"
+  "Type a class…": "Введите класс…",
+  "Shift+drag clones, Ctrl+M transforms, Ctrl+T ties to an entity, Shift+A textures.": "Shift+перетаскивание клонирует, Ctrl+M трансформирует, Ctrl+T привязывает к сущности, Shift+A текстурирует.",
+  "Select every face of the selected brushes": "Выделяет каждую грань выбранных брашей"
 }

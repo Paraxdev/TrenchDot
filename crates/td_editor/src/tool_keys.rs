@@ -129,6 +129,17 @@ pub fn tool_key_rows() -> &'static [ToolKeyRow] {
     TOOL_KEYS
 }
 
+/// Keys a tool answers only under one keymap preset, because the preset binds an action that acts on the tool's
+/// selection. The tool does not read them, so the drift test over `TOOL_KEYS` leaves them out.
+const HAMMER_KEYS: &[ToolKeyRow] = &[row(ToolKind::Texture, Key::A, CTRL, en!("Select every face of the selected brushes"), When::FacesInReach)];
+
+pub fn preset_rows(preset: &str) -> &'static [ToolKeyRow] {
+    match preset {
+        "hammer" => HAMMER_KEYS,
+        _ => &[],
+    }
+}
+
 /// The tools that read `chord` themselves while they are active, in toolbar order.
 pub fn tools_reading(chord: &KeyboardShortcut) -> Vec<ToolKind> {
     let text = commands::shortcut_to_text(chord);
@@ -171,5 +182,23 @@ mod tests {
         assert_eq!(find(ToolKind::Mesh, Key::B, CTRL_SHIFT), "Ctrl+Shift+B");
         assert_eq!(find(ToolKind::Texture, Key::ArrowLeft, SHIFT), "Shift+Left");
         assert_eq!(find(ToolKind::Mesh, Key::Num1, NONE), "1");
+    }
+
+    #[test]
+    fn only_the_hammer_preset_has_keys_of_its_own() {
+        let hammer = preset_rows("hammer");
+        assert_eq!(hammer.len(), 1);
+        assert_eq!((hammer[0].tool, hammer[0].chord().as_str()), (ToolKind::Texture, "Ctrl+A"));
+        assert_eq!(describe(&hammer[0]), "Select every face of the selected brushes (with faces or brushes selected)");
+        for preset in ["trenchbroom", "blender", "unknown", ""] {
+            assert!(preset_rows(preset).is_empty(), "{preset}");
+        }
+    }
+
+    #[test]
+    fn a_preset_key_does_not_repeat_a_key_the_tool_reads() {
+        for row in preset_rows("hammer") {
+            assert!(!TOOL_KEYS.iter().any(|r| r.tool == row.tool && r.key == row.key && r.modifiers == row.modifiers), "{}", row.chord());
+        }
     }
 }

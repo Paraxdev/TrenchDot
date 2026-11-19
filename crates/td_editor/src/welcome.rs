@@ -30,7 +30,7 @@ const LOOP_STEPS: [&str; 4] = [en!("Block out"), en!("Texture it"), en!("Add ent
 pub fn preset_line(preset: &str) -> &'static str {
     match preset {
         "trenchbroom" => en!("Q selects, C clips, Ctrl+K subtracts."),
-        "hammer" => en!("Shift+S, Shift+X, Shift+V pick Select, Clip, Vertex, H hides."),
+        "hammer" => en!("Shift+drag clones, Ctrl+M transforms, Ctrl+T ties to an entity, Shift+A textures."),
         "blender" => en!("A selects all, X deletes, Shift+D duplicates, S scales."),
         _ => "",
     }
@@ -811,15 +811,7 @@ mod tests {
         };
         let lines: [(&str, Vec<(&str, Action)>); 3] = [
             ("trenchbroom", vec![("Q", Action::SetTool(ToolKind::Select)), ("C", Action::SetTool(ToolKind::Clip)), ("Ctrl+K", Action::CsgSubtract)]),
-            (
-                "hammer",
-                vec![
-                    ("Shift+S", Action::SetTool(ToolKind::Select)),
-                    ("Shift+X", Action::SetTool(ToolKind::Clip)),
-                    ("Shift+V", Action::SetTool(ToolKind::Vertex)),
-                    ("H", Action::HideSelected),
-                ],
-            ),
+            ("hammer", vec![("Ctrl+M", Action::ShowTransformDialog), ("Ctrl+T", Action::TieToEntity), ("Shift+A", Action::SetTool(ToolKind::Texture))]),
             ("blender", vec![("A", Action::SelectAllInMode), ("X", Action::Delete), ("Shift+D", Action::Duplicate), ("S", Action::SetTool(ToolKind::Scale))]),
         ];
         assert_eq!(lines.iter().map(|(id, _)| *id).collect::<Vec<_>>(), crate::commands::PRESETS, "a preset added later needs its line and its check");
@@ -831,7 +823,8 @@ mod tests {
         }
 
         assert!(!names("trenchbroom", "A", &Action::SelectAll), "a chord the preset does not bind is caught");
-        assert!(!names("hammer", "Shift+S", &Action::SetTool(ToolKind::Clip)), "so is one bound to something else");
+        assert!(!names("hammer", "Ctrl+M", &Action::CsgMerge), "so is one bound to something else");
+        assert!(!names("trenchbroom", "Ctrl+T", &Action::TieToEntity), "a Hammer chord is not the TrenchBroom one");
         assert_eq!(preset_line("nonsense"), "", "an unknown id has no line");
     }
 

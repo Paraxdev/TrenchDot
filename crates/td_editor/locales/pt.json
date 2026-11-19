@@ -2369,7 +2369,6 @@
   "Play in Godot": "Jogar no Godot",
   "Use the keys of the editor you know:": "Use os atalhos do editor que você já conhece:",
   "Q selects, C clips, Ctrl+K subtracts.": "Q seleciona, C corta, Ctrl+K subtrai.",
-  "Shift+S, Shift+X, Shift+V pick Select, Clip, Vertex, H hides.": "Shift+S, Shift+X e Shift+V escolhem Selecionar, Cortar e Vértice, H oculta.",
   "A selects all, X deletes, Shift+D duplicates, S scales.": "A seleciona tudo, X exclui, Shift+D duplica, S escala.",
   "Skip": "Pular",
   "File > Preferences > Keymap preset changes it later": "Arquivo > Preferências > Predefinição de atalhos muda depois",
@@ -2586,5 +2585,7 @@
   "Tie to Entity": "Vincular a entidade",
   "Turns the selected brushes into a brush entity picked from a list, like a door or a trigger": "Transforma os brushes escolhidos em uma entidade brush da lista, como uma porta ou um gatilho",
   "Already a {class}, change its class in the Inspector": "Já é {class}, mude a classe no Inspetor",
-  "Type a class…": "Digite uma classe…"
+  "Type a class…": "Digite uma classe…",
+  "Shift+drag clones, Ctrl+M transforms, Ctrl+T ties to an entity, Shift+A textures.": "Shift+arrastar clona, Ctrl+M transforma, Ctrl+T liga a uma entidade, Shift+A texturiza.",
+  "Select every face of the selected brushes": "Seleciona cada face dos brushes selecionados"
 }
