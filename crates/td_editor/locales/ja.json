@@ -2370,7 +2370,7 @@
   "Play in Godot": "Godotで遊ぶ",
   "Use the keys of the editor you know:": "使い慣れたエディタのキー配置を選べます:",
   "Q selects, C clips, Ctrl+K subtracts.": "Qで選択、Cでクリップ、Ctrl+Kで減算。",
-  "A selects all, X deletes, Shift+D duplicates, S scales.": "Aで全選択、Xで削除、Shift+Dで複製、Sで拡大縮小。",
+  "1 and 3 switch Object and Face mode, A selects all, X deletes.": "1と3でオブジェクトモードと面モードを切り替え、Aで全選択、Xで削除。",
   "Skip": "スキップ",
   "File > Preferences > Keymap preset changes it later": "ファイル > 環境設定 > キーマッププリセットで後から変更できます",
   "Welcome to TrenchDot": "TrenchDotへようこそ",

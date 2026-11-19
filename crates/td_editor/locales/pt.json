@@ -2370,7 +2370,7 @@
   "Play in Godot": "Jogar no Godot",
   "Use the keys of the editor you know:": "Use os atalhos do editor que você já conhece:",
   "Q selects, C clips, Ctrl+K subtracts.": "Q seleciona, C corta, Ctrl+K subtrai.",
-  "A selects all, X deletes, Shift+D duplicates, S scales.": "A seleciona tudo, X exclui, Shift+D duplica, S escala.",
+  "1 and 3 switch Object and Face mode, A selects all, X deletes.": "1 e 3 alternam entre modo objeto e modo face, A seleciona tudo, X exclui.",
   "Skip": "Pular",
   "File > Preferences > Keymap preset changes it later": "Arquivo > Preferências > Predefinição de atalhos muda depois",
   "Welcome to TrenchDot": "Boas-vindas ao TrenchDot",

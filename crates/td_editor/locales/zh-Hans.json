@@ -2370,7 +2370,7 @@
   "Play in Godot": "在 Godot 中试玩",
   "Use the keys of the editor you know:": "选择你熟悉的编辑器的快捷键:",
   "Q selects, C clips, Ctrl+K subtracts.": "Q 选择,C 裁切,Ctrl+K 减去。",
-  "A selects all, X deletes, Shift+D duplicates, S scales.": "A 全选,X 删除,Shift+D 复制,S 缩放。",
+  "1 and 3 switch Object and Face mode, A selects all, X deletes.": "1 和 3 切换对象模式和面模式，A 全选，X 删除。",
   "Skip": "跳过",
   "File > Preferences > Keymap preset changes it later": "文件 > 偏好设置 > 快捷键预设 可稍后更改",
   "Welcome to TrenchDot": "欢迎使用 TrenchDot",

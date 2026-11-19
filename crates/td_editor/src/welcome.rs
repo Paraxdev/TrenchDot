@@ -31,7 +31,7 @@ pub fn preset_line(preset: &str) -> &'static str {
     match preset {
         "trenchbroom" => en!("Q selects, C clips, Ctrl+K subtracts."),
         "hammer" => en!("Shift+drag clones, Ctrl+M transforms, Ctrl+T ties to an entity, Shift+A textures."),
-        "blender" => en!("A selects all, X deletes, Shift+D duplicates, S scales."),
+        "blender" => en!("1 and 3 switch Object and Face mode, A selects all, X deletes."),
         _ => "",
     }
 }
@@ -812,7 +812,7 @@ mod tests {
         let lines: [(&str, Vec<(&str, Action)>); 3] = [
             ("trenchbroom", vec![("Q", Action::SetTool(ToolKind::Select)), ("C", Action::SetTool(ToolKind::Clip)), ("Ctrl+K", Action::CsgSubtract)]),
             ("hammer", vec![("Ctrl+M", Action::ShowTransformDialog), ("Ctrl+T", Action::TieToEntity), ("Shift+A", Action::SetTool(ToolKind::Texture))]),
-            ("blender", vec![("A", Action::SelectAllInMode), ("X", Action::Delete), ("Shift+D", Action::Duplicate), ("S", Action::SetTool(ToolKind::Scale))]),
+            ("blender", vec![("1", Action::ObjectMode), ("3", Action::FaceMode), ("A", Action::SelectAllInMode), ("X", Action::Delete)]),
         ];
         assert_eq!(lines.iter().map(|(id, _)| *id).collect::<Vec<_>>(), crate::commands::PRESETS, "a preset added later needs its line and its check");
         for (preset, chords) in &lines {

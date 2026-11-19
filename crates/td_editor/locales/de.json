@@ -2370,7 +2370,7 @@
   "Play in Godot": "In Godot spielen",
   "Use the keys of the editor you know:": "Nimm die Tasten des Editors, den du kennst:",
   "Q selects, C clips, Ctrl+K subtracts.": "Q wählt aus, C schneidet, Ctrl+K subtrahiert.",
-  "A selects all, X deletes, Shift+D duplicates, S scales.": "A wählt alles, X löscht, Shift+D dupliziert, S skaliert.",
+  "1 and 3 switch Object and Face mode, A selects all, X deletes.": "1 und 3 wechseln Objekt- und Flächenmodus, A wählt alles, X löscht.",
   "Skip": "Überspringen",
   "File > Preferences > Keymap preset changes it later": "Datei > Einstellungen > Tastenbelegung ändert es später",
   "Welcome to TrenchDot": "Willkommen bei TrenchDot",
