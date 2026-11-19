@@ -1686,7 +1686,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
                 return;
             }
 
-            let center = ops::selection_center(&state.doc.map, &state.doc.selection, opts.grid);
+            let center = ops::flip_center(&state.doc.map, &state.doc.selection, opts.grid);
             let m = ops::flip_about(center, axis);
             state.doc.edit("Flip", |map, s| ops::transform_selection(map, s, &m, opts));
         }
@@ -4801,6 +4801,28 @@ mod tests {
             assert_eq!(state.doc.history.undo_labels().count(), steps + 1, "{action:?} with a brush selected is one step");
             assert_ne!(state.doc.map.brush(brush).cloned(), before);
         }
+    }
+
+    #[test]
+    fn flip_keeps_bounds_whose_center_falls_between_grid_lines() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        let parent = state.insert_parent();
+        let mut slab = |y0: f64, y1: f64| {
+            let brush = td_geom::Brush::from_aabb(&Aabb::new(DVec3::new(0.0, y0, 0.0), DVec3::new(64.0, y1, 64.0)), "dev/grey").unwrap();
+            state.doc.edit("Create Brush", |m, _| ops::create_brush(m, parent, brush))
+        };
+        let (platform, railing) = (slab(80.0, 96.0), slab(96.0, 128.0));
+        let span = |state: &EditorState, id: NodeId| {
+            let b = state.doc.map.bounds_of([id]);
+            (b.min.y, b.max.y)
+        };
+        state.grid = 16.0;
+        assert!(state.snap);
+        state.doc.selection.select_node(platform);
+        state.doc.selection.select_node(railing);
+        execute(&mut state, Action::Flip { axis: 1 }, &ctx);
+        assert_eq!((span(&state, platform), span(&state, railing)), ((112.0, 128.0), (80.0, 112.0)), "mirrored about 104, half a grid cell");
     }
 
     fn sorted(points: impl IntoIterator<Item = DVec3>) -> Vec<[i64; 3]> {

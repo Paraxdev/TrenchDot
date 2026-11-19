@@ -214,7 +214,7 @@ impl TransformSteps {
             }
 
             if let Some(axis) = self.flip {
-                let center = ops::selection_center(m, s, grid);
+                let center = ops::flip_center(m, s, grid);
                 ops::transform_selection(m, s, &ops::flip_about(center, axis), opts);
             }
 
@@ -2807,7 +2807,7 @@ impl App {
 
     /// Applied in order translate, rotate, flip, scale, scale_to, shear as one undo step. rotate, flip and scale pivot on
     /// the selection center as it is at that step, so a translated selection flips in place at its new position. The pivot snaps to
-    /// the grid only while snapping is on, and `snap` and `uv_lock` override the editor settings for this call.
+    /// the grid, half the grid for flip, only while snapping is on, and `snap` and `uv_lock` override the editor settings for this call.
     fn tool_transform(&mut self, args: &Value) -> ToolResult {
         if self.state.doc.selection.nodes.is_empty() {
             return err("nothing selected");

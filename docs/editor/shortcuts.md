@@ -168,7 +168,7 @@ A preset only changes the keys and mouse gestures below, everything else stays a
 | Ctrl+W | Move brushes to world |
 | Ctrl+T, Ctrl+Shift+T | Tie to Entity, and Select Touching, which moved to Ctrl+Shift+T. Ctrl+T opens the class list with `func_detail` highlighted, so Ctrl+T then Enter makes the selected brushes one detail entity. Type to filter, Esc cancels. A selection that already is a whole brush entity is selected instead, change its class in the Inspector. Also under Brush > Tie to Entity |
 | Ctrl+M | Transform Selection, a window that moves, rotates or scales the selection by typed numbers. The shape generator stays on Ctrl+Shift+B |
-| Ctrl+L, Ctrl+I | Flip Horizontal, Flip Vertical. They mirror the selection across its center along the screen axes of the view under the pointer, like Hammer. In 3D, horizontal is whichever of X or Z lies closer to the camera's right. In the Mesh tool Ctrl+L still selects linked |
+| Ctrl+L, Ctrl+I | Flip Horizontal, Flip Vertical. They mirror the selection across its center along the screen axes of the view under the pointer, like Hammer. In 3D, horizontal is whichever of X or Z lies closer to the camera's right. While snapping is on the center snaps to half the grid, so a selection centered between those lines shifts by up to half a grid step. Ctrl+Shift+R pivots on the full grid, so it moves a selection centered off the grid too. Turn snapping off to flip or rotate in place. In the Mesh tool Ctrl+L still selects linked |
 | Ctrl+Shift+I, Ctrl+Shift+R | Select inverse, rotate 90° around the vertical axis |
 | Ctrl+Shift+M, Ctrl+Shift+L | CSG convex merge, intersect |
 | Ctrl+F4 | Close tab |

@@ -224,6 +224,17 @@ pub fn selection_center(map: &Map, sel: &Selection, grid: f64) -> DVec3 {
     td_core::snap_vec_to_grid(b.center(), grid.max(1.0))
 }
 
+/// Pivot for a flip, the selection center snapped to half of `grid`. Mirroring about a half grid point keeps on grid
+/// vertices on the grid, and unlike a whole grid pivot it leaves bounds that span an odd number of cells in place.
+pub fn flip_center(map: &Map, sel: &Selection, grid: f64) -> DVec3 {
+    let center = selection_center(map, sel, 0.0);
+    if grid <= 0.0 {
+        return center;
+    }
+
+    td_core::snap_vec_to_grid(center, grid.max(1.0) / 2.0)
+}
+
 /// Which edge of the combined bounds [`align_selection`] lines the objects up with.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AlignTo {
