@@ -18,8 +18,9 @@ You can change your mind at any time with *File > Preferences > Keymap preset*, 
 The Hammer preset gives you Hammer's mouse and keys. Shift+drag clones the selection, Shift+A opens the Texture tool,
 Ctrl+M opens Transform Selection, Ctrl+T ties brushes to an entity, and Ctrl+L and Ctrl+I flip along the view. An action
 that loses its key to one of them gets a new one, so Close Tab moves to Ctrl+F4 to leave Ctrl+W for Move to World. The
-TrenchBroom and Blender presets keep their own mouse and keys, [Keys](#keys) and [Mouse](#mouse) below show where the
-three differ.
+TrenchBroom preset, the default, puts TrenchBroom's keys on top of TrenchDot's own, so Ctrl+I isolates, Ctrl+J merges
+and U toggles UV lock, while a TrenchDot key nothing took keeps working, like Ctrl+H to hide. [Keys](#keys) and
+[Mouse](#mouse) below show where the presets differ.
 
 ## Where things are
 
@@ -53,7 +54,7 @@ Map units are 32 to the meter and the default grid step is 16.
 
 TrenchBroom keys are the defaults of TrenchBroom 2026.2. An empty cell means that program has no key for it.
 
-| Action | TrenchBroom | TrenchDot | Hammer preset |
+| Action | TrenchBroom | TrenchBroom preset | Hammer preset |
 | --- | --- | --- | --- |
 | Select tool | Shift+Esc leaves the current tool | Q | Shift+S |
 | Block tool | | | Shift+B |
@@ -63,39 +64,43 @@ TrenchBroom keys are the defaults of TrenchBroom 2026.2. An empty cell means tha
 | Rotate tool | R | R | R |
 | Scale tool | T | T | T |
 | Shear tool | G | Shift+R | Shift+R |
-| Subtract, hollow | Ctrl+K, Ctrl+Shift+K | Ctrl+K, Ctrl+Shift+K | Ctrl+K, Ctrl+Shift+K |
+| Subtract, hollow | Ctrl+K, Ctrl+Shift+K | Ctrl+K, Ctrl+Shift+K | Ctrl+Shift+C or Ctrl+K, Ctrl+Shift+K |
 | Transform Selection | | | Ctrl+M |
 | Tie to Entity | | | Ctrl+T |
 | Flip horizontally, vertically | Ctrl+F, Ctrl+Alt+F | | Ctrl+L, Ctrl+I |
-| Convex merge | Ctrl+J | Ctrl+M | Ctrl+Shift+M |
+| Convex merge | Ctrl+J | Ctrl+J or Ctrl+M | Ctrl+Shift+M |
 | Intersect | Ctrl+L | Ctrl+L | Ctrl+Shift+L |
 | Duplicate, duplicate linked | Ctrl+D, Ctrl+Shift+D | Ctrl+D, Ctrl+Shift+D | Ctrl+D, Ctrl+Shift+D |
-| Group, ungroup | Ctrl+G, Ctrl+Shift+G | Ctrl+G, Ctrl+Shift+G | Ctrl+G, Ctrl+Shift+G |
+| Group, ungroup | Ctrl+G, Ctrl+Shift+G | Ctrl+G, Ctrl+Shift+G | Ctrl+G, Ctrl+U |
 | Select all | Ctrl+A | Ctrl+A | Ctrl+A |
 | Select none | Ctrl+Shift+A | Ctrl+Shift+A, Esc | Esc |
-| Invert selection | Ctrl+Alt+A | Ctrl+I | Ctrl+Shift+I |
+| Invert selection | Ctrl+Alt+A | Ctrl+Alt+A | Ctrl+Shift+I |
 | Select touching | Ctrl+T | Ctrl+T | Ctrl+Shift+T |
-| Select inside | Ctrl+E | Ctrl+E | Ctrl+E |
-| Hide selection | Ctrl+Alt+I | Ctrl+H | H |
-| Isolate selection | Ctrl+I | Ctrl+J | Ctrl+H |
-| Show all | Ctrl+Shift+I | Ctrl+Shift+H | U |
+| Select inside | Ctrl+E | Ctrl+E | |
+| Hide selection | Ctrl+Alt+I | Ctrl+Alt+I or Ctrl+H | H |
+| Isolate selection | Ctrl+I | Ctrl+I | Ctrl+H |
+| Show all | Ctrl+Shift+I | Ctrl+Shift+I or Ctrl+Shift+H | U |
 | Halve, double the grid | `-` and `+` | `[` and `]`, or `-` and `=` | `[` and `]`, or `-` and `=` |
-| UV lock | U | Ctrl+Shift+U | Ctrl+Shift+U |
-| Frame the selection | Ctrl+U | F or Ctrl+U | F or Ctrl+U |
-| Maximize the view | Ctrl+Space | Shift+Space | Shift+Space |
+| UV lock | U | U or Ctrl+Shift+U | Shift+L or Ctrl+Shift+U |
+| Snap to the grid on or off | Alt+0 | Alt+0 | Shift+W |
+| Frame the selection | Ctrl+U | F or Ctrl+U | Ctrl+E or F |
+| Maximize the view | Ctrl+Space | Ctrl+Space or Shift+Space | Shift+Z or Shift+Space |
 | Mouse look in 3D | | | Z |
 | Repeat the last action | Ctrl+R | Ctrl+R | Ctrl+R |
 
-Transform Selection, Tie to Entity and the two flips have no key outside the Hammer preset, they sit in the *Brush* menu
+Ctrl+F opens Find in every preset, so the TrenchBroom preset leaves the flips without a key. Transform Selection, Tie
+to Entity and the two flips have no key outside the Hammer preset, they sit in the *Brush* menu
 and the command palette, and you can bind them on the **Keys** tab of *Help > Keyboard Shortcuts…*. The Block tool
 sits right of Select in the toolbar, and mouse look under *View > Views > Mouse Look*. In the Hammer preset, Rotate Y
 90 moved to Ctrl+Shift+R, because Ctrl+L flips. The full list of keys is on [Shortcuts](shortcuts.md).
 
-The Hammer preset adds its keys next to the TrenchDot ones, so a TrenchDot key keeps working unless the Hammer column
-gives it to another action. Q, C, V and Shift+T still pick their tools, Ctrl+J still isolates and Ctrl+Shift+H still
-shows all, while Ctrl+T, Ctrl+M, Ctrl+L, Ctrl+I and Ctrl+H now do what the Hammer column says.
+The Hammer preset adds its keys next to TrenchDot's own rather than TrenchBroom's, so a TrenchDot key keeps working
+unless the Hammer column gives it to another action. Q, C, V and Shift+T still pick their tools, Ctrl+J still isolates
+and Ctrl+Shift+H still shows all, while Ctrl+T, Ctrl+M, Ctrl+L, Ctrl+I, Ctrl+H, Ctrl+E and Ctrl+U now do what the
+Hammer column says.
 
-Select Touching and Select Inside work as in TrenchBroom in every preset. The brushes you select with are deleted
+Select Touching and Select Inside work as in TrenchBroom in every preset, though Select Inside has no key in the Hammer
+preset, whose selection box does the same job. The brushes you select with are deleted
 afterwards, even when nothing touches them or lies inside, and Ctrl+Z brings them back. Touching means overlapping, a
 brush that only shares a face with them is left out, so a floor does not pick up the pillars standing on it.
 
@@ -105,7 +110,7 @@ Hammer lets you pick its camera controls in its options, so the camera rows comp
 follows. The Hammer preset changes how the Select tool picks faces and what a drag does, and a cell that says "Same" is
 what the TrenchDot column says.
 
-| Gesture | TrenchBroom | TrenchDot | Hammer preset |
+| Gesture | TrenchBroom | TrenchBroom preset | Hammer preset |
 | --- | --- | --- | --- |
 | Look around in 3D | Right drag | Right drag | Same, or Space+drag |
 | Fly in 3D | WASD while the right button is held | WASD while the right button is held, Q and E go down and up, Shift is faster | Same |

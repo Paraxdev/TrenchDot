@@ -608,6 +608,7 @@ const CTRL: Modifiers = Modifiers::COMMAND;
 const CTRL_SHIFT: Modifiers = Modifiers { alt: false, ctrl: false, shift: true, mac_cmd: false, command: true };
 const SHIFT: Modifiers = Modifiers::SHIFT;
 const ALT: Modifiers = Modifiers::ALT;
+const CTRL_ALT: Modifiers = Modifiers { alt: true, ctrl: false, shift: false, mac_cmd: false, command: true };
 const ALT_SHIFT: Modifiers = Modifiers { alt: true, ctrl: false, shift: true, mac_cmd: false, command: false };
 const NONE: Modifiers = Modifiers::NONE;
 
@@ -625,8 +626,8 @@ pub fn preset_label(preset: &str) -> &str {
     }
 }
 
-/// TrenchBroom defaults plus TrenchDot additions.
-fn trenchbroom_bindings() -> Vec<(KeyboardShortcut, Action)> {
+/// The keys every preset starts from, TrenchDot's own with TrenchBroom's where they agree.
+fn base_bindings() -> Vec<(KeyboardShortcut, Action)> {
     let mut out = vec![
         (sc(CTRL, Key::N), Action::NewMap),
         (sc(CTRL, Key::O), Action::OpenMap),
@@ -747,8 +748,18 @@ fn select_all_faces(state: &mut EditorState) {
 /// bindings, and the last entries of each preset rebind actions whose only chord was taken. A preset's chord goes ahead
 /// of the action's other bindings, since menus and tooltips show the first one.
 pub fn preset_bindings(preset: &str) -> Vec<(KeyboardShortcut, Action)> {
-    let mut base = trenchbroom_bindings();
+    let mut base = base_bindings();
     let replace: Vec<(KeyboardShortcut, Action)> = match preset {
+        "trenchbroom" => vec![
+            (sc(CTRL, Key::J), Action::CsgMerge),
+            (sc(CTRL, Key::I), Action::IsolateSelected),
+            (sc(CTRL_ALT, Key::I), Action::HideSelected),
+            (sc(CTRL_SHIFT, Key::I), Action::UnhideAll),
+            (sc(CTRL_ALT, Key::A), Action::SelectInverse),
+            (sc(NONE, Key::U), Action::ToggleUvLock),
+            (sc(ALT, Key::Num0), Action::ToggleSnap),
+            (sc(CTRL, Key::Space), Action::ToggleMaximizeView),
+        ],
         "hammer" => vec![
             (sc(CTRL_SHIFT, Key::A), Action::SelectBrushFaces),
             (sc(SHIFT, Key::S), Action::SetTool(ToolKind::Select)),
@@ -771,6 +782,12 @@ pub fn preset_bindings(preset: &str) -> Vec<(KeyboardShortcut, Action)> {
             (sc(CTRL_SHIFT, Key::M), Action::CsgMerge),
             (sc(CTRL_SHIFT, Key::L), Action::CsgIntersect),
             (sc(NONE, Key::Z), Action::ToggleMouseLook),
+            (sc(CTRL, Key::E), Action::FocusSelection),
+            (sc(CTRL, Key::U), Action::Ungroup),
+            (sc(CTRL_SHIFT, Key::C), Action::CsgSubtract),
+            (sc(SHIFT, Key::Z), Action::ToggleMaximizeView),
+            (sc(SHIFT, Key::W), Action::ToggleSnap),
+            (sc(SHIFT, Key::L), Action::ToggleUvLock),
         ],
         "blender" => vec![
             (sc(NONE, Key::A), Action::SelectAllInMode),
@@ -915,7 +932,7 @@ pub fn restore_default(prefs: &mut Prefs, action: &Action) {
 
 /// Every action that can carry a key binding, for the keymap editor.
 pub fn bindable_actions() -> Vec<Action> {
-    let mut out: Vec<Action> = trenchbroom_bindings().into_iter().map(|(_, a)| a).collect();
+    let mut out: Vec<Action> = base_bindings().into_iter().map(|(_, a)| a).collect();
     for preset in PRESETS {
         out.extend(preset_bindings(preset).into_iter().map(|(_, a)| a));
     }
@@ -3690,9 +3707,10 @@ mod tests {
     fn every_preset_keeps_a_key_for_every_default_action() {
         for preset in PRESETS {
             let bindings = preset_bindings(preset);
-            for (_, action) in trenchbroom_bindings() {
-                // Hammer gives Ctrl+Shift+A to Brush Faces, so Select None there is the menu, the palette and Cancel.
-                if preset == "hammer" && action == Action::SelectNone {
+            for (_, action) in base_bindings() {
+                // Hammer gives Ctrl+Shift+A to Brush Faces and Ctrl+E to centering the views, and has no key for Select
+                // None or Select Inside. Its selection box does what Select Inside does.
+                if preset == "hammer" && matches!(action, Action::SelectNone | Action::SelectInside) {
                     continue;
                 }
 
@@ -3709,7 +3727,7 @@ mod tests {
             assert_eq!(has(Action::SelectNone, sc(CTRL_SHIFT, Key::A)), preset != "hammer", "{preset}");
             assert_eq!(has(Action::SelectBrushFaces, sc(CTRL_SHIFT, Key::A)), preset == "hammer", "{preset}");
             assert!(has(Action::SelectAll, sc(CTRL, Key::A)), "{preset}");
-            assert!(has(Action::SelectInside, sc(CTRL, Key::E)), "{preset}");
+            assert_eq!(has(Action::SelectInside, sc(CTRL, Key::E)), preset != "hammer", "{preset}");
             assert_eq!(has(Action::SelectTouching, sc(CTRL, Key::T)), preset != "hammer", "{preset}");
             assert_eq!(has(Action::SelectTouching, sc(CTRL_SHIFT, Key::T)), preset == "hammer", "{preset}");
             assert_eq!(has(Action::TieToEntity, sc(CTRL, Key::T)), preset == "hammer", "{preset}");
@@ -3718,7 +3736,19 @@ mod tests {
             assert!(bindings.iter().any(|(_, a)| *a == Action::SelectTouching), "{preset} leaves Select Touching unbound");
             assert_eq!(bindings.iter().any(|(_, a)| *a == Action::SelectBrushFaces), preset == "hammer", "{preset}: only Hammer binds Brush Faces");
             let hammer = preset == "hammer";
-            assert_eq!(has(Action::SelectInverse, sc(CTRL, Key::I)), !hammer, "{preset}");
+            let trenchbroom = preset == "trenchbroom";
+            assert_eq!(has(Action::SelectInverse, sc(CTRL, Key::I)), preset == "blender", "{preset}");
+            assert_eq!(has(Action::SelectInverse, sc(CTRL_ALT, Key::A)), trenchbroom, "{preset}");
+            assert_eq!(has(Action::IsolateSelected, sc(CTRL, Key::I)), trenchbroom, "{preset}");
+            assert_eq!(has(Action::HideSelected, sc(CTRL_ALT, Key::I)), trenchbroom, "{preset}");
+            assert_eq!(has(Action::CsgMerge, sc(CTRL, Key::J)), trenchbroom, "{preset}");
+            assert_eq!(has(Action::ToggleUvLock, sc(NONE, Key::U)), trenchbroom, "{preset}");
+            assert_eq!(has(Action::FocusSelection, sc(CTRL, Key::E)), hammer, "{preset}");
+            assert_eq!(has(Action::Ungroup, sc(CTRL, Key::U)), hammer, "{preset}");
+            assert_eq!(has(Action::CsgSubtract, sc(CTRL_SHIFT, Key::C)), hammer, "{preset}");
+            assert_eq!(has(Action::ToggleMaximizeView, sc(SHIFT, Key::Z)), hammer, "{preset}");
+            assert_eq!(has(Action::ToggleSnap, sc(SHIFT, Key::W)), hammer, "{preset}");
+            assert_eq!(has(Action::ToggleUvLock, sc(SHIFT, Key::L)), hammer, "{preset}");
             assert_eq!(has(Action::SelectInverse, sc(CTRL_SHIFT, Key::I)), hammer, "{preset}");
             assert_eq!(has(Action::CsgIntersect, sc(CTRL, Key::L)), !hammer, "{preset}");
             assert_eq!(has(Action::FlipHorizontal, sc(CTRL, Key::L)), hammer, "{preset}");

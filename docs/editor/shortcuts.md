@@ -115,11 +115,11 @@ it, Ctrl+M in the Hammer preset.
 | F2 | Rename the selected object in the Outliner |
 | Ctrl+R | Repeat the last rotate, flip, mirror linked, nudge or duplicate. In mesh editing it makes a loop cut |
 | Delete or Backspace | Delete |
-| Ctrl+A, Ctrl+Shift+A, Ctrl+I | Select all objects, select none, select inverse. Ctrl+A also drops any selected faces, and in the Blender preset it switches to Object mode. In the Hammer preset Ctrl+Shift+A selects every face of the selected brushes and meshes instead, and select inverse is Ctrl+Shift+I because Ctrl+I flips, see [Other presets](#other-presets) |
+| Ctrl+A, Ctrl+Shift+A, Ctrl+Alt+A | Select all objects, select none, select inverse. Ctrl+A also drops any selected faces, and in the Blender preset it switches to Object mode. In the Hammer preset Ctrl+Shift+A selects every face of the selected brushes and meshes instead, and select inverse is Ctrl+Shift+I because Ctrl+I flips, see [Other presets](#other-presets) |
 | Ctrl+F | Find entities and replace a material, see [Find and Replace](find-replace.md) |
 | Ctrl+T, Ctrl+E | Use the selected brushes as a stencil and select what they touch, or what lies inside them. Touching means overlapping, a brush that only shares a face with a stencil is left out. The stencil brushes are deleted, even when nothing touches them or lies inside, and Ctrl+Z brings them back. Both need brushes selected, faces alone are refused |
 | Ctrl+G, Ctrl+Shift+G | Group, ungroup |
-| Ctrl+H, Ctrl+J, Ctrl+Shift+H | Hide the selection, isolate it by hiding everything else, show all |
+| Ctrl+Alt+I or Ctrl+H, Ctrl+I, Ctrl+Shift+I or Ctrl+Shift+H | Hide the selection, isolate it by hiding everything else, show all |
 | Arrows, Page Up, Page Down | Nudge by one grid step |
 
 *Select Linked Groups* and *Separate Linked Groups* in the *Edit > Groups* menu have no default key. Use the menu, the
@@ -129,12 +129,12 @@ right-click menu of the view, or bind a key to either one on the **Keys** tab.
 
 | Key | Action |
 | --- | --- |
-| Ctrl+K, Ctrl+M, Ctrl+L | CSG subtract (carve the selection out of what it touches), convex merge, intersect |
+| Ctrl+K, Ctrl+J or Ctrl+M, Ctrl+L | CSG subtract (carve the selection out of what it touches), convex merge, intersect |
 | Ctrl+Shift+K | Hollow, turn a solid brush into a room with walls |
 | Ctrl+Shift+B | Shape generator, for arches, cylinders, stairs and other ready-made shapes |
 | Ctrl+Shift+E, Ctrl+Shift+J | Convert brushes to mesh, join meshes |
 | Ctrl+Shift+W | Move brushes to world, taking them out of their entity so they become plain level geometry |
-| Ctrl+Shift+U | Toggle UV lock, which keeps textures attached to a brush while it moves |
+| U or Ctrl+Shift+U | Toggle UV lock, which keeps textures attached to a brush while it moves |
 | Alt+H | Hotspot fit, which fits selected faces to the best matching rectangle of a trim sheet |
 
 ## View and files
@@ -144,7 +144,8 @@ right-click menu of the view, or bind a key to either one on the **Keys** tab.
 | F or Ctrl+U | Frame the selection, or the whole map |
 | `[` and `]`, or `-` and `=` | Halve or double the grid |
 | F4, F3 | Cycle shading (textured, flat, lit, wireframe), toggle Lit Preview |
-| Shift+Space | Maximize the view under the pointer |
+| Ctrl+Space or Shift+Space | Maximize the view under the pointer |
+| Alt+0 | Turn snapping to the grid on or off |
 | Ctrl+Shift+1 to 9, Ctrl+1 to 9 | Store, recall camera bookmarks |
 | Ctrl+=, Ctrl+-, Ctrl+0 | Interface scale up, down, reset |
 | F1 | Open the [manual](interface.md#help-and-the-manual) at the tool, panel tab, menu entry or Inspector section under the pointer, anywhere else the command palette |
@@ -166,11 +167,18 @@ right-click menu of the view, or bind a key to either one on the **Keys** tab.
 A preset only changes the keys and mouse gestures below, everything else stays as above. Your own bindings sit on top of any preset,
 **Reset overrides** in the shortcuts window clears them.
 
+The Hammer and Blender presets start from TrenchDot's own keys rather than TrenchBroom's, so U, Ctrl+Space, Alt+0 and
+the Ctrl+Alt keys do nothing there unless their table gives them a job.
+
 | Key | Hammer preset |
 | --- | --- |
 | Ctrl+Shift+A | Select Brush Faces, swap the selected brushes and meshes for all their faces. Select None has no key here, Esc clears in two presses at most |
 | Shift+S, Shift+B, Shift+X, Shift+V, Shift+A | Select, block, clip, vertex, texture tool |
 | H, Ctrl+H, U | Hide, isolate, show all |
+| Ctrl+J | Isolate too, where the TrenchBroom preset merges |
+| Ctrl+E, Ctrl+U | Frame the selection, ungroup |
+| Ctrl+Shift+C | CSG subtract, the carve of Hammer |
+| Shift+Z, Shift+W, Shift+L | Maximize the view, turn snapping on or off, toggle UV lock |
 | Ctrl+W | Move brushes to world |
 | Ctrl+T, Ctrl+Shift+T | Tie to Entity, and Select Touching, which moved to Ctrl+Shift+T and still deletes the brushes you select with. It only takes what overlaps them, sharing a face is not enough. Ctrl+T opens the class list with `func_detail` highlighted, so Ctrl+T then Enter makes the selected brushes one detail entity. Type to filter, Esc cancels. A selection that already is a whole brush entity is selected instead, change its class in the Inspector. Also under Brush > Tie to Entity |
 | Ctrl+M | Transform Selection, a window that moves, rotates or scales the selection by typed numbers. The shape generator stays on Ctrl+Shift+B |
@@ -181,8 +189,9 @@ A preset only changes the keys and mouse gestures below, everything else stays a
 | Z | Mouse look in the 3D view under the pointer. The cursor hides, moving the mouse turns the camera and WASD flies. Z, Esc or a click stops it, and the click does nothing else. View > Views > Mouse Look starts it in any preset |
 
 The older keys of these actions keep working where the Hammer preset leaves them free. Q, C and V still pick the
-Select, Clip and Vertex tools, Shift+T the Texture tool, Ctrl+J isolates, Ctrl+Shift+H shows all and Ctrl+Shift+W
-moves brushes to world. A key this table gives to another action, such as Ctrl+T, Ctrl+H, Ctrl+M or Ctrl+W, does the
+Select, Clip and Vertex tools, Shift+T the Texture tool, Ctrl+Shift+H shows all, Ctrl+Shift+W moves brushes to world,
+Ctrl+K subtracts, Ctrl+Shift+G ungroups, F frames the selection, Shift+Space maximizes the view and Ctrl+Shift+U toggles
+UV lock. A key this table gives to another action, such as Ctrl+T, Ctrl+H, Ctrl+M or Ctrl+W, does the
 new one instead.
 
 In the Hammer preset, Ctrl+A with the Texture tool active selects every face of the selected brushes instead of the
@@ -223,6 +232,7 @@ moves the brush.
 | S | Scale tool |
 | H, Alt+H, / | Hide, show all, isolate |
 | Ctrl+J | Join meshes |
+| Ctrl+I | Select inverse |
 | Z | Cycle shading |
 | Shift+A | Shape generator |
 | F3 | Command palette |

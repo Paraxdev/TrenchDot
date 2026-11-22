@@ -30,7 +30,7 @@ the view under the pointer, press it again to get the others back. See [Camera](
 
 ### Focus on one part of a big map
 
-Ctrl+J hides everything but the selection, Ctrl+Shift+H shows it all again. For longer work, a
+Ctrl+I hides everything but the selection, Ctrl+Shift+I shows it all again (Ctrl+J and Ctrl+Shift+H in the Hammer and Blender presets). For longer work, a
 [cordon](editor/organizing.md#cordon) keeps only one area visible and selectable and is saved with the map.
 
 ### Keep reference geometry out of the game
