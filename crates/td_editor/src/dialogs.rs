@@ -50,6 +50,8 @@ pub struct CommandPalette {
     pub open: bool,
     query: String,
     selected: usize,
+    /// Scrolls the highlighted row into view on the next frame only, so the wheel can still move the list.
+    reveal: bool,
     /// Lists the brush entity classes instead of the commands, for Tie to Entity.
     class_picker: bool,
     /// Lists only the tools in a small popup at the pointer, and number keys pick them.
@@ -373,6 +375,7 @@ impl CommandPalette {
         self.open = !self.open;
         self.query.clear();
         self.selected = 0;
+        self.reveal = true;
         self.class_picker = false;
         self.tools = false;
         self.tools_at = None;
@@ -391,6 +394,7 @@ impl CommandPalette {
         self.class_picker = true;
         self.tools = false;
         self.selected = ranked("", class_entries(state)).iter().position(|(_, label, _)| label.en == default).unwrap_or(0);
+        self.reveal = true;
     }
 
     fn entries(&self, state: &EditorState) -> Vec<(Msg, Action)> {
@@ -430,6 +434,7 @@ impl CommandPalette {
             return;
         }
 
+        self.reveal |= up || down;
         if down {
             self.selected = (self.selected + 1).min(matches.len().saturating_sub(1));
         }
@@ -489,6 +494,7 @@ impl CommandPalette {
                 edit.request_focus();
                 if edit.changed() {
                     self.selected = 0;
+                    self.reveal = true;
                 }
 
                 ui.separator();
@@ -502,8 +508,9 @@ impl CommandPalette {
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.label(RichText::new(shortcut).weak()));
                             r
                         });
-                        if i == self.selected {
+                        if i == self.selected && self.reveal {
                             resp.inner.scroll_to_me(None);
+                            self.reveal = false;
                         }
 
                         if resp.inner.clicked() {
@@ -2299,6 +2306,57 @@ mod tests {
         assert!(run(&mut palette, vec![egui::Event::Text("tie to".into())]).is_empty());
         let ran = run(&mut palette, vec![key(egui::Key::Enter)]);
         assert_eq!(ran, vec![Action::TieToEntity], "{ran:?}");
+    }
+
+    #[test]
+    fn the_wheel_scrolls_the_palette_away_from_the_highlighted_row() {
+        let (ctx, state, mut time) = (egui::Context::default(), EditorState::new(Default::default()), 0.0);
+        let first = ranked("", palette_entries(&state))[0].1.shown.clone();
+        let at = egui::pos2(600.0, 300.0);
+        let wheel = egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: egui::vec2(0.0, -120.0),
+            modifiers: egui::Modifiers::NONE,
+            phase: egui::TouchPhase::Move,
+        };
+        let mut palette = CommandPalette::default();
+        let mut top = |palette: &mut CommandPalette, events: Vec<egui::Event>| {
+            time += 0.05;
+            ctx.begin_pass(egui::RawInput {
+                events,
+                time: Some(time),
+                screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1200.0, 800.0))),
+                ..Default::default()
+            });
+            palette.show(&ctx, &state, &mut Vec::new());
+            let mut output = ctx.end_pass();
+            let mut shapes: Vec<_> = std::mem::take(&mut output.shapes).into_iter().map(|c| c.shape).collect();
+            output.drop_without_applying_deltas();
+            let mut y = None;
+            while let Some(shape) = shapes.pop() {
+                match shape {
+                    egui::Shape::Vec(inner) => shapes.extend(inner),
+                    egui::Shape::Text(t) if t.galley.text() == first => y = Some(t.pos.y),
+                    _ => {}
+                }
+            }
+
+            y
+        };
+
+        palette.toggle();
+        for events in [vec![], vec![], vec![egui::Event::PointerMoved(at)]] {
+            top(&mut palette, events);
+        }
+
+        let before = top(&mut palette, vec![]).expect("the first row is drawn");
+        top(&mut palette, vec![wheel]);
+        let mut after = Some(before);
+        for _ in 0..20 {
+            after = top(&mut palette, vec![]);
+        }
+
+        assert!(after.is_none_or(|y| y < before - 60.0), "the list stays where the wheel left it, {before} then {after:?}");
     }
 
     #[test]
