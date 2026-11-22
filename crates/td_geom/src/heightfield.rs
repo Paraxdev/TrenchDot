@@ -914,12 +914,20 @@ impl Terrain {
         t
     }
 
-    /// Terrains stay axis aligned: translation and scale are applied, rotation is ignored. A negative scale along x or z
-    /// mirrors the heights, paint and holes like brushes and meshes mirror, which also turns a half turn about Y.
+    /// Terrains stay axis aligned: translation, scale and quarter turns about Y are applied, other rotation is ignored.
+    /// A negative scale along x or z mirrors the heights, paint and holes like brushes and meshes mirror, which also
+    /// turns a half turn about Y.
     pub fn transformed(&self, m: &td_core::DMat4) -> Terrain {
         let (scale, _, _) = m.to_scale_rotation_translation();
         let mut t = self.clone();
-        t.mirror(m.x_axis.x < 0.0, m.z_axis.z < 0.0);
+        let quarter_turn = m.x_axis.z.abs() > scale.x * 0.999 && m.z_axis.x.abs() > scale.z * 0.999;
+        if quarter_turn {
+            t.transpose();
+            t.mirror(m.z_axis.x < 0.0, m.x_axis.z < 0.0);
+        } else {
+            t.mirror(m.x_axis.x < 0.0, m.z_axis.z < 0.0);
+        }
+
         let size = self.size();
         let center = self.origin + DVec3::new(size.x * 0.5, 0.0, size.y * 0.5);
         let new_center = m.transform_point3(center);
@@ -934,6 +942,29 @@ impl Terrain {
         let new_size = t.size();
         t.origin = td_core::snap_vec(new_center - DVec3::new(new_size.x * 0.5, 0.0, new_size.y * 0.5));
         t
+    }
+
+    /// Swaps the x and z axes of the grid, keeping the origin.
+    fn transpose(&mut self) {
+        fn swap<T: Copy>(data: &mut [T], w: usize, d: usize, stride: usize) {
+            if data.len() != w * d * stride {
+                return;
+            }
+
+            let from = data.to_vec();
+            for j in 0..d {
+                for i in 0..w {
+                    let (to, at) = ((i * d + j) * stride, (j * w + i) * stride);
+                    data[to..to + stride].copy_from_slice(&from[at..at + stride]);
+                }
+            }
+        }
+
+        let [w, d] = self.resolution.map(|r| r as usize);
+        swap(&mut self.heights, w, d, 1);
+        swap(&mut self.splat, w, d, 4);
+        swap(&mut self.holes, w.saturating_sub(1), d.saturating_sub(1), 1);
+        self.resolution = [d as u32, w as u32];
     }
 
     /// Reverses the vertex and cell order along x and/or z, keeping the origin.
@@ -977,6 +1008,28 @@ mod tests {
 
     fn flat() -> Terrain {
         Terrain::new(DVec3::new(-320.0, 0.0, -320.0), [33, 33], 20.0, "grass")
+    }
+
+    #[test]
+    fn a_quarter_turn_turns_the_heights_paint_and_holes() {
+        let mut t = Terrain::new(DVec3::ZERO, [5, 3], 10.0, "grass");
+        t.heights[1] = 7.0;
+        t.splat = vec![0; 15 * 4];
+        t.splat[4] = 255;
+        t.holes = vec![0; 8];
+        t.holes[1] = 1;
+        let r = t.transformed(&td_core::DMat4::from_rotation_y(std::f64::consts::FRAC_PI_2));
+        assert_eq!(r.resolution, [3, 5]);
+        assert_eq!(r.size(), DVec2::new(20.0, 40.0));
+        assert_eq!(r.origin, DVec3::new(0.0, 0.0, -40.0));
+        // Turning +90 about Y sends +x to -z, so the vertex one step along x lands one step up from the far z edge.
+        assert_eq!(r.heights[3 * 3], 7.0, "{:?}", r.heights);
+        assert_eq!(r.splat[3 * 3 * 4], 255);
+        assert_eq!(r.holes[2 * 2], 1, "{:?}", r.holes);
+        let back = r.transformed(&td_core::DMat4::from_rotation_y(-std::f64::consts::FRAC_PI_2));
+        assert_eq!((back.resolution, &back.heights, &back.splat, &back.holes), (t.resolution, &t.heights, &t.splat, &t.holes));
+        let tilted = t.transformed(&td_core::DMat4::from_rotation_y(0.3));
+        assert_eq!(tilted.heights, t.heights, "other angles leave the grid as it is");
     }
 
     #[test]
