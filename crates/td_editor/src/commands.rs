@@ -1490,6 +1490,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
 
             if state.drop_selection_box() {
                 state.set_status(msg!("Dropped the selection box"));
+                state.bind_status_to_selection();
             } else if state.doc.selection.has_faces() {
                 state.doc.select(|_, s| s.faces.clear());
             } else if !state.doc.selection.nodes.is_empty() {
@@ -4520,6 +4521,23 @@ mod tests {
         });
         state.expire_selection_status();
         assert_eq!(state.status, "Saved", "other news outlasts a selection change");
+
+        state.selection_box =
+            Some(crate::selection_box::SelectionBox { view: crate::camera::ViewKind::Top, a: DVec3::splat(-512.0), b: DVec3::splat(512.0), add: false });
+        execute(&mut state, Action::Cancel, &ctx);
+        state.expire_selection_status();
+        assert_eq!(state.status, "Dropped the selection box", "the first Esc keeps the selection");
+        execute(&mut state, Action::Cancel, &ctx);
+        state.expire_selection_status();
+        assert_eq!(state.status, "", "the second Esc drops the selection and the status about it");
+
+        state.selection_box =
+            Some(crate::selection_box::SelectionBox { view: crate::camera::ViewKind::Top, a: DVec3::splat(-512.0), b: DVec3::splat(512.0), add: false });
+        crate::selection_box::confirm(&mut state);
+        assert_eq!(state.status, "Selected 2 objects");
+        execute(&mut state, Action::Cancel, &ctx);
+        state.expire_selection_status();
+        assert_eq!(state.status, "");
     }
 
     #[test]
