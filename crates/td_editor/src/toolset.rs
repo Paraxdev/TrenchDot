@@ -6,6 +6,7 @@ use td_doc::selection::Selection;
 use td_geom::Brush;
 use td_render::LineVertex;
 
+use crate::box_select::BoxOp;
 use crate::camera::{Camera, ViewKind};
 use crate::i18n::{Msg, en, msg, msg_n, tr, trf};
 use crate::picking;
@@ -74,6 +75,17 @@ pub struct VertexTool {
     refused: Option<(DVec3, DVec3)>,
     /// The Hammer preset's box over the corners, drawn by a drag off the handles in a 2D view.
     boxing: Option<SelectionBox>,
+    /// Box Select's box over the corners, drawn in any view.
+    screen_box: Option<CornerBox>,
+}
+
+/// A box on the screen of the view at `view`, from `start` to `end`.
+#[derive(Clone, Copy, Debug)]
+struct CornerBox {
+    view: Rect,
+    start: Pos2,
+    end: Pos2,
+    op: BoxOp,
 }
 
 struct VertexDrag {
@@ -389,6 +401,7 @@ impl ToolSet {
         self.vertex.drag = None;
         self.vertex.gizmo_drag = None;
         self.vertex.boxing = None;
+        self.vertex.screen_box = None;
         self.rotate.drag = None;
         self.scale.drag = None;
         self.shear.drag = None;
@@ -793,6 +806,44 @@ impl ToolSet {
         state.set_status(msg_n!(found.len(), "Selected {n} corner", "Selected {n} corners"));
     }
 
+    /// Box Select over the corners of the selected brushes. Without X-ray the 3D view skips corners hidden behind
+    /// something.
+    fn box_corners(&mut self, state: &mut EditorState, cam: &Camera, b: &CornerBox) {
+        let area = Rect::from_two_pos(b.start, b.end);
+        let see_through = state.prefs.box_xray || cam.kind.is_2d();
+        let found: Vec<DVec3> = Self::vertex_handles(state)
+            .0
+            .into_iter()
+            .filter(|v| cam.project(b.view, *v).is_some_and(|q| area.contains(q)))
+            .filter(|v| see_through || crate::box_select::unoccluded(state, cam, b.view, *v, None))
+            .collect();
+        if found.is_empty() {
+            state.set_status(msg!("No corner lies inside the box"));
+            return;
+        }
+
+        let known = |list: &[DVec3], v: DVec3| list.iter().any(|q| (*q - v).length() < 1e-6);
+        match b.op {
+            BoxOp::Remove => self.vertex.selected.retain(|v| !known(&found, *v)),
+            op => {
+                if op == BoxOp::Replace {
+                    self.vertex.selected.clear();
+                }
+
+                for v in &found {
+                    if !known(&self.vertex.selected, *v) {
+                        self.vertex.selected.push(*v);
+                    }
+                }
+            }
+        }
+
+        state.set_status(match b.op {
+            BoxOp::Remove => msg_n!(found.len(), "Deselected {n} corner", "Deselected {n} corners"),
+            _ => msg_n!(found.len(), "Selected {n} corner", "Selected {n} corners"),
+        });
+    }
+
     fn vertex_input(&mut self, ui: &Ui, response: &Response, cam: &Camera, rect: Rect, state: &mut EditorState) {
         let modifiers = ui.input(|i| i.modifiers);
         let (verts, dots) = Self::vertex_handles(state);
@@ -877,6 +928,8 @@ impl ToolSet {
                 let line = vertex_drag_line(cam, &h);
                 state.doc.begin(en!("Move Vertices"));
                 self.vertex.drag = Some(VertexDrag { start: v, plane, line, base: self.vertex.selected.clone(), is_dot });
+            } else if state.prefs.box_select {
+                self.vertex.screen_box = Some(CornerBox { view: rect, start: origin, end: origin, op: BoxOp::from_modifiers(modifiers) });
             } else if crate::mouse_map::vertex_box(&state.prefs.keymap_preset, cam.kind.is_2d()) {
                 let at = cam.screen_to_plane(rect, origin);
                 self.vertex.boxing = Some(SelectionBox { view: cam.kind, a: at, b: at, add: modifiers.command });
@@ -894,6 +947,21 @@ impl ToolSet {
             && let Some(b) = self.vertex.boxing.take()
         {
             self.box_vertices(state, &b);
+        }
+
+        // Every view runs this with the one pointer, only the view the box started in may move or finish it.
+        if let Some(b) = self.vertex.screen_box.as_mut().filter(|b| b.view == rect)
+            && response.dragged_by(PointerButton::Primary)
+            && let Some(pos) = ui.input(|i| i.pointer.interact_pos())
+        {
+            b.end = pos;
+        }
+
+        if self.vertex.screen_box.is_some_and(|b| b.view == rect)
+            && (response.drag_stopped() || !ui.input(|i| i.pointer.primary_down()))
+            && let Some(b) = self.vertex.screen_box.take()
+        {
+            self.box_corners(state, cam, &b);
         }
 
         if let Some(drag) = &self.vertex.drag {
@@ -1536,6 +1604,10 @@ impl ToolSet {
                     crate::selection_box::paint_box(&painter, cam, rect, b);
                 }
 
+                if let Some(b) = self.vertex.screen_box.filter(|b| b.view == rect) {
+                    crate::selection_box::paint_rect(&painter, Rect::from_two_pos(b.start, b.end));
+                }
+
                 if let Some(g) = self.vertex.gizmo.filter(|_| cam.kind == ViewKind::Perspective) {
                     let len = vgizmo_len(cam, rect, g);
                     let hot_axis = self.vertex.gizmo_drag.as_ref().map(|d| d.axis).or_else(|| hover.and_then(|p| vgizmo_axis_at(cam, rect, g, p)));
@@ -1994,6 +2066,29 @@ mod tests {
         tools.vertex.boxing = Some(top([0.0, 0.0], [1.0, 1.0], false));
         tools.reset();
         assert!(tools.vertex.boxing.is_none());
+    }
+
+    #[test]
+    fn box_select_takes_the_corners_in_sight_unless_xray_is_on() {
+        let (mut state, _) = state_with_wedge();
+        let mut tools = ToolSet::default();
+        let cam = perspective();
+        let all = |op| CornerBox { view: view_rect(), start: Pos2::ZERO, end: view_rect().max, op };
+        let corners = ToolSet::vertex_handles(&state).0.len();
+
+        tools.box_corners(&mut state, &cam, &all(BoxOp::Replace));
+        let seen = tools.vertex.selected.len();
+        assert!(seen > 0 && seen < corners, "the corners on the far side stay out, {seen} of {corners}");
+        state.prefs.box_xray = true;
+        tools.box_corners(&mut state, &cam, &all(BoxOp::Add));
+        assert_eq!(tools.vertex.selected.len(), corners, "X-ray adds the hidden ones");
+        tools.box_corners(&mut state, &cam, &all(BoxOp::Remove));
+        assert!(tools.vertex.selected.is_empty());
+        assert_eq!(state.status, format!("Deselected {corners} corners"));
+
+        tools.vertex.screen_box = Some(all(BoxOp::Replace));
+        tools.reset();
+        assert!(tools.vertex.screen_box.is_none());
     }
 
     fn perspective() -> Camera {

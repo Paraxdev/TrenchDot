@@ -2776,5 +2776,6 @@
   "A drag off the selection draws a box that selects, Shift adds and Ctrl removes": "Перетаскивание вне выделения рисует рамку выделения, Shift добавляет, Ctrl убирает",
   "The selection box also takes faces facing away or hidden behind others": "Рамка выделения берёт и грани, повёрнутые от камеры или скрытые за другими",
   "Deselected {n} face": { "one": "Снято выделение с {n} грани", "few": "Снято выделение с {n} граней", "many": "Снято выделение с {n} граней" },
-  "Deselected {n} object": { "one": "Снято выделение с {n} объекта", "few": "Снято выделение с {n} объектов", "many": "Снято выделение с {n} объектов" }
+  "Deselected {n} object": { "one": "Снято выделение с {n} объекта", "few": "Снято выделение с {n} объектов", "many": "Снято выделение с {n} объектов" },
+  "Deselected {n} corner": { "one": "Снято выделение с {n} угла", "few": "Снято выделение с {n} углов", "many": "Снято выделение с {n} углов" }
 }

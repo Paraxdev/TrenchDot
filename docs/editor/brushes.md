@@ -148,6 +148,10 @@ and small blue dots on the edge midpoints and face centers.
 * With the Hammer preset, drag across empty space in a 2D view to select every corner inside the box, Ctrl+drag adds
   them to the selected ones. In the Top view that takes the top and bottom corners alike, so a drag on one of them then
   moves the whole edge.
+* With [Box select](#box-select) on, drag across empty space in any view to select the corners inside the box,
+  Shift+drag adds and Ctrl+drag takes away. With several brushes selected, one box takes the matching corners of all of
+  them, so a whole side of a curved wall moves together. In the 3D view it skips corners hidden behind something unless
+  X-ray is on.
 
 In the 3D view a dot slides straight out of the brush, so look at its face or edge from a bit to the side, a dot
 pointing right at the camera does not move.

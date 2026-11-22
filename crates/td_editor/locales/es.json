@@ -2776,5 +2776,6 @@
   "A drag off the selection draws a box that selects, Shift adds and Ctrl removes": "Arrastrar fuera de la selección dibuja un recuadro que selecciona, Shift añade y Ctrl quita",
   "The selection box also takes faces facing away or hidden behind others": "El recuadro de selección también toma las caras de espaldas u ocultas tras otras",
   "Deselected {n} face": { "one": "{n} cara deseleccionada", "other": "{n} caras deseleccionadas" },
-  "Deselected {n} object": { "one": "{n} objeto deseleccionado", "other": "{n} objetos deseleccionados" }
+  "Deselected {n} object": { "one": "{n} objeto deseleccionado", "other": "{n} objetos deseleccionados" },
+  "Deselected {n} corner": { "one": "{n} esquina deseleccionada", "other": "{n} esquinas deseleccionadas" }
 }

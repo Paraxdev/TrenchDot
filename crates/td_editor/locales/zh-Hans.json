@@ -2776,5 +2776,6 @@
   "A drag off the selection draws a box that selects, Shift adds and Ctrl removes": "在选区外拖动会画出选择框，Shift 添加，Ctrl 移除",
   "The selection box also takes faces facing away or hidden behind others": "选择框也会选中背向或被遮挡的面",
   "Deselected {n} face": { "other": "已取消选择 {n} 个面" },
-  "Deselected {n} object": { "other": "已取消选择 {n} 个对象" }
+  "Deselected {n} object": { "other": "已取消选择 {n} 个对象" },
+  "Deselected {n} corner": { "other": "已取消选择 {n} 个角" }
 }

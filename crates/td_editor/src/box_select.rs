@@ -48,12 +48,13 @@ pub fn objects(state: &EditorState, cam: &Camera, view: Rect, area: Rect) -> Vec
         .collect()
 }
 
-/// Whether nothing stands between the camera and the point `at` of a face turned to it.
-pub fn unoccluded(state: &EditorState, cam: &Camera, view: Rect, at: DVec3, owner: NodeId) -> bool {
+/// Whether nothing stands between the camera and the point `at` on a surface, a face of `owner` turned to the camera
+/// or a corner.
+pub fn unoccluded(state: &EditorState, cam: &Camera, view: Rect, at: DVec3, owner: Option<NodeId>) -> bool {
     let Some(screen) = cam.project(view, at) else { return false };
     let ray = cam.ray(view, screen);
     let depth = (at - ray.origin).dot(ray.dir);
-    picking::pick(state, &ray).is_none_or(|h| h.node == owner || h.distance >= depth - 0.5)
+    picking::pick(state, &ray).is_none_or(|h| Some(h.node) == owner || h.distance >= depth - 0.5)
 }
 
 /// The brush faces whose center lies inside `area` on screen.
@@ -74,7 +75,7 @@ pub fn faces(state: &EditorState, cam: &Camera, view: Rect, area: Rect, xray: bo
             }
 
             let facing = b.faces[f].plane.normal.dot(c - cam.eye()) < 0.0;
-            if see_through || (facing && unoccluded(state, cam, view, c, *id)) {
+            if see_through || (facing && unoccluded(state, cam, view, c, Some(*id))) {
                 out.push((*id, f));
             }
         }

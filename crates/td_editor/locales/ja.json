@@ -2776,5 +2776,6 @@
   "A drag off the selection draws a box that selects, Shift adds and Ctrl removes": "選択範囲の外をドラッグすると選択枠を描きます。Shift で追加、Ctrl で除外",
   "The selection box also takes faces facing away or hidden behind others": "選択枠が裏向きの面や他の陰に隠れた面も選択します",
   "Deselected {n} face": { "other": "{n} 個の面を選択解除" },
-  "Deselected {n} object": { "other": "{n} 個のオブジェクトを選択解除" }
+  "Deselected {n} object": { "other": "{n} 個のオブジェクトを選択解除" },
+  "Deselected {n} corner": { "other": "{n} 個の角を選択解除" }
 }

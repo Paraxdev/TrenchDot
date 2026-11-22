@@ -2776,5 +2776,6 @@
   "A drag off the selection draws a box that selects, Shift adds and Ctrl removes": "Ziehen neben der Auswahl zieht einen Auswahlrahmen auf, Shift fügt hinzu, Ctrl entfernt",
   "The selection box also takes faces facing away or hidden behind others": "Der Auswahlrahmen nimmt auch abgewandte und verdeckte Flächen",
   "Deselected {n} face": { "one": "{n} Fläche abgewählt", "other": "{n} Flächen abgewählt" },
-  "Deselected {n} object": { "one": "{n} Objekt abgewählt", "other": "{n} Objekte abgewählt" }
+  "Deselected {n} object": { "one": "{n} Objekt abgewählt", "other": "{n} Objekte abgewählt" },
+  "Deselected {n} corner": { "one": "{n} Ecke abgewählt", "other": "{n} Ecken abgewählt" }
 }

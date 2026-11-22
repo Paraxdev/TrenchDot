@@ -3497,6 +3497,31 @@ fn box_select_takes_objects_in_2d_and_visible_faces_in_3d() {
 
 #[test]
 #[ignore]
+fn box_select_takes_corners_of_every_selected_brush_in_3d() {
+    let ed = Editor::launch("box_select_corners");
+    let a = ed.box_brush([0.0, 0.0, 0.0], [64.0, 64.0, 64.0]);
+    let b = ed.box_brush([64.0, 0.0, 0.0], [128.0, 64.0, 64.0]);
+    ed.call("select", json!({ "ids": [a, b] }));
+    ed.call("run_action", json!({ "action": "set_tool", "args": { "tool": "vertex" } }));
+    ed.call("run_action", json!({ "action": "toggle_box_select" }));
+    ed.call("set_camera", json!({ "view": "3d", "position": [64, 400, 33], "look_at": [64, 32, 32] }));
+    let corners = || {
+        let mut v: Vec<[i64; 3]> =
+            ed.state()["editor"]["selected_vertices"].as_array().unwrap().iter().map(|v| [0, 1, 2].map(|i| v[i].as_f64().unwrap().round() as i64)).collect();
+        v.sort();
+        v
+    };
+
+    let drag = json!([{ "type": "drag", "world": [40, 64, -24], "to_world": [148, 64, 88] }]);
+    ed.input("3d", drag.clone());
+    assert_eq!(corners(), [[64, 64, 0], [64, 64, 64], [128, 64, 0], [128, 64, 64]], "the top corners of both brushes, the hidden bottom ones stay out");
+    ed.call("run_action", json!({ "action": "toggle_xray" }));
+    ed.input("3d", drag);
+    assert_eq!(corners().len(), 8, "X-ray takes the bottom corners too");
+}
+
+#[test]
+#[ignore]
 fn auto_materials_paints_a_room_by_face_class() {
     let ed = Editor::launch("auto_materials");
     let mut ids = Vec::new();
