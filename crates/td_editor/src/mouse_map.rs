@@ -243,6 +243,17 @@ pub fn space_camera(preset: &str, in_2d: bool) -> Option<CameraDrag> {
     (preset == "hammer").then_some(if in_2d { CameraDrag::Pan } else { CameraDrag::Look })
 }
 
+/// The keys that fly the camera up and down while the right button is held. TrenchBroom uses Q and X, the others
+/// E and Q.
+pub fn fly_keys(preset: &str) -> (egui::Key, egui::Key) {
+    if preset == "trenchbroom" { (egui::Key::Q, egui::Key::X) } else { (egui::Key::E, egui::Key::Q) }
+}
+
+/// What the right drag look row says about flying, naming the preset's up and down keys.
+pub fn fly_text(preset: &str) -> &'static str {
+    if preset == "trenchbroom" { en!("Look around, WASD flies, Q and X go up and down") } else { en!("Look around, WASD flies, Q and E go down and up") }
+}
+
 /// Whether Shift changes what a click does. The Hammer preset keeps Shift for cloning, so a Shift+click there is a plain
 /// click, also for stepping through stacked objects in a 2D view.
 pub fn shift_counts_on_click(preset: &str) -> bool {
@@ -429,7 +440,7 @@ pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
             drag("c", en!("Ctrl+drag the selection"), en!("Copy it and move the copy"), DragHit::Selected, SelectionDrag::Copy),
             drag("", en!("Drag a selection edge (2D)"), en!("Resize along it. Shift or Ctrl copies instead"), DragHit::Edge2d, SelectionDrag::Resize),
             space(en!("Space+drag (2D)"), en!("Pan"), true, CameraDrag::Pan),
-            space(en!("Space+drag (3D)"), en!("Look around, WASD flies, Q and E go down and up"), false, CameraDrag::Look),
+            space(en!("Space+drag (3D)"), fly_text(preset), false, CameraDrag::Look),
             corner_box("", en!("Drag off the corners in the Vertex tool (2D)"), en!("Select the corners of the selected brushes inside the box")),
             corner_box("c", en!("Ctrl+drag off the corners in the Vertex tool (2D)"), en!("Add the corners inside the box to the selected corners")),
         ]);
@@ -444,8 +455,9 @@ pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
     }
 
     rows.extend([
-        fixed(VIEWS, en!("Right drag (3D)"), en!("Look around, WASD flies, Q and E go down and up")),
+        fixed(VIEWS, en!("Right drag (3D)"), fly_text(preset)),
         fixed(VIEWS, en!("Middle drag"), en!("Pan")),
+        fixed(VIEWS, en!("Alt+right drag (3D)"), en!("Orbit")),
         fixed(VIEWS, en!("Alt+left drag (3D)"), en!("Orbit")),
         fixed(VIEWS, en!("Wheel (3D)"), en!("Move forward and back")),
         fixed(VIEWS, en!("Wheel (2D)"), en!("Zoom at the cursor")),
@@ -777,6 +789,15 @@ mod tests {
                     assert_eq!(empty_drag("hammer", ToolKind::Select, c, v.unwrap()), d, "{gesture}");
                 }
             }
+        }
+    }
+
+    #[test]
+    fn trenchbroom_flies_up_on_q_and_down_on_x() {
+        assert_eq!(fly_keys("trenchbroom"), (egui::Key::Q, egui::Key::X));
+        assert_eq!(fly_keys("hammer"), (egui::Key::E, egui::Key::Q));
+        for preset in crate::commands::PRESETS {
+            assert!(mouse_rows(preset).iter().any(|r| r.what == fly_text(preset)), "{preset}");
         }
     }
 

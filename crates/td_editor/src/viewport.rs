@@ -245,17 +245,22 @@ impl Viewport {
         let (invert_y, look_sensitivity, fly_speed) = (cx.state.prefs.invert_y, cx.state.prefs.look_sensitivity, cx.state.prefs.fly_speed);
         match self.camera.kind {
             ViewKind::Perspective => {
-                if response.drag_started_by(PointerButton::Secondary) || space == Some(CameraDrag::Look) {
+                let pivot = |view: &Self| {
+                    press_origin
+                        .and_then(|p| picking::pick(cx.state, &view.camera.ray(rect, p)))
+                        .map(|h| h.point)
+                        .unwrap_or(view.camera.position + view.camera.forward() * 256.0)
+                };
+                if response.drag_started_by(PointerButton::Secondary) && modifiers.alt {
+                    self.drag = Some(Drag::Orbit { pivot: pivot(self) });
+                    self.looked = true;
+                } else if response.drag_started_by(PointerButton::Secondary) || space == Some(CameraDrag::Look) {
                     self.drag = Some(Drag::Look);
                     self.looked = true;
                 } else if response.drag_started_by(PointerButton::Middle) {
                     self.drag = Some(Drag::Pan);
                 } else if response.drag_started_by(PointerButton::Primary) && modifiers.alt && self.alt_drag_orbits(press_origin, cx) {
-                    let pivot = press_origin
-                        .and_then(|p| picking::pick(cx.state, &self.camera.ray(rect, p)))
-                        .map(|h| h.point)
-                        .unwrap_or(self.camera.position + self.camera.forward() * 256.0);
-                    self.drag = Some(Drag::Orbit { pivot });
+                    self.drag = Some(Drag::Orbit { pivot: pivot(self) });
                 }
 
                 let invert = if invert_y { -1.0 } else { 1.0 };
@@ -297,6 +302,7 @@ impl Viewport {
 
                 // Like TrenchBroom, the fly keys only steer while the right mouse look is held, otherwise they are tool shortcuts.
                 if self.is_flying() && !ui.ctx().egui_wants_keyboard_input() && !modifiers.command {
+                    let (up, down) = crate::mouse_map::fly_keys(&cx.state.prefs.keymap_preset);
                     let mut dir = DVec3::ZERO;
                     ui.input(|i| {
                         if i.key_down(Key::W) {
@@ -315,11 +321,11 @@ impl Viewport {
                             dir -= self.camera.right();
                         }
 
-                        if i.key_down(Key::E) {
+                        if i.key_down(up) {
                             dir += DVec3::Y;
                         }
 
-                        if i.key_down(Key::Q) {
+                        if i.key_down(down) {
                             dir -= DVec3::Y;
                         }
                     });

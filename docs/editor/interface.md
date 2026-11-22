@@ -141,7 +141,7 @@ save, discard or cancel, and quitting lists every unsaved map.
 
 | Input | 3D view | 2D views |
 | --- | --- | --- |
-| Right drag | Look around. WASD moves, Q and E go down and up, Shift triples the speed | Pan |
+| Right drag | Look around. WASD moves, Q and X go up and down (E and Q in the Hammer and Blender presets), Shift triples the speed | Pan |
 | Middle drag | Pan | Pan |
 | Wheel | Move forward and back, faster the farther away the surface straight ahead is | Zoom towards the cursor |
 | Alt+left drag | Orbit, unless the drag starts on the selection, which then moves vertically | |

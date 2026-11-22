@@ -114,10 +114,10 @@ what the TrenchDot column says.
 | Gesture | TrenchBroom | TrenchBroom preset | Hammer preset |
 | --- | --- | --- | --- |
 | Look around in 3D | Right drag | Right drag | Same, or Space+drag |
-| Fly in 3D | WASD while the right button is held | WASD while the right button is held, Q and E go down and up, Shift is faster | Same |
+| Fly in 3D | WASD while the right button is held, Q and X go up and down | Same, Shift is faster | Same, but E goes up and Q down |
 | Move forward and back in 3D | Wheel | Wheel | Same |
 | Pan in 3D | Middle drag | Middle drag | Same |
-| Orbit | Alt+right drag | Alt+left drag | Same |
+| Orbit | Alt+right drag | Alt+right drag or Alt+left drag | Same |
 | Pan in a 2D view | Middle or right drag | Middle or right drag | Same, or Space+drag |
 | Zoom in a 2D view | Wheel | Wheel | Same |
 | Select | Click | Click | Same |
@@ -139,8 +139,8 @@ what the TrenchDot column says.
 
 ## Where TrenchDot differs
 
-* **Alt+left drag orbits**, where TrenchBroom uses Alt+right drag. In the Select tool a drag that starts on the
-  selection or its gizmo moves it vertically instead.
+* **Alt+left drag orbits too**, next to TrenchBroom's Alt+right drag. In the Select tool an Alt+left drag that starts
+  on the selection or its gizmo moves it vertically instead.
 * **Tie to Entity opens a class list.** Select the brushes and press Ctrl+T in the Hammer preset, or pick *Brush > Tie
   to Entity* in any preset. The command palette comes up with only the brush entity classes of your game, `func_detail`
   already highlighted, so Ctrl+T then Enter makes the brushes one detail entity. Type to filter the list, Esc closes it

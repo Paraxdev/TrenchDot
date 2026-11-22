@@ -771,7 +771,12 @@ fn face_chip(map: &td_doc::Map, sel: &td_doc::Selection) -> Option<String> {
 /// The mouse lines of Help > Mouse and Keys, with the click that selects faces named after the keymap preset.
 fn mouse_help(preset: &str) -> String {
     [
-        tr("3D: right drag looks, WASD flies, Q and E go down and up, middle drag pans, Alt+left drag orbits").to_string(),
+        tr(if preset == "trenchbroom" {
+            en!("3D: right drag looks, WASD flies, Q and X go up and down, middle drag pans, Alt+right drag orbits")
+        } else {
+            en!("3D: right drag looks, WASD flies, Q and E go down and up, middle drag pans, Alt+left drag orbits")
+        })
+        .to_string(),
         tr("2D: right or middle drag pans, the wheel zooms, drag a selection edge to resize").to_string(),
         tr(if preset == "hammer" {
             en!("Click selects an object or a whole group, double click opens a group. Drag empty space in 2D to draw a selection box")
@@ -4641,7 +4646,9 @@ mod tests {
         let blender = lines("blender");
         let hammer = lines("hammer");
         assert_eq!(hammer.len(), 6);
-        assert_eq!(hammer[..2], tb[..2]);
+        assert_eq!(hammer[..2], blender[..2]);
+        assert_eq!(hammer[1], tb[1]);
+        assert!(tb[0].contains("Q and X") && tb[0].contains("Alt+right drag orbits"), "{}", tb[0]);
         assert_eq!(hammer[3..4], tb[3..4]);
         assert_eq!(hammer[5], tb[5]);
         assert!(hammer[2].ends_with("Drag empty space in 2D to draw a selection box"), "{}", hammer[2]);
@@ -4653,7 +4660,7 @@ mod tests {
         assert!(blender[4].starts_with("Click (Face mode) selects faces and E extrudes them into new brushes"), "{}", blender[4]);
         assert!(blender[4].contains("Shift+drag a face pushes it, Ctrl+Shift+drag extrudes"), "{}", blender[4]);
         assert!(!tb[4].contains("E extrudes") && !hammer[4].contains("E extrudes"), "only Blender binds E");
-        assert_eq!(tb[..4], blender[..4]);
+        assert_eq!(tb[1..4], blender[1..4]);
         assert!(tb[2].contains("double click opens"), "{}", tb[2]);
         assert_eq!(tb[5], blender[5]);
         let _de = crate::i18n::scope(crate::i18n::Lang::De);

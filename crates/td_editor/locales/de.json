@@ -2786,5 +2786,8 @@
   "Nothing to ungroup, select a group": "Nichts aufzulösen, wähle eine Gruppe",
   "Nothing is hidden": "Nichts ist ausgeblendet",
   "The stairs are too wide for the path, make them narrower or space the points further apart": "Die Treppe ist zu breit für den Pfad, mach sie schmaler oder setze die Punkte weiter auseinander",
-  "No match": "Kein Treffer"
+  "No match": "Kein Treffer",
+  "Look around, WASD flies, Q and X go up and down": "Umsehen, WASD fliegt, Q und X gehen hoch und runter",
+  "Alt+right drag (3D)": "Alt+rechts ziehen (3D)",
+  "3D: right drag looks, WASD flies, Q and X go up and down, middle drag pans, Alt+right drag orbits": "3D: Rechts ziehen blickt umher, WASD fliegt, Q und X gehen hoch und runter, Mittel ziehen verschiebt, Alt+Rechts ziehen umkreist"
 }

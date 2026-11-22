@@ -2786,5 +2786,8 @@
   "Nothing to ungroup, select a group": "解除するグループがありません、グループを選択してください",
   "Nothing is hidden": "非表示のものはありません",
   "The stairs are too wide for the path, make them narrower or space the points further apart": "階段がパスに対して広すぎます。幅を狭めるか点の間隔を広げてください",
-  "No match": "一致なし"
+  "No match": "一致なし",
+  "Look around, WASD flies, Q and X go up and down": "見回す。WASD で飛行、Q と X で上昇と下降",
+  "Alt+right drag (3D)": "Alt+右ドラッグ (3D)",
+  "3D: right drag looks, WASD flies, Q and X go up and down, middle drag pans, Alt+right drag orbits": "3D：右ドラッグで見回し、WASDで移動、Q/Xで上昇と下降、中ドラッグでパン、Alt+右ドラッグで周回"
 }
