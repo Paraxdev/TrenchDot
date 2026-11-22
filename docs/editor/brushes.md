@@ -51,6 +51,11 @@ With faces selected, the box selects faces instead, the ones whose center lies i
 not hidden behind something, so a drag over a room picks the walls you see. Turn on *Edit > Select > X-Ray* (Alt+Z) to
 take the faces behind and on the far side too. The 2D views always see through.
 
+To take a whole curved wall or floor at once, Shift+double click one of its faces, or double click it in the Blender
+preset's Face mode. The selection runs on across every face that shares an edge with the last one and bends by 45
+degrees or less, also over into the brushes next to it, and stops at a sharper corner. Shift+Ctrl+double click adds the
+run to the faces you already have.
+
 ## Exact position and size
 
 Sometimes you want exact numbers, like a door cutter exactly as deep as the wall. Select the brush and type them into

@@ -587,6 +587,74 @@ pub fn select_inverse(map: &Map, sel: &mut Selection, open_groups: &[NodeId]) {
     sel.nodes.extend(selectable_objects(map, open_groups).into_iter().filter(|id| !current.contains(id)));
 }
 
+fn face_edges(b: &Brush, f: usize) -> Vec<(DVec3, DVec3)> {
+    let idx = &b.faces[f].indices;
+    (0..idx.len()).map(|i| (b.vertices[idx[i] as usize], b.vertices[idx[(i + 1) % idx.len()] as usize])).collect()
+}
+
+/// Whether two edges lie on one line and overlap by more than a sliver, so neighbors of different lengths still meet.
+fn edges_overlap((a, b): (DVec3, DVec3), (c, d): (DVec3, DVec3)) -> bool {
+    const EPS: f64 = 0.01;
+    let len = (b - a).length();
+    if len < EPS {
+        return false;
+    }
+
+    let dir = (b - a) / len;
+    let along = |p: DVec3| {
+        let t = (p - a).dot(dir);
+        ((p - a - dir * t).length() <= EPS).then_some(t)
+    };
+    let (Some(tc), Some(td)) = (along(c), along(d)) else { return false };
+    tc.max(td).min(len) - tc.min(td).max(0.0) > EPS
+}
+
+/// The faces reached from `start` across shared edges, on its brush or on touching brushes, where each step turns by at
+/// most `max_angle` degrees. On a curved wall built from several brushes that is one whole side of it.
+pub fn connected_faces(map: &Map, start: (NodeId, usize), max_angle: f64) -> Vec<(NodeId, usize)> {
+    if !map.brush(start.0).is_some_and(|b| start.1 < b.faces.len()) {
+        return Vec::new();
+    }
+
+    let min_dot = max_angle.to_radians().cos() - 1e-9;
+    let brushes: Vec<(NodeId, &Brush, Aabb)> = map
+        .nodes
+        .iter()
+        .filter_map(|(id, n)| match &n.kind {
+            NodeKind::Brush(b) if *id == start.0 || (map.is_editable(*id) && map.in_cordon(*id)) => Some((*id, b, b.bounds().expanded(0.01))),
+            _ => None,
+        })
+        .collect();
+    let mut seen = BTreeSet::from([start]);
+    let mut queue = vec![start];
+    while let Some((id, f)) = queue.pop() {
+        let Some(b) = map.brush(id) else { continue };
+        let normal = b.faces[f].plane.normal;
+        let edges = face_edges(b, f);
+        let reach = Aabb::from_points(edges.iter().map(|e| e.0)).expanded(0.01);
+        for (other_id, other, bounds) in &brushes {
+            if !bounds.intersects(&reach) {
+                continue;
+            }
+
+            for (g, face) in other.faces.iter().enumerate() {
+                let key = (*other_id, g);
+                if seen.contains(&key) || face.plane.normal.dot(normal) < min_dot {
+                    continue;
+                }
+
+                let theirs = face_edges(other, g);
+                if edges.iter().any(|e| theirs.iter().any(|t| edges_overlap(*e, *t))) {
+                    seen.insert(key);
+                    queue.push(key);
+                }
+            }
+        }
+    }
+
+    seen.into_iter().collect()
+}
+
 /// Objects intersecting any selected brush. The selected brushes are removed (TrenchBroom "select touching").
 pub fn select_touching(map: &mut Map, sel: &mut Selection, open_groups: &[NodeId], inside_only: bool) {
     let selectors: Vec<(NodeId, Brush)> = sel.brushes(map).into_iter().filter_map(|id| map.brush(id).cloned().map(|b| (id, b))).collect();
@@ -1264,6 +1332,48 @@ mod tests {
             Aabb::new(DVec3::new(12.0, 2.0, 0.0), DVec3::new(16.0, 8.0, 4.0)),
             Aabb::new(DVec3::new(40.0, 0.0, 0.0), DVec3::new(60.0, 10.0, 4.0)),
         ]
+    }
+
+    /// A quarter circle wall of four segment brushes, 128 to 160 units from the origin and 64 high.
+    fn curved_wall(m: &mut Map) -> Vec<NodeId> {
+        let l = m.default_layer();
+        (0..4)
+            .map(|i| {
+                let ring = |r: f64, k: usize| {
+                    let a = (k as f64 * 22.5).to_radians();
+                    DVec3::new(r * a.cos(), 0.0, r * a.sin())
+                };
+                let base = [ring(128.0, i), ring(160.0, i), ring(160.0, i + 1), ring(128.0, i + 1)];
+                let pts: Vec<DVec3> = base.iter().flat_map(|p| [*p, *p + DVec3::Y * 64.0]).collect();
+                create_brush(m, l, Brush::from_points(&pts, &[], "w").unwrap())
+            })
+            .collect()
+    }
+
+    fn outer_face(m: &Map, id: NodeId) -> usize {
+        let b = m.brush(id).unwrap();
+        let c = b.bounds().center();
+        let out = DVec3::new(c.x, 0.0, c.z).normalize();
+        (0..b.faces.len()).max_by(|x, y| b.faces[*x].plane.normal.dot(out).total_cmp(&b.faces[*y].plane.normal.dot(out))).unwrap()
+    }
+
+    #[test]
+    fn connected_faces_follow_a_curved_wall_across_its_brushes() {
+        let mut m = Map::new();
+        let wall = curved_wall(&mut m);
+        let start = (wall[0], outer_face(&m, wall[0]));
+        let side = connected_faces(&m, start, 45.0);
+        let want: Vec<(NodeId, usize)> = wall.iter().map(|id| (*id, outer_face(&m, *id))).collect();
+        assert_eq!(side, want, "the outer face of every segment, no caps, tops or inner faces");
+        assert_eq!(connected_faces(&m, start, 10.0), [start], "a tighter angle stops at the first bend");
+
+        let l = m.default_layer();
+        let a = create_brush(&mut m, l, Brush::from_aabb(&Aabb::new(DVec3::new(0.0, -16.0, 0.0), DVec3::new(64.0, 0.0, 64.0)), "f").unwrap());
+        let b = create_brush(&mut m, l, Brush::from_aabb(&Aabb::new(DVec3::new(64.0, -16.0, 16.0), DVec3::new(96.0, 0.0, 32.0)), "f").unwrap());
+        let apart = create_brush(&mut m, l, Brush::from_aabb(&Aabb::new(DVec3::new(100.0, -16.0, 0.0), DVec3::new(164.0, 0.0, 64.0)), "f").unwrap());
+        let top = |id: NodeId| (id, m.brush(id).unwrap().faces.iter().position(|f| f.plane.normal.y > 0.9).unwrap());
+        assert_eq!(connected_faces(&m, top(a), 45.0), [top(a), top(b)], "a shorter neighbor still meets, a brush with a gap does not");
+        assert!(!connected_faces(&m, top(a), 45.0).contains(&top(apart)));
     }
 
     #[test]

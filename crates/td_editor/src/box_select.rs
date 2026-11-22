@@ -149,6 +149,25 @@ pub fn apply(state: &mut EditorState, cam: &Camera, view: Rect, a: Pos2, b: Pos2
     found.len()
 }
 
+/// How far one face may turn from the next for a double click to follow it.
+const RUN_ANGLE: f64 = 45.0;
+
+/// A double click on a face in Face mode: selects the faces running on from it across shared edges, on its brush and
+/// on touching brushes, as long as each turns by at most 45 degrees. `add` keeps the faces already selected.
+pub fn select_face_run(state: &mut EditorState, start: (NodeId, usize), add: bool) -> usize {
+    let found = td_doc::ops::connected_faces(&state.doc.map, start, RUN_ANGLE);
+    state.doc.select(|_, s| {
+        if !add {
+            s.clear();
+        }
+
+        s.nodes.clear();
+        s.faces.extend(found.iter().copied());
+    });
+    state.set_status(msg_n!(found.len(), "Selected {n} face", "Selected {n} faces"));
+    found.len()
+}
+
 #[cfg(test)]
 mod tests {
     use td_core::Aabb;

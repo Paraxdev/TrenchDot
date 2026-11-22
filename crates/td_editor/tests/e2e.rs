@@ -3522,6 +3522,24 @@ fn box_select_takes_corners_of_every_selected_brush_in_3d() {
 
 #[test]
 #[ignore]
+fn double_click_on_a_face_selects_the_faces_running_on_from_it() {
+    let ed = Editor::launch("face_run");
+    let a = ed.box_brush([0.0, 0.0, 0.0], [64.0, 64.0, 64.0]);
+    let b = ed.box_brush([64.0, 0.0, 0.0], [128.0, 64.0, 64.0]);
+    ed.box_brush([300.0, 0.0, 0.0], [364.0, 64.0, 64.0]);
+    ed.call("set_camera", json!({ "view": "3d", "position": [64, 400, 33], "look_at": [64, 32, 32] }));
+    ed.input("3d", json!([{ "type": "double_click", "world": [32, 64, 32] }]));
+    assert!(selection_of(&ed).1.is_empty(), "a plain double click is an object click in the TrenchBroom preset");
+    // Off the face center, where the gizmo of the brush the plain double click selected would take the click.
+    ed.input("3d", json!([{ "type": "double_click", "world": [12, 64, 50], "modifiers": ["shift"] }]));
+    let (nodes, faces) = selection_of(&ed);
+    assert!(nodes.is_empty(), "{nodes:?} {faces:?}");
+    let owners: Vec<u64> = faces.iter().map(|f| f.0).collect();
+    assert_eq!(owners, [a, b], "the two tops that meet, not the box apart {faces:?}");
+}
+
+#[test]
+#[ignore]
 fn auto_materials_paints_a_room_by_face_class() {
     let ed = Editor::launch("auto_materials");
     let mut ids = Vec::new();

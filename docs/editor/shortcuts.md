@@ -87,6 +87,7 @@ it, Ctrl+M in the Hammer preset.
 | Click | Select the object under the cursor, or the whole group around it. Clicking an object while faces are selected leaves face selection |
 | Double click a group | Open it, so clicks reach what is inside |
 | Double click an entity brush | Select every brush of the entity |
+| Shift+double click a face | Select the faces running on from it across neighboring brushes, up to a 45 degree bend, see [Box select](brushes.md#box-select) |
 | Double click empty space | Close the innermost open group, one level per double click, and clear the selection. Esc closes one level per press, see [Tools](#tools) |
 | Click again soon at the same spot, or Alt+click (2D) | Select the next object under the cursor, such as a wall under its ceiling in the Top view |
 | Ctrl+click | Add an object to the selection or remove it, in the views and the Outliner |
