@@ -587,6 +587,26 @@ pub fn select_inverse(map: &Map, sel: &mut Selection, open_groups: &[NodeId]) {
     sel.nodes.extend(selectable_objects(map, open_groups).into_iter().filter(|id| !current.contains(id)));
 }
 
+/// Inverts the face selection within the brushes and meshes that hold selected faces, or across every editable one when
+/// no face is selected.
+pub fn select_inverse_faces(map: &Map, sel: &mut Selection) {
+    let current = std::mem::take(&mut sel.faces);
+    let mut owners: Vec<NodeId> = current.iter().map(|(id, _)| *id).collect();
+    owners.dedup();
+    if owners.is_empty() {
+        owners = map
+            .nodes
+            .iter()
+            .filter(|(id, node)| matches!(node.kind, NodeKind::Brush(_) | NodeKind::Mesh(_)) && map.is_editable(**id))
+            .map(|(id, _)| *id)
+            .collect();
+    }
+
+    sel.clear();
+    sel.select_faces_of(map, owners);
+    sel.faces.retain(|f| !current.contains(f));
+}
+
 fn face_edges(b: &Brush, f: usize) -> Vec<(DVec3, DVec3)> {
     let idx = &b.faces[f].indices;
     (0..idx.len()).map(|i| (b.vertices[idx[i] as usize], b.vertices[idx[(i + 1) % idx.len()] as usize])).collect()
@@ -1374,6 +1394,23 @@ mod tests {
         let top = |id: NodeId| (id, m.brush(id).unwrap().faces.iter().position(|f| f.plane.normal.y > 0.9).unwrap());
         assert_eq!(connected_faces(&m, top(a), 45.0), [top(a), top(b)], "a shorter neighbor still meets, a brush with a gap does not");
         assert!(!connected_faces(&m, top(a), 45.0).contains(&top(apart)));
+    }
+
+    #[test]
+    fn select_inverse_faces_stays_on_the_brushes_that_hold_faces() {
+        let mut m = Map::new();
+        let l = m.default_layer();
+        let a = create_brush(&mut m, l, Brush::from_aabb(&Aabb::new(DVec3::ZERO, DVec3::splat(64.0)), "f").unwrap());
+        let b = create_brush(&mut m, l, Brush::from_aabb(&Aabb::new(DVec3::splat(100.0), DVec3::splat(164.0)), "f").unwrap());
+        let mut sel = Selection::default();
+        sel.faces.extend([(a, 0), (a, 1)]);
+        select_inverse_faces(&m, &mut sel);
+        assert!(sel.nodes.is_empty());
+        assert_eq!(sel.faces.iter().copied().collect::<Vec<_>>(), (2..6).map(|f| (a, f)).collect::<Vec<_>>());
+
+        sel.clear();
+        select_inverse_faces(&m, &mut sel);
+        assert_eq!(sel.faces.len(), 12, "with no face selected every face of {a:?} and {b:?}");
     }
 
     #[test]

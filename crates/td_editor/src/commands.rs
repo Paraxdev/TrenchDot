@@ -1534,6 +1534,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
                 state.set_status(msg!("Closed group {name}", name));
             }
         }
+        Action::SelectInverse if state.select_mode == SelectMode::Face => state.doc.select(ops::select_inverse_faces),
         Action::SelectInverse => state.doc.select(|m, s| ops::select_inverse(m, s, &open_groups)),
         Action::SelectBrushFaces => {
             let objects = selected_faced_objects(state);
