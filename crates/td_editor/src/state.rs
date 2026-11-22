@@ -666,6 +666,8 @@ pub struct EditorState {
     /// World height Auto Paint measures its bands from, such as sea level. None measures from the lowest point.
     pub auto_paint_base: Option<f64>,
     pub paint_color: [f32; 4],
+    /// The Polygon tool draws walls along its corners instead of one outline. Session only.
+    pub walls: crate::polygon_tool::WallOptions,
     pub prefabs: crate::prefabs::PrefabCache,
     /// World bounds of every instance node, refreshed by the scene cache.
     pub instance_bounds: std::collections::HashMap<NodeId, Aabb>,
@@ -920,6 +922,7 @@ impl EditorState {
             edit_symmetry: EditSymmetry::OFF,
             auto_paint_base: None,
             paint_color: [0.55, 0.45, 0.35, 1.0],
+            walls: Default::default(),
             prefabs: Default::default(),
             instance_bounds: Default::default(),
             overlay_ghosts: Default::default(),

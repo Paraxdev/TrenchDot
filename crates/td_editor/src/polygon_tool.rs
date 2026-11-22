@@ -1,9 +1,9 @@
 //! Polygon tool: click the corners of an outline in a view, close it and it is extruded into a brush, or into a few
-//! when the outline is concave.
+//! when the outline is concave. In wall mode the corners are a path and every segment becomes a wall brush.
 
 use egui::{Color32, PointerButton, Pos2, Rect, Response, Stroke, Ui, Vec2};
 use td_core::{Aabb, DVec3, NodeId, Plane};
-use td_geom::outline::{self, OutlineError};
+use td_geom::outline::{self, OutlineError, WallAlign};
 use td_render::LineVertex;
 
 use crate::camera::{Camera, ViewKind};
@@ -24,6 +24,20 @@ struct Frame {
     origin: DVec3,
     normal: DVec3,
     height: f64,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct WallOptions {
+    pub on: bool,
+    pub thickness: f64,
+    pub height: f64,
+    pub align: WallAlign,
+}
+
+impl Default for WallOptions {
+    fn default() -> Self {
+        Self { on: false, thickness: 16.0, height: 128.0, align: WallAlign::Outside }
+    }
 }
 
 #[derive(Default)]
@@ -65,8 +79,34 @@ pub fn create(state: &mut EditorState, parent: NodeId, points: &[DVec3], normal:
     Ok(ids)
 }
 
-fn error_msg(e: OutlineError) -> Msg {
+/// Makes a wall brush per segment of a path in a new group, as one undo step, and selects the group. A closed path
+/// also runs a wall from the last point back to the first. Returns the group and its walls.
+pub fn create_walls(
+    state: &mut EditorState,
+    parent: NodeId,
+    points: &[DVec3],
+    closed: bool,
+    normal: DVec3,
+    walls: WallOptions,
+    material: &str,
+) -> Result<(NodeId, Vec<NodeId>), OutlineError> {
+    let brushes = outline::walls(points, closed, normal, walls.height, walls.thickness, walls.align, material)?;
+    let bounds = brushes.iter().fold(Aabb::EMPTY, |b, brush| b.union(&brush.bounds()));
+    let made = state.doc.edit(en!("Create Walls"), |m, s| {
+        s.clear();
+        let group = m.insert(parent, td_doc::NodeKind::Group(td_doc::Group::new("Walls".to_string())));
+        let ids = brushes.into_iter().map(|b| m.insert(group, td_doc::NodeKind::Brush(b))).collect::<Vec<_>>();
+        s.select_node(group);
+        (group, ids)
+    });
+    state.last_bounds = bounds;
+    Ok(made)
+}
+
+fn error_msg(e: OutlineError, walls: bool) -> Msg {
     match e {
+        OutlineError::TooFew if walls => msg!("Place at least two corners first"),
+        OutlineError::Flat if walls => msg!("The walls have no thickness"),
         OutlineError::TooFew => msg!("Place at least three corners first"),
         OutlineError::TooMany => msg!("The outline has too many corners"),
         OutlineError::Flat => msg!("The outline has no area"),
@@ -137,7 +177,7 @@ impl PolygonTool {
 
         let Some(pos) = response.interact_pointer_pos() else { return };
         if self.points.len() >= 3 && screen_dist(cam, rect, self.points[0], pos) < HANDLE_RADIUS {
-            self.close(state);
+            self.finish(state, true);
             return;
         }
 
@@ -168,24 +208,41 @@ impl PolygonTool {
         }
     }
 
-    pub fn close(&mut self, state: &mut EditorState) {
+    /// Makes the brushes. `closed` is whether the path joins back to its first corner, which only matters for walls
+    /// since an outline always closes.
+    pub fn finish(&mut self, state: &mut EditorState, closed: bool) {
+        let walls = state.walls;
         let Some(frame) = self.frame else {
-            state.set_status(error_msg(OutlineError::TooFew));
+            state.set_status(error_msg(OutlineError::TooFew, walls.on));
             return;
         };
         let parent = state.insert_parent();
         let material = state.current_material.clone();
-        match create(state, parent, &self.points, frame.normal, frame.height, &material) {
+        let made = if walls.on {
+            create_walls(state, parent, &self.points, closed, frame.normal, walls, &material).map(|(_, ids)| ids)
+        } else {
+            create(state, parent, &self.points, frame.normal, frame.height, &material)
+        };
+        match made {
+            Ok(ids) if walls.on => {
+                state.set_status(msg_n!(ids.len(), "Created {n} wall in a group", "Created {n} walls in a group"));
+                self.reset();
+            }
             Ok(ids) => {
                 state.set_status(msg_n!(ids.len(), "Created {n} polygon brush", "Created {n} polygon brushes"));
                 self.reset();
             }
-            Err(e) => state.fail_status(error_msg(e)),
+            Err(e) => state.fail_status(error_msg(e, walls.on)),
         }
     }
 
-    pub fn lines(&self, out: &mut Vec<LineVertex>) {
+    pub fn lines(&self, out: &mut Vec<LineVertex>, walls: &WallOptions) {
         let Some(frame) = self.frame else { return };
+        if walls.on {
+            self.wall_lines(out, frame, walls);
+            return;
+        }
+
         let lift = frame.normal * frame.height;
         let pts = &self.points;
         for w in pts.windows(2) {
@@ -208,7 +265,23 @@ impl PolygonTool {
         }
     }
 
-    pub fn paint_overlay(&self, ui: &Ui, cam: &Camera, rect: Rect) {
+    /// The path, and the walls it would make up to the cursor.
+    fn wall_lines(&self, out: &mut Vec<LineVertex>, frame: Frame, walls: &WallOptions) {
+        let mut path = self.points.clone();
+        path.extend(self.cursor.filter(|c| path.last().is_none_or(|l| (*l - *c).length() > 1e-6)));
+        for w in path.windows(2) {
+            line(out, w[0], w[1], COLOR);
+        }
+
+        let Ok(brushes) = outline::walls(&path, false, frame.normal, walls.height, walls.thickness, walls.align, "") else { return };
+        for b in &brushes {
+            for (i, j) in b.edges() {
+                line(out, b.vertices[i as usize], b.vertices[j as usize], FAINT);
+            }
+        }
+    }
+
+    pub fn paint_overlay(&self, ui: &Ui, cam: &Camera, rect: Rect, walls: bool) {
         let painter = ui.painter_at(rect);
         let hover = ui.input(|i| i.pointer.hover_pos());
         for (i, p) in self.points.iter().enumerate() {
@@ -221,7 +294,13 @@ impl PolygonTool {
             painter.rect_stroke(square, 1.0, Stroke::new(1.0, Color32::BLACK), egui::StrokeKind::Outside);
         }
 
-        let text = if self.points.is_empty() {
+        let text = if walls {
+            if self.points.is_empty() {
+                crate::i18n::trf!("Walls: click to place the first corner")
+            } else {
+                crate::i18n::trf!("Walls: click corners, Enter ends the path, the first corner closes it, Backspace undoes")
+            }
+        } else if self.points.is_empty() {
             crate::i18n::trf!("Polygon: click to place the first corner")
         } else {
             crate::i18n::trf!("Polygon: click corners, the first one or Enter closes, Backspace undoes")
@@ -238,7 +317,8 @@ mod tests {
     fn every_outline_error_has_its_own_message() {
         use OutlineError::*;
         let texts: std::collections::HashSet<String> =
-            [TooFew, TooMany, Flat, SelfIntersecting, NotPlanar, NoHeight, BadBrush].into_iter().map(|e| error_msg(e).en).collect();
+            [TooFew, TooMany, Flat, SelfIntersecting, NotPlanar, NoHeight, BadBrush].into_iter().map(|e| error_msg(e, false).en).collect();
         assert_eq!(texts.len(), 7, "{texts:?}");
+        assert_ne!(error_msg(TooFew, true).en, error_msg(TooFew, false).en);
     }
 }

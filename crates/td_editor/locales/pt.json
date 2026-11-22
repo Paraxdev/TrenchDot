@@ -2681,5 +2681,16 @@
   "The tallest a step may be, each flight takes as many as it needs to climb to the next point": "A maior altura de um degrau, cada lance usa quantos precisar para chegar ao próximo ponto",
   "Clip ramp": "Rampa clip",
   "A clip brush over each flight, so players walk up it smoothly": "Um brush clip sobre cada lance, para os jogadores subirem suavemente",
-  "The points need to stand apart on the ground, a path straight up has no room for steps": "Os pontos precisam estar afastados no chão, um caminho reto para cima não tem espaço para degraus"
+  "The points need to stand apart on the ground, a path straight up has no room for steps": "Os pontos precisam estar afastados no chão, um caminho reto para cima não tem espaço para degraus",
+  "Create Walls": "Criar paredes",
+  "Place at least two corners first": "Coloque primeiro pelo menos dois cantos",
+  "The walls have no thickness": "As paredes não têm espessura",
+  "Walls: click to place the first corner": "Paredes: clique para colocar o primeiro canto",
+  "Walls: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Paredes: clique nos cantos, Enter termina o caminho, o primeiro canto o fecha, Backspace desfaz",
+  "Walls": "Paredes",
+  "Make a wall along each side of the path instead of one solid outline": "Cria uma parede ao longo de cada lado do caminho em vez de um contorno sólido",
+  "Created {n} wall in a group": { "one": "{n} parede criada em um grupo", "other": "{n} paredes criadas em um grupo" },
+  "Outside": "Fora",
+  "Centered": "Centralizado",
+  "Which side of the clicked path the walls grow on, Outside keeps a room's floor plan": "De que lado do caminho as paredes crescem, Fora mantém a planta de uma sala"
 }

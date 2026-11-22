@@ -2681,5 +2681,16 @@
   "The tallest a step may be, each flight takes as many as it needs to climb to the next point": "Наибольшая высота ступени, каждый марш берёт столько ступеней, сколько нужно до следующей точки",
   "Clip ramp": "Clip-пандус",
   "A clip brush over each flight, so players walk up it smoothly": "Clip-браш над каждым маршем, чтобы игроки поднимались плавно",
-  "The points need to stand apart on the ground, a path straight up has no room for steps": "Точки должны стоять порознь на земле, у пути строго вверх нет места для ступеней"
+  "The points need to stand apart on the ground, a path straight up has no room for steps": "Точки должны стоять порознь на земле, у пути строго вверх нет места для ступеней",
+  "Create Walls": "Создать стены",
+  "Place at least two corners first": "Сначала поставьте хотя бы два угла",
+  "The walls have no thickness": "У стен нет толщины",
+  "Walls: click to place the first corner": "Стены: щелчок ставит первый угол",
+  "Walls: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Стены: щёлкайте углы, Enter завершает путь, первый угол замыкает его, Backspace отменяет",
+  "Walls": "Стены",
+  "Make a wall along each side of the path instead of one solid outline": "Стена вдоль каждой стороны пути вместо сплошного контура",
+  "Created {n} wall in a group": { "one": "Создана {n} стена в группе", "few": "Создано {n} стены в группе", "many": "Создано {n} стен в группе" },
+  "Outside": "Снаружи",
+  "Centered": "По центру",
+  "Which side of the clicked path the walls grow on, Outside keeps a room's floor plan": "С какой стороны пути растут стены, Снаружи сохраняет план комнаты"
 }

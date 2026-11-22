@@ -191,10 +191,36 @@ by side. All of them are selected, and one undo takes them back. Winding does no
 line are dropped. An outline that crosses itself is refused with a line in the status bar, press Backspace to remove
 the corner that made the crossing.
 
+### Walls
+
+To lay out the walls of a room or a corridor, tick **Walls** in the tool options bar above the views while the Polygon
+tool is active. Next to it you set the wall **thickness** (16 units), the **height** (128 units, 4 m) and the side the
+walls grow on. The corners you click are then a path, and every stretch between two corners becomes a wall brush. While
+you draw, the walls up to the mouse show as faint outlines.
+
+| Side | The walls lie | Use it when |
+| --- | --- | --- |
+| **Outside** (default) | Outside the path, or away from its turn for an open path | You click the edge of the floor, and the room keeps that size inside |
+| **Centered** | Half on each side of the path | You click the middle of the walls, as on a drawn plan |
+| **Inside** | Inside the path | You click the outer footprint of the building |
+
+Press Enter to end an open path, like a single wall or an L of two. Click the first corner again to close the path, and
+a last wall joins it back to the start, which makes the four walls of a room. Neighbouring walls are mitred so they
+meet at the corners without a gap or an overlap. A corner sharper than about 30 degrees would make a long spike, so
+those walls end square instead.
+
+The walls of one path go into a new group called Walls, which is selected, so you can move, hide or delete them as one.
+Open the group to change a single wall. The walls are plain brushes from then on, they do not remember the path, so to
+change the thickness of a whole room, draw it again. To cut a door or window, use a [cutter](#cutters) or Subtract.
+
+> [!NOTE]
+> Walls on the grid stay on the grid at right angles. At other angles the mitred corner lands between grid points.
+
 <div class="td-mcp" markdown>
 
 The MCP tool `create_polygon_brush` takes the corners as `points`, the view direction as `axis` (`x`, `y` or `z`) or an
-arbitrary `normal`, and the thickness as `height`.
+arbitrary `normal`, and the thickness as `height`. Give `wall` a thickness to make walls along the path instead, and
+`closed` to join the last corner back to the first.
 
 </div>
 

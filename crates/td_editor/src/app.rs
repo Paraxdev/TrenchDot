@@ -2594,6 +2594,30 @@ impl App {
                         self.actions.push(Action::SetBlendTiling { detile, uv_scale, sharpen });
                     }
                 }
+                ToolKind::Polygon => {
+                    let w = &mut self.state.walls;
+                    ui.checkbox(&mut w.on, tr("Walls")).on_hover_text(tr("Make a wall along each side of the path instead of one solid outline"));
+                    if w.on {
+                        use td_geom::outline::WallAlign;
+                        ui.add(egui::DragValue::new(&mut w.thickness).range(1.0..=4096.0).prefix(prefix(en!("thickness"))).suffix(" u"));
+                        ui.add(egui::DragValue::new(&mut w.height).range(1.0..=16384.0).prefix(prefix(en!("height"))).suffix(" u"));
+                        let name = |a: WallAlign| match a {
+                            WallAlign::Outside => tr("Outside"),
+                            WallAlign::Center => tr("Centered"),
+                            WallAlign::Inside => tr("Inside"),
+                        };
+                        egui::ComboBox::from_id_salt("wall_align")
+                            .selected_text(name(w.align))
+                            .width(80.0)
+                            .show_ui(ui, |ui| {
+                                for a in WallAlign::ALL {
+                                    ui.selectable_value(&mut w.align, a, name(a));
+                                }
+                            })
+                            .response
+                            .on_hover_text(tr("Which side of the clicked path the walls grow on, Outside keeps a room's floor plan"));
+                    }
+                }
                 ToolKind::Volume => {
                     let p = &mut self.state.prefs;
                     ui.label(tr("Class"));

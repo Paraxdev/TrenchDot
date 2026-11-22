@@ -231,6 +231,100 @@ pub fn extrude(points: &[DVec3], normal: DVec3, height: f64, material: &str) -> 
     convex_pieces(&flat)?.iter().map(|piece| prism(piece, origin, basis, normal, height, material)).collect()
 }
 
+/// Which side of the drawn path a wall lies on.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum WallAlign {
+    Center,
+    /// On the side the path turns toward, inside the room for a closed path.
+    Inside,
+    #[default]
+    Outside,
+}
+
+impl WallAlign {
+    pub const ALL: [WallAlign; 3] = [WallAlign::Outside, WallAlign::Center, WallAlign::Inside];
+
+    pub fn parse(name: &str) -> Option<WallAlign> {
+        Self::ALL.into_iter().find(|a| a.name() == name)
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            WallAlign::Center => "center",
+            WallAlign::Inside => "inside",
+            WallAlign::Outside => "outside",
+        }
+    }
+}
+
+/// Wall brushes along a path of points in 3D, one per segment, `thickness` wide on the side of the path `align` picks.
+/// The points lie on one plane across `normal` and the walls run `height` along it. Corners are mitred so neighbouring
+/// walls meet without gaps or overlap, a corner sharper than about 30 degrees gets square ends instead. A closed path
+/// also joins the last point back to the first.
+pub fn walls(points: &[DVec3], closed: bool, normal: DVec3, height: f64, thickness: f64, align: WallAlign, material: &str) -> Result<Vec<Brush>, OutlineError> {
+    // Below this cosine of half the turn the mitre would reach more than four half thicknesses out.
+    const MITRE_LIMIT: f64 = 0.25;
+    let normal = normal.try_normalize().ok_or(OutlineError::NotPlanar)?;
+    let Some(first) = points.first() else { return Err(OutlineError::TooFew) };
+    if points.iter().any(|p| (*p - *first).dot(normal).abs() > 1e-3) {
+        return Err(OutlineError::NotPlanar);
+    }
+
+    if thickness.is_nan() || thickness < 1e-3 {
+        return Err(OutlineError::Flat);
+    }
+
+    let (u, v) = Plane::new(normal, 0.0).basis();
+    let base = normal * first.dot(normal);
+    let mut flat: Vec<DVec2> = points.iter().map(|p| DVec2::new(p.dot(u), p.dot(v))).collect();
+    flat.dedup_by(|a, b| a.distance(*b) < MERGE_DISTANCE);
+    if closed && flat.len() > 1 && flat[0].distance(flat[flat.len() - 1]) < MERGE_DISTANCE {
+        flat.pop();
+    }
+
+    let n = flat.len();
+    if n < 2 || (closed && n < 3) {
+        return Err(OutlineError::TooFew);
+    }
+
+    if n > MAX_CORNERS {
+        return Err(OutlineError::TooMany);
+    }
+
+    let half = thickness / 2.0;
+    let side = |i: usize| (flat[(i + 1) % n] - flat[i]).normalize().perp();
+    let square = |i: usize| side(i) * half;
+    let offset = |corner: usize, into: usize, out: usize, own: usize| {
+        let open_end = !closed && (corner == 0 || corner == n - 1);
+        let m = side(into) + side(out);
+        let cos_half = m.length() / 2.0;
+        if open_end || cos_half < MITRE_LIMIT { square(own) } else { m.normalize() * (half / cos_half) }
+    };
+    let turn = if closed { signed_area(&flat) } else { (1..n - 1).map(|i| (flat[i] - flat[i - 1]).perp_dot(flat[i + 1] - flat[i])).sum() };
+    let inside = if turn < 0.0 { -1.0 } else { 1.0 };
+    let shift = match align {
+        WallAlign::Center => 0.0,
+        WallAlign::Inside => inside,
+        WallAlign::Outside => -inside,
+    };
+    let at = |p: DVec2| base + u * p.x + v * p.y;
+    let segments = if closed { n } else { n - 1 };
+    let mut out = Vec::with_capacity(segments);
+    for i in 0..segments {
+        let j = (i + 1) % n;
+        let (s, e) = (flat[i], flat[j]);
+        let (os, oe) = (offset(i, (i + n - 1) % n, i, i), offset(j, i, j, i));
+        let quad = |os: DVec2, oe: DVec2| [s - os * (1.0 - shift), e - oe * (1.0 - shift), e + oe * (1.0 + shift), s + os * (1.0 + shift)].map(at);
+        let brushes = extrude(&quad(os, oe), normal, height, material).or_else(|e| match e {
+            OutlineError::NoHeight => Err(e),
+            _ => extrude(&quad(square(i), square(i)), normal, height, material),
+        })?;
+        out.extend(brushes);
+    }
+
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -362,5 +456,66 @@ mod tests {
         let brushes = extrude(&lift(&shape, 0.0), DVec3::Z, 8.0, "m").unwrap();
         brushes.iter().for_each(|b| b.validate().unwrap());
         assert!((volume(&brushes) - signed_area(&shape) * 8.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn walls_follow_an_open_path_with_mitred_corners() {
+        let path = lift(&pts(&[(0.0, 0.0), (128.0, 0.0), (128.0, 128.0)]), 0.0);
+        let brushes = walls(&path, false, DVec3::Z, 64.0, 16.0, WallAlign::Center, "wall").unwrap();
+        assert_eq!(brushes.len(), 2);
+        assert!((volume(&brushes) - 2.0 * 128.0 * 16.0 * 64.0).abs() < 1e-6, "the mitred walls meet without overlap");
+        let b = brushes.iter().fold(td_core::Aabb::EMPTY, |b, w| b.union(&w.bounds()));
+        assert_eq!((b.min, b.max), (DVec3::new(0.0, -8.0, 0.0), DVec3::new(136.0, 128.0, 64.0)), "open ends stay square");
+    }
+
+    #[test]
+    fn a_closed_path_makes_a_ring_of_walls() {
+        let ring = lift(&pts(&[(0.0, 0.0), (128.0, 0.0), (128.0, 128.0), (0.0, 128.0), (0.0, 0.0)]), 32.0);
+        let brushes = walls(&ring, true, DVec3::Z, -32.0, 8.0, WallAlign::Center, "wall").unwrap();
+        assert_eq!(brushes.len(), 4, "the repeated first point is dropped");
+        assert!((volume(&brushes) - 4.0 * 128.0 * 8.0 * 32.0).abs() < 1e-6);
+        assert!(brushes.iter().all(|w| w.bounds().min.z == 0.0 && w.bounds().max.z == 32.0));
+    }
+
+    #[test]
+    fn walls_go_inside_or_outside_a_room_whatever_its_winding() {
+        let mut room = pts(&[(0.0, 0.0), (128.0, 0.0), (128.0, 128.0), (0.0, 128.0)]);
+        for _ in 0..2 {
+            let ring = lift(&room, 0.0);
+            let outside = walls(&ring, true, DVec3::Z, 64.0, 8.0, WallAlign::Outside, "w").unwrap();
+            let b = outside.iter().fold(td_core::Aabb::EMPTY, |b, w| b.union(&w.bounds()));
+            assert_eq!((b.min.x, b.max.x, b.min.y, b.max.y), (-8.0, 136.0, -8.0, 136.0));
+            let inside = walls(&ring, true, DVec3::Z, 64.0, 8.0, WallAlign::Inside, "w").unwrap();
+            let b = inside.iter().fold(td_core::Aabb::EMPTY, |b, w| b.union(&w.bounds()));
+            assert_eq!((b.min.x, b.max.x), (0.0, 128.0));
+            assert!((volume(&inside) - (128.0 * 128.0 - 112.0 * 112.0) * 64.0).abs() < 1e-6);
+            room.reverse();
+        }
+
+        let l = lift(&pts(&[(0.0, 0.0), (128.0, 0.0), (128.0, 128.0)]), 0.0);
+        let b = walls(&l, false, DVec3::Z, 64.0, 16.0, WallAlign::Outside, "w").unwrap()[0].bounds();
+        assert_eq!((b.min.y, b.max.y), (-16.0, 0.0), "an open path's outside is away from its turn");
+    }
+
+    #[test]
+    fn a_hairpin_corner_gets_square_ends() {
+        let path = lift(&pts(&[(0.0, 0.0), (128.0, 0.0), (0.0, 16.0)]), 0.0);
+        let brushes = walls(&path, false, DVec3::Z, 64.0, 16.0, WallAlign::Center, "wall").unwrap();
+        assert_eq!(brushes.len(), 2);
+        assert!(brushes.iter().all(|w| w.bounds().max.x < 129.0), "no spike out past the corner");
+    }
+
+    #[test]
+    fn walls_reject_bad_paths() {
+        let one = lift(&pts(&[(0.0, 0.0), (0.0, 0.0)]), 0.0);
+        let two = lift(&pts(&[(0.0, 0.0), (64.0, 0.0)]), 0.0);
+        assert_eq!(walls(&one, false, DVec3::Z, 64.0, 16.0, WallAlign::Center, "w").unwrap_err(), OutlineError::TooFew);
+        assert_eq!(walls(&two, true, DVec3::Z, 64.0, 16.0, WallAlign::Center, "w").unwrap_err(), OutlineError::TooFew);
+        assert_eq!(walls(&two, false, DVec3::Z, 64.0, 0.0, WallAlign::Center, "w").unwrap_err(), OutlineError::Flat);
+        assert_eq!(walls(&two, false, DVec3::Z, 0.0, 16.0, WallAlign::Center, "w").unwrap_err(), OutlineError::NoHeight);
+        assert_eq!(
+            walls(&[DVec3::ZERO, DVec3::new(64.0, 0.0, 5.0)], false, DVec3::Z, 64.0, 16.0, WallAlign::Center, "w").unwrap_err(),
+            OutlineError::NotPlanar
+        );
     }
 }

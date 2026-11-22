@@ -438,6 +438,28 @@ impl App {
             }
         }
 
+        let wall = match &args["wall"] {
+            Value::Null => None,
+            v => match v.as_f64() {
+                Some(t) if t > 0.0 => Some(t),
+                _ => return err(format!("wall must be a thickness above 0 in units, got {v}")),
+            },
+        };
+        let closed = match bool_arg(args, "closed") {
+            Ok(c) => c.unwrap_or(false),
+            Err(e) => return err(e),
+        };
+        if closed && wall.is_none() {
+            return err("closed only applies to walls, give wall too");
+        }
+
+        let align = match args["align"].as_str().map(|a| (a, td_geom::outline::WallAlign::parse(a))) {
+            None => td_geom::outline::WallAlign::Outside,
+            Some(_) if wall.is_none() => return err("align only applies to walls, give wall too"),
+            Some((_, Some(a))) => a,
+            Some((name, None)) => return err(format!("unknown align {name}, use outside, center or inside")),
+        };
+
         let normal = match (args["normal"].is_null(), args["axis"].as_str()) {
             (false, Some(_)) => return err("give axis or normal, not both"),
             (false, None) => match vec3(&args["normal"]).and_then(|n| n.try_normalize()) {
@@ -454,11 +476,13 @@ impl App {
                 let shared: Vec<usize> = (0..3).filter(|i| points.iter().all(|p| (p[*i] - points[0][*i]).abs() < 1e-3)).collect();
                 match shared.as_slice() {
                     [i] => DVec3::AXES[*i],
+                    _ if wall.is_some() && shared.contains(&1) => DVec3::Y,
                     _ => return err("give axis (x, y or z) or normal, the points do not share exactly one coordinate to infer it from"),
                 }
             }
         };
         let height = match &args["height"] {
+            Value::Null if wall.is_some() => self.state.walls.height,
             Value::Null => self.state.grid,
             v => match v.as_f64() {
                 Some(h) => h,
@@ -470,6 +494,17 @@ impl App {
             Ok(p) => p,
             Err(e) => return err(e),
         };
+        if let Some(thickness) = wall {
+            let walls = crate::polygon_tool::WallOptions { on: true, thickness, height, align };
+            return match crate::polygon_tool::create_walls(&mut self.state, parent, &points, closed, normal, walls, &material) {
+                Ok((group, ids)) => {
+                    let b = self.state.doc.map.bounds_of([group]);
+                    ok(json!({ "ok": true, "group": group.0, "ids": ids.iter().map(|id| id.0).collect::<Vec<_>>(), "bounds": bounds_json(&b) }))
+                }
+                Err(e) => err(e.to_string()),
+            };
+        }
+
         match crate::polygon_tool::create(&mut self.state, parent, &points, normal, height, &material) {
             Ok(ids) => {
                 let b = self.state.doc.map.bounds_of(ids.iter().copied());

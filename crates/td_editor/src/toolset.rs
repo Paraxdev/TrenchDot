@@ -500,7 +500,7 @@ impl ToolSet {
             }
             ToolKind::Polygon => {
                 if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Enter)) {
-                    self.polygon.close(state);
+                    self.polygon.finish(state, !state.walls.on);
                     return true;
                 }
 
@@ -1349,7 +1349,7 @@ impl ToolSet {
                     }
                 }
             }
-            ToolKind::Polygon => self.polygon.lines(&mut out),
+            ToolKind::Polygon => self.polygon.lines(&mut out, &state.walls),
             ToolKind::Rotate => {
                 if let Some(center) = Self::rotate_center(state) {
                     let radius = Self::ring_radius(cam, center);
@@ -1493,7 +1493,7 @@ impl ToolSet {
                 };
                 corner_hint(&painter, rect, trf!("Clip: click to place points, keep {side} (Tab), Enter to apply", side), Color32::from_rgb(120, 240, 240));
             }
-            ToolKind::Polygon => self.polygon.paint_overlay(ui, cam, rect),
+            ToolKind::Polygon => self.polygon.paint_overlay(ui, cam, rect, state.walls.on),
             ToolKind::Vertex => {
                 let (verts, dots) = Self::vertex_handles(state);
                 let hot = hover.and_then(|p| handle_at(cam, rect, &verts, &dots, p));
@@ -3158,6 +3158,37 @@ mod tests {
         assert_eq!(state.doc.history.undo_labels().count(), undo_before + 1);
         assert_eq!(state.doc.history.undo_labels().next(), Some("Create Polygon Brush"));
         assert!(tools.polygon.points.is_empty(), "the tool is ready for the next outline");
+    }
+
+    #[test]
+    fn wall_mode_turns_the_corners_into_walls_open_on_enter_and_closed_on_the_first_corner() {
+        use td_geom::outline::WallAlign;
+        let mut state = EditorState::new(Default::default());
+        state.walls.on = true;
+        let mut tools = polygon_tools(&mut state);
+        let top = centered_view(ViewKind::Top);
+        corner(&mut tools, &mut state, &top, [-64.0, 0.0, -64.0]);
+        corner(&mut tools, &mut state, &top, [64.0, 0.0, -64.0]);
+        assert!(press(&mut tools, &mut state, Key::Enter));
+        let group = state.doc.selection.nodes.iter().copied().collect::<Vec<_>>();
+        assert!(
+            matches!(group.as_slice(), [g] if matches!(state.doc.map.get(*g).map(|n| &n.kind), Some(td_doc::NodeKind::Group(_)))),
+            "the walls come in a selected group"
+        );
+        assert_eq!(state.doc.map.get(group[0]).unwrap().children.len(), 1, "two corners make one wall");
+        let b = state.doc.map.bounds_of(group.iter().copied());
+        assert_eq!((b.max.x, b.max.y - b.min.y), (64.0, 128.0), "the open ends are square and the walls 128 tall");
+        assert_eq!(b.max.z - b.min.z, 16.0);
+        assert_eq!(state.doc.history.undo_labels().next(), Some("Create Walls"));
+        state.walls.align = WallAlign::Center;
+
+        for c in [[-64.0, 0.0, -64.0], [64.0, 0.0, -64.0], [64.0, 0.0, 64.0], [-64.0, 0.0, -64.0]] {
+            corner(&mut tools, &mut state, &top, c);
+        }
+
+        let group = *state.doc.selection.nodes.iter().next().unwrap();
+        assert_eq!(state.doc.map.get(group).unwrap().children.len(), 3, "clicking the first corner closes the path into three walls");
+        assert!(tools.polygon.points.is_empty());
     }
 
     #[test]

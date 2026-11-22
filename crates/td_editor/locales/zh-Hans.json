@@ -2681,5 +2681,16 @@
   "The tallest a step may be, each flight takes as many as it needs to climb to the next point": "单级台阶的最大高度，每段楼梯按需使用台阶以到达下一个点",
   "Clip ramp": "Clip 坡道",
   "A clip brush over each flight, so players walk up it smoothly": "在每段楼梯上放一个 clip 笔刷，让玩家平滑地走上去",
-  "The points need to stand apart on the ground, a path straight up has no room for steps": "这些点在地面上需要彼此分开，竖直向上的路径没有放台阶的空间"
+  "The points need to stand apart on the ground, a path straight up has no room for steps": "这些点在地面上需要彼此分开，竖直向上的路径没有放台阶的空间",
+  "Create Walls": "创建墙体",
+  "Place at least two corners first": "请先放置至少两个角点",
+  "The walls have no thickness": "墙体没有厚度",
+  "Walls: click to place the first corner": "墙体：单击放置第一个角点",
+  "Walls: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "墙体：单击角点，Enter 结束路径，单击第一个角点闭合，Backspace 撤销",
+  "Walls": "墙体",
+  "Make a wall along each side of the path instead of one solid outline": "沿路径每一段生成一面墙，而不是一个实心轮廓",
+  "Created {n} wall in a group": { "other": "已在一个组中创建 {n} 面墙" },
+  "Outside": "外侧",
+  "Centered": "居中",
+  "Which side of the clicked path the walls grow on, Outside keeps a room's floor plan": "墙体沿路径的哪一侧生成，外侧会保留房间的平面"
 }

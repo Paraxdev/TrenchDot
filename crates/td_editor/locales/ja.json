@@ -2681,5 +2681,16 @@
   "The tallest a step may be, each flight takes as many as it needs to climb to the next point": "1段の最大の高さ。各段は次の点まで上るのに必要なだけ段を使います",
   "Clip ramp": "クリップのスロープ",
   "A clip brush over each flight, so players walk up it smoothly": "各段の上にクリップのブラシを置き、プレイヤーが滑らかに上れるようにします",
-  "The points need to stand apart on the ground, a path straight up has no room for steps": "点は地面上で離れている必要があります。真上に伸びるパスには段を置けません"
+  "The points need to stand apart on the ground, a path straight up has no room for steps": "点は地面上で離れている必要があります。真上に伸びるパスには段を置けません",
+  "Create Walls": "壁を作成",
+  "Place at least two corners first": "先に角を2つ以上置いてください",
+  "The walls have no thickness": "壁に厚みがありません",
+  "Walls: click to place the first corner": "壁：クリックで最初の角を置く",
+  "Walls: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "壁：角をクリック、Enter でパスを終了、最初の角で閉じる、Backspace で取り消し",
+  "Walls": "壁",
+  "Make a wall along each side of the path instead of one solid outline": "パスの各辺に沿って壁を作ります。塗りつぶしの輪郭は作りません",
+  "Created {n} wall in a group": { "other": "グループに {n} 枚の壁を作成しました" },
+  "Outside": "外側",
+  "Centered": "中央",
+  "Which side of the clicked path the walls grow on, Outside keeps a room's floor plan": "パスのどちら側に壁を作るか。外側なら部屋の間取りがそのまま残ります"
 }

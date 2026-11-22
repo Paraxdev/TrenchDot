@@ -2681,5 +2681,16 @@
   "The tallest a step may be, each flight takes as many as it needs to climb to the next point": "Die größte erlaubte Stufenhöhe, jeder Lauf nimmt so viele Stufen, wie er bis zum nächsten Punkt braucht",
   "Clip ramp": "Clip-Rampe",
   "A clip brush over each flight, so players walk up it smoothly": "Ein Clip-Brush über jedem Lauf, damit Spieler gleichmäßig hinaufgehen",
-  "The points need to stand apart on the ground, a path straight up has no room for steps": "Die Punkte müssen am Boden auseinanderliegen, ein Pfad senkrecht nach oben hat keinen Platz für Stufen"
+  "The points need to stand apart on the ground, a path straight up has no room for steps": "Die Punkte müssen am Boden auseinanderliegen, ein Pfad senkrecht nach oben hat keinen Platz für Stufen",
+  "Create Walls": "Wände erstellen",
+  "Place at least two corners first": "Zuerst mindestens zwei Eckpunkte setzen",
+  "The walls have no thickness": "Die Wände haben keine Dicke",
+  "Walls: click to place the first corner": "Wände: Klicken setzt den ersten Eckpunkt",
+  "Walls: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Wände: Ecken anklicken, Enter beendet den Pfad, der erste Punkt schließt ihn, Backspace macht rückgängig",
+  "Walls": "Wände",
+  "Make a wall along each side of the path instead of one solid outline": "Eine Wand entlang jeder Seite des Pfads statt eines vollen Umrisses",
+  "Created {n} wall in a group": { "one": "{n} Wand in einer Gruppe erstellt", "other": "{n} Wände in einer Gruppe erstellt" },
+  "Outside": "Außen",
+  "Centered": "Mittig",
+  "Which side of the clicked path the walls grow on, Outside keeps a room's floor plan": "Auf welcher Seite des Pfads die Wände wachsen, Außen behält den Grundriss eines Raums"
 }

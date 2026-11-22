@@ -3574,6 +3574,20 @@ fn polygon_brush_extrudes_convex_and_concave_outlines() {
 
     ed.call("run_action", json!({ "action": "undo" }));
     assert_eq!(ed.brushes(), before - 2, "one undo removes both pieces");
+
+    let room = json!([[600, 0, 0], [728, 0, 0], [728, 0, 128], [600, 0, 128]]);
+    let walls = ed.call("create_polygon_brush", json!({ "points": room, "wall": 8, "closed": true, "height": 96, "align": "center" }));
+    assert_eq!(walls["ids"].as_array().unwrap().len(), 4, "a closed room is four walls: {walls}");
+    assert_eq!(walls["bounds"], json!({ "min": [596.0, 0.0, -4.0], "max": [732.0, 96.0, 132.0] }), "the floor's shared y is the axis");
+    assert_eq!(selected(&ed), vec![walls["group"].as_u64().unwrap()], "the walls' group is selected");
+    assert_eq!(ed.state()["undo"][0], "MCP: Create Walls");
+    let outside = ed.call("create_polygon_brush", json!({ "points": room, "wall": 8, "closed": true }));
+    assert_eq!(outside["bounds"], json!({ "min": [592.0, 0.0, -8.0], "max": [736.0, 128.0, 136.0] }), "outside and 128 tall by default");
+    let run = ed.call("create_polygon_brush", json!({ "points": [[0, 0, 600], [128, 0, 600]], "wall": 16 }));
+    assert_eq!(run["ids"].as_array().unwrap().len(), 1, "two points are one wall");
+    assert!(ed.call_err("create_polygon_brush", json!({ "points": room, "closed": true })).contains("give wall too"));
+    assert!(ed.call_err("create_polygon_brush", json!({ "points": room, "wall": 0 })).contains("above 0"));
+    assert!(ed.call_err("create_polygon_brush", json!({ "points": room, "wall": 8, "align": "left" })).contains("unknown align"));
 }
 
 /// Scripted building blocks the withered city showcase needs: block letters, window grids, plane clips, vertex moves and
