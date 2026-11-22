@@ -715,7 +715,7 @@ pieces along it.
 | **Repeat** | Copies of the piece about **Spacing** apart, evened out so the first and last copy sit on the ends of the path. **Upright** keeps them standing straight on a slope. |
 | **Bend** | The piece laid end to end and bent along the path, one mesh for each of its brushes and meshes, with the texture running on. The copies stretch a little so only whole ones fit. On a long path a detailed piece bends in coarser steps, and one too detailed to bend is refused rather than stalling the editor. |
 | **Cable** | A round cable in the current material that hangs **Sag** units below the straight line in the middle of each span. It needs no piece. |
-| **Stairs** | Straight flights of steps in the current material, **Width** wide, from point to point, with a landing at each point between the ends. Each point's height is the floor there, and each flight takes as many steps as it needs to stay at or under **Step height**. **Clip ramp** adds a clip brush over each flight so players walk up it smoothly. It needs no piece. |
+| **Stairs** | Straight flights of steps in the current material, **Width** wide, from point to point, with a landing at each point between the ends. Each point's height is the floor there, and each flight takes as many steps as it needs to stay at or under **Step height**. **Clip ramp** adds a clip brush over each flight so players walk up it smoothly. **Winding corners** turns a corner of 30 to 120 degrees on wedge steps instead of a landing when both flights climb the same way, the point's height then sits in the middle of the turn. It needs no piece. |
 
 ![A road bent round a curve with a fence of orange posts beside it, a thin cable sagging from post to post](../assets/brushes/place-along-path-fence.png)
 
@@ -726,7 +726,7 @@ reshape the curve and the outline follows. Click **Use Selection** to swap in an
 <div class="td-mcp" markdown>
 
 The MCP tool `place_along_path` takes `mode` (`repeat`, `bend`, `cable` or `stairs`), the piece as `ids` or the selection, and the
-curve as `points` or `chain` like `sweep_faces`, plus `spacing`, `upright`, `sag`, `radius`, `sides`, `width`, `step_height`, `clip_ramp` and `material`.
+curve as `points` or `chain` like `sweep_faces`, plus `spacing`, `upright`, `sag`, `radius`, `sides`, `width`, `step_height`, `clip_ramp`, `winders` and `material`.
 
 </div>
 

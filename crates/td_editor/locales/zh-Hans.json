@@ -2738,5 +2738,7 @@
   "Polygon hole: click its corners inside the outline, Shift on its first corner starts another, Enter makes the brush": "多边形洞：在轮廓内点击洞的角点，按住 Shift 点其第一个角点开始下一个洞，Enter 创建笔刷",
   "A hole has to lie inside the outline, apart from the other holes": "洞必须位于轮廓内部，并且与其他洞分开",
   "Click the corners of a hole inside the outline, Enter makes the brush": "在轮廓内点击洞的角点，Enter 创建笔刷",
-  "Created {n} polygon brush around the holes": { "other": "已在洞的周围创建 {n} 个多边形笔刷" }
+  "Created {n} polygon brush around the holes": { "other": "已在洞的周围创建 {n} 个多边形笔刷" },
+  "Winding corners": "扇形转角",
+  "Corners turn on wedge steps instead of a flat landing": "转角处用扇形踏步转弯，而不是平台"
 }

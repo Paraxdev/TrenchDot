@@ -2738,5 +2738,7 @@
   "Polygon hole: click its corners inside the outline, Shift on its first corner starts another, Enter makes the brush": "Отверстие: щёлкайте его углы внутри контура, Shift на первом угле начинает следующее, Enter создаёт браш",
   "A hole has to lie inside the outline, apart from the other holes": "Отверстие должно лежать внутри контура и не касаться других отверстий",
   "Click the corners of a hole inside the outline, Enter makes the brush": "Щёлкайте углы отверстия внутри контура, Enter создаёт браш",
-  "Created {n} polygon brush around the holes": { "one": "Создан {n} многоугольный браш вокруг отверстий", "few": "Создано {n} многоугольных браша вокруг отверстий", "many": "Создано {n} многоугольных брашей вокруг отверстий" }
+  "Created {n} polygon brush around the holes": { "one": "Создан {n} многоугольный браш вокруг отверстий", "few": "Создано {n} многоугольных браша вокруг отверстий", "many": "Создано {n} многоугольных брашей вокруг отверстий" },
+  "Winding corners": "Забежные углы",
+  "Corners turn on wedge steps instead of a flat landing": "Углы поворачивают забежными ступенями вместо плоской площадки"
 }

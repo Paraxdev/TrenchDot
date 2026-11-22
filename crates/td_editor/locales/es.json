@@ -2738,5 +2738,7 @@
   "Polygon hole: click its corners inside the outline, Shift on its first corner starts another, Enter makes the brush": "Agujero: clic en sus esquinas dentro del contorno, Shift en su primera esquina empieza otro, Enter crea el brush",
   "A hole has to lie inside the outline, apart from the other holes": "Un agujero tiene que estar dentro del contorno y separado de los demás agujeros",
   "Click the corners of a hole inside the outline, Enter makes the brush": "Haz clic en las esquinas de un agujero dentro del contorno, Enter crea el brush",
-  "Created {n} polygon brush around the holes": { "one": "{n} brush de polígono creado alrededor de los agujeros", "other": "{n} brushes de polígono creados alrededor de los agujeros" }
+  "Created {n} polygon brush around the holes": { "one": "{n} brush de polígono creado alrededor de los agujeros", "other": "{n} brushes de polígono creados alrededor de los agujeros" },
+  "Winding corners": "Esquinas compensadas",
+  "Corners turn on wedge steps instead of a flat landing": "Las esquinas giran con peldaños en cuña en lugar de un descansillo plano"
 }

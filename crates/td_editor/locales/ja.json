@@ -2738,5 +2738,7 @@
   "Polygon hole: click its corners inside the outline, Shift on its first corner starts another, Enter makes the brush": "ポリゴンの穴：輪郭の内側で角をクリック、最初の角で Shift を押すと次の穴、Enter でブラシを作成",
   "A hole has to lie inside the outline, apart from the other holes": "穴は輪郭の内側にあり、ほかの穴と離れている必要があります",
   "Click the corners of a hole inside the outline, Enter makes the brush": "輪郭の内側で穴の角をクリックしてください。Enter でブラシを作成します",
-  "Created {n} polygon brush around the holes": { "other": "穴の周りに {n} 個のポリゴンブラシを作成しました" }
+  "Created {n} polygon brush around the holes": { "other": "穴の周りに {n} 個のポリゴンブラシを作成しました" },
+  "Winding corners": "回り階段の角",
+  "Corners turn on wedge steps instead of a flat landing": "角を平らな踊り場ではなくくさび形の段で回ります"
 }

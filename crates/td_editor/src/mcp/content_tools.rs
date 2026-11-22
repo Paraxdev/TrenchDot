@@ -618,6 +618,7 @@ impl App {
 
         spec.upright = args["upright"].as_bool().unwrap_or(spec.upright);
         spec.clip_ramp = args["clip_ramp"].as_bool().unwrap_or(spec.clip_ramp);
+        spec.winders = args["winders"].as_bool().unwrap_or(spec.winders);
         let material = args["material"].as_str().map_or_else(|| self.state.current_material.clone(), str::to_string);
         let piece = if args["ids"].is_array() {
             let ids = match id_list(args, "ids").and_then(|ids| editable_ids(&self.state, &ids)) {

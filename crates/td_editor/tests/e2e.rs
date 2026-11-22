@@ -3413,6 +3413,11 @@ fn place_along_path_repeats_bends_and_hangs_a_cable() {
 
     let cable = ed.call("place_along_path", json!({ "mode": "cable", "points": [[0, 200, 0], [256, 200, 0]], "sag": 40, "radius": 1 }));
     assert!((cable["bounds"]["min"][1].as_f64().unwrap() - 159.0).abs() < 0.5, "{cable}");
+    let turn = json!([[0, 0, 400], [160, 64, 400], [160, 128, 240]]);
+    let landing = ed.call("place_along_path", json!({ "mode": "stairs", "points": turn, "step_height": 16 }));
+    assert_eq!(landing["ids"].as_array().unwrap().len(), 9, "a landing and two flights of four: {landing}");
+    let wound = ed.call("place_along_path", json!({ "mode": "stairs", "points": turn, "step_height": 16, "winders": true }));
+    assert_eq!(wound["ids"].as_array().unwrap().len(), 8, "three winders and five flight steps: {wound}");
     assert!(ed.call_err("place_along_path", json!({ "mode": "wave" })).contains("unknown mode"));
     assert!(ed.call_err("place_along_path", json!({ "ids": [post], "points": [[0, 0, 0]] })).contains("at least two points"));
     assert!(ed.call_err("place_along_path", json!({ "ids": [post], "chain": "nope" })).contains("no chain"));

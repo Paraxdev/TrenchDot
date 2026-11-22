@@ -2738,5 +2738,7 @@
   "Polygon hole: click its corners inside the outline, Shift on its first corner starts another, Enter makes the brush": "Furo: clique nos cantos dentro do contorno, Shift no primeiro canto começa outro, Enter cria o brush",
   "A hole has to lie inside the outline, apart from the other holes": "Um furo tem de ficar dentro do contorno, afastado dos outros furos",
   "Click the corners of a hole inside the outline, Enter makes the brush": "Clique nos cantos de um furo dentro do contorno, Enter cria o brush",
-  "Created {n} polygon brush around the holes": { "one": "{n} brush de polígono criado à volta dos furos", "other": "{n} brushes de polígono criados à volta dos furos" }
+  "Created {n} polygon brush around the holes": { "one": "{n} brush de polígono criado à volta dos furos", "other": "{n} brushes de polígono criados à volta dos furos" },
+  "Winding corners": "Cantos em leque",
+  "Corners turn on wedge steps instead of a flat landing": "Os cantos viram em degraus em cunha em vez de um patamar plano"
 }

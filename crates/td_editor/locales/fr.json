@@ -2738,5 +2738,7 @@
   "Polygon hole: click its corners inside the outline, Shift on its first corner starts another, Enter makes the brush": "Trou : cliquer ses coins dans le contour, Shift sur son premier coin en commence un autre, Enter crée le brush",
   "A hole has to lie inside the outline, apart from the other holes": "Un trou doit être à l'intérieur du contour, à l'écart des autres trous",
   "Click the corners of a hole inside the outline, Enter makes the brush": "Cliquez les coins d'un trou dans le contour, Enter crée le brush",
-  "Created {n} polygon brush around the holes": { "one": "{n} brush polygone créé autour des trous", "other": "{n} brushes polygone créés autour des trous" }
+  "Created {n} polygon brush around the holes": { "one": "{n} brush polygone créé autour des trous", "other": "{n} brushes polygone créés autour des trous" },
+  "Winding corners": "Angles balancés",
+  "Corners turn on wedge steps instead of a flat landing": "Les angles tournent sur des marches en éventail au lieu d'un palier plat"
 }

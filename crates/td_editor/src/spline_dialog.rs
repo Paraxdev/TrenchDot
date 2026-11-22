@@ -44,11 +44,23 @@ pub struct SplineSpec {
     pub width: f64,
     pub step: f64,
     pub clip_ramp: bool,
+    pub winders: bool,
 }
 
 impl Default for SplineSpec {
     fn default() -> Self {
-        Self { mode: SplineMode::Repeat, spacing: 64.0, upright: true, sag: 32.0, radius: 2.0, sides: 6, width: 64.0, step: 8.0, clip_ramp: false }
+        Self {
+            mode: SplineMode::Repeat,
+            spacing: 64.0,
+            upright: true,
+            sag: 32.0,
+            radius: 2.0,
+            sides: 6,
+            width: 64.0,
+            step: 8.0,
+            clip_ramp: false,
+            winders: false,
+        }
     }
 }
 
@@ -135,7 +147,7 @@ pub fn build(state: &EditorState, spec: &SplineSpec, piece: &[NodeId], points: &
             return Err(SplineError::NoPoints);
         }
 
-        let shape = td_geom::shapes::PathStairs { width: spec.width, step: spec.step };
+        let shape = td_geom::shapes::PathStairs { width: spec.width, step: spec.step, winders: spec.winders };
         let ramp = spec.clip_ramp.then_some(state.game.tool_textures.clip.as_str());
         let parts = td_geom::shapes::path_stairs(points, &shape, material, ramp);
         if parts.steps.is_empty() {
@@ -370,6 +382,9 @@ impl SplineDialog {
                         ui.end_row();
                         ui.label("");
                         ui.checkbox(&mut spec.clip_ramp, tr("Clip ramp")).on_hover_text(tr("A clip brush over each flight, so players walk up it smoothly"));
+                        ui.end_row();
+                        ui.label("");
+                        ui.checkbox(&mut spec.winders, tr("Winding corners")).on_hover_text(tr("Corners turn on wedge steps instead of a flat landing"));
                         ui.end_row();
                     }
                 }
