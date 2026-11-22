@@ -980,7 +980,7 @@
   "Smoothing angle": "スムージング角度",
   "Mesh Operations": "メッシュ操作",
   "Convert to Brushes": "ブラシに変換",
-  "position": "位置",
+  "Position": "位置",
   "Lowest corner of the bounds in map units, 32 per meter": "境界の最も低い角、マップ単位で 1m あたり 32",
   "Width, height and depth of the bounds. A new size scales from the lowest corner": "境界の幅、高さ、奥行き。新しいサイズは最も低い角を基点に拡大縮小します",
   "Only brushes and meshes scale, move this selection with position": "拡大縮小できるのはブラシとメッシュだけです。移動は位置で行います",

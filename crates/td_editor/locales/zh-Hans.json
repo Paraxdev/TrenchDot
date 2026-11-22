@@ -980,7 +980,7 @@
   "Smoothing angle": "平滑角度",
   "Mesh Operations": "网格操作",
   "Convert to Brushes": "转为笔刷",
-  "position": "位置",
+  "Position": "位置",
   "Lowest corner of the bounds in map units, 32 per meter": "边界最低角，单位为地图单位，每米 32",
   "Width, height and depth of the bounds. A new size scales from the lowest corner": "边界的宽、高、深。新大小以最低角为基点缩放",
   "Only brushes and meshes scale, move this selection with position": "只有笔刷和网格能缩放，请用位置移动此选择",

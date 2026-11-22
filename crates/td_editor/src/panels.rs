@@ -853,11 +853,11 @@ fn bounds_rows(ui: &mut Ui, state: &mut EditorState, label_w: f32, first_row: us
     let mut min = bounds.min.to_array();
     let mut size = bounds.size().to_array();
     let width = |ui: &Ui| ui.available_width() - widgets::TRAILING;
-    let moved = widgets::row(ui, first_row, tr("position"), tr("Lowest corner of the bounds in map units, 32 per meter"), label_w, |ui| {
+    let moved = widgets::row(ui, first_row, tr("Position"), tr("Lowest corner of the bounds in map units, 32 per meter"), label_w, |ui| {
         widgets::vector_input_snapped(ui, &mut min, width(ui), 1.0, grid)
     });
     let resized =
-        widgets::row(ui, first_row + 1, tr("size"), tr("Width, height and depth of the bounds. A new size scales from the lowest corner"), label_w, |ui| {
+        widgets::row(ui, first_row + 1, tr("Size"), tr("Width, height and depth of the bounds. A new size scales from the lowest corner"), label_w, |ui| {
             if scalable {
                 widgets::vector_input_snapped(ui, &mut size, width(ui), 1.0, grid)
             } else {

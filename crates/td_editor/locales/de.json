@@ -980,7 +980,7 @@
   "Smoothing angle": "Glättungswinkel",
   "Mesh Operations": "Mesh-Operationen",
   "Convert to Brushes": "In Brushes umwandeln",
-  "position": "Position",
+  "Position": "Position",
   "Lowest corner of the bounds in map units, 32 per meter": "Tiefste Ecke der Grenzen in Karteneinheiten, 32 pro Meter",
   "Width, height and depth of the bounds. A new size scales from the lowest corner": "Breite, Höhe und Tiefe der Grenzen. Eine neue Größe skaliert von der tiefsten Ecke",
   "Only brushes and meshes scale, move this selection with position": "Nur Brushes und Meshes skalieren, verschiebe diese Auswahl mit Position",

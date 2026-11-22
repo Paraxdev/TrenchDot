@@ -980,7 +980,7 @@
   "Smoothing angle": "Угол сглаживания",
   "Mesh Operations": "Операции с мешем",
   "Convert to Brushes": "Преобразовать в брашы",
-  "position": "позиция",
+  "Position": "Позиция",
   "Lowest corner of the bounds in map units, 32 per meter": "Нижний угол границ в единицах карты, 32 на метр",
   "Width, height and depth of the bounds. A new size scales from the lowest corner": "Ширина, высота и глубина границ. Новый размер масштабирует от нижнего угла",
   "Only brushes and meshes scale, move this selection with position": "Масштабируются только брашы и меши, двигайте это выделение позицией",

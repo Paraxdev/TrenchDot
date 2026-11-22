@@ -980,7 +980,7 @@
   "Smoothing angle": "Ángulo de suavizado",
   "Mesh Operations": "Operaciones de malla",
   "Convert to Brushes": "Convertir en brushes",
-  "position": "posición",
+  "Position": "Posición",
   "Lowest corner of the bounds in map units, 32 per meter": "Esquina más baja de los límites en unidades de mapa, 32 por metro",
   "Width, height and depth of the bounds. A new size scales from the lowest corner": "Ancho, alto y profundidad de los límites. Un tamaño nuevo escala desde la esquina más baja",
   "Only brushes and meshes scale, move this selection with position": "Solo brushes y mallas escalan, mueva esta selección con la posición",

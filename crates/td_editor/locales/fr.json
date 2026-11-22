@@ -980,7 +980,7 @@
   "Smoothing angle": "Angle de lissage",
   "Mesh Operations": "Opérations de maillage",
   "Convert to Brushes": "Convertir en brushes",
-  "position": "position",
+  "Position": "Position",
   "Lowest corner of the bounds in map units, 32 per meter": "Coin le plus bas des limites en unités de carte, 32 par mètre",
   "Width, height and depth of the bounds. A new size scales from the lowest corner": "Largeur, hauteur et profondeur des limites. Une nouvelle taille s'applique depuis le coin le plus bas",
   "Only brushes and meshes scale, move this selection with position": "Seuls brushes et maillages se redimensionnent, déplacez cette sélection avec la position",
