@@ -46,7 +46,8 @@ fn table(column: &str) -> Table {
 }
 
 /// Keys the page lists that the keymap does not hold: nudges and the clipboard, which the window handles as events.
-const UNBOUND: [&str; 6] = ["Arrows", "Page Up", "Page Down", "Ctrl+X", "Ctrl+C", "Ctrl+V"];
+const UNBOUND: [&str; 12] =
+    ["Arrows", "Page Up", "Page Down", "Alt+Left", "Alt+Right", "Alt+Up", "Alt+Down", "Alt+Page Up", "Alt+Page Down", "Ctrl+X", "Ctrl+C", "Ctrl+V"];
 
 /// Bound, but explained in the text above the tables because it steps through several things.
 const IN_PROSE: [&str; 1] = ["Escape"];

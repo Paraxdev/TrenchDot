@@ -85,6 +85,7 @@ TrenchBroom keys are the defaults of TrenchBroom 2026.2. An empty cell means tha
 | Snap to the grid on or off | Alt+0 | Alt+0 | Shift+W |
 | Frame the selection | Ctrl+U | F or Ctrl+U | Ctrl+E or F |
 | Maximize the view | Ctrl+Space | Ctrl+Space or Shift+Space | Shift+Z or Shift+Space |
+| Turn a quarter turn | Alt+arrows, Alt+Page Up and Page Down | Same | Same |
 | Mouse look in 3D | | | Z |
 | Repeat the last action | Ctrl+R | Ctrl+R | Ctrl+R |
 

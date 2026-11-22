@@ -121,6 +121,8 @@ it, Ctrl+M in the Hammer preset.
 | Ctrl+G, Ctrl+Shift+G | Group, ungroup |
 | Ctrl+Alt+I or Ctrl+H, Ctrl+I, Ctrl+Shift+I or Ctrl+Shift+H | Hide the selection, isolate it by hiding everything else, show all |
 | Arrows, Page Up, Page Down | Nudge by one grid step |
+| Alt+Left, Alt+Right | Turn the selection a quarter turn around the vertical axis |
+| Alt+Up, Alt+Down, Alt+Page Up, Alt+Page Down | Turn the selection a quarter turn around the view direction, or around the view's right |
 
 *Select Linked Groups* and *Separate Linked Groups* in the *Edit > Groups* menu have no default key. Use the menu, the
 right-click menu of the view, or bind a key to either one on the **Keys** tab.

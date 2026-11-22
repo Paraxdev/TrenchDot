@@ -384,7 +384,7 @@ impl Viewport {
         }
 
         let grid = cx.state.grid;
-        let (right, up) = match self.camera.kind {
+        let (right, up, ahead) = match self.camera.kind {
             ViewKind::Perspective => {
                 let f = self.camera.forward();
                 let flat = DVec3::new(f.x, 0.0, f.z);
@@ -394,13 +394,15 @@ impl Viewport {
                     out[i] = v[i].signum();
                     out
                 };
-                (major(self.camera.right()), major(flat))
+                (major(self.camera.right()), major(flat), major(flat))
             }
-            k => {
-                let (r, u, _) = k.axes();
-                (r, u)
-            }
+            k => k.axes(),
         };
+        if ui.input(|i| i.modifiers.alt && !i.modifiers.command && !i.modifiers.shift) {
+            Self::rotate_keys(ui, cx, right, ahead);
+            return;
+        }
+
         ui.input(|i| {
             let mut offset = DVec3::ZERO;
             if i.key_pressed(Key::ArrowLeft) {
@@ -429,6 +431,20 @@ impl Viewport {
 
             if offset != DVec3::ZERO {
                 cx.actions.push(Action::Nudge(offset * grid));
+            }
+        });
+    }
+
+    /// TrenchBroom's Alt+arrows turn the selection a quarter turn, left and right about the vertical, up and down
+    /// about the view direction, and Page Up and Page Down about the view's right.
+    fn rotate_keys(ui: &Ui, cx: &mut ViewCtx, right: DVec3, ahead: DVec3) {
+        ui.input(|i| {
+            for key in [Key::ArrowLeft, Key::ArrowRight, Key::ArrowUp, Key::ArrowDown, Key::PageUp, Key::PageDown] {
+                if i.key_pressed(key)
+                    && let Some(action) = quarter_turn(key, right, ahead)
+                {
+                    cx.actions.push(action);
+                }
             }
         });
     }
@@ -1911,9 +1927,33 @@ fn drop_pos(response: &Response) -> Option<Pos2> {
     Some(response.ctx.layer_transform_from_global(response.layer_id).map_or(pos, |t| t * pos))
 }
 
+fn quarter_turn(key: Key, right: DVec3, ahead: DVec3) -> Option<Action> {
+    let (axis, degrees) = match key {
+        Key::ArrowLeft => (DVec3::Y, -90.0),
+        Key::ArrowRight => (DVec3::Y, 90.0),
+        Key::ArrowUp => (ahead, 90.0),
+        Key::ArrowDown => (ahead, -90.0),
+        Key::PageUp => (right, 90.0),
+        Key::PageDown => (right, -90.0),
+        _ => return None,
+    };
+    let i = (0..3).max_by(|a, b| axis[*a].abs().total_cmp(&axis[*b].abs())).unwrap_or(1);
+    Some(Action::Rotate { axis: i, degrees: degrees * axis[i].signum() })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn alt_arrows_turn_about_the_view_axes() {
+        let (right, _, ahead) = ViewKind::Top.axes();
+        assert_eq!(quarter_turn(Key::ArrowRight, right, ahead), Some(Action::Rotate { axis: 1, degrees: 90.0 }));
+        assert_eq!(quarter_turn(Key::ArrowLeft, right, ahead), Some(Action::Rotate { axis: 1, degrees: -90.0 }));
+        assert_eq!(quarter_turn(Key::ArrowUp, right, ahead), Some(Action::Rotate { axis: 1, degrees: -90.0 }), "the Top view looks down");
+        assert_eq!(quarter_turn(Key::PageUp, DVec3::NEG_Z, ahead), Some(Action::Rotate { axis: 2, degrees: -90.0 }));
+        assert_eq!(quarter_turn(Key::A, right, ahead), None);
+    }
 
     #[test]
     fn holding_the_right_button_flies_before_the_mouse_moves() {
