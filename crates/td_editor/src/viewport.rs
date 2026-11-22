@@ -681,16 +681,11 @@ impl Viewport {
             return Some(Drag::Transform(drag));
         }
 
-        let preset = cx.state.prefs.keymap_preset.clone();
-        if self.camera.kind.is_2d()
-            && side_drag_resizes(&preset, modifiers)
-            && let Some(edge) = self.edge_under_cursor(origin, cx.state)
-        {
-            let origin_world = self.camera.screen_to_plane(self.rect, origin);
-            cx.state.doc.begin(en!("Resize Brushes"));
-            return Some(Drag::FaceResize { faces: edge.faces, origin: origin_world, normal: edge.normal, last_ok: 0.0 });
+        if let Some(drag) = self.begin_edge_drag(origin, modifiers, cx.state) {
+            return Some(drag);
         }
 
+        let preset = cx.state.prefs.keymap_preset.clone();
         if self.camera.kind.is_2d()
             && let Some((id, normal, _)) = self.terrain_edge_under(origin, cx.state)
         {
@@ -791,6 +786,30 @@ impl Viewport {
                 state.doc.begin(en!("Create Brush"));
                 Some(Drag::CreateBrush2d { start, depth })
             }
+        }
+    }
+
+    /// 2D views: a press on a side of the selection resizes it, or with the copy modifiers copies the selection and
+    /// moves the copy. The side's grab zone reaches a few points past the brushes, where no pick would hit them.
+    fn begin_edge_drag(&self, origin: Pos2, modifiers: egui::Modifiers, state: &mut EditorState) -> Option<Drag> {
+        if !self.camera.kind.is_2d() {
+            return None;
+        }
+
+        let edge = self.edge_under_cursor(origin, state)?;
+        let at = self.camera.screen_to_plane(self.rect, origin);
+        let lock = shift_locks_axis(&state.prefs.keymap_preset);
+        match selection_drag(&state.prefs.keymap_preset, Chord::new(Button::Drag, modifiers), DragHit::Edge2d) {
+            SelectionDrag::Resize => {
+                state.doc.begin(en!("Resize Brushes"));
+                Some(Drag::FaceResize { faces: edge.faces, origin: at, normal: edge.normal, last_ok: 0.0 })
+            }
+            SelectionDrag::Copy if state.tool != ToolKind::Block => {
+                state.doc.begin(en!("Duplicate Objects"));
+                let plane = Plane::from_point_normal(at, -self.camera.kind.axes().2);
+                Some(Drag::Move { start: at, plane, axis: None, duplicate: true, lock })
+            }
+            _ => None,
         }
     }
 
@@ -2357,5 +2376,42 @@ mod tests {
             s.select_node(loose);
         });
         assert_eq!(selected(&state), [false, false, false, true]);
+    }
+
+    #[test]
+    fn a_copy_chord_on_a_side_copies_even_just_past_the_brush() {
+        use egui::Modifiers;
+        let mut state = EditorState::new(Default::default());
+        let layer = state.doc.map.default_layer();
+        let cube = Brush::from_aabb(&Aabb::new(DVec3::new(160.0, 0.0, -32.0), DVec3::new(224.0, 64.0, 32.0)), "dev/grey").unwrap();
+        let id = state.doc.map.insert(layer, td_doc::map::NodeKind::Brush(cube));
+        state.doc.select(|_, s| _ = s.nodes.insert(id));
+        let mut view = Viewport::new(ViewKind::Top);
+        view.rect = Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0));
+        (view.camera.center, view.camera.zoom) = (DVec3::new(192.0, 32.0, 0.0), 1.0);
+        let at = |x: f64| view.camera.project(view.rect, DVec3::new(x, 32.0, 0.0)).unwrap();
+        let begin = |state: &mut EditorState, preset: &str, x: f64, modifiers: Modifiers| {
+            state.prefs.keymap_preset = preset.into();
+            let drag = view.begin_edge_drag(at(x), modifiers, state);
+            state.doc.commit();
+            drag
+        };
+
+        for (preset, chord) in [("hammer", Modifiers::SHIFT), ("hammer", Modifiers::COMMAND), ("trenchbroom", Modifiers::COMMAND)] {
+            for x in [220.0, 224.0, 228.0] {
+                let Some(Drag::Move { start, plane, axis: None, duplicate: true, .. }) = begin(&mut state, preset, x, chord) else {
+                    panic!("{preset} {chord:?} at {x} does not copy");
+                };
+                let ray = view.camera.ray(view.rect, at(x) + Vec2::new(32.0, 0.0));
+                let delta = ray.at(ray.intersect_plane(&plane).unwrap()) - start;
+                assert!(td_core::vec_approx_eq(delta, DVec3::new(32.0, 0.0, 0.0)), "{preset} {chord:?} at {x}: {delta}");
+            }
+        }
+
+        let resize = begin(&mut state, "hammer", 228.0, Modifiers::NONE);
+        assert!(matches!(resize, Some(Drag::FaceResize { normal, .. }) if normal == DVec3::X), "a plain drag still resizes");
+        assert!(begin(&mut state, "hammer", 240.0, Modifiers::SHIFT).is_none(), "past the grab zone a selection box starts");
+        state.tool = ToolKind::Block;
+        assert!(begin(&mut state, "hammer", 228.0, Modifiers::SHIFT).is_none(), "the Block tool draws instead");
     }
 }

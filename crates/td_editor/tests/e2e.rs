@@ -712,7 +712,7 @@ fn a_slanted_side_resizes_in_2d_and_a_selected_face_drags_alone() {
 }
 
 /// Ctrl on a side copies the selection instead of resizing it, and so does Shift in the Hammer preset. TrenchBroom and
-/// Blender keep Shift for the resize.
+/// Blender keep Shift for the resize. Both hold from just inside the side and from just past it, where the grab reaches.
 #[test]
 #[ignore]
 fn ctrl_or_hammer_shift_on_a_side_copies_instead_of_resizing() {
@@ -733,30 +733,35 @@ fn ctrl_or_hammer_shift_on_a_side_copies_instead_of_resizing() {
     };
     let home = [[-40, 8, -24], [88, 72, 40]];
     let resized = [[-40, 8, -24], [128, 72, 40]];
-    let try_drag = |keymap: &str, mods: &[&str]| {
+    let try_drag = |keymap: &str, mods: &[&str], from: i64| {
         ed.call("set_editor", json!({ "keymap": keymap }));
         ed.call("select", json!({ "ids": [id] }));
-        ed.input("front", json!([{ "type": "drag", "world": [85, 40, 0], "to_world": [121, 40, 0], "modifiers": mods }]));
+        ed.input("front", json!([{ "type": "drag", "world": [from, 40, 0], "to_world": [from + 36, 40, 0], "modifiers": mods }]));
         let after = bounds();
         let top = ed.state()["undo"][0].as_str().unwrap().to_string();
         ed.call("run_action", json!({ "action": "undo" }));
-        assert_eq!(bounds(), vec![home], "undo restores the single brush after {keymap} {mods:?}");
+        assert_eq!(bounds(), vec![home], "undo restores the single brush after {keymap} {mods:?} from {from}");
         (after, top)
     };
     let expect_resize = |keymap: &str, mods: &[&str]| {
-        let (after, top) = try_drag(keymap, mods);
-        assert_eq!(after, vec![resized], "{keymap} {mods:?} resizes the side");
-        assert_eq!(top, "Resize Brushes", "{keymap} {mods:?}");
+        for from in [85, 91] {
+            let (after, top) = try_drag(keymap, mods, from);
+            assert_eq!(after, vec![resized], "{keymap} {mods:?} from {from} resizes the side");
+            assert_eq!(top, "Resize Brushes", "{keymap} {mods:?} from {from}");
+        }
     };
     let expect_copy = |keymap: &str, mods: &[&str]| {
-        let (after, top) = try_drag(keymap, mods);
-        assert_eq!(after.len(), 2, "{keymap} {mods:?} adds a brush {after:?}");
-        let copy = after.iter().find(|b| **b != home).unwrap_or_else(|| panic!("{keymap} {mods:?} left only the original {after:?}"));
-        assert!(after.contains(&home), "{keymap} {mods:?} leaves the original at max x 88 {after:?}");
-        let shift = copy[0][0] - home[0][0];
-        assert!(shift > 0 && shift % 16 == 0, "{keymap} {mods:?} moves the copy along +X in grid steps {after:?}");
-        assert_eq!(*copy, [[home[0][0] + shift, 8, -24], [home[1][0] + shift, 72, 40]], "{keymap} {mods:?} keeps the size");
-        assert_eq!(top, "Duplicate Objects", "{keymap} {mods:?}");
+        for from in [85, 91] {
+            let (after, top) = try_drag(keymap, mods, from);
+            let mods = format!("{mods:?} from {from}");
+            assert_eq!(after.len(), 2, "{keymap} {mods} adds a brush {after:?}");
+            let copy = after.iter().find(|b| **b != home).unwrap_or_else(|| panic!("{keymap} {mods} left only the original {after:?}"));
+            assert!(after.contains(&home), "{keymap} {mods} leaves the original at max x 88 {after:?}");
+            let shift = copy[0][0] - home[0][0];
+            assert!(shift > 0 && shift % 16 == 0, "{keymap} {mods} moves the copy along +X in grid steps {after:?}");
+            assert_eq!(*copy, [[home[0][0] + shift, 8, -24], [home[1][0] + shift, 72, 40]], "{keymap} {mods} keeps the size");
+            assert_eq!(top, "Duplicate Objects", "{keymap} {mods}");
+        }
     };
 
     expect_resize("trenchbroom", &[]);
