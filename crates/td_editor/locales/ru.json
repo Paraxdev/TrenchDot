@@ -2688,7 +2688,7 @@
   "Walls: click to place the first corner": "Стены: щелчок ставит первый угол",
   "Walls: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Стены: щёлкайте углы, Enter завершает путь, первый угол замыкает его, Backspace отменяет",
   "Walls": "Стены",
-  "Make a wall along each side of the path instead of one solid outline": "Стена вдоль каждой стороны пути вместо сплошного контура",
+  "What the clicked corners make: one solid outline, a wall along each side or a trim along the path": "Что дают щёлкнутые углы: сплошной контур, стену вдоль каждой стороны или профиль вдоль пути",
   "Created {n} wall in a group": { "one": "Создана {n} стена в группе", "few": "Создано {n} стены в группе", "many": "Создано {n} стен в группе" },
   "Outside": "Снаружи",
   "Centered": "По центру",
@@ -2700,5 +2700,18 @@
   "Bevel Edges of brushes, flat or rounded": "Фаска рёбер брашей, плоская или скруглённая",
   "Select brushes, or pick both corners of each edge with the Vertex tool": "Выберите браши или отметьте инструментом «Вершина» оба угла каждого ребра",
   "The bevel is wider than a face beside the edge": "Фаска шире грани рядом с ребром",
-  "The bevelled brush came out invalid, try a smaller width": "Браш после фаски получился неверным, уменьшите ширину"
+  "The bevelled brush came out invalid, try a smaller width": "Браш после фаски получился неверным, уменьшите ширину",
+  "depth": "глубина",
+  "Outline": "Контур",
+  "Trim": "Профиль",
+  "Skirting": "Плинтус",
+  "Kerb": "Бордюр",
+  "Cornice": "Карниз",
+  "Ledge": "Выступ",
+  "Create Trim": "Создать профиль",
+  "Trim: click to place the first corner": "Профиль: щёлкните, чтобы поставить первый угол",
+  "Trim: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Профиль: щёлкайте углы, Enter завершает путь, первый угол замыкает его, Backspace отменяет",
+  "The cross section swept along the path": "Сечение, протягиваемое вдоль пути",
+  "Which side of the clicked path the trim sticks out on, Inside lines a room": "С какой стороны пути выступает профиль, Внутри обводит комнату",
+  "Created {n} trim brush in a group": { "one": "Создан {n} браш профиля в группе", "few": "Создано {n} браша профиля в группе", "many": "Создано {n} брашей профиля в группе" }
 }

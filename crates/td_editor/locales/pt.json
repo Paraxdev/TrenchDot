@@ -2688,7 +2688,7 @@
   "Walls: click to place the first corner": "Paredes: clique para colocar o primeiro canto",
   "Walls: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Paredes: clique nos cantos, Enter termina o caminho, o primeiro canto o fecha, Backspace desfaz",
   "Walls": "Paredes",
-  "Make a wall along each side of the path instead of one solid outline": "Cria uma parede ao longo de cada lado do caminho em vez de um contorno sólido",
+  "What the clicked corners make: one solid outline, a wall along each side or a trim along the path": "O que os cantos clicados formam: um contorno sólido, uma parede por lado ou um friso ao longo do caminho",
   "Created {n} wall in a group": { "one": "{n} parede criada em um grupo", "other": "{n} paredes criadas em um grupo" },
   "Outside": "Fora",
   "Centered": "Centralizado",
@@ -2700,5 +2700,18 @@
   "Bevel Edges of brushes, flat or rounded": "Chanfrar arestas de brushes, retas ou arredondadas",
   "Select brushes, or pick both corners of each edge with the Vertex tool": "Selecione brushes, ou marque com a ferramenta Vértice os dois cantos de cada aresta",
   "The bevel is wider than a face beside the edge": "O chanfro é mais largo que uma face ao lado da aresta",
-  "The bevelled brush came out invalid, try a smaller width": "O brush chanfrado ficou inválido, tente uma largura menor"
+  "The bevelled brush came out invalid, try a smaller width": "O brush chanfrado ficou inválido, tente uma largura menor",
+  "depth": "profundidade",
+  "Outline": "Contorno",
+  "Trim": "Friso",
+  "Skirting": "Rodapé",
+  "Kerb": "Lancil",
+  "Cornice": "Cornija",
+  "Ledge": "Parapeito",
+  "Create Trim": "Criar friso",
+  "Trim: click to place the first corner": "Friso: clique para colocar o primeiro canto",
+  "Trim: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Friso: clique nos cantos, Enter termina o caminho, o primeiro canto fecha-o, Backspace desfaz",
+  "The cross section swept along the path": "A secção varrida ao longo do caminho",
+  "Which side of the clicked path the trim sticks out on, Inside lines a room": "De que lado do caminho o friso sobressai, Dentro contorna uma sala",
+  "Created {n} trim brush in a group": { "one": "{n} brush de friso criado num grupo", "other": "{n} brushes de friso criados num grupo" }
 }

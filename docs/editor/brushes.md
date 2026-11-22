@@ -193,8 +193,8 @@ the corner that made the crossing.
 
 ### Walls
 
-To lay out the walls of a room or a corridor, tick **Walls** in the tool options bar above the views while the Polygon
-tool is active. Next to it you set the wall **thickness** (16 units), the **height** (128 units, 4 m) and the side the
+To lay out the walls of a room or a corridor, pick **Walls** instead of **Outline** in the mode list of the tool
+options bar above the views while the Polygon tool is active. Next to it you set the wall **thickness** (16 units), the **height** (128 units, 4 m) and the side the
 walls grow on. The corners you click are then a path, and every stretch between two corners becomes a wall brush. While
 you draw, the walls up to the mouse show as faint outlines.
 
@@ -221,6 +221,30 @@ change the thickness of a whole room, draw it again. To cut a door or window, us
 The MCP tool `create_polygon_brush` takes the corners as `points`, the view direction as `axis` (`x`, `y` or `z`) or an
 arbitrary `normal`, and the thickness as `height`. Give `wall` a thickness to make walls along the path instead, and
 `closed` to join the last corner back to the first.
+
+</div>
+
+### Trim
+
+Pick **Trim** in the same mode list to run a skirting board, a kerb or a cornice along a path. You click the corners
+the way you click walls, Enter ends an open path and the first corner closes it. Every stretch gets the trim's cross
+section, mitred at the corners, and the brushes land in a new selected group called Trim.
+
+| Option | What it sets |
+| --- | --- |
+| Profile | **Skirting**, **Kerb**, **Cornice** (a stepped moulding) or **Ledge** (a sloped sill) |
+| **depth** and **height** | How far the trim sticks out from the path and how tall it is, 4 by 12 units by default |
+| Side | **Inside** (default) puts the trim on the side the path turns toward, **Outside** on the other side, **Centered** across the path |
+
+To line a room, click the same corners you clicked for its walls on Outside. The trim then sits against the inner face
+of the walls. The trim starts on the plane you click, so for a cornice draw it in a view where that plane is at the
+ceiling, or move the group up afterwards. A stepped profile like Cornice is cut into a brush per step and stretch.
+
+<div class="td-mcp" markdown>
+
+`create_polygon_brush` makes trim with `trim`, a profile name or a list of `[x, y]` points of your own cross section,
+x away from the path and y along the axis. `trim_size` sets `[depth, height]` for a named profile, and `closed` and
+`align` work as for walls.
 
 </div>
 

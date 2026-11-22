@@ -231,6 +231,62 @@ pub fn extrude(points: &[DVec3], normal: DVec3, height: f64, material: &str) -> 
     convex_pieces(&flat)?.iter().map(|piece| prism(piece, origin, basis, normal, height, material)).collect()
 }
 
+/// Below this cosine of half the turn a mitre would reach more than four times the width out, so the corner gets
+/// square ends instead.
+const MITRE_LIMIT: f64 = 0.25;
+
+/// A path of points flattened onto its plane, with repeats dropped.
+struct Path {
+    flat: Vec<DVec2>,
+    normal: DVec3,
+    u: DVec3,
+    v: DVec3,
+    base: DVec3,
+}
+
+impl Path {
+    fn new(points: &[DVec3], closed: bool, normal: DVec3) -> Result<Path, OutlineError> {
+        let normal = normal.try_normalize().ok_or(OutlineError::NotPlanar)?;
+        let Some(first) = points.first() else { return Err(OutlineError::TooFew) };
+        if points.iter().any(|p| (*p - *first).dot(normal).abs() > 1e-3) {
+            return Err(OutlineError::NotPlanar);
+        }
+
+        let (u, v) = Plane::new(normal, 0.0).basis();
+        let mut flat: Vec<DVec2> = points.iter().map(|p| DVec2::new(p.dot(u), p.dot(v))).collect();
+        flat.dedup_by(|a, b| a.distance(*b) < MERGE_DISTANCE);
+        if closed && flat.len() > 1 && flat[0].distance(flat[flat.len() - 1]) < MERGE_DISTANCE {
+            flat.pop();
+        }
+
+        if flat.len() < 2 || (closed && flat.len() < 3) {
+            return Err(OutlineError::TooFew);
+        }
+
+        if flat.len() > MAX_CORNERS {
+            return Err(OutlineError::TooMany);
+        }
+
+        Ok(Path { flat, normal, u, v, base: normal * first.dot(normal) })
+    }
+
+    fn at(&self, p: DVec2) -> DVec3 {
+        self.base + self.u * p.x + self.v * p.y
+    }
+
+    fn dir(&self, p: DVec2) -> DVec3 {
+        self.u * p.x + self.v * p.y
+    }
+}
+
+/// 1 when the inside of the path lies to the left of its segments, -1 when to the right. That is the side a closed
+/// path winds around, and the side an open one turns toward overall.
+fn inside_side(flat: &[DVec2], closed: bool) -> f64 {
+    let n = flat.len();
+    let turn = if closed { signed_area(flat) } else { (1..n - 1).map(|i| (flat[i] - flat[i - 1]).perp_dot(flat[i + 1] - flat[i])).sum() };
+    if turn < 0.0 { -1.0 } else { 1.0 }
+}
+
 /// Which side of the drawn path a wall lies on.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum WallAlign {
@@ -262,35 +318,12 @@ impl WallAlign {
 /// walls meet without gaps or overlap, a corner sharper than about 30 degrees gets square ends instead. A closed path
 /// also joins the last point back to the first.
 pub fn walls(points: &[DVec3], closed: bool, normal: DVec3, height: f64, thickness: f64, align: WallAlign, material: &str) -> Result<Vec<Brush>, OutlineError> {
-    // Below this cosine of half the turn the mitre would reach more than four half thicknesses out.
-    const MITRE_LIMIT: f64 = 0.25;
-    let normal = normal.try_normalize().ok_or(OutlineError::NotPlanar)?;
-    let Some(first) = points.first() else { return Err(OutlineError::TooFew) };
-    if points.iter().any(|p| (*p - *first).dot(normal).abs() > 1e-3) {
-        return Err(OutlineError::NotPlanar);
-    }
-
     if thickness.is_nan() || thickness < 1e-3 {
         return Err(OutlineError::Flat);
     }
 
-    let (u, v) = Plane::new(normal, 0.0).basis();
-    let base = normal * first.dot(normal);
-    let mut flat: Vec<DVec2> = points.iter().map(|p| DVec2::new(p.dot(u), p.dot(v))).collect();
-    flat.dedup_by(|a, b| a.distance(*b) < MERGE_DISTANCE);
-    if closed && flat.len() > 1 && flat[0].distance(flat[flat.len() - 1]) < MERGE_DISTANCE {
-        flat.pop();
-    }
-
+    let Path { flat, normal, u, v, base } = Path::new(points, closed, normal)?;
     let n = flat.len();
-    if n < 2 || (closed && n < 3) {
-        return Err(OutlineError::TooFew);
-    }
-
-    if n > MAX_CORNERS {
-        return Err(OutlineError::TooMany);
-    }
-
     let half = thickness / 2.0;
     let side = |i: usize| (flat[(i + 1) % n] - flat[i]).normalize().perp();
     let square = |i: usize| side(i) * half;
@@ -300,8 +333,7 @@ pub fn walls(points: &[DVec3], closed: bool, normal: DVec3, height: f64, thickne
         let cos_half = m.length() / 2.0;
         if open_end || cos_half < MITRE_LIMIT { square(own) } else { m.normalize() * (half / cos_half) }
     };
-    let turn = if closed { signed_area(&flat) } else { (1..n - 1).map(|i| (flat[i] - flat[i - 1]).perp_dot(flat[i + 1] - flat[i])).sum() };
-    let inside = if turn < 0.0 { -1.0 } else { 1.0 };
+    let inside = inside_side(&flat, closed);
     let shift = match align {
         WallAlign::Center => 0.0,
         WallAlign::Inside => inside,
@@ -325,9 +357,96 @@ pub fn walls(points: &[DVec3], closed: bool, normal: DVec3, height: f64, thickne
     Ok(out)
 }
 
+/// Ready made trim cross sections.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TrimProfile {
+    #[default]
+    Skirting,
+    Kerb,
+    Cornice,
+    Ledge,
+}
+
+impl TrimProfile {
+    pub const ALL: [TrimProfile; 4] = [TrimProfile::Skirting, TrimProfile::Kerb, TrimProfile::Cornice, TrimProfile::Ledge];
+
+    pub fn parse(name: &str) -> Option<TrimProfile> {
+        Self::ALL.into_iter().find(|p| p.name() == name)
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            TrimProfile::Skirting => "skirting",
+            TrimProfile::Kerb => "kerb",
+            TrimProfile::Cornice => "cornice",
+            TrimProfile::Ledge => "ledge",
+        }
+    }
+
+    /// The cross section `depth` out from the path and `height` up, x away from the path and y up.
+    pub fn points(self, depth: f64, height: f64) -> Vec<DVec2> {
+        let unit: &[(f64, f64)] = match self {
+            TrimProfile::Skirting => &[(0.0, 0.0), (1.0, 0.0), (1.0, 0.7), (0.4, 1.0), (0.0, 1.0)],
+            TrimProfile::Kerb => &[(0.0, 0.0), (1.0, 0.0), (1.0, 0.75), (0.75, 1.0), (0.0, 1.0)],
+            TrimProfile::Cornice => &[(0.0, 0.0), (0.3, 0.0), (0.3, 0.3), (0.6, 0.3), (0.6, 0.6), (1.0, 0.6), (1.0, 1.0), (0.0, 1.0)],
+            TrimProfile::Ledge => &[(0.0, 0.0), (0.2, 0.0), (1.0, 0.8), (1.0, 1.0), (0.0, 1.0)],
+        };
+        unit.iter().map(|(x, y)| DVec2::new(x * depth, y * height)).collect()
+    }
+}
+
+/// Trim brushes along a path of points in 3D: the `profile` cross section, x away from the path and y along `normal`,
+/// swept along every segment and mitred at the corners like [`walls`]. Inside and outside put the profile's x on that
+/// side of the path, center centres its x range on the path facing outside. A concave profile makes a brush per
+/// convex piece and segment. A closed path also joins the last point back to the first.
+pub fn trim(points: &[DVec3], closed: bool, normal: DVec3, profile: &[DVec2], align: WallAlign, material: &str) -> Result<Vec<Brush>, OutlineError> {
+    let path = Path::new(points, closed, normal)?;
+    let mut pieces = convex_pieces(profile)?;
+    if align == WallAlign::Center {
+        let (lo, hi) = pieces.iter().flatten().fold((f64::MAX, f64::MIN), |(lo, hi), p| (lo.min(p.x), hi.max(p.x)));
+        pieces.iter_mut().flatten().for_each(|p| p.x -= (lo + hi) / 2.0);
+    }
+
+    let flat = &path.flat;
+    let n = flat.len();
+    let out_side = if align == WallAlign::Inside { 1.0 } else { -1.0 } * inside_side(flat, closed);
+    let dir = |i: usize| (flat[(i + 1) % n] - flat[i]).normalize();
+    let cap = |corner: usize, into: usize, out: usize, own: DVec2| {
+        let open_end = !closed && (corner == 0 || corner == n - 1);
+        let m = dir(into) + dir(out);
+        if open_end || m.length() / 2.0 < MITRE_LIMIT { own } else { m.normalize() }
+    };
+    let segments = if closed { n } else { n - 1 };
+    let mut out = Vec::with_capacity(segments * pieces.len());
+    for i in 0..segments {
+        let j = (i + 1) % n;
+        let d = dir(i);
+        let (s, e, side) = (path.at(flat[i]), path.at(flat[j]), path.dir(d.perp() * out_side));
+        let caps = [(cap(i, (i + n - 1) % n, i, d), cap(j, i, j, d)), (d, d)];
+        for piece in &pieces {
+            let brush = |(start, end): (DVec2, DVec2)| {
+                let mut planes = Vec::with_capacity(piece.len() + 2);
+                let mut face = |n: DVec3, through: DVec3| planes.push((Plane::from_point_normal(through, n), FaceData::with_normal(material, n)));
+                face(-path.dir(start), s);
+                face(path.dir(end), e);
+                for k in 0..piece.len() {
+                    let (a, b) = (piece[k], piece[(k + 1) % piece.len()]);
+                    face((side * (b.y - a.y) - path.normal * (b.x - a.x)).normalize(), s + side * a.x + path.normal * a.y);
+                }
+
+                Brush::from_planes(planes).ok().filter(|b| b.volume() > 1e-6)
+            };
+            out.push(caps.into_iter().find_map(brush).ok_or(OutlineError::BadBrush)?);
+        }
+    }
+
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use td_core::Aabb;
 
     fn pts(list: &[(f64, f64)]) -> Vec<DVec2> {
         list.iter().map(|(x, y)| DVec2::new(*x, *y)).collect()
@@ -517,5 +636,59 @@ mod tests {
             walls(&[DVec3::ZERO, DVec3::new(64.0, 0.0, 5.0)], false, DVec3::Z, 64.0, 16.0, WallAlign::Center, "w").unwrap_err(),
             OutlineError::NotPlanar
         );
+    }
+
+    #[test]
+    fn a_square_trim_profile_matches_the_walls() {
+        let path = lift(&pts(&[(0.0, 0.0), (128.0, 0.0), (128.0, 96.0), (32.0, 160.0)]), 0.0);
+        let square = pts(&[(0.0, 0.0), (16.0, 0.0), (16.0, 64.0), (0.0, 64.0)]);
+        for closed in [false, true] {
+            for align in WallAlign::ALL {
+                let t = trim(&path, closed, DVec3::Z, &square, align, "t").unwrap();
+                let w = walls(&path, closed, DVec3::Z, 64.0, 16.0, align, "w").unwrap();
+                assert_eq!(t.len(), w.len());
+                for (a, b) in t.iter().zip(&w) {
+                    a.validate().unwrap();
+                    assert!((a.volume() - b.volume()).abs() < 1e-3, "{align:?} closed {closed}: {} against {}", a.volume(), b.volume());
+                    assert!((a.bounds().min - b.bounds().min).length() < 1e-3 && (a.bounds().max - b.bounds().max).length() < 1e-3);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_concave_trim_around_a_room_keeps_its_volume() {
+        let room = lift(&pts(&[(0.0, 0.0), (256.0, 0.0), (256.0, 256.0), (0.0, 256.0)]), 32.0);
+        let profile = TrimProfile::Cornice.points(10.0, 20.0);
+        let pieces = convex_pieces(&profile).unwrap();
+        assert!(pieces.len() > 1);
+        let (area, moment) = pieces.iter().flat_map(|p| (0..p.len()).map(|i| (p[i], p[(i + 1) % p.len()]))).fold((0.0, 0.0), |(a, m), (p, q)| {
+            let c = p.perp_dot(q);
+            (a + c / 2.0, m + (p.x + q.x) * c / 6.0)
+        });
+        for (align, centroid) in [(WallAlign::Inside, -moment / area), (WallAlign::Outside, moment / area)] {
+            let brushes = trim(&room, true, DVec3::Z, &profile, align, "t").unwrap();
+            assert_eq!(brushes.len(), 4 * pieces.len());
+            brushes.iter().for_each(|b| b.validate().unwrap());
+            let expected = area * 4.0 * (256.0 + 2.0 * centroid);
+            assert!((volume(&brushes) - expected).abs() < 1e-3, "{align:?}: {} against {expected}", volume(&brushes));
+            let b = brushes.iter().fold(Aabb::EMPTY, |b, brush| b.union(&brush.bounds()));
+            assert_eq!((b.min.z, b.max.z), (32.0, 52.0));
+            let reach = if align == WallAlign::Inside { 0.0 } else { 10.0 };
+            assert!((b.min.x + reach).abs() < 1e-6 && (b.max.x - 256.0 - reach).abs() < 1e-6, "{align:?} {b:?}");
+        }
+    }
+
+    #[test]
+    fn trims_reject_bad_profiles_and_paths() {
+        let two = lift(&pts(&[(0.0, 0.0), (64.0, 0.0)]), 0.0);
+        let profile = TrimProfile::Skirting.points(4.0, 8.0);
+        assert_eq!(trim(&two, false, DVec3::Z, &profile, WallAlign::Inside, "t").unwrap().len(), 1);
+        assert_eq!(trim(&two[..1], false, DVec3::Z, &profile, WallAlign::Inside, "t").unwrap_err(), OutlineError::TooFew);
+        assert_eq!(trim(&two, false, DVec3::Z, &pts(&[(0.0, 0.0), (4.0, 4.0), (8.0, 8.0)]), WallAlign::Inside, "t").unwrap_err(), OutlineError::Flat);
+        for p in TrimProfile::ALL {
+            assert_eq!(TrimProfile::parse(p.name()), Some(p));
+            assert!(signed_area(&p.points(1.0, 1.0)) > 0.0);
+        }
     }
 }

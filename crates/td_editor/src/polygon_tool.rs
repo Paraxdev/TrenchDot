@@ -1,9 +1,11 @@
 //! Polygon tool: click the corners of an outline in a view, close it and it is extruded into a brush, or into a few
-//! when the outline is concave. In wall mode the corners are a path and every segment becomes a wall brush.
+//! when the outline is concave. In wall and trim mode the corners are a path and every segment becomes a wall brush, or
+//! a trim profile swept along it.
 
 use egui::{Color32, PointerButton, Pos2, Rect, Response, Stroke, Ui, Vec2};
-use td_core::{Aabb, DVec3, NodeId, Plane};
-use td_geom::outline::{self, OutlineError, WallAlign};
+use td_core::{Aabb, DVec2, DVec3, NodeId, Plane};
+use td_geom::brush::Brush;
+use td_geom::outline::{self, OutlineError, TrimProfile, WallAlign};
 use td_render::LineVertex;
 
 use crate::camera::{Camera, ViewKind};
@@ -26,9 +28,25 @@ struct Frame {
     height: f64,
 }
 
+/// What the clicked corners make.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PolygonMode {
+    #[default]
+    Outline,
+    Walls,
+    Trim,
+}
+
+impl PolygonMode {
+    pub const ALL: [PolygonMode; 3] = [PolygonMode::Outline, PolygonMode::Walls, PolygonMode::Trim];
+
+    fn is_path(self) -> bool {
+        self != PolygonMode::Outline
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct WallOptions {
-    pub on: bool,
     pub thickness: f64,
     pub height: f64,
     pub align: WallAlign,
@@ -36,7 +54,21 @@ pub struct WallOptions {
 
 impl Default for WallOptions {
     fn default() -> Self {
-        Self { on: false, thickness: 16.0, height: 128.0, align: WallAlign::Outside }
+        Self { thickness: 16.0, height: 128.0, align: WallAlign::Outside }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct TrimOptions {
+    pub profile: TrimProfile,
+    pub depth: f64,
+    pub height: f64,
+    pub align: WallAlign,
+}
+
+impl Default for TrimOptions {
+    fn default() -> Self {
+        Self { profile: TrimProfile::Skirting, depth: 4.0, height: 12.0, align: WallAlign::Inside }
     }
 }
 
@@ -91,22 +123,50 @@ pub fn create_walls(
     material: &str,
 ) -> Result<(NodeId, Vec<NodeId>), OutlineError> {
     let brushes = outline::walls(points, closed, normal, walls.height, walls.thickness, walls.align, material)?;
+    Ok(insert_group(state, parent, brushes, en!("Create Walls"), "Walls"))
+}
+
+/// Makes the brushes of a trim `profile` swept along a path in a new group, like [`create_walls`].
+#[allow(clippy::too_many_arguments)]
+pub fn create_trim(
+    state: &mut EditorState,
+    parent: NodeId,
+    points: &[DVec3],
+    closed: bool,
+    normal: DVec3,
+    profile: &[DVec2],
+    align: WallAlign,
+    material: &str,
+) -> Result<(NodeId, Vec<NodeId>), OutlineError> {
+    let brushes = outline::trim(points, closed, normal, profile, align, material)?;
+    Ok(insert_group(state, parent, brushes, en!("Create Trim"), "Trim"))
+}
+
+fn insert_group(state: &mut EditorState, parent: NodeId, brushes: Vec<Brush>, label: &str, name: &str) -> (NodeId, Vec<NodeId>) {
     let bounds = brushes.iter().fold(Aabb::EMPTY, |b, brush| b.union(&brush.bounds()));
-    let made = state.doc.edit(en!("Create Walls"), |m, s| {
+    let made = state.doc.edit(label, |m, s| {
         s.clear();
-        let group = m.insert(parent, td_doc::NodeKind::Group(td_doc::Group::new("Walls".to_string())));
+        let group = m.insert(parent, td_doc::NodeKind::Group(td_doc::Group::new(name.to_string())));
         let ids = brushes.into_iter().map(|b| m.insert(group, td_doc::NodeKind::Brush(b))).collect::<Vec<_>>();
         s.select_node(group);
         (group, ids)
     });
     state.last_bounds = bounds;
-    Ok(made)
+    made
 }
 
-fn error_msg(e: OutlineError, walls: bool) -> Msg {
+fn path_brushes(state: &EditorState, points: &[DVec3], closed: bool, normal: DVec3, material: &str) -> Result<Vec<Brush>, OutlineError> {
+    let (w, t) = (state.walls, state.trim);
+    match state.polygon_mode {
+        PolygonMode::Trim => outline::trim(points, closed, normal, &t.profile.points(t.depth, t.height), t.align, material),
+        _ => outline::walls(points, closed, normal, w.height, w.thickness, w.align, material),
+    }
+}
+
+fn error_msg(e: OutlineError, path: bool) -> Msg {
     match e {
-        OutlineError::TooFew if walls => msg!("Place at least two corners first"),
-        OutlineError::Flat if walls => msg!("The walls have no thickness"),
+        OutlineError::TooFew if path => msg!("Place at least two corners first"),
+        OutlineError::Flat if path => msg!("The walls have no thickness"),
         OutlineError::TooFew => msg!("Place at least three corners first"),
         OutlineError::TooMany => msg!("The outline has too many corners"),
         OutlineError::Flat => msg!("The outline has no area"),
@@ -211,35 +271,39 @@ impl PolygonTool {
     /// Makes the brushes. `closed` is whether the path joins back to its first corner, which only matters for walls
     /// since an outline always closes.
     pub fn finish(&mut self, state: &mut EditorState, closed: bool) {
-        let walls = state.walls;
+        let mode = state.polygon_mode;
         let Some(frame) = self.frame else {
-            state.set_status(error_msg(OutlineError::TooFew, walls.on));
+            state.set_status(error_msg(OutlineError::TooFew, mode.is_path()));
             return;
         };
         let parent = state.insert_parent();
         let material = state.current_material.clone();
-        let made = if walls.on {
-            create_walls(state, parent, &self.points, closed, frame.normal, walls, &material).map(|(_, ids)| ids)
-        } else {
-            create(state, parent, &self.points, frame.normal, frame.height, &material)
+        let made = match mode {
+            PolygonMode::Outline => create(state, parent, &self.points, frame.normal, frame.height, &material),
+            PolygonMode::Walls => create_walls(state, parent, &self.points, closed, frame.normal, state.walls, &material).map(|(_, ids)| ids),
+            PolygonMode::Trim => {
+                let t = state.trim;
+                let profile = t.profile.points(t.depth, t.height);
+                create_trim(state, parent, &self.points, closed, frame.normal, &profile, t.align, &material).map(|(_, ids)| ids)
+            }
         };
         match made {
-            Ok(ids) if walls.on => {
-                state.set_status(msg_n!(ids.len(), "Created {n} wall in a group", "Created {n} walls in a group"));
-                self.reset();
-            }
             Ok(ids) => {
-                state.set_status(msg_n!(ids.len(), "Created {n} polygon brush", "Created {n} polygon brushes"));
+                state.set_status(match mode {
+                    PolygonMode::Outline => msg_n!(ids.len(), "Created {n} polygon brush", "Created {n} polygon brushes"),
+                    PolygonMode::Walls => msg_n!(ids.len(), "Created {n} wall in a group", "Created {n} walls in a group"),
+                    PolygonMode::Trim => msg_n!(ids.len(), "Created {n} trim brush in a group", "Created {n} trim brushes in a group"),
+                });
                 self.reset();
             }
-            Err(e) => state.fail_status(error_msg(e, walls.on)),
+            Err(e) => state.fail_status(error_msg(e, mode.is_path())),
         }
     }
 
-    pub fn lines(&self, out: &mut Vec<LineVertex>, walls: &WallOptions) {
+    pub fn lines(&self, out: &mut Vec<LineVertex>, state: &EditorState) {
         let Some(frame) = self.frame else { return };
-        if walls.on {
-            self.wall_lines(out, frame, walls);
+        if state.polygon_mode.is_path() {
+            self.path_lines(out, frame, state);
             return;
         }
 
@@ -265,15 +329,15 @@ impl PolygonTool {
         }
     }
 
-    /// The path, and the walls it would make up to the cursor.
-    fn wall_lines(&self, out: &mut Vec<LineVertex>, frame: Frame, walls: &WallOptions) {
+    /// The path, and the walls or trim it would make up to the cursor.
+    fn path_lines(&self, out: &mut Vec<LineVertex>, frame: Frame, state: &EditorState) {
         let mut path = self.points.clone();
         path.extend(self.cursor.filter(|c| path.last().is_none_or(|l| (*l - *c).length() > 1e-6)));
         for w in path.windows(2) {
             line(out, w[0], w[1], COLOR);
         }
 
-        let Ok(brushes) = outline::walls(&path, false, frame.normal, walls.height, walls.thickness, walls.align, "") else { return };
+        let Ok(brushes) = path_brushes(state, &path, false, frame.normal, "") else { return };
         for b in &brushes {
             for (i, j) in b.edges() {
                 line(out, b.vertices[i as usize], b.vertices[j as usize], FAINT);
@@ -281,7 +345,7 @@ impl PolygonTool {
         }
     }
 
-    pub fn paint_overlay(&self, ui: &Ui, cam: &Camera, rect: Rect, walls: bool) {
+    pub fn paint_overlay(&self, ui: &Ui, cam: &Camera, rect: Rect, mode: PolygonMode) {
         let painter = ui.painter_at(rect);
         let hover = ui.input(|i| i.pointer.hover_pos());
         for (i, p) in self.points.iter().enumerate() {
@@ -294,16 +358,13 @@ impl PolygonTool {
             painter.rect_stroke(square, 1.0, Stroke::new(1.0, Color32::BLACK), egui::StrokeKind::Outside);
         }
 
-        let text = if walls {
-            if self.points.is_empty() {
-                crate::i18n::trf!("Walls: click to place the first corner")
-            } else {
-                crate::i18n::trf!("Walls: click corners, Enter ends the path, the first corner closes it, Backspace undoes")
-            }
-        } else if self.points.is_empty() {
-            crate::i18n::trf!("Polygon: click to place the first corner")
-        } else {
-            crate::i18n::trf!("Polygon: click corners, the first one or Enter closes, Backspace undoes")
+        let text = match (mode, self.points.is_empty()) {
+            (PolygonMode::Walls, true) => crate::i18n::trf!("Walls: click to place the first corner"),
+            (PolygonMode::Walls, false) => crate::i18n::trf!("Walls: click corners, Enter ends the path, the first corner closes it, Backspace undoes"),
+            (PolygonMode::Trim, true) => crate::i18n::trf!("Trim: click to place the first corner"),
+            (PolygonMode::Trim, false) => crate::i18n::trf!("Trim: click corners, Enter ends the path, the first corner closes it, Backspace undoes"),
+            (PolygonMode::Outline, true) => crate::i18n::trf!("Polygon: click to place the first corner"),
+            (PolygonMode::Outline, false) => crate::i18n::trf!("Polygon: click corners, the first one or Enter closes, Backspace undoes"),
         };
         corner_hint(&painter, rect, text, Color32::from_rgb(170, 255, 110));
     }

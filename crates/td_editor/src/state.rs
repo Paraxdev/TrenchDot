@@ -667,7 +667,9 @@ pub struct EditorState {
     pub auto_paint_base: Option<f64>,
     pub paint_color: [f32; 4],
     /// The Polygon tool draws walls along its corners instead of one outline. Session only.
+    pub polygon_mode: crate::polygon_tool::PolygonMode,
     pub walls: crate::polygon_tool::WallOptions,
+    pub trim: crate::polygon_tool::TrimOptions,
     pub prefabs: crate::prefabs::PrefabCache,
     /// World bounds of every instance node, refreshed by the scene cache.
     pub instance_bounds: std::collections::HashMap<NodeId, Aabb>,
@@ -923,7 +925,9 @@ impl EditorState {
             edit_symmetry: EditSymmetry::OFF,
             auto_paint_base: None,
             paint_color: [0.55, 0.45, 0.35, 1.0],
+            polygon_mode: Default::default(),
             walls: Default::default(),
+            trim: Default::default(),
             prefabs: Default::default(),
             instance_bounds: Default::default(),
             overlay_ghosts: Default::default(),

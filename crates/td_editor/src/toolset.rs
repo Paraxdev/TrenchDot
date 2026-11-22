@@ -500,7 +500,7 @@ impl ToolSet {
             }
             ToolKind::Polygon => {
                 if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Enter)) {
-                    self.polygon.finish(state, !state.walls.on);
+                    self.polygon.finish(state, state.polygon_mode == crate::polygon_tool::PolygonMode::Outline);
                     return true;
                 }
 
@@ -1349,7 +1349,7 @@ impl ToolSet {
                     }
                 }
             }
-            ToolKind::Polygon => self.polygon.lines(&mut out, &state.walls),
+            ToolKind::Polygon => self.polygon.lines(&mut out, state),
             ToolKind::Rotate => {
                 if let Some(center) = Self::rotate_center(state) {
                     let radius = Self::ring_radius(cam, center);
@@ -1493,7 +1493,7 @@ impl ToolSet {
                 };
                 corner_hint(&painter, rect, trf!("Clip: click to place points, keep {side} (Tab), Enter to apply", side), Color32::from_rgb(120, 240, 240));
             }
-            ToolKind::Polygon => self.polygon.paint_overlay(ui, cam, rect, state.walls.on),
+            ToolKind::Polygon => self.polygon.paint_overlay(ui, cam, rect, state.polygon_mode),
             ToolKind::Vertex => {
                 let (verts, dots) = Self::vertex_handles(state);
                 let hot = hover.and_then(|p| handle_at(cam, rect, &verts, &dots, p));
@@ -3164,7 +3164,7 @@ mod tests {
     fn wall_mode_turns_the_corners_into_walls_open_on_enter_and_closed_on_the_first_corner() {
         use td_geom::outline::WallAlign;
         let mut state = EditorState::new(Default::default());
-        state.walls.on = true;
+        state.polygon_mode = crate::polygon_tool::PolygonMode::Walls;
         let mut tools = polygon_tools(&mut state);
         let top = centered_view(ViewKind::Top);
         corner(&mut tools, &mut state, &top, [-64.0, 0.0, -64.0]);
@@ -3189,6 +3189,17 @@ mod tests {
         let group = *state.doc.selection.nodes.iter().next().unwrap();
         assert_eq!(state.doc.map.get(group).unwrap().children.len(), 3, "clicking the first corner closes the path into three walls");
         assert!(tools.polygon.points.is_empty());
+
+        state.polygon_mode = crate::polygon_tool::PolygonMode::Trim;
+        for c in [[-64.0, 0.0, -64.0], [64.0, 0.0, -64.0], [64.0, 0.0, 64.0], [-64.0, 0.0, 64.0], [-64.0, 0.0, -64.0]] {
+            corner(&mut tools, &mut state, &top, c);
+        }
+
+        let group = *state.doc.selection.nodes.iter().next().unwrap();
+        assert_eq!(state.doc.map.get(group).unwrap().children.len(), 4, "a closed skirting has a brush per side");
+        assert_eq!(state.doc.history.undo_labels().next(), Some("Create Trim"));
+        let b = state.doc.map.bounds_of([group]);
+        assert_eq!((b.min.x, b.max.x, b.max.y - b.min.y), (-64.0, 64.0, 12.0), "the skirting stays inside the clicked room");
     }
 
     #[test]

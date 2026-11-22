@@ -2688,7 +2688,7 @@
   "Walls: click to place the first corner": "墙体：单击放置第一个角点",
   "Walls: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "墙体：单击角点，Enter 结束路径，单击第一个角点闭合，Backspace 撤销",
   "Walls": "墙体",
-  "Make a wall along each side of the path instead of one solid outline": "沿路径每一段生成一面墙，而不是一个实心轮廓",
+  "What the clicked corners make: one solid outline, a wall along each side or a trim along the path": "单击的角点生成什么：一个实心轮廓、沿每条边的墙体或沿路径的装饰线",
   "Created {n} wall in a group": { "other": "已在一个组中创建 {n} 面墙" },
   "Outside": "外侧",
   "Centered": "居中",
@@ -2700,5 +2700,18 @@
   "Bevel Edges of brushes, flat or rounded": "为笔刷的边倒角，平直或圆角",
   "Select brushes, or pick both corners of each edge with the Vertex tool": "请选择笔刷，或用顶点工具选中每条边的两个端点",
   "The bevel is wider than a face beside the edge": "倒角比边旁的面还宽",
-  "The bevelled brush came out invalid, try a smaller width": "倒角后的笔刷无效，请减小宽度"
+  "The bevelled brush came out invalid, try a smaller width": "倒角后的笔刷无效，请减小宽度",
+  "depth": "深度",
+  "Outline": "轮廓",
+  "Trim": "装饰线",
+  "Skirting": "踢脚线",
+  "Kerb": "路缘石",
+  "Cornice": "檐口",
+  "Ledge": "壁架",
+  "Create Trim": "创建装饰线",
+  "Trim: click to place the first corner": "装饰线：单击放置第一个角点",
+  "Trim: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "装饰线：单击角点，Enter 结束路径，单击第一个角点闭合，Backspace 撤销",
+  "The cross section swept along the path": "沿路径扫掠的截面",
+  "Which side of the clicked path the trim sticks out on, Inside lines a room": "装饰线沿路径的哪一侧凸出，内侧会沿房间边缘",
+  "Created {n} trim brush in a group": { "other": "已在组中创建 {n} 个装饰线笔刷" }
 }

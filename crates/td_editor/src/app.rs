@@ -2600,27 +2600,76 @@ impl App {
                     }
                 }
                 ToolKind::Polygon => {
-                    let w = &mut self.state.walls;
-                    ui.checkbox(&mut w.on, tr("Walls")).on_hover_text(tr("Make a wall along each side of the path instead of one solid outline"));
-                    if w.on {
-                        use td_geom::outline::WallAlign;
-                        ui.add(egui::DragValue::new(&mut w.thickness).range(1.0..=4096.0).prefix(prefix(en!("thickness"))).suffix(" u"));
-                        ui.add(egui::DragValue::new(&mut w.height).range(1.0..=16384.0).prefix(prefix(en!("height"))).suffix(" u"));
-                        let name = |a: WallAlign| match a {
-                            WallAlign::Outside => tr("Outside"),
-                            WallAlign::Center => tr("Centered"),
-                            WallAlign::Inside => tr("Inside"),
-                        };
-                        egui::ComboBox::from_id_salt("wall_align")
-                            .selected_text(name(w.align))
+                    use crate::polygon_tool::PolygonMode;
+                    use td_geom::outline::{TrimProfile, WallAlign};
+                    let mode_name = |m: PolygonMode| match m {
+                        PolygonMode::Outline => tr("Outline"),
+                        PolygonMode::Walls => tr("Walls"),
+                        PolygonMode::Trim => tr("Trim"),
+                    };
+                    let mode = &mut self.state.polygon_mode;
+                    egui::ComboBox::from_id_salt("polygon_mode")
+                        .selected_text(mode_name(*mode))
+                        .width(80.0)
+                        .show_ui(ui, |ui| {
+                            for m in PolygonMode::ALL {
+                                ui.selectable_value(mode, m, mode_name(m));
+                            }
+                        })
+                        .response
+                        .on_hover_text(tr("What the clicked corners make: one solid outline, a wall along each side or a trim along the path"));
+                    let align_name = |a: WallAlign| match a {
+                        WallAlign::Outside => tr("Outside"),
+                        WallAlign::Center => tr("Centered"),
+                        WallAlign::Inside => tr("Inside"),
+                    };
+                    let align_combo = |ui: &mut egui::Ui, id: &str, align: &mut WallAlign, tip: &str| {
+                        egui::ComboBox::from_id_salt(id)
+                            .selected_text(align_name(*align))
                             .width(80.0)
                             .show_ui(ui, |ui| {
                                 for a in WallAlign::ALL {
-                                    ui.selectable_value(&mut w.align, a, name(a));
+                                    ui.selectable_value(align, a, align_name(a));
                                 }
                             })
                             .response
-                            .on_hover_text(tr("Which side of the clicked path the walls grow on, Outside keeps a room's floor plan"));
+                            .on_hover_text(tip);
+                    };
+                    match self.state.polygon_mode {
+                        PolygonMode::Outline => {}
+                        PolygonMode::Walls => {
+                            let w = &mut self.state.walls;
+                            ui.add(egui::DragValue::new(&mut w.thickness).range(1.0..=4096.0).prefix(prefix(en!("thickness"))).suffix(" u"));
+                            ui.add(egui::DragValue::new(&mut w.height).range(1.0..=16384.0).prefix(prefix(en!("height"))).suffix(" u"));
+                            align_combo(
+                                ui,
+                                "wall_align",
+                                &mut w.align,
+                                tr("Which side of the clicked path the walls grow on, Outside keeps a room's floor plan"),
+                            );
+                        }
+                        PolygonMode::Trim => {
+                            let t = &mut self.state.trim;
+                            let profile_name = |p: TrimProfile| match p {
+                                TrimProfile::Skirting => tr("Skirting"),
+                                TrimProfile::Kerb => tr("Kerb"),
+                                TrimProfile::Cornice => tr("Cornice"),
+                                TrimProfile::Ledge => tr("Ledge"),
+                            };
+                            egui::ComboBox::from_id_salt("trim_profile")
+                                .selected_text(profile_name(t.profile))
+                                .width(90.0)
+                                .show_ui(ui, |ui| {
+                                    for p in TrimProfile::ALL {
+                                        ui.selectable_value(&mut t.profile, p, profile_name(p));
+                                    }
+                                })
+                                .response
+                                .on_hover_text(tr("The cross section swept along the path"));
+                            ui.add(egui::DragValue::new(&mut t.depth).range(1.0..=4096.0).prefix(prefix(en!("depth"))).suffix(" u"));
+                            ui.add(egui::DragValue::new(&mut t.height).range(1.0..=16384.0).prefix(prefix(en!("height"))).suffix(" u"));
+                            align_combo(ui, "trim_align", &mut t.align, tr("Which side of the clicked path the trim sticks out on, Inside lines a room"));
+                        }
                     }
                 }
                 ToolKind::Volume => {

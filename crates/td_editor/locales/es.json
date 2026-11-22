@@ -2688,7 +2688,7 @@
   "Walls: click to place the first corner": "Paredes: clic coloca la primera esquina",
   "Walls: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Paredes: clic en las esquinas, Enter termina el trazado, la primera esquina lo cierra, Retroceso deshace",
   "Walls": "Paredes",
-  "Make a wall along each side of the path instead of one solid outline": "Crea una pared a lo largo de cada lado del trazado en vez de un contorno macizo",
+  "What the clicked corners make: one solid outline, a wall along each side or a trim along the path": "Lo que forman las esquinas: un contorno sólido, una pared por lado o una moldura a lo largo del trazado",
   "Created {n} wall in a group": { "one": "{n} pared creada en un grupo", "other": "{n} paredes creadas en un grupo" },
   "Outside": "Fuera",
   "Centered": "Centrado",
@@ -2700,5 +2700,18 @@
   "Bevel Edges of brushes, flat or rounded": "Biselar aristas de brushes, planas o redondeadas",
   "Select brushes, or pick both corners of each edge with the Vertex tool": "Selecciona brushes o marca con la herramienta Vértice las dos esquinas de cada arista",
   "The bevel is wider than a face beside the edge": "El bisel es más ancho que una cara junto a la arista",
-  "The bevelled brush came out invalid, try a smaller width": "El brush biselado no es válido, prueba un ancho menor"
+  "The bevelled brush came out invalid, try a smaller width": "El brush biselado no es válido, prueba un ancho menor",
+  "depth": "profundidad",
+  "Outline": "Contorno",
+  "Trim": "Moldura",
+  "Skirting": "Rodapié",
+  "Kerb": "Bordillo",
+  "Cornice": "Cornisa",
+  "Ledge": "Repisa",
+  "Create Trim": "Crear moldura",
+  "Trim: click to place the first corner": "Moldura: haz clic para colocar la primera esquina",
+  "Trim: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Moldura: haz clic en las esquinas, Intro termina el trazado, la primera esquina lo cierra, Retroceso deshace",
+  "The cross section swept along the path": "La sección que se barre a lo largo del trazado",
+  "Which side of the clicked path the trim sticks out on, Inside lines a room": "En qué lado del trazado sobresale la moldura, Interior bordea una sala",
+  "Created {n} trim brush in a group": { "one": "{n} brush de moldura creado en un grupo", "other": "{n} brushes de moldura creados en un grupo" }
 }

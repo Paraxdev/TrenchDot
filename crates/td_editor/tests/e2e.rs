@@ -3602,7 +3602,19 @@ fn polygon_brush_extrudes_convex_and_concave_outlines() {
     assert_eq!(outside["bounds"], json!({ "min": [592.0, 0.0, -8.0], "max": [736.0, 128.0, 136.0] }), "outside and 128 tall by default");
     let run = ed.call("create_polygon_brush", json!({ "points": [[0, 0, 600], [128, 0, 600]], "wall": 16 }));
     assert_eq!(run["ids"].as_array().unwrap().len(), 1, "two points are one wall");
-    assert!(ed.call_err("create_polygon_brush", json!({ "points": room, "closed": true })).contains("give wall too"));
+    assert!(ed.call_err("create_polygon_brush", json!({ "points": room, "closed": true })).contains("give wall or trim too"));
+    let skirting = ed.call("create_polygon_brush", json!({ "points": room, "trim": "skirting", "trim_size": [4, 12], "closed": true }));
+    assert_eq!(skirting["ids"].as_array().unwrap().len(), 4, "a skirting brush per side: {skirting}");
+    assert_eq!(skirting["bounds"], json!({ "min": [600.0, 0.0, 0.0], "max": [728.0, 12.0, 128.0] }), "inside the room by default");
+    assert_eq!(ed.state()["undo"][0], "MCP: Create Trim");
+    let step = json!([[0, 0], [8, 0], [8, 4], [4, 4], [4, 8], [0, 8]]);
+    let kerb = ed.call("create_polygon_brush", json!({ "points": room, "trim": step, "align": "outside" }));
+    assert_eq!(kerb["ids"].as_array().unwrap().len(), 6, "an open path of three segments with a profile of two pieces: {kerb}");
+    assert_eq!(kerb["bounds"]["max"][1], json!(8.0));
+    assert!(ed.call_err("create_polygon_brush", json!({ "points": room, "trim": "frieze" })).contains("unknown trim"));
+    assert!(ed.call_err("create_polygon_brush", json!({ "points": room, "trim": [[0, 0], [4, 4], [8, 8]] })).contains("trim profile"));
+    assert!(ed.call_err("create_polygon_brush", json!({ "points": room, "trim": "kerb", "wall": 8 })).contains("not both"));
+    assert!(ed.call_err("create_polygon_brush", json!({ "points": room, "trim_size": [4, 4] })).contains("give trim too"));
     assert!(ed.call_err("create_polygon_brush", json!({ "points": room, "wall": 0 })).contains("above 0"));
     assert!(ed.call_err("create_polygon_brush", json!({ "points": room, "wall": 8, "align": "left" })).contains("unknown align"));
 }
