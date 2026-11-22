@@ -19,6 +19,9 @@ Can't find something? Press Ctrl+Shift+P (or F1) for the command palette and typ
 name, like *Hollow* or *UV Lock*, explain themselves when you hover them, and the palette shows the same line beneath
 its list. Escape or a click outside closes it without running anything.
 
+To switch tools without reaching for the toolbar, press Shift+Q. A short list of the tools opens right at the mouse
+pointer, numbered 1 to 9 from the top. Press a number to pick that tool, or type part of its name and press Enter.
+
 ![The command palette with hollow typed in, Brush: Hollow picked with its shortcut, and the line explaining it beneath](../assets/interface/command-palette.png)
 
 Right under the toolbar is the **tool options bar**. It holds the settings of the active tool, or one line on how to

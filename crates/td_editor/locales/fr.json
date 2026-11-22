@@ -2759,5 +2759,8 @@
   "Strip: click to place the first corner": "Bande : cliquez pour placer le premier coin",
   "Strip: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Bande : cliquez les coins, Entrée termine le tracé, le premier coin le ferme, Retour arrière annule",
   "Created {n} strip brush in a group": { "one": "{n} brush de bande créé dans un groupe", "other": "{n} brushes de bande créés dans un groupe" },
-  "Joined {n} strip brush to the strip it runs into": { "one": "{n} brush de bande raccordé à la bande qu’il rejoint", "other": "{n} brushes de bande raccordés à la bande qu’ils rejoignent" }
+  "Joined {n} strip brush to the strip it runs into": { "one": "{n} brush de bande raccordé à la bande qu’il rejoint", "other": "{n} brushes de bande raccordés à la bande qu’ils rejoignent" },
+  "Tools at Cursor": "Outils au curseur",
+  "Type a tool, or press its number…": "Tapez un outil ou appuyez sur son numéro…",
+  "Lists the tools at the mouse pointer, type to filter or press a number to pick one": "Affiche les outils sous le pointeur, tapez pour filtrer ou appuyez sur un numéro pour en choisir un"
 }

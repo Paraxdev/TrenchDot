@@ -156,6 +156,7 @@ pub enum Action {
     ExplodeInstances,
     OpenPrefab,
     ShowCommandPalette,
+    ShowToolsPopup,
     ShowShapeDialog,
     ShowSweepDialog,
     ShowArrayDialog,
@@ -405,6 +406,7 @@ impl Action {
             Action::ExplodeInstances => en!("Explode Prefab Instance"),
             Action::OpenPrefab => en!("Open Prefab"),
             Action::ShowCommandPalette => en!("Command Palette"),
+            Action::ShowToolsPopup => en!("Tools at Cursor"),
             Action::ShowShapeDialog => en!("Shape Generator"),
             Action::ShowSweepDialog => en!("Sweep Faces"),
             Action::ShowArrayDialog => en!("Array Copies"),
@@ -513,6 +515,7 @@ impl Action {
     pub fn help(&self) -> Option<&'static str> {
         Some(match self {
             Action::CsgSubtract => en!("Cuts the selected brushes out of every brush they overlap, then deletes them"),
+            Action::ShowToolsPopup => en!("Lists the tools at the mouse pointer, type to filter or press a number to pick one"),
             Action::CsgMerge => en!("Replaces the selected brushes with one brush that wraps around all of them, like shrink wrap"),
             Action::CsgIntersect => en!("Keeps only the space the selected brushes share"),
             Action::CsgHollow => en!("Turns a solid brush into a hollow room with walls of the set thickness"),
@@ -599,7 +602,7 @@ const ALT: Modifiers = Modifiers::ALT;
 const ALT_SHIFT: Modifiers = Modifiers { alt: true, ctrl: false, shift: true, mac_cmd: false, command: false };
 const NONE: Modifiers = Modifiers::NONE;
 
-const DIGITS: [Key; 9] = [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6, Key::Num7, Key::Num8, Key::Num9];
+pub(crate) const DIGITS: [Key; 9] = [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6, Key::Num7, Key::Num8, Key::Num9];
 
 pub const PRESETS: [&str; 3] = ["trenchbroom", "hammer", "blender"];
 
@@ -672,6 +675,7 @@ fn trenchbroom_bindings() -> Vec<(KeyboardShortcut, Action)> {
         (sc(CTRL_SHIFT, Key::W), Action::MoveToWorld),
         (sc(CTRL_SHIFT, Key::P), Action::ShowCommandPalette),
         (sc(NONE, Key::F1), Action::ShowCommandPalette),
+        (sc(SHIFT, Key::Q), Action::ShowToolsPopup),
         (sc(CTRL_SHIFT, Key::B), Action::ShowShapeDialog),
         (sc(NONE, Key::F5), Action::RunGodotProject),
         (sc(CTRL_SHIFT, Key::E), Action::ConvertToMesh),
@@ -1918,6 +1922,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
 
         // Handled by the app, which owns dialogs, viewports and tool state.
         Action::ShowCommandPalette
+        | Action::ShowToolsPopup
         | Action::BakeLighting
         | Action::ExportGlb
         | Action::ExportObj

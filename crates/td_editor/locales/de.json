@@ -2759,5 +2759,8 @@
   "Strip: click to place the first corner": "Streifen: klicke, um die erste Ecke zu setzen",
   "Strip: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Streifen: Ecken klicken, Enter beendet den Pfad, die erste Ecke schließt ihn, Rücktaste macht rückgängig",
   "Created {n} strip brush in a group": { "one": "{n} Streifen-Brush in einer Gruppe erstellt", "other": "{n} Streifen-Brushes in einer Gruppe erstellt" },
-  "Joined {n} strip brush to the strip it runs into": { "one": "{n} Streifen-Brush an den Streifen angeschlossen, auf den er trifft", "other": "{n} Streifen-Brushes an den Streifen angeschlossen, auf den sie treffen" }
+  "Joined {n} strip brush to the strip it runs into": { "one": "{n} Streifen-Brush an den Streifen angeschlossen, auf den er trifft", "other": "{n} Streifen-Brushes an den Streifen angeschlossen, auf den sie treffen" },
+  "Tools at Cursor": "Werkzeuge am Mauszeiger",
+  "Type a tool, or press its number…": "Werkzeug eingeben oder seine Nummer drücken…",
+  "Lists the tools at the mouse pointer, type to filter or press a number to pick one": "Zeigt die Werkzeuge am Mauszeiger, tippen filtert, eine Nummer wählt eines"
 }

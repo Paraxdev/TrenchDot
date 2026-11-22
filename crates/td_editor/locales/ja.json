@@ -2759,5 +2759,8 @@
   "Strip: click to place the first corner": "帯：クリックで最初の角を置く",
   "Strip: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "帯：角をクリック、Enter でパスを終了、最初の角で閉じる、Backspace で元に戻す",
   "Created {n} strip brush in a group": { "other": "グループに {n} 個の帯ブラシを作成しました" },
-  "Joined {n} strip brush to the strip it runs into": { "other": "{n} 個の帯ブラシを交わる帯につなげました" }
+  "Joined {n} strip brush to the strip it runs into": { "other": "{n} 個の帯ブラシを交わる帯につなげました" },
+  "Tools at Cursor": "カーソル位置のツール",
+  "Type a tool, or press its number…": "ツール名を入力するか番号を押してください…",
+  "Lists the tools at the mouse pointer, type to filter or press a number to pick one": "マウスポインターの位置にツールを一覧表示します。入力で絞り込み、番号で選択します"
 }

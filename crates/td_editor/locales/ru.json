@@ -2759,5 +2759,8 @@
   "Strip: click to place the first corner": "Полоса: щёлкните, чтобы поставить первый угол",
   "Strip: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Полоса: щёлкайте углы, Enter завершает путь, первый угол замыкает его, Backspace отменяет",
   "Created {n} strip brush in a group": { "one": "Создан {n} браш полосы в группе", "few": "Создано {n} браша полосы в группе", "many": "Создано {n} брашей полосы в группе" },
-  "Joined {n} strip brush to the strip it runs into": { "one": "{n} браш полосы присоединён к полосе, в которую он упирается", "few": "{n} браша полосы присоединены к полосе, в которую они упираются", "many": "{n} брашей полосы присоединены к полосе, в которую они упираются" }
+  "Joined {n} strip brush to the strip it runs into": { "one": "{n} браш полосы присоединён к полосе, в которую он упирается", "few": "{n} браша полосы присоединены к полосе, в которую они упираются", "many": "{n} брашей полосы присоединены к полосе, в которую они упираются" },
+  "Tools at Cursor": "Инструменты у курсора",
+  "Type a tool, or press its number…": "Введите инструмент или нажмите его номер…",
+  "Lists the tools at the mouse pointer, type to filter or press a number to pick one": "Показывает инструменты у указателя мыши, ввод фильтрует, цифра выбирает"
 }

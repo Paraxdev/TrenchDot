@@ -2759,5 +2759,8 @@
   "Strip: click to place the first corner": "Faixa: clique para colocar o primeiro canto",
   "Strip: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Faixa: clique nos cantos, Enter termina o caminho, o primeiro canto fecha-o, Backspace desfaz",
   "Created {n} strip brush in a group": { "one": "{n} brush de faixa criado num grupo", "other": "{n} brushes de faixa criados num grupo" },
-  "Joined {n} strip brush to the strip it runs into": { "one": "{n} brush de faixa ligado à faixa que encontra", "other": "{n} brushes de faixa ligados à faixa que encontram" }
+  "Joined {n} strip brush to the strip it runs into": { "one": "{n} brush de faixa ligado à faixa que encontra", "other": "{n} brushes de faixa ligados à faixa que encontram" },
+  "Tools at Cursor": "Ferramentas no cursor",
+  "Type a tool, or press its number…": "Digite uma ferramenta ou pressione seu número…",
+  "Lists the tools at the mouse pointer, type to filter or press a number to pick one": "Lista as ferramentas junto ao ponteiro, digite para filtrar ou pressione um número para escolher uma"
 }

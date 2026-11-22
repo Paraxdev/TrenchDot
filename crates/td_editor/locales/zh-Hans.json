@@ -2759,5 +2759,8 @@
   "Strip: click to place the first corner": "条带：单击放置第一个角点",
   "Strip: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "条带：单击角点，Enter 结束路径，第一个角点闭合路径，Backspace 撤销",
   "Created {n} strip brush in a group": { "other": "已在组中创建 {n} 个条带笔刷" },
-  "Joined {n} strip brush to the strip it runs into": { "other": "已将 {n} 个条带笔刷接入其相交的条带" }
+  "Joined {n} strip brush to the strip it runs into": { "other": "已将 {n} 个条带笔刷接入其相交的条带" },
+  "Tools at Cursor": "光标处的工具",
+  "Type a tool, or press its number…": "输入工具名或按其编号…",
+  "Lists the tools at the mouse pointer, type to filter or press a number to pick one": "在鼠标指针处列出工具，输入可筛选，按数字可选择"
 }

@@ -2759,5 +2759,8 @@
   "Strip: click to place the first corner": "Franja: haz clic para colocar la primera esquina",
   "Strip: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Franja: haz clic en las esquinas, Intro termina el trazado, la primera esquina lo cierra, Retroceso deshace",
   "Created {n} strip brush in a group": { "one": "{n} brush de franja creado en un grupo", "other": "{n} brushes de franja creados en un grupo" },
-  "Joined {n} strip brush to the strip it runs into": { "one": "{n} brush de franja unido a la franja con la que se cruza", "other": "{n} brushes de franja unidos a la franja con la que se cruzan" }
+  "Joined {n} strip brush to the strip it runs into": { "one": "{n} brush de franja unido a la franja con la que se cruza", "other": "{n} brushes de franja unidos a la franja con la que se cruzan" },
+  "Tools at Cursor": "Herramientas en el cursor",
+  "Type a tool, or press its number…": "Escribe una herramienta o pulsa su número…",
+  "Lists the tools at the mouse pointer, type to filter or press a number to pick one": "Muestra las herramientas junto al puntero, escribe para filtrar o pulsa un número para elegir una"
 }

@@ -52,6 +52,9 @@ pub struct CommandPalette {
     selected: usize,
     /// Lists the brush entity classes instead of the commands, for Tie to Entity.
     class_picker: bool,
+    /// Lists only the tools in a small popup at the pointer, and number keys pick them.
+    tools: bool,
+    tools_at: Option<egui::Pos2>,
 }
 
 /// A command listed as "Category: Name", `category` and `name` are English keys. `en` keeps the English label for
@@ -174,6 +177,7 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
         entry(en!("File"), en!("Close Tab"), Action::CloseTab),
         entry(en!("File"), en!("Next Tab"), Action::NextTab),
         entry(en!("Help"), en!("Keyboard Shortcuts"), Action::ShowKeymap),
+        entry(en!("Tool"), en!("Tools at Cursor"), Action::ShowToolsPopup),
         entry(en!("Godot"), en!("Reload Models"), Action::ReloadModels),
         entry(en!("Godot"), en!("Add Content to Project"), Action::ShowProjectContent),
         entry(en!("Godot"), en!("Install or Update Addon"), Action::ShowAddonSetup),
@@ -367,6 +371,14 @@ impl CommandPalette {
         self.query.clear();
         self.selected = 0;
         self.class_picker = false;
+        self.tools = false;
+        self.tools_at = None;
+    }
+
+    pub fn open_tools(&mut self) {
+        self.toggle();
+        self.open = true;
+        self.tools = true;
     }
 
     /// Opens the list of brush entity classes with `default` highlighted.
@@ -374,10 +386,18 @@ impl CommandPalette {
         self.open = true;
         self.query.clear();
         self.class_picker = true;
+        self.tools = false;
         self.selected = ranked("", class_entries(state)).iter().position(|(_, label, _)| label.en == default).unwrap_or(0);
     }
 
     fn entries(&self, state: &EditorState) -> Vec<(Msg, Action)> {
+        if self.tools {
+            return ToolKind::all()
+                .into_iter()
+                .map(|t| (Msg { en: i18n::english(t.label()).to_string(), shown: tr(t.label()).to_string() }, Action::SetTool(t)))
+                .collect();
+        }
+
         if self.class_picker { class_entries(state) } else { palette_entries(state) }
     }
 
@@ -386,7 +406,12 @@ impl CommandPalette {
             return;
         }
 
-        let matches = ranked(&self.query, self.entries(state));
+        let mut matches = ranked(&self.query, self.entries(state));
+        if self.tools {
+            let order = ToolKind::all();
+            matches.sort_by_key(|(score, _, a)| (-score, order.iter().position(|t| Action::SetTool(*t) == *a)));
+        }
+
         self.selected = self.selected.min(matches.len().saturating_sub(1));
 
         let (up, down, enter, escape) = ctx.input_mut(|i| {
@@ -415,6 +440,16 @@ impl CommandPalette {
             run = Some(a.clone());
         }
 
+        let numbered = self.tools && self.query.is_empty();
+        if numbered && let Some(n) = ctx.input_mut(|i| (1..=9).find(|&n| i.consume_key(egui::Modifiers::NONE, commands::DIGITS[n - 1]))) {
+            if let Some((_, _, a)) = matches.get(n - 1) {
+                actions.push(a.clone());
+            }
+
+            self.open = false;
+            return;
+        }
+
         let frame = egui::Frame::window(&ctx.global_style()).fill(ctx.global_style().visuals.window_fill.gamma_multiply(1.0)).shadow(egui::Shadow {
             offset: [0, 8],
             blur: 24,
@@ -422,11 +457,26 @@ impl CommandPalette {
             color: egui::Color32::from_black_alpha(crate::theme::colors().modal_shadow_alpha),
         });
         // Modal, so a click outside closes the palette instead of reaching the view under it.
-        let area = egui::Modal::default_area(egui::Id::new("command_palette")).anchor(egui::Align2::CENTER_TOP, [0.0, 80.0]);
+        if self.tools && self.tools_at.is_none() {
+            self.tools_at = Some(ctx.pointer_latest_pos().unwrap_or_else(|| ctx.content_rect().center()));
+        }
+
+        let area = match self.tools_at {
+            Some(at) => egui::Area::new(egui::Id::new("command_palette"))
+                .kind(egui::UiKind::Modal)
+                .sense(egui::Sense::hover())
+                .order(egui::Order::Foreground)
+                .interactable(true)
+                .fixed_pos(at)
+                .constrain(true),
+            None => egui::Modal::default_area(egui::Id::new("command_palette")).anchor(egui::Align2::CENTER_TOP, [0.0, 80.0]),
+        };
         let modal =
             egui::Modal::new(egui::Id::new("command_palette")).area(area).frame(frame).backdrop_color(egui::Color32::from_black_alpha(60)).show(ctx, |ui| {
-                ui.set_width(460.0);
-                let hint = if self.class_picker {
+                ui.set_width(if self.tools { 240.0 } else { 460.0 });
+                let hint = if self.tools {
+                    tr("Type a tool, or press its number…")
+                } else if self.class_picker {
                     ui.label(RichText::new(tr("Tie to Entity")).strong());
                     tr("Type a class…")
                 } else {
@@ -444,7 +494,8 @@ impl CommandPalette {
                     for (i, (_, label, action)) in matches.iter().enumerate().take(200) {
                         let shortcut = commands::shortcut_text(ctx, &state.prefs, action).unwrap_or_default();
                         let resp = ui.horizontal(|ui| {
-                            let r = ui.selectable_label(i == self.selected, &label.shown);
+                            let text = if numbered && i < 9 { format!("{}  {}", i + 1, label.shown) } else { label.shown.clone() };
+                            let r = ui.selectable_label(i == self.selected, text);
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.label(RichText::new(shortcut).weak()));
                             r
                         });
@@ -2245,6 +2296,34 @@ mod tests {
         assert!(run(&mut palette, vec![egui::Event::Text("tie to".into())]).is_empty());
         let ran = run(&mut palette, vec![key(egui::Key::Enter)]);
         assert_eq!(ran, vec![Action::TieToEntity], "{ran:?}");
+    }
+
+    #[test]
+    fn the_tools_popup_picks_a_tool_by_number_or_by_name() {
+        let (ctx, state, mut time) = (egui::Context::default(), EditorState::new(Default::default()), 0.0);
+        let key = |key| egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
+        let mut palette = CommandPalette::default();
+        let mut run = |palette: &mut CommandPalette, events: Vec<egui::Event>| {
+            for _ in 0..3 {
+                palette_frame(&ctx, palette, &state, &mut time, vec![]);
+            }
+
+            palette_frame(&ctx, palette, &state, &mut time, events)
+        };
+
+        palette.open_tools();
+        assert_eq!(run(&mut palette, vec![key(egui::Key::Num1)]), vec![Action::SetTool(ToolKind::all()[0])], "numbered in toolbar order");
+        palette.open_tools();
+        assert_eq!(run(&mut palette, vec![key(egui::Key::Num2)]), vec![Action::SetTool(ToolKind::all()[1])]);
+        assert!(!palette.open);
+
+        palette.open_tools();
+        assert!(run(&mut palette, vec![egui::Event::Text("clip".into())]).is_empty());
+        assert!(run(&mut palette, vec![key(egui::Key::Num1)]).is_empty(), "with a query typed, numbers are text");
+        assert_eq!(run(&mut palette, vec![key(egui::Key::Enter)]), vec![Action::SetTool(ToolKind::Clip)]);
+
+        palette.toggle();
+        assert!(palette.open && !palette.tools, "the next palette lists commands again");
     }
 
     #[test]

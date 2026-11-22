@@ -1263,6 +1263,7 @@ impl App {
     pub(crate) fn run_app_action(&mut self, action: Action) -> Option<Action> {
         match action {
             Action::ShowCommandPalette => self.palette.toggle(),
+            Action::ShowToolsPopup => self.palette.open_tools(),
             Action::ShowShapeDialog => self.shape_dialog.open = true,
             Action::ShowTrimDialog => self.trim_dialog.open = true,
             Action::ShowSweepDialog => self.sweep_dialog.open = true,
@@ -2171,6 +2172,7 @@ impl App {
             menu(ui, en!("Help"), |ui| {
                 ui.set_min_width(MENU_WIDTH);
                 m.item(ui, Some(icons::COMMAND), en!("Command Palette"), Action::ShowCommandPalette);
+                m.item(ui, None, en!("Tools at Cursor"), Action::ShowToolsPopup);
                 m.item(ui, Some(icons::KEYBOARD), en!("Keyboard Shortcuts…"), Action::ShowKeymap);
                 m.item(ui, None, en!("Entity and Code Reference"), Action::ShowReference);
                 m.item(ui, None, en!("Check for Updates…"), Action::CheckForUpdates);
