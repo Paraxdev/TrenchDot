@@ -1349,6 +1349,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             }
             None => state.fail_status(msg!("Select one object to rename it")),
         },
+        Action::Duplicate if state.doc.selection.nodes.is_empty() => state.fail_status(msg!("Nothing to duplicate")),
         Action::Duplicate => {
             let offset = DVec3::new(grid, 0.0, grid);
             state.doc.edit("Duplicate", |m, s| ops::duplicate_selection(m, s, offset, opts));
@@ -1576,9 +1577,17 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         Action::Group => {
             edit_or(state, "Group", msg!("Nothing to group"), |m, s| ops::group_selection(m, s, "Group", parent));
         }
-        Action::Ungroup => state.doc.edit("Ungroup", ops::ungroup_selection),
+        Action::Ungroup => {
+            let map = &state.doc.map;
+            if state.doc.selection.nodes.iter().any(|id| matches!(map.get(*id).map(|n| &n.kind), Some(td_doc::NodeKind::Group(_)))) {
+                state.doc.edit("Ungroup", ops::ungroup_selection);
+            } else {
+                state.fail_status(msg!("Nothing to ungroup, select a group"));
+            }
+        }
         Action::HideSelected => state.doc.edit("Hide", ops::hide_selection),
         Action::IsolateSelected => state.doc.edit("Isolate", |m, s| ops::isolate_selection(m, s)),
+        Action::UnhideAll if !state.doc.map.nodes.values().any(|n| n.hidden) => state.fail_status(msg!("Nothing is hidden")),
         Action::UnhideAll => state.doc.edit("Show All", |m, _| ops::unhide_all(m)),
         Action::LockSelected => state.doc.edit("Lock", |m, s| {
             let roots = ops::selection_roots(m, s);

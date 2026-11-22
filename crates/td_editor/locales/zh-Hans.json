@@ -2781,5 +2781,8 @@
   "Updated the addon{old} to {version}.": "插件{old}已更新到 {version}。",
   "Installed in {dir}.": "已安装在 {dir}。",
   "Makes info_player_start spawn a first person player you can walk around with.": "让 info_player_start 生成一个可以四处走动的第一人称玩家。",
-  "Show Backup": "显示备份"
+  "Show Backup": "显示备份",
+  "Nothing to duplicate": "没有可复制的对象",
+  "Nothing to ungroup, select a group": "没有可解组的对象，请选择一个组",
+  "Nothing is hidden": "没有隐藏的对象"
 }

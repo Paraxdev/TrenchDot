@@ -2781,5 +2781,8 @@
   "Updated the addon{old} to {version}.": "Addon{old} auf {version} aktualisiert.",
   "Installed in {dir}.": "Installiert in {dir}.",
   "Makes info_player_start spawn a first person player you can walk around with.": "Lässt info_player_start einen Spieler in Egoperspektive spawnen, mit dem du herumlaufen kannst.",
-  "Show Backup": "Sicherung zeigen"
+  "Show Backup": "Sicherung zeigen",
+  "Nothing to duplicate": "Nichts zu duplizieren",
+  "Nothing to ungroup, select a group": "Nichts aufzulösen, wähle eine Gruppe",
+  "Nothing is hidden": "Nichts ist ausgeblendet"
 }

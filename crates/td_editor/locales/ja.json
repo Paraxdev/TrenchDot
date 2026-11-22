@@ -2781,5 +2781,8 @@
   "Updated the addon{old} to {version}.": "アドオン{old}を {version} に更新しました。",
   "Installed in {dir}.": "{dir} にインストール済み。",
   "Makes info_player_start spawn a first person player you can walk around with.": "info_player_start から歩き回れる一人称プレイヤーがスポーンするようにします。",
-  "Show Backup": "バックアップを表示"
+  "Show Backup": "バックアップを表示",
+  "Nothing to duplicate": "複製するものがありません",
+  "Nothing to ungroup, select a group": "解除するグループがありません、グループを選択してください",
+  "Nothing is hidden": "非表示のものはありません"
 }

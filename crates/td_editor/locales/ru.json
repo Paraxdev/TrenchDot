@@ -2781,5 +2781,8 @@
   "Updated the addon{old} to {version}.": "Аддон обновлён{old} до {version}.",
   "Installed in {dir}.": "Установлено в {dir}.",
   "Makes info_player_start spawn a first person player you can walk around with.": "info_player_start будет создавать игрока от первого лица, которым можно ходить.",
-  "Show Backup": "Показать резервную копию"
+  "Show Backup": "Показать резервную копию",
+  "Nothing to duplicate": "Нечего дублировать",
+  "Nothing to ungroup, select a group": "Нечего разгруппировать, выберите группу",
+  "Nothing is hidden": "Ничего не скрыто"
 }
