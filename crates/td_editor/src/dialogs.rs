@@ -473,7 +473,7 @@ impl CommandPalette {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum ShapeKind {
     Cylinder,
     Cone,
@@ -561,6 +561,8 @@ pub struct ShapeDialog {
     axis: shapes::Axis,
     text: TextShape,
     rock: Rock,
+    /// The name the preset row saves under, filled in when a preset is picked.
+    preset_name: String,
     /// The editor's grid step, so a tunnel's wall cap lands on it the way its field shows.
     grid: f64,
     /// The span and angle a radius typed out of reach was cut back to, so the dialog says so until either changes.
@@ -572,6 +574,30 @@ pub struct ShapeDialog {
     /// One entry per Create while the dialog stays open, so an undo, a redo or selecting an earlier shape again still
     /// finds its box.
     made: Vec<Made>,
+}
+
+/// Shape Generator settings saved under a name in the preferences, so every map can use them.
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct ShapePreset {
+    pub name: String,
+    pub kind: ShapeKind,
+    pub sides: usize,
+    pub thickness: f64,
+    pub angle: f64,
+    pub tunnel: shapes::Tunnel,
+    pub steps: usize,
+    pub as_mesh: bool,
+    pub smooth: bool,
+    pub axis: shapes::Axis,
+    pub text: TextShape,
+    pub rock: Rock,
+}
+
+impl Default for ShapePreset {
+    fn default() -> Self {
+        ShapeDialog::default().preset(String::new())
+    }
 }
 
 /// What a Create made from which box. While it stays selected and unmoved, Create again builds from that box rather
@@ -589,7 +615,8 @@ const HEAVY_TRIANGLES: usize = 10_000;
 type ShapeKey = (ShapeKind, usize, f64, usize, bool, bool, shapes::Axis, TextShape, Rock, Aabb, String, (Option<f64>, Option<shapes::Tunnel>));
 
 /// Block letter settings of the Text shape, laid out from the corner of the bounds.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct TextShape {
     pub text: String,
     pub letter_height: f64,
@@ -629,6 +656,7 @@ impl Default for ShapeDialog {
             axis: shapes::Axis::Y,
             text: TextShape::default(),
             rock: Rock::default(),
+            preset_name: String::new(),
             grid: 0.0,
             radius_cut: None,
             bounds: None,
@@ -718,6 +746,75 @@ fn shape_sources(state: &EditorState) -> Vec<td_doc::NodeId> {
 }
 
 impl ShapeDialog {
+    fn preset(&self, name: String) -> ShapePreset {
+        ShapePreset {
+            name,
+            kind: self.kind,
+            sides: self.sides,
+            thickness: self.thickness,
+            angle: self.angle,
+            tunnel: self.tunnel,
+            steps: self.steps,
+            as_mesh: self.as_mesh,
+            smooth: self.smooth,
+            axis: self.axis,
+            text: self.text.clone(),
+            rock: self.rock,
+        }
+    }
+
+    fn apply_preset(&mut self, p: &ShapePreset) {
+        self.kind = p.kind;
+        self.sides = p.sides;
+        self.thickness = p.thickness;
+        self.angle = p.angle;
+        self.tunnel = p.tunnel;
+        self.steps = p.steps;
+        self.as_mesh = p.as_mesh;
+        self.smooth = p.smooth;
+        self.axis = p.axis;
+        self.text = p.text.clone();
+        self.rock = p.rock;
+        self.preset_name = p.name.clone();
+    }
+
+    fn preset_row(&mut self, ui: &mut egui::Ui, presets: &mut Vec<ShapePreset>) {
+        ui.horizontal(|ui| {
+            let mut picked = None;
+            egui::ComboBox::new("shape_preset", tr("Preset")).selected_text(self.preset_name.as_str()).show_ui(ui, |ui| {
+                for p in presets.iter() {
+                    if ui.selectable_label(p.name == self.preset_name, &p.name).clicked() {
+                        picked = Some(p.clone());
+                    }
+                }
+            });
+            if let Some(p) = picked {
+                self.apply_preset(&p);
+            }
+
+            ui.add(egui::TextEdit::singleline(&mut self.preset_name).hint_text(tr("Preset name")).desired_width(110.0));
+            let name = self.preset_name.trim().to_string();
+            let existing = presets.iter().position(|p| p.name == name);
+            if ui
+                .add_enabled(!name.is_empty(), egui::Button::new(tr("Save Preset")))
+                .on_hover_text(tr("Keeps these settings under the name for every map"))
+                .clicked()
+            {
+                let preset = self.preset(name.clone());
+                match existing {
+                    Some(i) => presets[i] = preset,
+                    None => presets.push(preset),
+                }
+
+                self.preset_name = name.clone();
+            }
+
+            if ui.add_enabled(existing.is_some(), egui::Button::new(tr("Delete"))).clicked() {
+                presets.retain(|p| p.name != name);
+            }
+        });
+    }
+
     fn key(&self, bounds: &Aabb, material: &str) -> ShapeKey {
         (
             self.kind,
@@ -1014,6 +1111,7 @@ impl ShapeDialog {
         widgets::top_window(en!("Shape Generator"), ctx).open(&mut open).resizable(false).show(ctx, |ui| {
             // The default menu height shows 7 of the shapes with no sign that more follow.
             let menu_height = ctx.content_rect().height() * 0.7;
+            self.preset_row(ui, &mut state.prefs.shape_presets);
             egui::ComboBox::new("shape_kind", tr("Shape")).selected_text(tr(self.kind.label())).height(menu_height).show_ui(ui, |ui| {
                 for k in ShapeKind::ALL {
                     ui.selectable_value(&mut self.kind, k, tr(k.label()));
@@ -3093,6 +3191,39 @@ mod tests {
         harness.state_mut().angle = 120.0;
         harness.run();
         assert!(!note(&harness), "moving the angle clears it too");
+    }
+
+    #[test]
+    fn shape_presets_save_pick_and_delete_through_the_preferences() {
+        use egui_kittest::kittest::Queryable;
+        let dialog = ShapeDialog { kind: ShapeKind::Rock, rock: Rock { seed: 7, ..Default::default() }, preset_name: " boulder ".into(), ..Default::default() };
+        let mut h = egui_kittest::Harness::builder()
+            .with_size(egui::vec2(560.0, 240.0))
+            .build_ui_state(|ui, (d, presets): &mut (ShapeDialog, Vec<ShapePreset>)| d.preset_row(ui, presets), (dialog, Vec::new()));
+        h.run();
+        h.get_by_label("Save Preset").click();
+        h.run();
+        let saved = h.state().1.clone();
+        assert_eq!(saved.len(), 1);
+        assert_eq!((saved[0].name.as_str(), saved[0].kind, saved[0].rock.seed), ("boulder", ShapeKind::Rock, 7));
+
+        let mut prefs = crate::state::Prefs { shape_presets: saved, ..Default::default() };
+        prefs = serde_json::from_str(&serde_json::to_string(&prefs).unwrap()).unwrap();
+        assert_eq!(prefs.shape_presets, h.state().1, "presets survive a restart");
+        let older: crate::state::Prefs = serde_json::from_str("{}").unwrap();
+        assert!(older.shape_presets.is_empty());
+
+        h.state_mut().0 = ShapeDialog::default();
+        h.run();
+        h.get_by_role(egui::accesskit::Role::ComboBox).click();
+        h.run();
+        h.get_by_label("boulder").click();
+        h.run();
+        assert_eq!((h.state().0.kind, h.state().0.rock.seed, h.state().0.preset_name.as_str()), (ShapeKind::Rock, 7, "boulder"));
+
+        h.get_by_label("Delete").click();
+        h.run();
+        assert!(h.state().1.is_empty());
     }
 
     fn type_into_field(harness: &mut egui_kittest::Harness<'_, ShapeDialog>, index: usize, text: &str) {

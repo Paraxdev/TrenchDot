@@ -9,7 +9,7 @@ use crate::brush::Brush;
 use crate::uv::FaceUv;
 
 /// How a tunnel is cut across its length.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TunnelProfile {
     /// Two walls, with a ceiling and a floor when [`Tunnel`] asks for them.
     #[default]
@@ -37,7 +37,7 @@ impl TunnelProfile {
 }
 
 /// The world direction a tunnel's far end bends toward.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Toward {
     #[default]
     PlusX,
@@ -101,7 +101,8 @@ impl Toward {
 }
 
 /// Every option of a tunnel. The default is the tunnel the Shape Generator has always made.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct Tunnel {
     pub profile: TunnelProfile,
     /// Segments of an arched tunnel's arch, sides of a round tunnel.

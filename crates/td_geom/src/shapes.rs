@@ -17,7 +17,7 @@ pub use roof::{RoofEnd, Wing, roof};
 pub use tunnel::{Toward, Tunnel, TunnelProfile, tunnel, tunnel_thickness};
 
 /// The world axis a round shape (cylinder, cone) runs along.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Axis {
     X,
     #[default]

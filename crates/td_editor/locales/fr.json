@@ -2731,5 +2731,8 @@
   "Bridge Faces": "Relier les faces",
   "Fills the space between two selected faces with one brush, a ramp, beam or plug": "Remplit l'espace entre deux faces sélectionnées avec un brush, rampe, poutre ou bouchon",
   "Select two faces to bridge, on one brush or two": "Sélectionne deux faces à relier, sur un brush ou sur deux",
-  "These faces lie in one plane, there is nothing between them to fill": "Ces faces sont dans un même plan, il n'y a rien à remplir entre elles"
+  "These faces lie in one plane, there is nothing between them to fill": "Ces faces sont dans un même plan, il n'y a rien à remplir entre elles",
+  "Preset name": "Nom du préréglage",
+  "Save Preset": "Enregistrer le préréglage",
+  "Keeps these settings under the name for every map": "Garde ces réglages sous ce nom pour toutes les cartes"
 }

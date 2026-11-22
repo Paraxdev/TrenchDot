@@ -8,7 +8,8 @@ use td_core::{Aabb, DVec3};
 pub const MAX_DETAIL: u32 = 4;
 pub const MAX_FACETS: u32 = 12;
 
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
 pub struct Rock {
     pub seed: u32,
     /// How far the noise pushes the surface in and out, 0 to 1.

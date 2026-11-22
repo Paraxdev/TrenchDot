@@ -454,6 +454,7 @@ pub struct Prefs {
     /// default keeps preferences saved by an older release from being asked, `Prefs::default` is a fresh install.
     #[serde(default = "answered_before")]
     pub keymap_asked: bool,
+    pub shape_presets: Vec<crate::dialogs::ShapePreset>,
 }
 
 fn answered_before() -> bool {
@@ -556,6 +557,7 @@ impl Default for Prefs {
             trusted_folders: Default::default(),
             trust_seeded: true,
             keymap_asked: false,
+            shape_presets: Vec::new(),
         }
     }
 }

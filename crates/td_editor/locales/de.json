@@ -2731,5 +2731,8 @@
   "Bridge Faces": "Flächen überbrücken",
   "Fills the space between two selected faces with one brush, a ramp, beam or plug": "Füllt den Raum zwischen zwei ausgewählten Flächen mit einem Brush, als Rampe, Balken oder Pfropfen",
   "Select two faces to bridge, on one brush or two": "Wähle zwei Flächen zum Überbrücken, an einem Brush oder an zweien",
-  "These faces lie in one plane, there is nothing between them to fill": "Diese Flächen liegen in einer Ebene, zwischen ihnen gibt es nichts zu füllen"
+  "These faces lie in one plane, there is nothing between them to fill": "Diese Flächen liegen in einer Ebene, zwischen ihnen gibt es nichts zu füllen",
+  "Preset name": "Name der Voreinstellung",
+  "Save Preset": "Voreinstellung speichern",
+  "Keeps these settings under the name for every map": "Behält diese Einstellungen unter dem Namen für jede Karte"
 }

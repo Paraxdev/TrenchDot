@@ -469,6 +469,11 @@ The new shape stays selected, so you can change an option and click **Create** a
 for example to go through a few rock seeds. Under the options the dialog counts the objects and triangles it would
 make. The triangle count turns yellow past 10,000, since a shape that heavy can slow the editor down.
 
+To reuse a shape you have tuned, such as a pillar or a rock you like, type a name in the field next to **Preset** at
+the top of the dialog and click **Save Preset**. It keeps the shape and all its options, not the box. Pick it from the
+**Preset** list later, in this map or any other, to load those settings again. Saving under a name that exists replaces
+that preset, and **Delete** removes the preset named in the field.
+
 ![The Shape Generator dialog set to Cylinder with 16 sides and the Y axis, filling a 128 x 192 x 128 selection](../assets/brushes/shape-generator.png)
 
 ![The selected box on the left, the 16 sided cylinder that replaced it on the right](../assets/brushes/shape-generator-box-to-cylinder.png)

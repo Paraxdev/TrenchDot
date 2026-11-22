@@ -2731,5 +2731,8 @@
   "Bridge Faces": "桥接面",
   "Fills the space between two selected faces with one brush, a ramp, beam or plug": "用一个画刷填满两个所选面之间的空间，可作坡道、横梁或封堵",
   "Select two faces to bridge, on one brush or two": "选择两个要桥接的面，可在同一个画刷上，也可在两个画刷上",
-  "These faces lie in one plane, there is nothing between them to fill": "这些面位于同一平面，之间没有可填充的空间"
+  "These faces lie in one plane, there is nothing between them to fill": "这些面位于同一平面，之间没有可填充的空间",
+  "Preset name": "预设名称",
+  "Save Preset": "保存预设",
+  "Keeps these settings under the name for every map": "以此名称保存这些设置，所有地图都可使用"
 }
