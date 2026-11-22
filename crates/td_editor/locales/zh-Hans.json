@@ -2785,5 +2785,6 @@
   "Nothing to duplicate": "没有可复制的对象",
   "Nothing to ungroup, select a group": "没有可解组的对象，请选择一个组",
   "Nothing is hidden": "没有隐藏的对象",
-  "The stairs are too wide for the path, make them narrower or space the points further apart": "楼梯对路径来说太宽，请调窄或拉开点的间距"
+  "The stairs are too wide for the path, make them narrower or space the points further apart": "楼梯对路径来说太宽，请调窄或拉开点的间距",
+  "No match": "无匹配项"
 }

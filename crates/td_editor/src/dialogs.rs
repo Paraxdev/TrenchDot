@@ -413,6 +413,23 @@ impl CommandPalette {
             return;
         }
 
+        // Shift+Q again moves the popup to the pointer rather than typing a Q into it.
+        if self.tools
+            && let Some((shortcut, _)) = commands::shortcuts(&state.prefs).into_iter().find(|(_, a)| *a == Action::ShowToolsPopup)
+            && ctx.input_mut(|i| {
+                let hit = commands::consume_shortcut(i, &shortcut);
+                if hit {
+                    i.events.retain(|e| !matches!(e, egui::Event::Text(_)));
+                }
+
+                hit
+            })
+        {
+            self.query.clear();
+            self.selected = 0;
+            self.tools_at = None;
+        }
+
         let mut matches = ranked(&self.query, self.entries(state));
         if self.tools {
             let order = ToolKind::all();
@@ -516,6 +533,10 @@ impl CommandPalette {
                         if resp.inner.clicked() {
                             run = Some(action.clone());
                         }
+                    }
+
+                    if matches.is_empty() {
+                        ui.label(RichText::new(tr("No match")).weak());
                     }
                 });
                 if let Some(help) = help {
@@ -2382,6 +2403,16 @@ mod tests {
         assert!(run(&mut palette, vec![egui::Event::Text("clip".into())]).is_empty());
         assert!(run(&mut palette, vec![key(egui::Key::Num1)]).is_empty(), "with a query typed, numbers are text");
         assert_eq!(run(&mut palette, vec![key(egui::Key::Enter)]), vec![Action::SetTool(ToolKind::Clip)]);
+
+        palette.open_tools();
+        palette.tools_at = Some(egui::pos2(5.0, 5.0));
+        assert!(run(&mut palette, vec![egui::Event::Text("zzz".into())]).is_empty());
+        assert!(run(&mut palette, vec![key(egui::Key::Enter)]).is_empty() && palette.open, "Enter with no match runs nothing");
+        let shift_q = egui::Event::Key { key: egui::Key::Q, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::SHIFT };
+        run(&mut palette, vec![shift_q, egui::Event::Text("Q".into())]);
+        assert!(palette.open && palette.query.is_empty(), "Shift+Q again types nothing: {:?}", palette.query);
+        assert_ne!(palette.tools_at, Some(egui::pos2(5.0, 5.0)), "Shift+Q again moves the popup");
+        assert!(run(&mut palette, vec![key(egui::Key::Escape)]).is_empty() && !palette.open);
 
         palette.toggle();
         assert!(palette.open && !palette.tools, "the next palette lists commands again");
