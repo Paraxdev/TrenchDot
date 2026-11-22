@@ -198,7 +198,7 @@ pub struct App {
     pub(crate) tool_options_rect: egui::Rect,
 }
 
-const WINDOW_TITLES: [&str; 17] = [
+const WINDOW_TITLES: [&str; 18] = [
     "Shape Generator",
     "Add Trim",
     "Sweep Faces",
