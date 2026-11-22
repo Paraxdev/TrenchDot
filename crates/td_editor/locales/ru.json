@@ -2688,7 +2688,7 @@
   "Walls: click to place the first corner": "Стены: щелчок ставит первый угол",
   "Walls: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Стены: щёлкайте углы, Enter завершает путь, первый угол замыкает его, Backspace отменяет",
   "Walls": "Стены",
-  "What the clicked corners make: one solid outline, a wall along each side or a trim along the path": "Что дают щёлкнутые углы: сплошной контур, стену вдоль каждой стороны или профиль вдоль пути",
+  "What the clicked corners make: one solid outline, walls, a trim or a raised strip along the path": "Что дают щёлкнутые углы: сплошной контур, стены, профиль или приподнятую полосу вдоль пути",
   "Created {n} wall in a group": { "one": "Создана {n} стена в группе", "few": "Создано {n} стены в группе", "many": "Создано {n} стен в группе" },
   "Outside": "Снаружи",
   "Centered": "По центру",
@@ -2753,5 +2753,11 @@
   "Takes the material picked in the Materials panel": "Берёт материал, выбранный в панели «Материалы»",
   "Select the brushes to paint": "Выберите браши для покраски",
   "A wall faces inside when walls stand ahead of it and to both sides": "Стена внутренняя, если впереди и по обе стороны от неё стоят стены",
-  "Apply to {n} brush": {"one": "Применить к {n} брашу", "few": "Применить к {n} брашам", "many": "Применить к {n} брашам"}
+  "Apply to {n} brush": {"one": "Применить к {n} брашу", "few": "Применить к {n} брашам", "many": "Применить к {n} брашам"},
+  "Strip": "Полоса",
+  "Create Strip": "Создать полосу",
+  "Strip: click to place the first corner": "Полоса: щёлкните, чтобы поставить первый угол",
+  "Strip: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Полоса: щёлкайте углы, Enter завершает путь, первый угол замыкает его, Backspace отменяет",
+  "Created {n} strip brush in a group": { "one": "Создан {n} браш полосы в группе", "few": "Создано {n} браша полосы в группе", "many": "Создано {n} брашей полосы в группе" },
+  "Joined {n} strip brush to the strip it runs into": { "one": "{n} браш полосы присоединён к полосе, в которую он упирается", "few": "{n} браша полосы присоединены к полосе, в которую они упираются", "many": "{n} брашей полосы присоединены к полосе, в которую они упираются" }
 }

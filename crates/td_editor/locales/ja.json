@@ -2688,7 +2688,7 @@
   "Walls: click to place the first corner": "壁：クリックで最初の角を置く",
   "Walls: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "壁：角をクリック、Enter でパスを終了、最初の角で閉じる、Backspace で取り消し",
   "Walls": "壁",
-  "What the clicked corners make: one solid outline, a wall along each side or a trim along the path": "クリックした角から作るもの：ひとつの立体の輪郭、各辺に沿った壁、またはパスに沿ったトリム",
+  "What the clicked corners make: one solid outline, walls, a trim or a raised strip along the path": "クリックした角から作るもの：ひとつの立体の輪郭、壁、トリム、またはパスに沿った一段高い帯",
   "Created {n} wall in a group": { "other": "グループに {n} 枚の壁を作成しました" },
   "Outside": "外側",
   "Centered": "中央",
@@ -2753,5 +2753,11 @@
   "Takes the material picked in the Materials panel": "マテリアルパネルで選んだマテリアルを使います",
   "Select the brushes to paint": "塗るブラシを選択してください",
   "A wall faces inside when walls stand ahead of it and to both sides": "正面と両側に壁があれば内壁になります",
-  "Apply to {n} brush": {"other": "ブラシ{n}個に適用"}
+  "Apply to {n} brush": {"other": "ブラシ{n}個に適用"},
+  "Strip": "帯",
+  "Create Strip": "帯を作成",
+  "Strip: click to place the first corner": "帯：クリックで最初の角を置く",
+  "Strip: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "帯：角をクリック、Enter でパスを終了、最初の角で閉じる、Backspace で元に戻す",
+  "Created {n} strip brush in a group": { "other": "グループに {n} 個の帯ブラシを作成しました" },
+  "Joined {n} strip brush to the strip it runs into": { "other": "{n} 個の帯ブラシを交わる帯につなげました" }
 }

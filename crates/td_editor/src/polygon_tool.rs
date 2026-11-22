@@ -1,6 +1,6 @@
 //! Polygon tool: click the corners of an outline in a view, close it and it is extruded into a brush, or into a few
 //! when the outline is concave. In wall and trim mode the corners are a path and every segment becomes a wall brush, or
-//! a trim profile swept along it. Shift on the first corner keeps an outline and the next ones become holes in it.
+//! a trim profile swept along it, or a raised strip that joins the strips it runs into. Shift on the first corner keeps an outline and the next ones become holes in it.
 
 use egui::{Color32, PointerButton, Pos2, Rect, Response, Stroke, Ui, Vec2};
 use td_core::{Aabb, DVec2, DVec3, NodeId, Plane};
@@ -35,10 +35,11 @@ pub enum PolygonMode {
     Outline,
     Walls,
     Trim,
+    Strip,
 }
 
 impl PolygonMode {
-    pub const ALL: [PolygonMode; 3] = [PolygonMode::Outline, PolygonMode::Walls, PolygonMode::Trim];
+    pub const ALL: [PolygonMode; 4] = [PolygonMode::Outline, PolygonMode::Walls, PolygonMode::Trim, PolygonMode::Strip];
 
     fn is_path(self) -> bool {
         self != PolygonMode::Outline
@@ -71,6 +72,21 @@ impl Default for TrimOptions {
         Self { profile: TrimProfile::Skirting, depth: 4.0, height: 12.0, align: WallAlign::Inside }
     }
 }
+
+#[derive(Clone, Copy, Debug)]
+pub struct StripOptions {
+    pub width: f64,
+    pub height: f64,
+}
+
+impl Default for StripOptions {
+    fn default() -> Self {
+        Self { width: 64.0, height: 8.0 }
+    }
+}
+
+/// Name of the group strips go into, a new strip that runs into one joins it.
+pub const STRIP_GROUP: &str = "Strip";
 
 /// Corner rounding of the outline, its holes or the path. A radius of 0 keeps the corners sharp.
 #[derive(Clone, Copy, Debug)]
@@ -171,6 +187,48 @@ pub fn create_trim(
     Ok(insert_group(state, parent, brushes, en!("Create Trim"), "Trim"))
 }
 
+/// Makes the brushes of a raised strip along a path. Where it runs into the brushes of an existing strip group it is cut
+/// back to meet them flush and joins that group, else it goes into a new group. Either way the group is selected.
+/// Returns the group, its new brushes and whether it joined an existing one.
+pub fn create_strip(
+    state: &mut EditorState,
+    parent: NodeId,
+    points: &[DVec3],
+    closed: bool,
+    normal: DVec3,
+    strip: StripOptions,
+    material: &str,
+) -> Result<(NodeId, Vec<NodeId>, bool), OutlineError> {
+    let plain = outline::walls(points, closed, normal, strip.height, strip.width, WallAlign::Center, material)?;
+    let reach = plain.iter().fold(Aabb::EMPTY, |b, w| b.union(&w.bounds()));
+    let map = &state.doc.map;
+    let mut joined = None;
+    let mut others = Vec::new();
+    for (id, brush) in map.brushes() {
+        let Some(group) = map.get(id).and_then(|n| n.parent) else { continue };
+        let in_strip = matches!(map.get(group).map(|n| &n.kind), Some(td_doc::NodeKind::Group(g)) if g.name == STRIP_GROUP);
+        if in_strip && map.is_editable(id) && brush.bounds().overlaps(&reach, 1e-6) && plain.iter().any(|w| w.intersects(brush)) {
+            joined.get_or_insert(group);
+            others.push(brush);
+        }
+    }
+
+    let brushes = outline::strip(points, closed, normal, strip.width, strip.height, &others, material)?;
+    let Some(group) = joined else {
+        let (group, ids) = insert_group(state, parent, brushes, en!("Create Strip"), STRIP_GROUP);
+        return Ok((group, ids, false));
+    };
+
+    let bounds = brushes.iter().fold(Aabb::EMPTY, |b, brush| b.union(&brush.bounds()));
+    let ids = state.doc.edit(en!("Create Strip"), |m, s| {
+        s.clear();
+        s.select_node(group);
+        brushes.into_iter().map(|b| m.insert(group, td_doc::NodeKind::Brush(b))).collect::<Vec<_>>()
+    });
+    state.last_bounds = bounds;
+    Ok((group, ids, true))
+}
+
 fn insert_group(state: &mut EditorState, parent: NodeId, brushes: Vec<Brush>, label: &str, name: &str) -> (NodeId, Vec<NodeId>) {
     let bounds = brushes.iter().fold(Aabb::EMPTY, |b, brush| b.union(&brush.bounds()));
     let made = state.doc.edit(label, |m, s| {
@@ -185,9 +243,10 @@ fn insert_group(state: &mut EditorState, parent: NodeId, brushes: Vec<Brush>, la
 }
 
 fn path_brushes(state: &EditorState, points: &[DVec3], closed: bool, normal: DVec3, material: &str) -> Result<Vec<Brush>, OutlineError> {
-    let (w, t) = (state.walls, state.trim);
+    let (w, t, st) = (state.walls, state.trim, state.strip);
     match state.polygon_mode {
         PolygonMode::Trim => outline::trim(points, closed, normal, &t.profile.points(t.depth, t.height), t.align, material),
+        PolygonMode::Strip => outline::walls(points, closed, normal, st.height, st.width, WallAlign::Center, material),
         _ => outline::walls(points, closed, normal, w.height, w.thickness, w.align, material),
     }
 }
@@ -338,6 +397,7 @@ impl PolygonTool {
         let parent = state.insert_parent();
         let material = state.current_material.clone();
         let round = state.polygon_round;
+        let mut joined = false;
         let made = match mode {
             PolygonMode::Outline => match self.outline_and_holes() {
                 Ok((outer, holes)) => {
@@ -354,6 +414,11 @@ impl PolygonTool {
                 let profile = t.profile.points(t.depth, t.height);
                 create_trim(state, parent, &round.apply(&self.points, closed), closed, frame.normal, &profile, t.align, &material).map(|(_, ids)| ids)
             }
+            PolygonMode::Strip => {
+                let made = create_strip(state, parent, &round.apply(&self.points, closed), closed, frame.normal, state.strip, &material);
+                joined = made.as_ref().is_ok_and(|m| m.2);
+                made.map(|(_, ids, _)| ids)
+            }
         };
         match made {
             Ok(ids) => {
@@ -364,6 +429,10 @@ impl PolygonTool {
                     PolygonMode::Outline => msg_n!(ids.len(), "Created {n} polygon brush", "Created {n} polygon brushes"),
                     PolygonMode::Walls => msg_n!(ids.len(), "Created {n} wall in a group", "Created {n} walls in a group"),
                     PolygonMode::Trim => msg_n!(ids.len(), "Created {n} trim brush in a group", "Created {n} trim brushes in a group"),
+                    PolygonMode::Strip if joined => {
+                        msg_n!(ids.len(), "Joined {n} strip brush to the strip it runs into", "Joined {n} strip brushes to the strip they run into")
+                    }
+                    PolygonMode::Strip => msg_n!(ids.len(), "Created {n} strip brush in a group", "Created {n} strip brushes in a group"),
                 });
                 self.reset();
             }
@@ -452,6 +521,8 @@ impl PolygonTool {
             (PolygonMode::Walls, false) => crate::i18n::trf!("Walls: click corners, Enter ends the path, the first corner closes it, Backspace undoes"),
             (PolygonMode::Trim, true) => crate::i18n::trf!("Trim: click to place the first corner"),
             (PolygonMode::Trim, false) => crate::i18n::trf!("Trim: click corners, Enter ends the path, the first corner closes it, Backspace undoes"),
+            (PolygonMode::Strip, true) => crate::i18n::trf!("Strip: click to place the first corner"),
+            (PolygonMode::Strip, false) => crate::i18n::trf!("Strip: click corners, Enter ends the path, the first corner closes it, Backspace undoes"),
             (PolygonMode::Outline, _) if holes => {
                 crate::i18n::trf!("Polygon hole: click its corners inside the outline, Shift on its first corner starts another, Enter makes the brush")
             }

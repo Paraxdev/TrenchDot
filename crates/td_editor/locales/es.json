@@ -2688,7 +2688,7 @@
   "Walls: click to place the first corner": "Paredes: clic coloca la primera esquina",
   "Walls: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Paredes: clic en las esquinas, Enter termina el trazado, la primera esquina lo cierra, Retroceso deshace",
   "Walls": "Paredes",
-  "What the clicked corners make: one solid outline, a wall along each side or a trim along the path": "Lo que forman las esquinas: un contorno sólido, una pared por lado o una moldura a lo largo del trazado",
+  "What the clicked corners make: one solid outline, walls, a trim or a raised strip along the path": "Lo que forman las esquinas: un contorno sólido, paredes, una moldura o una franja elevada a lo largo del trazado",
   "Created {n} wall in a group": { "one": "{n} pared creada en un grupo", "other": "{n} paredes creadas en un grupo" },
   "Outside": "Fuera",
   "Centered": "Centrado",
@@ -2753,5 +2753,11 @@
   "Takes the material picked in the Materials panel": "Toma el material elegido en el panel Materiales",
   "Select the brushes to paint": "Selecciona los brushes que pintar",
   "A wall faces inside when walls stand ahead of it and to both sides": "Una pared mira hacia dentro cuando hay paredes delante y a ambos lados",
-  "Apply to {n} brush": {"one": "Aplicar a {n} brush", "other": "Aplicar a {n} brushes"}
+  "Apply to {n} brush": {"one": "Aplicar a {n} brush", "other": "Aplicar a {n} brushes"},
+  "Strip": "Franja",
+  "Create Strip": "Crear franja",
+  "Strip: click to place the first corner": "Franja: haz clic para colocar la primera esquina",
+  "Strip: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Franja: haz clic en las esquinas, Intro termina el trazado, la primera esquina lo cierra, Retroceso deshace",
+  "Created {n} strip brush in a group": { "one": "{n} brush de franja creado en un grupo", "other": "{n} brushes de franja creados en un grupo" },
+  "Joined {n} strip brush to the strip it runs into": { "one": "{n} brush de franja unido a la franja con la que se cruza", "other": "{n} brushes de franja unidos a la franja con la que se cruzan" }
 }

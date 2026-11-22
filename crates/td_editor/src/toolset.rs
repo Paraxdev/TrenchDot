@@ -3255,6 +3255,24 @@ mod tests {
         assert_eq!(state.doc.history.undo_labels().next(), Some("Create Trim"));
         let b = state.doc.map.bounds_of([group]);
         assert_eq!((b.min.x, b.max.x, b.max.y - b.min.y), (-64.0, 64.0, 12.0), "the skirting stays inside the clicked room");
+
+        state.polygon_mode = crate::polygon_tool::PolygonMode::Strip;
+        state.strip.width = 16.0;
+        for c in [[-128.0, 0.0, 128.0], [128.0, 0.0, 128.0]] {
+            corner(&mut tools, &mut state, &top, c);
+        }
+
+        assert!(press(&mut tools, &mut state, Key::Enter));
+        let road = *state.doc.selection.nodes.iter().next().unwrap();
+        for c in [[0.0, 0.0, 128.0], [0.0, 0.0, 192.0]] {
+            corner(&mut tools, &mut state, &top, c);
+        }
+
+        assert!(press(&mut tools, &mut state, Key::Enter));
+        assert_eq!(state.doc.selection.nodes.iter().copied().collect::<Vec<_>>(), vec![road], "the branch joins the road's group");
+        assert_eq!(state.doc.map.get(road).unwrap().children.len(), 2);
+        assert_eq!(state.doc.map.bounds_of([road]).max.z, 192.0);
+        assert_eq!(state.doc.history.undo_labels().next(), Some("Create Strip"));
     }
 
     #[test]

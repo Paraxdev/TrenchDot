@@ -2688,7 +2688,7 @@
   "Walls: click to place the first corner": "Murs : cliquer place le premier coin",
   "Walls: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Murs : cliquez les coins, Entrée termine le tracé, le premier coin le ferme, Retour arrière annule",
   "Walls": "Murs",
-  "What the clicked corners make: one solid outline, a wall along each side or a trim along the path": "Ce que forment les coins cliqués : un contour plein, un mur par côté ou une moulure le long du tracé",
+  "What the clicked corners make: one solid outline, walls, a trim or a raised strip along the path": "Ce que forment les coins cliqués : un contour plein, des murs, une moulure ou une bande surélevée le long du tracé",
   "Created {n} wall in a group": { "one": "{n} mur créé dans un groupe", "other": "{n} murs créés dans un groupe" },
   "Outside": "Extérieur",
   "Centered": "Centré",
@@ -2753,5 +2753,11 @@
   "Takes the material picked in the Materials panel": "Prend le matériau choisi dans le panneau Matériaux",
   "Select the brushes to paint": "Sélectionnez les brushes à peindre",
   "A wall faces inside when walls stand ahead of it and to both sides": "Un mur donne sur l'intérieur quand des murs se dressent devant lui et des deux côtés",
-  "Apply to {n} brush": {"one": "Appliquer à {n} brush", "other": "Appliquer à {n} brushes"}
+  "Apply to {n} brush": {"one": "Appliquer à {n} brush", "other": "Appliquer à {n} brushes"},
+  "Strip": "Bande",
+  "Create Strip": "Créer une bande",
+  "Strip: click to place the first corner": "Bande : cliquez pour placer le premier coin",
+  "Strip: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Bande : cliquez les coins, Entrée termine le tracé, le premier coin le ferme, Retour arrière annule",
+  "Created {n} strip brush in a group": { "one": "{n} brush de bande créé dans un groupe", "other": "{n} brushes de bande créés dans un groupe" },
+  "Joined {n} strip brush to the strip it runs into": { "one": "{n} brush de bande raccordé à la bande qu’il rejoint", "other": "{n} brushes de bande raccordés à la bande qu’ils rejoignent" }
 }

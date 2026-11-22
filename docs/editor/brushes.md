@@ -267,6 +267,24 @@ x away from the path and y along the axis. `trim_size` sets `[depth, height]` fo
 
 </div>
 
+### Strips
+
+Pick **Strip** in the mode list for a pavement, a road or a raised walkway. Set its **width** (64 units) and
+**height** (8 units) next to the list, then click the corners the way you click walls. The strip runs centred on the
+path, and Enter or the first corner ends it like a wall path. A new strip goes into a group called Strip.
+
+When you draw a strip that runs into the brushes of an existing Strip group, the new strip is cut back where it
+overlaps them and joins that group. That is how you make junctions: start a branch in the middle of a road for a T, or
+draw straight across it for a crossing, and the pieces meet flush with no overlapping faces. A strip that crosses itself
+is cut the same way. Only brushes in a group named Strip count, so renaming the group keeps later strips out of it.
+
+<div class="td-mcp" markdown>
+
+`create_polygon_brush` makes a strip with `strip`, its width, and `height`. The reply's `joined` says whether it joined
+an existing Strip group.
+
+</div>
+
 ### Rounded corners
 
 For a round tower, a curved kerb or a room with soft corners, set **radius** in the tool options bar next to the mode

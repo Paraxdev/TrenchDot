@@ -3682,7 +3682,7 @@ fn polygon_brush_extrudes_convex_and_concave_outlines() {
     assert_eq!(outside["bounds"], json!({ "min": [592.0, 0.0, -8.0], "max": [736.0, 128.0, 136.0] }), "outside and 128 tall by default");
     let run = ed.call("create_polygon_brush", json!({ "points": [[0, 0, 600], [128, 0, 600]], "wall": 16 }));
     assert_eq!(run["ids"].as_array().unwrap().len(), 1, "two points are one wall");
-    assert!(ed.call_err("create_polygon_brush", json!({ "points": room, "closed": true })).contains("give wall or trim too"));
+    assert!(ed.call_err("create_polygon_brush", json!({ "points": room, "closed": true })).contains("give wall, trim or strip too"));
     let skirting = ed.call("create_polygon_brush", json!({ "points": room, "trim": "skirting", "trim_size": [4, 12], "closed": true }));
     assert_eq!(skirting["ids"].as_array().unwrap().len(), 4, "a skirting brush per side: {skirting}");
     assert_eq!(skirting["bounds"], json!({ "min": [600.0, 0.0, 0.0], "max": [728.0, 12.0, 128.0] }), "inside the room by default");
@@ -3697,6 +3697,15 @@ fn polygon_brush_extrudes_convex_and_concave_outlines() {
     assert!(ed.call_err("create_polygon_brush", json!({ "points": room, "trim_size": [4, 4] })).contains("give trim too"));
     assert!(ed.call_err("create_polygon_brush", json!({ "points": room, "wall": 0 })).contains("above 0"));
     assert!(ed.call_err("create_polygon_brush", json!({ "points": room, "wall": 8, "align": "left" })).contains("unknown align"));
+
+    let road = ed.call("create_polygon_brush", json!({ "points": [[2000, 0, 0], [2400, 0, 0]], "strip": 32 }));
+    assert_eq!((road["joined"].as_bool(), road["bounds"]["max"][1].as_f64()), (Some(false), Some(8.0)), "a new strip is 8 tall: {road}");
+    let branch = ed.call("create_polygon_brush", json!({ "points": [[2200, 0, 0], [2200, 0, 200]], "strip": 32 }));
+    assert_eq!((branch["joined"].as_bool(), branch["group"].as_u64()), (Some(true), road["group"].as_u64()), "the branch joins the road: {branch}");
+    assert_eq!(branch["bounds"]["min"][2], json!(16.0), "the branch stops at the road's side");
+    let crossing = ed.call("create_polygon_brush", json!({ "points": [[2100, 0, -100], [2100, 0, 100]], "strip": 32 }));
+    assert_eq!(crossing["ids"].as_array().unwrap().len(), 2, "a crossing is split around the road: {crossing}");
+    assert!(ed.call_err("create_polygon_brush", json!({ "points": room, "strip": 32, "wall": 8 })).contains("one of wall, trim or strip"));
 }
 
 /// Scripted building blocks the withered city showcase needs: block letters, window grids, plane clips, vertex moves and

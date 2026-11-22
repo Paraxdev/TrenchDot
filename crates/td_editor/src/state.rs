@@ -672,6 +672,7 @@ pub struct EditorState {
     pub polygon_mode: crate::polygon_tool::PolygonMode,
     pub walls: crate::polygon_tool::WallOptions,
     pub trim: crate::polygon_tool::TrimOptions,
+    pub strip: crate::polygon_tool::StripOptions,
     pub polygon_round: crate::polygon_tool::RoundOptions,
     pub prefabs: crate::prefabs::PrefabCache,
     /// World bounds of every instance node, refreshed by the scene cache.
@@ -932,6 +933,7 @@ impl EditorState {
             polygon_mode: Default::default(),
             walls: Default::default(),
             trim: Default::default(),
+            strip: Default::default(),
             polygon_round: Default::default(),
             prefabs: Default::default(),
             instance_bounds: Default::default(),

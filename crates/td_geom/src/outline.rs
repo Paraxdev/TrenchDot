@@ -522,6 +522,25 @@ pub fn walls(points: &[DVec3], closed: bool, normal: DVec3, height: f64, thickne
     Ok(out)
 }
 
+/// Brushes of a raised strip along a path, like a pavement or a road: walls `width` wide centred on the path and
+/// `height` tall. Where a segment overlaps an earlier one or one of `others`, the overlap is cut away, so a path that
+/// crosses itself or runs into another strip meets it flush at a junction instead of overlapping it.
+#[allow(clippy::too_many_arguments)]
+pub fn strip(points: &[DVec3], closed: bool, normal: DVec3, width: f64, height: f64, others: &[&Brush], material: &str) -> Result<Vec<Brush>, OutlineError> {
+    let segments = walls(points, closed, normal, height, width, WallAlign::Center, material)?;
+    let mut out = Vec::with_capacity(segments.len());
+    for (i, segment) in segments.iter().enumerate() {
+        let mut pieces = vec![segment.clone()];
+        for cutter in others.iter().copied().chain(&segments[..i]) {
+            pieces = pieces.iter().flat_map(|p| crate::csg::subtract_with(p, cutter, crate::csg::CarveMaterial::Target)).collect();
+        }
+
+        out.extend(pieces);
+    }
+
+    Ok(out)
+}
+
 /// Ready made trim cross sections.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TrimProfile {
@@ -658,6 +677,22 @@ mod tests {
 
         let ring = convex_pieces_with_holes(&outer, &[square(1.0, 1.0, 254.0)]).unwrap();
         assert!((ring.iter().map(|p| signed_area(p)).sum::<f64>() - (256.0 * 256.0 - 254.0 * 254.0)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn strips_meet_flush_at_junctions() {
+        let disjoint = |b: &[Brush]| (0..b.len()).all(|i| (i + 1..b.len()).all(|j| !b[i].intersects(&b[j])));
+        let road = strip(&lift(&pts(&[(0.0, 0.0), (256.0, 0.0)]), 0.0), false, DVec3::Z, 32.0, 8.0, &[], "m").unwrap();
+        let others: Vec<&Brush> = road.iter().collect();
+        let branch = strip(&lift(&pts(&[(128.0, 0.0), (128.0, 128.0)]), 0.0), false, DVec3::Z, 32.0, 8.0, &others, "m").unwrap();
+        assert!((volume(&branch) - 112.0 * 32.0 * 8.0).abs() < 1e-6, "the branch stops at the road's side");
+        let crossing = strip(&lift(&pts(&[(64.0, -128.0), (64.0, 128.0)]), 0.0), false, DVec3::Z, 32.0, 8.0, &others, "m").unwrap();
+        assert_eq!(crossing.len(), 2, "a crossing path is split around the road");
+        assert!(disjoint(&[road.clone(), branch, crossing].concat()));
+
+        let looped =
+            strip(&lift(&pts(&[(0.0, 0.0), (128.0, 0.0), (128.0, 128.0), (64.0, 128.0), (64.0, -64.0)]), 0.0), false, DVec3::Z, 16.0, 8.0, &[], "m").unwrap();
+        assert!(disjoint(&looped), "a path crossing itself does not overlap");
     }
 
     #[test]

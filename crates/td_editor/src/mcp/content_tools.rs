@@ -481,11 +481,19 @@ impl App {
             Value::Array(_) => return err("trim_size only applies to a named trim profile, scale the points instead"),
             v => return err(format!("trim is a profile name or a list of [x, y] points, got {v}")),
         };
-        let path = wall.is_some() || trim.is_some();
+        let strip = match &args["strip"] {
+            Value::Null => None,
+            _ if wall.is_some() || trim.is_some() => return err("give one of wall, trim or strip"),
+            v => match v.as_f64() {
+                Some(w) if w > 0.0 => Some(w),
+                _ => return err(format!("strip must be a width above 0 in units, got {v}")),
+            },
+        };
+        let path = wall.is_some() || trim.is_some() || strip.is_some();
         let mut holes: Vec<Vec<DVec3>> = Vec::new();
         match &args["holes"] {
             Value::Null => {}
-            _ if path => return err("holes only apply to a solid outline, not to walls or trim"),
+            _ if path => return err("holes only apply to a solid outline, not to walls, trim or a strip"),
             Value::Array(list) => {
                 for hole in list {
                     let corners: Option<Vec<DVec3>> = hole.as_array().map(|h| h.iter().map(vec3).collect()).unwrap_or(None);
@@ -503,7 +511,7 @@ impl App {
             Err(e) => return err(e),
         };
         if closed && !path {
-            return err("closed only applies to walls and trim, give wall or trim too");
+            return err("closed only applies to a path, give wall, trim or strip too");
         }
 
         let max = td_geom::outline::MAX_ROUND_SEGMENTS;
@@ -523,6 +531,7 @@ impl App {
             None if trim.is_some() => td_geom::outline::WallAlign::Inside,
             None => td_geom::outline::WallAlign::Outside,
             Some(_) if !path => return err("align only applies to walls and trim, give wall or trim too"),
+            Some(_) if strip.is_some() => return err("a strip is always centred on its path, leave out align"),
             Some((_, Some(a))) => a,
             Some((name, None)) => return err(format!("unknown align {name}, use outside, center or inside")),
         };
@@ -550,6 +559,7 @@ impl App {
         };
         let height = match &args["height"] {
             Value::Null if wall.is_some() => self.state.walls.height,
+            Value::Null if strip.is_some() => self.state.strip.height,
             Value::Null => self.state.grid,
             v => match v.as_f64() {
                 Some(h) => h,
@@ -567,6 +577,19 @@ impl App {
                 Ok((group, ids)) => {
                     let b = self.state.doc.map.bounds_of([group]);
                     ok(json!({ "ok": true, "group": group.0, "ids": ids.iter().map(|id| id.0).collect::<Vec<_>>(), "bounds": bounds_json(&b) }))
+                }
+                Err(e) => err(e.to_string()),
+            };
+        }
+
+        if let Some(width) = strip {
+            let options = crate::polygon_tool::StripOptions { width, height };
+            return match crate::polygon_tool::create_strip(&mut self.state, parent, &points, closed, normal, options, &material) {
+                Ok((group, ids, joined)) => {
+                    let b = self.state.doc.map.bounds_of(ids.iter().copied());
+                    ok(
+                        json!({ "ok": true, "group": group.0, "joined": joined, "ids": ids.iter().map(|id| id.0).collect::<Vec<_>>(), "bounds": bounds_json(&b) }),
+                    )
                 }
                 Err(e) => err(e.to_string()),
             };

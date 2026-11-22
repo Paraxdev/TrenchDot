@@ -2688,7 +2688,7 @@
   "Walls: click to place the first corner": "墙体：单击放置第一个角点",
   "Walls: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "墙体：单击角点，Enter 结束路径，单击第一个角点闭合，Backspace 撤销",
   "Walls": "墙体",
-  "What the clicked corners make: one solid outline, a wall along each side or a trim along the path": "单击的角点生成什么：一个实心轮廓、沿每条边的墙体或沿路径的装饰线",
+  "What the clicked corners make: one solid outline, walls, a trim or a raised strip along the path": "单击的角点生成什么：一个实心轮廓、墙体、装饰线或沿路径的凸起条带",
   "Created {n} wall in a group": { "other": "已在一个组中创建 {n} 面墙" },
   "Outside": "外侧",
   "Centered": "居中",
@@ -2753,5 +2753,11 @@
   "Takes the material picked in the Materials panel": "使用材质面板中选中的材质",
   "Select the brushes to paint": "选择要上色的笔刷",
   "A wall faces inside when walls stand ahead of it and to both sides": "前方和两侧都有墙时，墙面算作内墙",
-  "Apply to {n} brush": {"other": "应用到 {n} 个笔刷"}
+  "Apply to {n} brush": {"other": "应用到 {n} 个笔刷"},
+  "Strip": "条带",
+  "Create Strip": "创建条带",
+  "Strip: click to place the first corner": "条带：单击放置第一个角点",
+  "Strip: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "条带：单击角点，Enter 结束路径，第一个角点闭合路径，Backspace 撤销",
+  "Created {n} strip brush in a group": { "other": "已在组中创建 {n} 个条带笔刷" },
+  "Joined {n} strip brush to the strip it runs into": { "other": "已将 {n} 个条带笔刷接入其相交的条带" }
 }

@@ -2618,6 +2618,7 @@ impl App {
                         PolygonMode::Outline => tr("Outline"),
                         PolygonMode::Walls => tr("Walls"),
                         PolygonMode::Trim => tr("Trim"),
+                        PolygonMode::Strip => tr("Strip"),
                     };
                     let mode = &mut self.state.polygon_mode;
                     egui::ComboBox::from_id_salt("polygon_mode")
@@ -2629,7 +2630,7 @@ impl App {
                             }
                         })
                         .response
-                        .on_hover_text(tr("What the clicked corners make: one solid outline, a wall along each side or a trim along the path"));
+                        .on_hover_text(tr("What the clicked corners make: one solid outline, walls, a trim or a raised strip along the path"));
                     let round = &mut self.state.polygon_round;
                     ui.add(egui::DragValue::new(&mut round.radius).range(0.0..=4096.0).prefix(prefix(en!("radius"))).suffix(" u"))
                         .on_hover_text(tr("Rounds every corner into an arc this big, 0 keeps the corners sharp"));
@@ -2689,6 +2690,11 @@ impl App {
                             ui.add(egui::DragValue::new(&mut t.depth).range(1.0..=4096.0).prefix(prefix(en!("depth"))).suffix(" u"));
                             ui.add(egui::DragValue::new(&mut t.height).range(1.0..=16384.0).prefix(prefix(en!("height"))).suffix(" u"));
                             align_combo(ui, "trim_align", &mut t.align, tr("Which side of the clicked path the trim sticks out on, Inside lines a room"));
+                        }
+                        PolygonMode::Strip => {
+                            let st = &mut self.state.strip;
+                            ui.add(egui::DragValue::new(&mut st.width).range(1.0..=4096.0).prefix(prefix(en!("width"))).suffix(" u"));
+                            ui.add(egui::DragValue::new(&mut st.height).range(1.0..=4096.0).prefix(prefix(en!("height"))).suffix(" u"));
                         }
                     }
                 }

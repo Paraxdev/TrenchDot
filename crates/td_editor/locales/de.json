@@ -2688,7 +2688,7 @@
   "Walls: click to place the first corner": "Wände: Klicken setzt den ersten Eckpunkt",
   "Walls: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Wände: Ecken anklicken, Enter beendet den Pfad, der erste Punkt schließt ihn, Backspace macht rückgängig",
   "Walls": "Wände",
-  "What the clicked corners make: one solid outline, a wall along each side or a trim along the path": "Was die geklickten Ecken ergeben: einen vollen Umriss, eine Wand je Seite oder eine Leiste entlang des Pfads",
+  "What the clicked corners make: one solid outline, walls, a trim or a raised strip along the path": "Was die geklickten Ecken ergeben: einen vollen Umriss, Wände, eine Leiste oder einen erhöhten Streifen entlang des Pfads",
   "Created {n} wall in a group": { "one": "{n} Wand in einer Gruppe erstellt", "other": "{n} Wände in einer Gruppe erstellt" },
   "Outside": "Außen",
   "Centered": "Mittig",
@@ -2753,5 +2753,11 @@
   "Takes the material picked in the Materials panel": "Übernimmt das im Materialien-Panel gewählte Material",
   "Select the brushes to paint": "Wähle die Brushes zum Bemalen",
   "A wall faces inside when walls stand ahead of it and to both sides": "Eine Wand zeigt nach innen, wenn vor ihr und zu beiden Seiten Wände stehen",
-  "Apply to {n} brush": {"one": "Auf {n} Brush anwenden", "other": "Auf {n} Brushes anwenden"}
+  "Apply to {n} brush": {"one": "Auf {n} Brush anwenden", "other": "Auf {n} Brushes anwenden"},
+  "Strip": "Streifen",
+  "Create Strip": "Streifen erstellen",
+  "Strip: click to place the first corner": "Streifen: klicke, um die erste Ecke zu setzen",
+  "Strip: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Streifen: Ecken klicken, Enter beendet den Pfad, die erste Ecke schließt ihn, Rücktaste macht rückgängig",
+  "Created {n} strip brush in a group": { "one": "{n} Streifen-Brush in einer Gruppe erstellt", "other": "{n} Streifen-Brushes in einer Gruppe erstellt" },
+  "Joined {n} strip brush to the strip it runs into": { "one": "{n} Streifen-Brush an den Streifen angeschlossen, auf den er trifft", "other": "{n} Streifen-Brushes an den Streifen angeschlossen, auf den sie treffen" }
 }
