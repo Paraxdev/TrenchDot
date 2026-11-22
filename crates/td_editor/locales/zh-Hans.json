@@ -2740,5 +2740,7 @@
   "Click the corners of a hole inside the outline, Enter makes the brush": "在轮廓内点击洞的角点，Enter 创建笔刷",
   "Created {n} polygon brush around the holes": { "other": "已在洞的周围创建 {n} 个多边形笔刷" },
   "Winding corners": "扇形转角",
-  "Corners turn on wedge steps instead of a flat landing": "转角处用扇形踏步转弯，而不是平台"
+  "Corners turn on wedge steps instead of a flat landing": "转角处用扇形踏步转弯，而不是平台",
+  "Rounds every corner into an arc this big, 0 keeps the corners sharp": "把每个角倒成这么大的圆弧，0 保持尖角",
+  "How many straight pieces each rounded corner is made of": "每个圆角由多少段直线组成"
 }

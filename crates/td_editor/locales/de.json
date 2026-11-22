@@ -2740,5 +2740,7 @@
   "Click the corners of a hole inside the outline, Enter makes the brush": "Klicke die Ecken eines Lochs innerhalb des Umrisses, Enter erstellt den Brush",
   "Created {n} polygon brush around the holes": { "one": "{n} Polygon-Brush um die Löcher erstellt", "other": "{n} Polygon-Brushes um die Löcher erstellt" },
   "Winding corners": "Gewendelte Ecken",
-  "Corners turn on wedge steps instead of a flat landing": "Ecken drehen auf keilförmigen Stufen statt auf einem flachen Podest"
+  "Corners turn on wedge steps instead of a flat landing": "Ecken drehen auf keilförmigen Stufen statt auf einem flachen Podest",
+  "Rounds every corner into an arc this big, 0 keeps the corners sharp": "Rundet jede Ecke zu einem Bogen dieser Größe ab, 0 lässt die Ecken spitz",
+  "How many straight pieces each rounded corner is made of": "Aus wie vielen geraden Stücken jede abgerundete Ecke besteht"
 }

@@ -267,6 +267,25 @@ x away from the path and y along the axis. `trim_size` sets `[depth, height]` fo
 
 </div>
 
+### Rounded corners
+
+For a round tower, a curved kerb or a room with soft corners, set **radius** in the tool options bar next to the mode
+list. It is 0 by default, which keeps the corners sharp. Above 0, every corner you click becomes an arc that radius
+big, and a **segments** field appears for how many straight pieces each arc is made of (4 by default, up to 16). The
+rounding works the same in all three modes and also rounds the holes of an outline. The preview shows the rounded shape
+while you draw.
+
+Where two corners sit too close for the radius, each arc shrinks so it takes at most half of the stretch between them,
+so arcs never overlap. A square with a radius of half its side becomes a circle. The two ends of an open path stay
+sharp. A rounded outline is still convex where the clicked one was, so it stays one brush, while walls and trim get a
+brush for every piece of each arc.
+
+<div class="td-mcp" markdown>
+
+`create_polygon_brush` takes `round` as `[radius, segments]`, for outlines, holes, walls and trim alike.
+
+</div>
+
 ## Rotate, scale and measure
 
 | Tool | Input | Result |

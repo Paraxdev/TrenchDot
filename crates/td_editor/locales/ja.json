@@ -2740,5 +2740,7 @@
   "Click the corners of a hole inside the outline, Enter makes the brush": "輪郭の内側で穴の角をクリックしてください。Enter でブラシを作成します",
   "Created {n} polygon brush around the holes": { "other": "穴の周りに {n} 個のポリゴンブラシを作成しました" },
   "Winding corners": "回り階段の角",
-  "Corners turn on wedge steps instead of a flat landing": "角を平らな踊り場ではなくくさび形の段で回ります"
+  "Corners turn on wedge steps instead of a flat landing": "角を平らな踊り場ではなくくさび形の段で回ります",
+  "Rounds every corner into an arc this big, 0 keeps the corners sharp": "すべての角をこの大きさの円弧で丸めます。0 なら角はとがったままです",
+  "How many straight pieces each rounded corner is made of": "丸めた角それぞれを何本の直線で作るか"
 }

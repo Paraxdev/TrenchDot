@@ -72,6 +72,25 @@ impl Default for TrimOptions {
     }
 }
 
+/// Corner rounding of the outline, its holes or the path. A radius of 0 keeps the corners sharp.
+#[derive(Clone, Copy, Debug)]
+pub struct RoundOptions {
+    pub radius: f64,
+    pub segments: usize,
+}
+
+impl Default for RoundOptions {
+    fn default() -> Self {
+        Self { radius: 0.0, segments: 4 }
+    }
+}
+
+impl RoundOptions {
+    pub fn apply(self, points: &[DVec3], closed: bool) -> Vec<DVec3> {
+        outline::round_corners(points, closed, self.radius, self.segments)
+    }
+}
+
 #[derive(Default)]
 pub struct PolygonTool {
     pub points: Vec<DVec3>,
@@ -318,16 +337,22 @@ impl PolygonTool {
         };
         let parent = state.insert_parent();
         let material = state.current_material.clone();
+        let round = state.polygon_round;
         let made = match mode {
             PolygonMode::Outline => match self.outline_and_holes() {
-                Ok((outer, holes)) => create(state, parent, outer, &holes, frame.normal, frame.height, &material),
+                Ok((outer, holes)) => {
+                    let holes: Vec<Vec<DVec3>> = holes.iter().map(|h| round.apply(h, true)).collect();
+                    create(state, parent, &round.apply(outer, true), &holes, frame.normal, frame.height, &material)
+                }
                 Err(e) => Err(e),
             },
-            PolygonMode::Walls => create_walls(state, parent, &self.points, closed, frame.normal, state.walls, &material).map(|(_, ids)| ids),
+            PolygonMode::Walls => {
+                create_walls(state, parent, &round.apply(&self.points, closed), closed, frame.normal, state.walls, &material).map(|(_, ids)| ids)
+            }
             PolygonMode::Trim => {
                 let t = state.trim;
                 let profile = t.profile.points(t.depth, t.height);
-                create_trim(state, parent, &self.points, closed, frame.normal, &profile, t.align, &material).map(|(_, ids)| ids)
+                create_trim(state, parent, &round.apply(&self.points, closed), closed, frame.normal, &profile, t.align, &material).map(|(_, ids)| ids)
             }
         };
         match made {
@@ -355,6 +380,7 @@ impl PolygonTool {
 
         let lift = frame.normal * frame.height;
         for ring in &self.loops {
+            let ring = state.polygon_round.apply(ring, true);
             for i in 0..ring.len() {
                 let (a, b) = (ring[i], ring[(i + 1) % ring.len()]);
                 line(out, a, b, COLOR);
@@ -381,6 +407,13 @@ impl PolygonTool {
         } else if pts.len() >= 3 {
             line(out, pts[pts.len() - 1], pts[0], FAINT);
         }
+
+        if state.polygon_round.radius > 0.0 && pts.len() >= 3 {
+            let ring = state.polygon_round.apply(pts, true);
+            for i in 0..ring.len() {
+                line(out, ring[i], ring[(i + 1) % ring.len()], FAINT);
+            }
+        }
     }
 
     /// The path, and the walls or trim it would make up to the cursor.
@@ -391,6 +424,7 @@ impl PolygonTool {
             line(out, w[0], w[1], COLOR);
         }
 
+        let path = state.polygon_round.apply(&path, false);
         let Ok(brushes) = path_brushes(state, &path, false, frame.normal, "") else { return };
         for b in &brushes {
             for (i, j) in b.edges() {

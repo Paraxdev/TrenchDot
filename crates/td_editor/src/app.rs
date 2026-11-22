@@ -2625,6 +2625,14 @@ impl App {
                         })
                         .response
                         .on_hover_text(tr("What the clicked corners make: one solid outline, a wall along each side or a trim along the path"));
+                    let round = &mut self.state.polygon_round;
+                    ui.add(egui::DragValue::new(&mut round.radius).range(0.0..=4096.0).prefix(prefix(en!("radius"))).suffix(" u"))
+                        .on_hover_text(tr("Rounds every corner into an arc this big, 0 keeps the corners sharp"));
+                    if round.radius > 0.0 {
+                        ui.add(egui::DragValue::new(&mut round.segments).range(1..=td_geom::outline::MAX_ROUND_SEGMENTS).prefix(prefix(en!("segments"))))
+                            .on_hover_text(tr("How many straight pieces each rounded corner is made of"));
+                    }
+
                     let align_name = |a: WallAlign| match a {
                         WallAlign::Outside => tr("Outside"),
                         WallAlign::Center => tr("Centered"),

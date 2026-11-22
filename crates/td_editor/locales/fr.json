@@ -2740,5 +2740,7 @@
   "Click the corners of a hole inside the outline, Enter makes the brush": "Cliquez les coins d'un trou dans le contour, Enter crée le brush",
   "Created {n} polygon brush around the holes": { "one": "{n} brush polygone créé autour des trous", "other": "{n} brushes polygone créés autour des trous" },
   "Winding corners": "Angles balancés",
-  "Corners turn on wedge steps instead of a flat landing": "Les angles tournent sur des marches en éventail au lieu d'un palier plat"
+  "Corners turn on wedge steps instead of a flat landing": "Les angles tournent sur des marches en éventail au lieu d'un palier plat",
+  "Rounds every corner into an arc this big, 0 keeps the corners sharp": "Arrondit chaque coin en un arc de cette taille, 0 garde les coins vifs",
+  "How many straight pieces each rounded corner is made of": "Nombre de segments droits qui forment chaque coin arrondi"
 }

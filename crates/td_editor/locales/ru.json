@@ -2740,5 +2740,7 @@
   "Click the corners of a hole inside the outline, Enter makes the brush": "Щёлкайте углы отверстия внутри контура, Enter создаёт браш",
   "Created {n} polygon brush around the holes": { "one": "Создан {n} многоугольный браш вокруг отверстий", "few": "Создано {n} многоугольных браша вокруг отверстий", "many": "Создано {n} многоугольных брашей вокруг отверстий" },
   "Winding corners": "Забежные углы",
-  "Corners turn on wedge steps instead of a flat landing": "Углы поворачивают забежными ступенями вместо плоской площадки"
+  "Corners turn on wedge steps instead of a flat landing": "Углы поворачивают забежными ступенями вместо плоской площадки",
+  "Rounds every corner into an arc this big, 0 keeps the corners sharp": "Скругляет каждый угол дугой такого размера, 0 оставляет углы острыми",
+  "How many straight pieces each rounded corner is made of": "Из скольких прямых отрезков состоит каждый скруглённый угол"
 }

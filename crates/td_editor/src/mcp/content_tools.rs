@@ -506,6 +506,19 @@ impl App {
             return err("closed only applies to walls and trim, give wall or trim too");
         }
 
+        let max = td_geom::outline::MAX_ROUND_SEGMENTS;
+        let round = match &args["round"] {
+            Value::Null => crate::polygon_tool::RoundOptions::default(),
+            v => match v.as_array().map(|a| a.iter().map(Value::as_f64).collect::<Vec<_>>()).as_deref() {
+                Some([Some(r), Some(n)]) if *r >= 0.0 && n.fract() == 0.0 && (1.0..=max as f64).contains(n) => {
+                    crate::polygon_tool::RoundOptions { radius: *r, segments: *n as usize }
+                }
+                _ => return err(format!("round is [radius, segments], a radius of 0 or more and 1 to {max} segments, got {v}")),
+            },
+        };
+        let points = round.apply(&points, closed || !path);
+        let holes: Vec<Vec<DVec3>> = holes.iter().map(|h| round.apply(h, true)).collect();
+
         let align = match args["align"].as_str().map(|a| (a, td_geom::outline::WallAlign::parse(a))) {
             None if trim.is_some() => td_geom::outline::WallAlign::Inside,
             None => td_geom::outline::WallAlign::Outside,

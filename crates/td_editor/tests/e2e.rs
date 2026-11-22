@@ -3638,6 +3638,11 @@ fn polygon_brush_extrudes_convex_and_concave_outlines() {
     assert!(ring["ids"].as_array().unwrap().len() >= 4, "a square ring takes four convex pieces or more: {ring}");
     assert_eq!(ring["bounds"], json!({ "min": [0.0, 0.0, 900.0], "max": [192.0, 16.0, 1092.0] }));
     ed.call("run_action", json!({ "action": "undo" }));
+    let pad = ed.call("create_polygon_brush", json!({ "points": yard, "height": 16, "round": [32, 6] }));
+    assert_eq!(pad["ids"].as_array().unwrap().len(), 1, "a rounded square stays convex: {pad}");
+    assert_eq!(pad["bounds"], json!({ "min": [0.0, 0.0, 900.0], "max": [192.0, 16.0, 1092.0] }));
+    assert!(ed.call_err("create_polygon_brush", json!({ "points": yard, "round": [32, 0] })).contains("round is [radius, segments]"));
+    ed.call("run_action", json!({ "action": "undo" }));
 
     let room = json!([[600, 0, 0], [728, 0, 0], [728, 0, 128], [600, 0, 128]]);
     let walls = ed.call("create_polygon_brush", json!({ "points": room, "wall": 8, "closed": true, "height": 96, "align": "center" }));
@@ -3645,6 +3650,9 @@ fn polygon_brush_extrudes_convex_and_concave_outlines() {
     assert_eq!(walls["bounds"], json!({ "min": [596.0, 0.0, -4.0], "max": [732.0, 96.0, 132.0] }), "the floor's shared y is the axis");
     assert_eq!(selected(&ed), vec![walls["group"].as_u64().unwrap()], "the walls' group is selected");
     assert_eq!(ed.state()["undo"][0], "MCP: Create Walls");
+    let curved = ed.call("create_polygon_brush", json!({ "points": room, "wall": 8, "closed": true, "height": 96, "align": "center", "round": [16, 4] }));
+    assert_eq!(curved["ids"].as_array().unwrap().len(), 20, "four sides and four walls around each corner: {curved}");
+    assert_eq!(curved["bounds"], walls["bounds"]);
     let outside = ed.call("create_polygon_brush", json!({ "points": room, "wall": 8, "closed": true }));
     assert_eq!(outside["bounds"], json!({ "min": [592.0, 0.0, -8.0], "max": [736.0, 128.0, 136.0] }), "outside and 128 tall by default");
     let run = ed.call("create_polygon_brush", json!({ "points": [[0, 0, 600], [128, 0, 600]], "wall": 16 }));

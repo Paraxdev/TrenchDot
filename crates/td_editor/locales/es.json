@@ -2740,5 +2740,7 @@
   "Click the corners of a hole inside the outline, Enter makes the brush": "Haz clic en las esquinas de un agujero dentro del contorno, Enter crea el brush",
   "Created {n} polygon brush around the holes": { "one": "{n} brush de polígono creado alrededor de los agujeros", "other": "{n} brushes de polígono creados alrededor de los agujeros" },
   "Winding corners": "Esquinas compensadas",
-  "Corners turn on wedge steps instead of a flat landing": "Las esquinas giran con peldaños en cuña en lugar de un descansillo plano"
+  "Corners turn on wedge steps instead of a flat landing": "Las esquinas giran con peldaños en cuña en lugar de un descansillo plano",
+  "Rounds every corner into an arc this big, 0 keeps the corners sharp": "Redondea cada esquina en un arco de este tamaño, 0 deja las esquinas en punta",
+  "How many straight pieces each rounded corner is made of": "De cuántos tramos rectos se compone cada esquina redondeada"
 }

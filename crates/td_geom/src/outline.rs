@@ -404,6 +404,54 @@ fn inside_side(flat: &[DVec2], closed: bool) -> f64 {
     if turn < 0.0 { -1.0 } else { 1.0 }
 }
 
+/// Most straight pieces one rounded corner is made of.
+pub const MAX_ROUND_SEGMENTS: usize = 16;
+
+/// The path with every corner replaced by an arc of `segments` straight pieces that touches both edges `radius` from
+/// its centre. A corner whose edges are too short for the radius gets the biggest arc that takes at most half of each
+/// edge, so neighbouring arcs never overlap. The ends of an open path and straight corners stay as they are.
+pub fn round_corners(points: &[DVec3], closed: bool, radius: f64, segments: usize) -> Vec<DVec3> {
+    let mut pts = points.to_vec();
+    pts.dedup_by(|a, b| a.distance(*b) < MERGE_DISTANCE);
+    if closed && pts.len() > 1 && pts[0].distance(pts[pts.len() - 1]) < MERGE_DISTANCE {
+        pts.pop();
+    }
+
+    let n = pts.len();
+    if radius.is_nan() || radius <= 0.0 || segments == 0 || n < 3 {
+        return points.to_vec();
+    }
+
+    let segments = segments.min(MAX_ROUND_SEGMENTS);
+    let mut out: Vec<DVec3> = Vec::with_capacity(n * (segments + 1));
+    for i in 0..n {
+        let p = pts[i];
+        let (da, db) = (pts[(i + n - 1) % n] - p, pts[(i + 1) % n] - p);
+        let half = da.angle_between(db) / 2.0;
+        if (!closed && (i == 0 || i == n - 1)) || !(1e-3..std::f64::consts::FRAC_PI_2 - 1e-3).contains(&half) {
+            out.push(p);
+            continue;
+        }
+
+        let reach = (radius / half.tan()).min(da.length().min(db.length()) / 2.0);
+        let r = reach * half.tan();
+        let centre = p + (da.normalize() + db.normalize()).normalize() * (r / half.sin());
+        let (s, e) = (p + da.normalize() * reach - centre, p + db.normalize() * reach - centre);
+        let sweep = s.angle_between(e);
+        for k in 0..=segments {
+            let t = k as f64 / segments as f64;
+            out.push(centre + (s * ((1.0 - t) * sweep).sin() + e * (t * sweep).sin()) / sweep.sin());
+        }
+    }
+
+    out.dedup_by(|a, b| a.distance(*b) < MERGE_DISTANCE);
+    if closed && out.len() > 1 && out[0].distance(out[out.len() - 1]) < MERGE_DISTANCE {
+        out.pop();
+    }
+
+    out
+}
+
 /// Which side of the drawn path a wall lies on.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum WallAlign {
@@ -610,6 +658,29 @@ mod tests {
 
         let ring = convex_pieces_with_holes(&outer, &[square(1.0, 1.0, 254.0)]).unwrap();
         assert!((ring.iter().map(|p| signed_area(p)).sum::<f64>() - (256.0 * 256.0 - 254.0 * 254.0)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn rounded_corners_follow_an_arc_and_never_overlap() {
+        let r = 32.0;
+        let rounded = round_corners(&lift(&square(0.0, 0.0, 128.0), 0.0), true, r, 8);
+        assert_eq!(rounded.len(), 36);
+        let flat: Vec<DVec2> = rounded.iter().map(|p| p.truncate()).collect();
+        let cut = r * r - 4.0 * r * r * (std::f64::consts::PI / 16.0).sin();
+        assert!((signed_area(&flat) - (128.0 * 128.0 - 4.0 * cut)).abs() < 1e-6);
+        let brushes = extrude(&rounded, DVec3::Z, 16.0, "m").unwrap();
+        assert_eq!(brushes.len(), 1);
+
+        let circle = round_corners(&lift(&square(0.0, 0.0, 128.0), 0.0), true, 1000.0, 8);
+        assert_eq!(circle.len(), 32);
+        assert!(circle.iter().all(|p| (p.truncate().distance(DVec2::splat(64.0)) - 64.0).abs() < 1e-9));
+
+        let path = lift(&pts(&[(0.0, 0.0), (128.0, 0.0), (128.0, 128.0)]), 8.0);
+        let bent = round_corners(&path, false, 16.0, 4);
+        assert_eq!((bent.len(), bent[0], bent[bent.len() - 1]), (7, path[0], path[2]));
+        assert!(bent.iter().all(|p| p.z == 8.0));
+        assert_eq!(walls(&bent, false, DVec3::Z, 64.0, 8.0, WallAlign::Center, "m").unwrap().len(), 6);
+        assert_eq!(round_corners(&path, false, 0.0, 4), path);
     }
 
     #[test]
