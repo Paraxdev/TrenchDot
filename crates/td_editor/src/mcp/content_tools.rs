@@ -2024,7 +2024,7 @@ impl App {
             let changed = match op.as_str() {
                 "sculpt" | "sculpt_path" => {
                     let mode: SculptMode = serde_json::from_value(a["mode"].clone()).map_err(|_| {
-                        "mode must be raise, lower, smooth, flatten, noise, terrace, paint_alpha, erase_alpha, paint_layer, hole or unhole".to_string()
+                        "mode must be raise, lower, smooth, flatten, noise, terrace, paint_alpha, erase_alpha, paint_layer, hole, unhole, add_tile or remove_tile".to_string()
                     })?;
                     let points: Vec<DVec3> = if op == "sculpt" {
                         point(&a["center"]).into_iter().collect()

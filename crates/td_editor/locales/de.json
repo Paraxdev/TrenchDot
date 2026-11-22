@@ -786,6 +786,8 @@
   "Paint Layer": "Ebene malen",
   "Hole": "Loch",
   "Unhole": "Loch füllen",
+  "Add Tile": "Kachel hinzufügen",
+  "Remove Tile": "Kachel entfernen",
   "paint": "malen",
   "erase": "löschen",
   "smooth": "glätten",

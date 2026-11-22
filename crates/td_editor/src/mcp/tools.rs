@@ -1804,7 +1804,11 @@ impl App {
                 let Some(center) = vec3(&a["center"]) else { return err("center required") };
                 let mode: td_doc::terrain::SculptMode = match serde_json::from_value(a["mode"].clone()) {
                     Ok(m) => m,
-                    Err(_) => return err("mode must be raise, lower, smooth, flatten, noise, terrace, paint_alpha, erase_alpha, paint_layer, hole or unhole"),
+                    Err(_) => {
+                        return err(
+                            "mode must be raise, lower, smooth, flatten, noise, terrace, paint_alpha, erase_alpha, paint_layer, hole, unhole, add_tile or remove_tile",
+                        );
+                    }
                 };
                 let brush = td_doc::terrain::SculptBrush {
                     mode,
@@ -1820,7 +1824,7 @@ impl App {
                     Err(e) => return err(e),
                 };
                 let scope = crate::blend_tool::StrokeScope::of(&self.state);
-                let faces = scope.displacements(&self.state);
+                let faces = if mode.is_tile() { Vec::new() } else { scope.displacements(&self.state) };
                 let terrains = scope.terrains;
                 let changed = self.state.doc.edit("Sculpt", |m, _| {
                     let mirror = symmetry.for_faces(m, &faces);

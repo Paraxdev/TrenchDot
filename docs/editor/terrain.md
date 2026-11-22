@@ -142,6 +142,23 @@ the way **Edge height** does, and a terrain never drops below 1 cell.
 In the Front and Side views only the left and right ends grab, since the height of the ground comes from sculpting.
 Type into the **Size** block instead when you want **Zero** ground or a new cell size.
 
+### Adding tiles
+
+Resizing grows a whole side at once. To build a level piece by piece instead, add ground one square tile at a time,
+the way Terrain3D adds regions.
+
+1. Press G and pick **Add Tile** in the first menu of the tool options bar.
+2. Move the pointer over the terrain or the empty ground beside it. A square shows the tile that a click adds.
+3. Click to add that tile, or drag to add several. Hold Shift to remove tiles instead, or pick **Remove Tile**.
+
+A tile is as wide as the terrain's **Chunk cells**, so with 32 chunk cells and 64 unit cells it is 2048 units across.
+New tiles start flat at the height of the terrain's origin. Behind the scenes the terrain grows to cover them and the
+cells it gains around them become [holes](caves-overhangs.md), so only the tiles show, in the editor and in Godot.
+Removing a tile cuts it out, and the terrain shrinks again when a whole border row or column of tiles is empty. The last
+tile stays. Each click or drag is one step that Ctrl+Z takes back.
+
+With several terrains, a tile goes to the one under the pointer, or else to the nearest one.
+
 ### Scatter on the terrain
 
 [Scatter](scatter.md) painted on the terrain stays on the ground when you resize it:
@@ -173,6 +190,7 @@ With Raise, keep the mouse button down and the ground keeps rising under the bru
 | Terrace | Snaps heights to steps of **step** units (32 by default), for rice fields or stepped cliffs. The field shows up next to the mode |
 | Paint Alpha, Erase Alpha, Paint Layer | Paint instead of shaping. The alpha modes are meant for displacements, Paint Layer paints the terrain layer you set in the **layer** field next to the mode. On a terrain the [Blend tool](terrain-painting.md) does this with more control |
 | Hole, Unhole | Cuts whole cells out or fills them back, collision included. Use it for cave or bunker entrances, see [Caves and overhangs](caves-overhangs.md) |
+| Add Tile, Remove Tile | Adds or removes a whole square tile of ground, also beside the terrain, see [Adding tiles](#adding-tiles) |
 
 Ctrl+wheel resizes the brush, Shift swaps raise and lower, and holding Ctrl smooths whatever the mode.
 
@@ -247,5 +265,7 @@ The same size change is `terrain_edit` with `op: "resize"`, taking `north`, `sou
 `cells: [x, z]`, and `cell_size`. Add `dry_run: true` to read the cells, bounds, `scatter_removed` and `detail_lost` of
 the result first. `fill` is `edge` or `zero` and `scatter` is `drop` or `keep`, as in the Inspector. See
 [MCP](../mcp.md) for the limits.
+
+Tiles are the `sculpt` op with `mode: "add_tile"` or `"remove_tile"` and a `center` on or beside the terrain.
 
 </div>

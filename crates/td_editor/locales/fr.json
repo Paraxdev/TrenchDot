@@ -786,6 +786,8 @@
   "Paint Layer": "Peindre le calque",
   "Hole": "Trou",
   "Unhole": "Reboucher",
+  "Add Tile": "Ajouter une tuile",
+  "Remove Tile": "Retirer une tuile",
   "paint": "peindre",
   "erase": "effacer",
   "smooth": "lisser",

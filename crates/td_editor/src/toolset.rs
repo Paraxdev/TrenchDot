@@ -578,7 +578,8 @@ impl ToolSet {
     fn stroke_input(&mut self, ui: &Ui, response: &Response, cam: &Camera, rect: Rect, hover: Option<Pos2>, state: &mut EditorState) {
         let scope = crate::blend_tool::StrokeScope::of(state);
         let sculpting = state.tool == ToolKind::Sculpt;
-        let faces = if sculpting { scope.displacements(state) } else { Vec::new() };
+        let tiles = sculpting && state.sculpt.mode.is_tile();
+        let faces = if sculpting && !tiles { scope.displacements(state) } else { Vec::new() };
         let (targets, terrains) = (scope.brushes, scope.terrains);
         // Every visible view runs this with the one global pointer, only the view the stroke started in may dab.
         if self.stroke.stroking && self.stroke.view != Some(response.id) {
@@ -588,7 +589,9 @@ impl ToolSet {
         let pointer = if self.stroke.stroking { ui.input(|i| i.pointer.interact_pos()) } else { hover };
         self.stroke.hover = pointer.and_then(|pos| {
             let ray = cam.ray(rect, pos);
-            if sculpting {
+            if tiles {
+                td_doc::terrain::tile_ray_cast(&state.doc.map, &terrains, &ray).map(|p| (p, DVec3::Y))
+            } else if sculpting {
                 let disp = td_doc::terrain::ray_cast(&state.doc.map, &faces, &ray)
                     .map(|(d, p, id, face)| (d, p, state.doc.map.brush(id).map(|b| b.faces[face].plane.normal).unwrap_or(DVec3::Y)));
                 let terrain = td_doc::terrain::terrain_ray_cast(&state.doc.map, &terrains, &ray).map(|(d, p, _)| (d, p, DVec3::Y));
@@ -614,7 +617,7 @@ impl ToolSet {
             state.sculpt.flatten_height = p.dot(n);
             state.doc.begin(if sculpting { en!("Sculpt") } else { en!("Vertex Paint") });
             let cell = terrains.iter().filter_map(|id| state.doc.map.terrain(*id)).map(|t| t.cell_size).fold(0.0, f64::max);
-            if sculpting && state.sculpt.radius < cell {
+            if sculpting && !tiles && state.sculpt.radius < cell {
                 state.set_status(msg!(
                     "The brush radius {radius} is smaller than the terrain's {cell} unit cells. Ctrl+wheel makes it bigger",
                     radius = format!("{:.0}", state.sculpt.radius),
@@ -638,11 +641,13 @@ impl ToolSet {
                             td_doc::terrain::SculptMode::Raise => td_doc::terrain::SculptMode::Lower,
                             td_doc::terrain::SculptMode::Lower => td_doc::terrain::SculptMode::Raise,
                             td_doc::terrain::SculptMode::PaintAlpha => td_doc::terrain::SculptMode::EraseAlpha,
+                            td_doc::terrain::SculptMode::AddTile => td_doc::terrain::SculptMode::RemoveTile,
+                            td_doc::terrain::SculptMode::RemoveTile => td_doc::terrain::SculptMode::AddTile,
                             other => other,
                         };
                     }
 
-                    if modifiers.command {
+                    if modifiers.command && !tiles {
                         brush.mode = td_doc::terrain::SculptMode::Smooth;
                     }
 
@@ -1488,6 +1493,22 @@ impl ToolSet {
             ToolKind::Volume => self.volume.lines(state, cam, &mut out),
             ToolKind::Measure => self.measure.lines(&mut out),
             ToolKind::Texture => out.extend(self.texture.lines(state)),
+            ToolKind::Sculpt | ToolKind::Paint if state.tool == ToolKind::Sculpt && state.sculpt.mode.is_tile() => {
+                let terrains = crate::blend_tool::StrokeScope::of(state).terrains;
+                let map = &state.doc.map;
+                if let Some((p, t)) =
+                    self.stroke.hover.and_then(|(p, _)| td_doc::terrain::tile_terrain(map, &terrains, p).and_then(|id| map.terrain(id)).map(|t| (p, t)))
+                {
+                    let size = t.tile_size();
+                    let [i, j] = t.tile_at(p);
+                    let min = t.origin + DVec3::new(i as f64 * size, 0.0, j as f64 * size);
+                    let y = DVec3::Y * (p.y - min.y + 0.5);
+                    let corners = [DVec3::ZERO, DVec3::X, DVec3::new(1.0, 0.0, 1.0), DVec3::Z, DVec3::ZERO].map(|c| min + y + c * size);
+                    for w in corners.windows(2) {
+                        line(&mut out, w[0], w[1], SCULPT_RING_COLOR);
+                    }
+                }
+            }
             ToolKind::Sculpt | ToolKind::Paint => {
                 if let Some((p, n)) = self.stroke.hover {
                     let basis = Plane::from_point_normal(p, n).basis();
@@ -3072,7 +3093,6 @@ mod tests {
         Rect::from_min_size(Pos2::ZERO, Vec2::splat(400.0))
     }
 
-    /// Runs one frame of the viewport tools over a 400 by 400 view with the pointer at `pos`.
     #[test]
     fn only_the_view_a_stroke_started_in_dabs() {
         let (mut state, id, cam) = terrain_under_camera();
@@ -3109,6 +3129,33 @@ mod tests {
         assert!(raised.iter().all(|v| v.x.abs() < 200.0 && v.z.abs() < 200.0), "the top view dabbed too: {raised:?}");
     }
 
+    #[test]
+    fn add_tile_clicks_beside_a_terrain_grow_it_and_shift_clicks_take_the_tile_back() {
+        let (mut state, id, _) = terrain_under_camera();
+        state.sculpt.mode = td_doc::terrain::SculptMode::AddTile;
+        let mut top = Camera::new(ViewKind::Top);
+        top.center = DVec3::new(2300.0, 0.0, 100.0);
+        let mut tools = ToolSet::default();
+        let ctx = egui::Context::default();
+        let pos = input_rect().center();
+        for modifiers in [egui::Modifiers::NONE, egui::Modifiers::SHIFT] {
+            for pressed in [None, Some(true), None, Some(false)] {
+                view_frame_with(&ctx, &mut tools, &mut state, &top, pos, pressed, modifiers);
+            }
+
+            let t = state.doc.map.terrain(id).unwrap();
+            if modifiers.shift {
+                assert_eq!((t.cells(), t.holes.is_empty()), ([64, 64], true));
+            } else {
+                assert_eq!(t.cells(), [96, 64]);
+                assert!(t.is_hole(80, 10) && !t.is_hole(80, 40));
+            }
+        }
+
+        assert!(state.doc.undo().is_some() && state.doc.map.terrain(id).unwrap().cells() == [96, 64], "each click is its own undo step");
+    }
+
+    /// Runs one frame of the viewport tools over a 400 by 400 view with the pointer at `pos`.
     fn view_frame(ctx: &egui::Context, tools: &mut ToolSet, state: &mut EditorState, cam: &Camera, pos: Pos2, pressed: Option<bool>) {
         view_frame_with(ctx, tools, state, cam, pos, pressed, egui::Modifiers::NONE);
     }

@@ -786,6 +786,8 @@
   "Paint Layer": "レイヤーを描く",
   "Hole": "穴",
   "Unhole": "穴を塞ぐ",
+  "Add Tile": "タイルを追加",
+  "Remove Tile": "タイルを削除",
   "paint": "描画",
   "erase": "消去",
   "smooth": "スムーズ",

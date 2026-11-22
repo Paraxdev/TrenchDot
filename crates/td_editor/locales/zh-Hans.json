@@ -786,6 +786,8 @@
   "Paint Layer": "绘制图层",
   "Hole": "挖洞",
   "Unhole": "填洞",
+  "Add Tile": "添加地块",
+  "Remove Tile": "移除地块",
   "paint": "绘制",
   "erase": "擦除",
   "smooth": "平滑",

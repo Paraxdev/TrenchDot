@@ -786,6 +786,8 @@
   "Paint Layer": "Pintar capa",
   "Hole": "Agujero",
   "Unhole": "Tapar agujero",
+  "Add Tile": "Añadir tesela",
+  "Remove Tile": "Quitar tesela",
   "paint": "pintar",
   "erase": "borrar",
   "smooth": "suavizar",

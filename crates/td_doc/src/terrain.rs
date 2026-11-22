@@ -28,10 +28,14 @@ pub enum SculptMode {
     Hole,
     /// Terrains: fills holes.
     Unhole,
+    /// Terrains: adds the tile under the brush, growing the terrain when it lies outside.
+    AddTile,
+    /// Terrains: cuts the tile under the brush out and crops empty border tiles.
+    RemoveTile,
 }
 
 impl SculptMode {
-    pub const ALL: [SculptMode; 11] = [
+    pub const ALL: [SculptMode; 13] = [
         SculptMode::Raise,
         SculptMode::Lower,
         SculptMode::Smooth,
@@ -43,6 +47,8 @@ impl SculptMode {
         SculptMode::PaintLayer,
         SculptMode::Hole,
         SculptMode::Unhole,
+        SculptMode::AddTile,
+        SculptMode::RemoveTile,
     ];
 
     pub fn label(&self) -> &'static str {
@@ -58,11 +64,17 @@ impl SculptMode {
             SculptMode::PaintLayer => "Paint Layer",
             SculptMode::Hole => "Hole",
             SculptMode::Unhole => "Unhole",
+            SculptMode::AddTile => "Add Tile",
+            SculptMode::RemoveTile => "Remove Tile",
         }
     }
 
     pub fn is_paint(&self) -> bool {
         matches!(self, SculptMode::PaintAlpha | SculptMode::EraseAlpha | SculptMode::PaintLayer | SculptMode::Hole | SculptMode::Unhole)
+    }
+
+    pub fn is_tile(&self) -> bool {
+        matches!(self, SculptMode::AddTile | SculptMode::RemoveTile)
     }
 }
 
@@ -231,7 +243,7 @@ pub fn sculpt(map: &mut Map, faces: &[(NodeId, usize)], center: DVec3, brush: &S
                     let t = (w * brush.strength.clamp(0.0, 16.0) / 16.0).clamp(0.0, 1.0) as f32;
                     disp.heights[k] = h + ((h / step).round() * step - h) * t;
                 }
-                SculptMode::Hole | SculptMode::Unhole => {}
+                SculptMode::Hole | SculptMode::Unhole | SculptMode::AddTile | SculptMode::RemoveTile => {}
             }
 
             changed = true;
@@ -252,8 +264,43 @@ pub fn terrain_ray_cast(map: &Map, terrains: &[NodeId], ray: &Ray) -> Option<(f6
     terrains.iter().filter_map(|id| map.terrain(*id).and_then(|t| t.ray_cast(ray)).map(|(d, p)| (d, p, *id))).min_by(|a, b| a.0.total_cmp(&b.0))
 }
 
-/// Applies one dab to terrains, mirrored on each by `symmetry`. Returns true if anything changed.
+/// Squared distance along x and z from `p` to the ground of `t`, 0 over it.
+fn ground_gap(t: &td_geom::Terrain, p: DVec3) -> f64 {
+    let size = DVec3::new(t.cells()[0] as f64, 0.0, t.cells()[1] as f64) * t.cell_size;
+    let d = (t.origin - p).max(p - t.origin - size).max(DVec3::ZERO);
+    d.x * d.x + d.z * d.z
+}
+
+/// The terrain a tile at `p` belongs to: the one whose ground lies under `p`, else the nearest one.
+pub fn tile_terrain(map: &Map, terrains: &[NodeId], p: DVec3) -> Option<NodeId> {
+    let key = |id: &NodeId| map.terrain(*id).map(|t| (ground_gap(t, p), (p.y - t.origin.y).abs(), *id));
+    terrains.iter().filter_map(key).min_by(|a, b| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1))).map(|k| k.2)
+}
+
+/// Where a tile brush points: the terrain under the ray, or else where the ray meets the ground plane of the terrain
+/// it passes closest to, so tiles can be added beside a terrain.
+pub fn tile_ray_cast(map: &Map, terrains: &[NodeId], ray: &Ray) -> Option<DVec3> {
+    if let Some((_, p, _)) = terrain_ray_cast(map, terrains, ray) {
+        return Some(p);
+    }
+
+    let on_plane = |id: &NodeId| {
+        let t = map.terrain(*id)?;
+        let along = (t.origin.y - ray.origin.y) / ray.dir.y;
+        let p = ray.origin + ray.dir * along;
+        (ray.dir.y.abs() > 1e-9 && along > 0.0).then(|| (ground_gap(t, p), p))
+    };
+    terrains.iter().filter_map(on_plane).min_by(|a, b| a.0.total_cmp(&b.0)).map(|(_, p)| p)
+}
+
+/// Applies one dab to terrains, mirrored on each by `symmetry`. Returns true if anything changed. Tile modes act on
+/// the one terrain [`tile_terrain`] picks and ignore symmetry.
 pub fn sculpt_terrains(map: &mut Map, terrains: &[NodeId], center: DVec3, brush: &SculptBrush, symmetry: &Symmetry) -> bool {
+    if brush.mode.is_tile() {
+        let Some(t) = tile_terrain(map, terrains, center).and_then(|id| map.terrain_mut(id)) else { return false };
+        return sculpt_terrains_single(t, center, brush, &Mirror::default());
+    }
+
     let mut changed = false;
     for id in terrains {
         if let Some(t) = map.terrain_mut(*id) {
@@ -280,6 +327,8 @@ pub fn sculpt_terrains_single(t: &mut td_geom::Terrain, center: DVec3, brush: &S
         SculptMode::EraseAlpha => t.paint_layer(center, r, 0, brush.strength.min(1.0), mirror),
         SculptMode::Hole => t.set_holes(center, r, true, mirror),
         SculptMode::Unhole => t.set_holes(center, r, false, mirror),
+        SculptMode::AddTile => t.add_tile(center),
+        SculptMode::RemoveTile => t.remove_tile(center),
     }
 }
 
@@ -605,5 +654,20 @@ pub(crate) mod tests {
         let mut m = start.clone();
         assert!(sculpt_terrains(&mut m, &[w], dab, &raise, &world));
         assert!(raised(&m, &start, e).iter().all(|d| *d == 0.0), "a terrain left out of the stroke stays as it was");
+    }
+
+    #[test]
+    fn a_tile_beside_two_terrains_grows_only_the_nearest() {
+        let (start, w, e) = twin_terrains();
+        let ray = Ray::new(DVec3::new(-200.0, 500.0, 0.0), DVec3::NEG_Y);
+        let at = tile_ray_cast(&start, &[w, e], &ray).unwrap();
+        assert_eq!(at, DVec3::new(-200.0, 12.0, 0.0), "off the terrains the ray meets their ground plane");
+        assert_eq!(tile_terrain(&start, &[w, e], at), Some(w));
+
+        let mut m = start.clone();
+        let add = SculptBrush { mode: SculptMode::AddTile, ..Default::default() };
+        assert!(sculpt_terrains(&mut m, &[w, e], at, &add, &Symmetry::OFF));
+        assert_eq!(m.terrain(w).unwrap().cells(), [32, 41]);
+        assert_eq!(m.terrain(e), start.terrain(e));
     }
 }

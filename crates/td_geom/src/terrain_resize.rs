@@ -109,6 +109,96 @@ impl Terrain {
         })
     }
 
+    /// Side of a tile in world units, `chunk_cells` cells.
+    pub fn tile_size(&self) -> f64 {
+        self.chunk_cells.max(1) as f64 * self.cell_size
+    }
+
+    /// The tile under world `p`, on the grid of tiles anchored at the origin. Tiles outside the grid have negative or
+    /// past the end indices.
+    pub fn tile_at(&self, p: DVec3) -> [i64; 2] {
+        let size = self.tile_size();
+        [((p.x - self.origin.x) / size).floor() as i64, ((p.z - self.origin.z) / size).floor() as i64]
+    }
+
+    /// Adds the tile under `p` as solid ground. A tile outside the grid grows it with flat ground at height 0, and the
+    /// cells it gains around the tile become holes, so only the tile shows. Refuses growing past [`MAX_CELLS`].
+    pub fn add_tile(&mut self, p: DVec3) -> bool {
+        let n = self.chunk_cells.max(1) as i64;
+        let [cw, cd] = self.cells().map(|c| c as i64);
+        let [ti, tj] = self.tile_at(p);
+        let sides = Sides {
+            north: (-tj * n).max(0) as i32,
+            south: ((tj + 1) * n - cd).max(0) as i32,
+            west: (-ti * n).max(0) as i32,
+            east: ((ti + 1) * n - cw).max(0) as i32,
+        };
+        let Ok(mut grown) = self.resized(sides, EdgeFill::Zero) else { return false };
+        let [gw, gd] = grown.cells().map(|c| c as i64);
+        let (ow, on) = (sides.west as i64, sides.north as i64);
+        let (i0, j0) = (ti * n + ow, tj * n + on);
+        let mut holes = if grown.holes.is_empty() { vec![0; (gw * gd) as usize] } else { std::mem::take(&mut grown.holes) };
+        for j in 0..gd {
+            for i in 0..gw {
+                let k = (j * gw + i) as usize;
+                if (i0..i0 + n).contains(&i) && (j0..j0 + n).contains(&j) {
+                    holes[k] = 0;
+                } else if !(ow..ow + cw).contains(&i) || !(on..on + cd).contains(&j) {
+                    holes[k] = 1;
+                }
+            }
+        }
+
+        grown.holes = if holes.iter().any(|h| *h != 0) { holes } else { Vec::new() };
+        if grown == *self {
+            return false;
+        }
+
+        *self = grown;
+        true
+    }
+
+    /// Cuts the tile under `p` out as holes, then crops the border tiles that are holes throughout. The last solid
+    /// tile stays.
+    pub fn remove_tile(&mut self, p: DVec3) -> bool {
+        let n = self.chunk_cells.max(1) as i64;
+        let [cw, cd] = self.cells().map(|c| c as i64);
+        let [ti, tj] = self.tile_at(p);
+        if ti < 0 || tj < 0 || ti * n >= cw || tj * n >= cd {
+            return false;
+        }
+
+        let mut holes = if self.holes.len() == (cw * cd) as usize { self.holes.clone() } else { vec![0; (cw * cd) as usize] };
+        for j in tj * n..((tj + 1) * n).min(cd) {
+            for i in ti * n..((ti + 1) * n).min(cw) {
+                holes[(j * cw + i) as usize] = 1;
+            }
+        }
+
+        let solid: Vec<(i64, i64)> = (0..cd).flat_map(|j| (0..cw).map(move |i| (i, j))).filter(|(i, j)| holes[(j * cw + i) as usize] == 0).collect();
+        if solid.is_empty() || holes == self.holes {
+            return false;
+        }
+
+        let tile = |c: i64| c.div_euclid(n);
+        let (min_i, max_i) = (solid.iter().map(|c| tile(c.0)).min().unwrap(), solid.iter().map(|c| tile(c.0)).max().unwrap());
+        let (min_j, max_j) = (solid.iter().map(|c| tile(c.1)).min().unwrap(), solid.iter().map(|c| tile(c.1)).max().unwrap());
+        let sides = Sides {
+            north: -(min_j * n) as i32,
+            south: -(cd - ((max_j + 1) * n).min(cd)) as i32,
+            west: -(min_i * n) as i32,
+            east: -(cw - ((max_i + 1) * n).min(cw)) as i32,
+        };
+        let mut cut = self.clone();
+        cut.holes = holes;
+        match cut.resized(sides, EdgeFill::Edge) {
+            Ok(t) => *self = t,
+            Err(_) => *self = cut,
+        }
+
+        true
+    }
+
     /// The cell counts with cells of `cell_size`, keeping the extent to the nearest cell. Refuses a cell size outside
     /// the range and a result above [`MAX_CELLS`] cells on an axis.
     pub fn rescaled_cells(&self, cell_size: f64) -> Result<[u32; 2], String> {
@@ -606,5 +696,50 @@ mod tests {
         t.splat.pop();
         assert!(t.rescaled(16.0).unwrap_err().contains("splat"));
         assert!(t.rescaled(32.0).is_err());
+    }
+
+    #[test]
+    fn adding_a_tile_beside_the_terrain_grows_it_with_only_that_tile_solid() {
+        let mut t = slanted([16, 16], &[]);
+        let size = t.tile_size();
+        assert_eq!(size, 512.0);
+        let corner = t.origin;
+        assert!(!t.add_tile(corner + DVec3::new(100.0, 0.0, 100.0)), "the tile is already there");
+
+        let beside = corner + DVec3::new(size * 1.5, 0.0, size * -0.5);
+        assert!(t.add_tile(beside));
+        assert_eq!(t.cells(), [32, 32]);
+        assert_eq!(t.origin, corner - DVec3::new(0.0, 0.0, size));
+        assert!(!t.is_hole(20, 3) && !t.is_hole(5, 20));
+        assert!(t.is_hole(3, 3) && t.is_hole(20, 20), "the corner the grid gained around the tile is a hole");
+        assert_eq!(t.height(0, 16), bumpy(0, 0) as f64, "old heights stay at their place");
+        assert_eq!(t.height(24, 8), 0.0);
+        assert!(!t.add_tile(beside));
+
+        assert!(t.add_tile(corner + DVec3::new(size * 1.5, 0.0, size * 0.5)));
+        assert!(!t.is_hole(20, 20), "a tile cut out inside the grid comes back solid");
+    }
+
+    #[test]
+    fn removing_tiles_cuts_holes_and_crops_empty_border_tiles_but_keeps_the_last() {
+        let mut t = slanted([32, 16], &[]);
+        let size = t.tile_size();
+        let corner = t.origin;
+        let west = corner + DVec3::new(size * 0.5, 0.0, size * 0.5);
+        let east = corner + DVec3::new(size * 1.5, 0.0, size * 0.5);
+        assert!(!t.remove_tile(corner - DVec3::new(10.0, 0.0, 10.0)), "nothing to remove outside the grid");
+
+        assert!(t.remove_tile(west));
+        assert_eq!(t.cells(), [16, 16]);
+        assert_eq!(t.origin, corner + DVec3::new(size, 0.0, 0.0));
+        assert!(t.holes.is_empty());
+        assert_eq!(t.height(0, 0), bumpy(16, 0) as f64);
+
+        assert!(!t.remove_tile(east), "the last tile stays");
+        assert!(t.add_tile(west + DVec3::new(0.0, 0.0, size)));
+        assert_eq!(t.cells(), [32, 32]);
+        assert!(t.remove_tile(east));
+        assert_eq!((t.cells(), t.origin), ([16, 16], corner + DVec3::new(0.0, 0.0, size)));
+        assert!(t.holes.is_empty());
     }
 }
