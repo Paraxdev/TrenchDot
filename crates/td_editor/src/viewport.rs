@@ -50,6 +50,10 @@ pub struct Viewport {
     looked: bool,
     /// Moving the mouse turns this 3D view with no button held, see `App::drive_mouse_look`.
     pub(crate) mouse_look: bool,
+    /// The right button went down on this 3D view and is still held, even before the mouse moves far enough to look.
+    right_held: bool,
+    /// The fly keys moved the camera during this right button hold, so its release opens no context menu.
+    flew: bool,
 }
 
 // Linear values, the targets are sRGB.
@@ -75,6 +79,8 @@ impl Viewport {
             pixels_per_point: 1.0,
             looked: false,
             mouse_look: false,
+            right_held: false,
+            flew: false,
         }
     }
 
@@ -164,7 +170,7 @@ impl Viewport {
         }
 
         // Right click applies materials in the texture tool. The right click that cancels an extrude opens no menu.
-        if cx.state.tool != ToolKind::Texture && !extruding {
+        if cx.state.tool != ToolKind::Texture && !extruding && !self.flew {
             response.context_menu(|ui| context_menu(ui, cx.state, cx.actions));
         }
     }
@@ -199,7 +205,21 @@ impl Viewport {
 
     /// The right mouse look in the 3D view, or mouse look. While it runs WASD, Q and E fly the camera.
     pub fn is_flying(&self) -> bool {
-        matches!(self.drag, Some(Drag::Look)) || self.mouse_look
+        matches!(self.drag, Some(Drag::Look)) || self.mouse_look || self.right_held
+    }
+
+    /// Holding the right button flies at once. Waiting for the mouse to move first let WASD and Shift+D reach the
+    /// tool shortcuts, so a strafe could select all or duplicate the selection.
+    fn track_right_button(&mut self, ui: &Ui, response: &Response) {
+        let (pressed, down) = ui.input(|i| (i.pointer.button_pressed(PointerButton::Secondary), i.pointer.secondary_down()));
+        if pressed && response.contains_pointer() && !self.camera.kind.is_2d() {
+            self.right_held = true;
+            self.flew = false;
+        }
+
+        if !down {
+            self.right_held = false;
+        }
     }
 
     pub(crate) fn start_mouse_look(&mut self) {
@@ -217,6 +237,7 @@ impl Viewport {
 
     fn handle_camera(&mut self, ui: &Ui, response: &Response, cx: &mut ViewCtx) {
         let rect = self.rect;
+        self.track_right_button(ui, response);
         let space = response.drag_started_by(PointerButton::Primary).then(|| self.space_drag(ui, cx.state)).flatten();
         let (delta, scroll, modifiers, dt, press_origin) =
             ui.input(|i| (i.pointer.delta(), i.smooth_scroll_delta.y, i.modifiers, i.stable_dt as f64, i.pointer.press_origin()));
@@ -305,6 +326,7 @@ impl Viewport {
                     if dir != DVec3::ZERO {
                         let boost = if modifiers.shift { 3.0 } else { 1.0 };
                         self.camera.position += dir.normalize() * fly_speed * boost * dt.min(0.1);
+                        self.flew = true;
                         ui.ctx().request_repaint();
                     }
                 }
@@ -1891,6 +1913,28 @@ fn drop_pos(response: &Response) -> Option<Pos2> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn holding_the_right_button_flies_before_the_mouse_moves() {
+        let mut harness = egui_kittest::Harness::new_ui_state(
+            |ui, view: &mut Viewport| {
+                let response = ui.allocate_rect(Rect::from_min_size(Pos2::ZERO, Vec2::splat(200.0)), Sense::click_and_drag());
+                view.track_right_button(ui, &response);
+            },
+            Viewport::new(ViewKind::Perspective),
+        );
+        let at = Pos2::new(100.0, 100.0);
+        harness.hover_at(at);
+        harness.run();
+        let button = |pressed| egui::Event::PointerButton { pos: at, button: PointerButton::Secondary, pressed, modifiers: Default::default() };
+        harness.input_mut().events.push(button(true));
+        harness.run();
+        assert!(harness.state().is_flying(), "the fly keys steer from the press on, not after the first mouse move");
+
+        harness.input_mut().events.push(button(false));
+        harness.run();
+        assert!(!harness.state().is_flying());
+    }
 
     #[test]
     fn a_view_knows_where_a_drag_from_another_widget_is() {
