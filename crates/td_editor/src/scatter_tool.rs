@@ -684,6 +684,7 @@ pub struct ScatterTool {
     last: Option<DVec3>,
     rng: Option<Rng>,
     stroking: bool,
+    view: Option<egui::Id>,
     erasing: bool,
 }
 
@@ -697,10 +698,16 @@ impl ScatterTool {
         self.hover = None;
         self.last = None;
         self.stroking = false;
+        self.view = None;
         self.erasing = false;
     }
 
     pub fn input(&mut self, ui: &Ui, response: &Response, cam: &Camera, rect: Rect, hover: Option<Pos2>, state: &mut EditorState) {
+        // Every visible view runs this with the one global pointer, only the view the stroke started in may dab.
+        if self.stroking && self.view != Some(response.id) {
+            return;
+        }
+
         let pointer = if self.stroking { ui.input(|i| i.pointer.interact_pos()) } else { hover };
         let modifiers = ui.input(|i| i.modifiers);
         let picking = state.scatter_eyedropper || modifiers.alt;
@@ -733,6 +740,7 @@ impl ScatterTool {
         let down = ui.input(|i| i.pointer.primary_down());
         if (response.drag_started_by(PointerButton::Primary) || response.clicked_by(PointerButton::Primary)) && !self.stroking && !picking {
             self.stroking = true;
+            self.view = Some(response.id);
             self.erasing = modifiers.shift != state.scatter_erase;
             self.last = None;
             if state.prefs.scatter.seed != 0 {
@@ -760,6 +768,7 @@ impl ScatterTool {
 
             if !down {
                 self.stroking = false;
+                self.view = None;
                 state.doc.commit();
             }
         }

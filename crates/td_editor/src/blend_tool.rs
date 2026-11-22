@@ -136,6 +136,7 @@ pub const RING_COLOR: [f32; 4] = [0.95, 0.6, 1.0, 0.95];
 pub struct BlendTool {
     pub hover: Option<(DVec3, DVec3)>,
     stroking: bool,
+    view: Option<egui::Id>,
     last: Option<DVec3>,
     dabs: u32,
 }
@@ -150,9 +151,15 @@ impl BlendTool {
         self.hover = None;
         self.last = None;
         self.stroking = false;
+        self.view = None;
     }
 
     pub fn input(&mut self, ui: &Ui, response: &Response, cam: &Camera, rect: Rect, hover: Option<Pos2>, state: &mut EditorState) {
+        // Every visible view runs this with the one global pointer, only the view the stroke started in may dab.
+        if self.stroking && self.view != Some(response.id) {
+            return;
+        }
+
         let pointer = if self.stroking { ui.input(|i| i.pointer.interact_pos()) } else { hover };
         self.hover = pointer
             .and_then(|p| {
@@ -175,6 +182,7 @@ impl BlendTool {
             }
 
             self.stroking = true;
+            self.view = Some(response.id);
             self.last = None;
             state.doc.begin("Blend");
         }
@@ -207,6 +215,7 @@ impl BlendTool {
 
             if !ui.input(|i| i.pointer.primary_down()) {
                 self.stroking = false;
+                self.view = None;
                 state.doc.commit();
             }
         }

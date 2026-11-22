@@ -194,6 +194,8 @@ pub struct BrushStrokeTool {
     /// Surface point and normal under the cursor.
     pub hover: Option<(DVec3, DVec3)>,
     stroking: bool,
+    /// The viewport the stroke started in.
+    view: Option<egui::Id>,
     last_dab: Option<DVec3>,
     dabs: u32,
     /// Seconds the current stroke has been held.
@@ -391,6 +393,7 @@ impl ToolSet {
         self.scale.drag = None;
         self.shear.drag = None;
         self.stroke.stroking = false;
+        self.stroke.view = None;
         self.stroke.last_dab = None;
         self.scatter.reset();
         self.blend.reset();
@@ -564,6 +567,11 @@ impl ToolSet {
         let sculpting = state.tool == ToolKind::Sculpt;
         let faces = if sculpting { scope.displacements(state) } else { Vec::new() };
         let (targets, terrains) = (scope.brushes, scope.terrains);
+        // Every visible view runs this with the one global pointer, only the view the stroke started in may dab.
+        if self.stroke.stroking && self.stroke.view != Some(response.id) {
+            return;
+        }
+
         let pointer = if self.stroke.stroking { ui.input(|i| i.pointer.interact_pos()) } else { hover };
         self.stroke.hover = pointer.and_then(|pos| {
             let ray = cam.ray(rect, pos);
@@ -587,6 +595,7 @@ impl ToolSet {
             && let Some((p, n)) = self.stroke.hover
         {
             self.stroke.stroking = true;
+            self.stroke.view = Some(response.id);
             self.stroke.last_dab = None;
             self.stroke.held = 0.0;
             state.sculpt.flatten_height = p.dot(n);
@@ -647,6 +656,7 @@ impl ToolSet {
 
             if released {
                 self.stroke.stroking = false;
+                self.stroke.view = None;
                 state.doc.commit();
             }
         }
@@ -2968,6 +2978,42 @@ mod tests {
     }
 
     /// Runs one frame of the viewport tools over a 400 by 400 view with the pointer at `pos`.
+    #[test]
+    fn only_the_view_a_stroke_started_in_dabs() {
+        let (mut state, id, cam) = terrain_under_camera();
+        state.sculpt.radius = 48.0;
+        let mut top = Camera::new(ViewKind::Top);
+        top.center = DVec3::new(900.0, 0.0, -700.0);
+        top.zoom = 0.5;
+        let mut tools = ToolSet::default();
+        let ctx = egui::Context::default();
+        let left = input_rect();
+        let right = left.translate(egui::vec2(left.width(), 0.0));
+        let pos = left.center();
+        for pressed in [None, Some(true), None, None, None, None, Some(false)] {
+            let mut events = vec![egui::Event::PointerMoved(pos)];
+            if let Some(pressed) = pressed {
+                events.push(egui::Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE });
+            }
+
+            let raw = egui::RawInput { screen_rect: Some(left.union(right)), events, ..Default::default() };
+            let mut output = ctx.run_ui(raw, |ui| {
+                for (cam, rect) in [(&cam, left), (&top, right)] {
+                    let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
+                    let hover = response.hover_pos();
+                    tools.viewport_input(ui, &response, cam, rect, hover, &mut state);
+                }
+            });
+            output.textures_delta.clear();
+        }
+
+        let terrain = state.doc.map.terrain(id).unwrap();
+        let [w, d] = terrain.resolution;
+        let raised: Vec<DVec3> = (0..d).flat_map(|j| (0..w).map(move |i| (i, j))).map(|(i, j)| terrain.vertex(i, j)).filter(|v| v.y > 0.0).collect();
+        assert!(!raised.is_empty(), "the stroke raised nothing");
+        assert!(raised.iter().all(|v| v.x.abs() < 200.0 && v.z.abs() < 200.0), "the top view dabbed too: {raised:?}");
+    }
+
     fn view_frame(ctx: &egui::Context, tools: &mut ToolSet, state: &mut EditorState, cam: &Camera, pos: Pos2, pressed: Option<bool>) {
         view_frame_with(ctx, tools, state, cam, pos, pressed, egui::Modifiers::NONE);
     }
