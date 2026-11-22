@@ -577,18 +577,19 @@ impl Viewport {
             }
         }
 
-        // The first click of the pair selected the face when it was a face click (Shift+click, or any click in the
-        // Blender preset's Face mode), only then does the double click run along the faces.
+        // A face click pair runs along the faces. A replacing click leaves the face selected, a toggling pair switches it
+        // on and off again, so only the toggle is taken by its rule rather than by the selection.
         let mut ran_face_run = false;
+        let face_rule = click_rule(&cx.state.prefs.keymap_preset, cx.state.select_mode, modifiers.command, modifiers.shift, ClickHit::Face);
         if double_clicked
             && !box_click
             && let Some(pos) = response.interact_pointer_pos()
             && let Some(h) = picking::pick(cx.state, &self.camera.ray(self.rect, pos))
-            && let Some(face) = h.face.filter(|f| cx.state.doc.map.brush(h.node).is_some() && cx.state.doc.selection.faces.contains(&(h.node, *f)))
+            && let Some(face) = h.face.filter(|f| {
+                cx.state.doc.map.brush(h.node).is_some() && (face_rule == ClickRule::ToggleFace || cx.state.doc.selection.faces.contains(&(h.node, *f)))
+            })
         {
-            let toggle =
-                click_rule(&cx.state.prefs.keymap_preset, cx.state.select_mode, modifiers.command, modifiers.shift, ClickHit::Face) == ClickRule::ToggleFace;
-            crate::box_select::select_face_run(cx.state, (h.node, face), toggle);
+            crate::box_select::select_face_run(cx.state, (h.node, face), face_rule == ClickRule::ToggleFace);
             ran_face_run = true;
         }
 

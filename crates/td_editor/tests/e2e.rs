@@ -3526,7 +3526,7 @@ fn double_click_on_a_face_selects_the_faces_running_on_from_it() {
     let ed = Editor::launch("face_run");
     let a = ed.box_brush([0.0, 0.0, 0.0], [64.0, 64.0, 64.0]);
     let b = ed.box_brush([64.0, 0.0, 0.0], [128.0, 64.0, 64.0]);
-    ed.box_brush([300.0, 0.0, 0.0], [364.0, 64.0, 64.0]);
+    let apart = ed.box_brush([300.0, 0.0, 0.0], [364.0, 64.0, 64.0]);
     ed.call("set_camera", json!({ "view": "3d", "position": [64, 400, 33], "look_at": [64, 32, 32] }));
     ed.input("3d", json!([{ "type": "double_click", "world": [32, 64, 32] }]));
     assert!(selection_of(&ed).1.is_empty(), "a plain double click is an object click in the TrenchBroom preset");
@@ -3536,6 +3536,11 @@ fn double_click_on_a_face_selects_the_faces_running_on_from_it() {
     assert!(nodes.is_empty(), "{nodes:?} {faces:?}");
     let owners: Vec<u64> = faces.iter().map(|f| f.0).collect();
     assert_eq!(owners, [a, b], "the two tops that meet, not the box apart {faces:?}");
+
+    ed.call("select", json!({ "faces": [[apart, 0]] }));
+    ed.input("3d", json!([{ "type": "double_click", "world": [12, 64, 50], "modifiers": ["shift", "ctrl"] }]));
+    let owners: Vec<u64> = selection_of(&ed).1.iter().map(|f| f.0).collect();
+    assert_eq!(owners, [a, b, apart], "Shift+Ctrl adds the run to the face already selected");
 }
 
 #[test]
@@ -5090,6 +5095,8 @@ fn shift_click_picks_one_face_and_ctrl_shift_click_toggles_faces() {
 
     click("front", front_b, &["ctrl", "shift"]);
     assert_eq!(faces().len(), 3, "a second face of the same brush is added");
+    // Past the double click delay, or the pair would run along the faces.
+    std::thread::sleep(Duration::from_millis(400));
     click("front", front_b, &["ctrl", "shift"]);
     assert_eq!(faces(), both, "Ctrl+Shift+click on a selected face removes just that face");
 
@@ -5223,6 +5230,7 @@ fn blender_shift_click_toggles_in_the_current_mode() {
     assert_eq!(selection_of(&ed).1.iter().map(|f| f.0).collect::<Vec<_>>(), vec![a, b], "Shift+click adds a face on another brush");
     click("front", front_b, &["shift"]);
     assert_eq!(selection_of(&ed).1.len(), 3, "a second face of the same brush");
+    std::thread::sleep(Duration::from_millis(400));
     click("front", front_b, &["shift"]);
     assert_eq!(selection_of(&ed).1.len(), 2, "Shift+click on a selected face removes just that face");
     click("top", top_b, &["ctrl"]);
