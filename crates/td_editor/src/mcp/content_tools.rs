@@ -697,6 +697,78 @@ impl App {
         }
     }
 
+    pub(crate) fn tool_create_roof(&mut self, args: &Value) -> ToolResult {
+        use td_geom::shapes::{RoofEnd, Wing, roof};
+        let pitch = match &args["pitch"] {
+            Value::Null => 30.0,
+            v => match v.as_f64().filter(|p| (5.0..=75.0).contains(p)) {
+                Some(p) => p,
+                None => return err(format!("pitch must be degrees from 5 to 75, got {v}")),
+            },
+        };
+        let ends = match args["ends"].as_str() {
+            None | Some("gable") => RoofEnd::Gable,
+            Some("hip") => RoofEnd::Hip,
+            Some(other) => return err(format!("unknown ends {other}, use gable or hip")),
+        };
+        let material = args["material"].as_str().filter(|m| !m.is_empty()).unwrap_or(&self.state.current_material).to_string();
+
+        let (wings, top) = if let Some(list) = args["wings"].as_array() {
+            let mut wings = Vec::new();
+            for (i, w) in list.iter().enumerate() {
+                let corner = |v: &Value| Some(DVec2::new(v.get(0)?.as_f64()?, v.get(1)?.as_f64()?));
+                let (Some(a), Some(b)) = (corner(&w["min"]), corner(&w["max"])) else {
+                    return err(format!("wings[{i}] needs min and max as [x, z]"));
+                };
+                let (min, max) = (a.min(b), a.max(b));
+                if (max - min).min_element() <= 0.0 {
+                    return err(format!("wings[{i}] has no area"));
+                }
+
+                let mut wing = Wing::new(min, max);
+                match w["ridge"].as_str() {
+                    None => {}
+                    Some("x") => wing.ridge_x = true,
+                    Some("z") => wing.ridge_x = false,
+                    Some(other) => return err(format!("wings[{i}].ridge must be x or z, got {other}")),
+                }
+
+                wings.push(wing);
+            }
+
+            (wings, None)
+        } else {
+            let sel = if args["ids"].is_array() {
+                match id_list(args, "ids").and_then(|ids| editable_ids(&self.state, &ids)) {
+                    Ok(ids) => {
+                        let mut sel = td_doc::Selection::default();
+                        sel.nodes.extend(ids);
+                        sel
+                    }
+                    Err(e) => return err(e),
+                }
+            } else {
+                self.state.doc.selection.clone()
+            };
+            match crate::roof_dialog::wings(&self.state.doc.map, &sel) {
+                Some((wings, top)) => (wings, Some(top)),
+                None => return err("give wings, or brush ids or a selection whose footprints the roof covers"),
+            }
+        };
+        if wings.is_empty() {
+            return err("wings is empty");
+        }
+
+        let Some(base) = args["base"].as_f64().or(top) else { return err("base, the height the roof rests on, is needed with wings") };
+        let brushes = roof(&wings, base, pitch, ends, &material);
+        if brushes.is_empty() {
+            return err("the roof came out empty");
+        }
+
+        let ids = crate::roof_dialog::apply(&mut self.state, brushes);
+        ok(json!({ "ok": true, "ids": ids.iter().map(|id| id.0).collect::<Vec<_>>(), "base": base }))
+    }
+
     /// Trim strips along face edges: baseboards, crown molding, borders.
     pub(crate) fn tool_trim(&mut self, args: &Value) -> ToolResult {
         let mut opts = crate::trim::TrimOptions { material: self.state.current_material.clone(), ..Default::default() };

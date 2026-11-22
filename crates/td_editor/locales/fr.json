@@ -2713,5 +2713,14 @@
   "Trim: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Moulure : cliquez les coins, Entrée termine le tracé, le premier coin le ferme, Retour arrière annule",
   "The cross section swept along the path": "La section balayée le long du tracé",
   "Which side of the clicked path the trim sticks out on, Inside lines a room": "De quel côté du tracé la moulure dépasse, Intérieur borde une pièce",
-  "Created {n} trim brush in a group": { "one": "{n} brush de moulure créé dans un groupe", "other": "{n} brushes de moulure créés dans un groupe" }
+  "Created {n} trim brush in a group": { "one": "{n} brush de moulure créé dans un groupe", "other": "{n} brushes de moulure créés dans un groupe" },
+  "Add Roof": "Ajouter un toit",
+  "Add Roof…": "Ajouter un toit…",
+  "Pitch": "Pente",
+  "Ends": "Extrémités",
+  "Gable": "Pignon",
+  "Hip": "Croupe",
+  "How a ridge end that runs into no other wing stops": "Comment finit un faîtage qui ne rejoint aucune autre aile",
+  "Select the brushes the roof covers, one per wing": "Sélectionnez les brushes que couvre le toit, un par aile",
+  "Add Roof over the selected brushes": "Ajouter un toit sur les brushes sélectionnés"
 }

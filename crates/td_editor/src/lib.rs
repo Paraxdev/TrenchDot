@@ -48,6 +48,7 @@ pub mod prefab_library;
 pub mod prefab_panel;
 pub mod prefabs;
 pub mod random_fill;
+pub mod roof_dialog;
 pub mod scatter_panel;
 pub mod scatter_tool;
 pub mod scene;

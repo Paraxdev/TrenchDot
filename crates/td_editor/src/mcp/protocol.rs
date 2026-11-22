@@ -661,6 +661,19 @@ pub fn tool_definitions() -> Vec<Value> {
             } }
         }),
         json!({
+            "name": "create_roof",
+            "description": "Adds a solid roof as one undo step, like Brush > Add Roof, and selects its brushes. The footprint is wings [{min: [x, z], max: [x, z], ridge: x|z}] with base, the height it rests on, or else the footprints of the brushes in ids or the selection, each brush one wing, resting on their highest top. A wing's ridge runs along its longer side unless ridge says otherwise. A ridge end that runs into another wing stretches to that wing's center line, so an L or a T meets in valleys; the other ends are gable (default) or hip as ends says. pitch (30, 5 to 75) is the slope in degrees for every wing, so a narrower wing has a lower ridge. material defaults to the current one. The brushes do not overlap. Returns their ids and the base.",
+            "inputSchema": { "type": "object", "properties": {
+                "wings": { "type": "array", "items": { "type": "object", "properties": {
+                    "min": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+                    "max": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+                    "ridge": { "type": "string", "enum": ["x", "z"] }
+                } } },
+                "ids": { "type": "array", "items": { "type": "integer" } }, "base": { "type": "number" }, "pitch": { "type": "number" },
+                "ends": { "type": "string", "enum": ["gable", "hip"] }, "material": { "type": "string" }
+            } }
+        }),
+        json!({
             "name": "prefab_library",
             "description": "The prefab library of the Prefabs panel: ready made pieces (stairs, doorways, pillars, rooms, details) that come with the editor on dev materials, and the project's own .tdm files in res://prefab_library, one folder per category. ops: list {query} (name is category/name, size in map units, source builtin or project), paste {name, origin (centers it there), offset, parent} (plain copies, no link back), copy {name} (the clipboard text), add {name, category, ids (default the selection), keep_position} (saves them as a new project entry, moved so their bottom center sits on the origin, or where they are with keep_position, for kit pieces built around the origin). run_action paste also takes TrenchBroom clipboard text.",
             "inputSchema": { "type": "object", "properties": {

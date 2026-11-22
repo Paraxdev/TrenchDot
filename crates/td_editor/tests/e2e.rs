@@ -3424,6 +3424,27 @@ fn bevel_edges_chamfers_one_edge_and_rounds_all_of_them() {
     assert!(ed.call_err("bevel_edges", json!({ "ids": [a], "edges": [[[0, 0, 0], [64, 0, 0]]], "width": 80 })).contains("wider than a face"));
 }
 
+#[test]
+#[ignore]
+fn create_roof_covers_selected_walls_and_takes_explicit_wings() {
+    let ed = Editor::launch("roof");
+    let bar = ed.call("create_brush", json!({ "min": [0, 0, 0], "max": [320, 96, 96], "material": "dev/grey" }))["ids"][0].as_u64().unwrap();
+    let stem = ed.call("create_brush", json!({ "min": [112, 0, 96], "max": [208, 96, 320], "material": "dev/grey" }))["ids"][0].as_u64().unwrap();
+    let t = ed.call("create_roof", json!({ "ids": [bar, stem], "pitch": 45, "material": "dev/red" }));
+    assert_eq!(t["base"], 96.0, "{t}");
+    let ids = t["ids"].as_array().unwrap();
+    assert!(ids.len() >= 2, "{t}");
+    let node = ed.call("get_node", json!({ "id": ids[0] }));
+    assert!(node.to_string().contains("dev/red"), "{node}");
+
+    let hip = ed.call("create_roof", json!({ "wings": [{ "min": [400, 0], "max": [464, 64] }], "base": 0, "pitch": 45, "ends": "hip" }));
+    assert_eq!(hip["ids"].as_array().unwrap().len(), 1, "{hip}");
+
+    assert!(ed.call_err("create_roof", json!({ "wings": [{ "min": [0, 0], "max": [64, 64] }] })).contains("base"));
+    assert!(ed.call_err("create_roof", json!({ "ids": [bar], "pitch": 80 })).contains("5 to 75"));
+    assert!(ed.call_err("create_roof", json!({ "ids": [bar], "ends": "flat" })).contains("gable or hip"));
+}
+
 /// The Array Copies dialog and the duplicate tool share one core: copies turn and scale step by step, and the whole run
 /// is a single undo step.
 #[test]

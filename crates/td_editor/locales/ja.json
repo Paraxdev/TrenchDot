@@ -2713,5 +2713,14 @@
   "Trim: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "トリム：角をクリック、Enter でパスを終了、最初の角で閉じる、Backspace で取り消し",
   "The cross section swept along the path": "パスに沿って押し出す断面",
   "Which side of the clicked path the trim sticks out on, Inside lines a room": "パスのどちら側にトリムが張り出すか。内側なら部屋の縁に沿います",
-  "Created {n} trim brush in a group": { "other": "グループに {n} 個のトリムブラシを作成しました" }
+  "Created {n} trim brush in a group": { "other": "グループに {n} 個のトリムブラシを作成しました" },
+  "Add Roof": "屋根を追加",
+  "Add Roof…": "屋根を追加…",
+  "Pitch": "勾配",
+  "Ends": "端",
+  "Gable": "切妻",
+  "Hip": "寄棟",
+  "How a ridge end that runs into no other wing stops": "他の翼に届かない棟の端の形",
+  "Select the brushes the roof covers, one per wing": "屋根で覆うブラシを翼ごとに1つずつ選択します",
+  "Add Roof over the selected brushes": "選択したブラシの上に屋根を追加"
 }

@@ -2713,5 +2713,14 @@
   "Trim: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Friso: clique nos cantos, Enter termina o caminho, o primeiro canto fecha-o, Backspace desfaz",
   "The cross section swept along the path": "A secção varrida ao longo do caminho",
   "Which side of the clicked path the trim sticks out on, Inside lines a room": "De que lado do caminho o friso sobressai, Dentro contorna uma sala",
-  "Created {n} trim brush in a group": { "one": "{n} brush de friso criado num grupo", "other": "{n} brushes de friso criados num grupo" }
+  "Created {n} trim brush in a group": { "one": "{n} brush de friso criado num grupo", "other": "{n} brushes de friso criados num grupo" },
+  "Add Roof": "Adicionar telhado",
+  "Add Roof…": "Adicionar telhado…",
+  "Pitch": "Inclinação",
+  "Ends": "Extremidades",
+  "Gable": "Empena",
+  "Hip": "Tacaniça",
+  "How a ridge end that runs into no other wing stops": "Como termina uma cumeeira que não encontra outra ala",
+  "Select the brushes the roof covers, one per wing": "Selecione os brushes que o telhado cobre, um por ala",
+  "Add Roof over the selected brushes": "Adicionar um telhado sobre os brushes selecionados"
 }

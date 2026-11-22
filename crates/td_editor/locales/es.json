@@ -2713,5 +2713,14 @@
   "Trim: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Moldura: haz clic en las esquinas, Intro termina el trazado, la primera esquina lo cierra, Retroceso deshace",
   "The cross section swept along the path": "La sección que se barre a lo largo del trazado",
   "Which side of the clicked path the trim sticks out on, Inside lines a room": "En qué lado del trazado sobresale la moldura, Interior bordea una sala",
-  "Created {n} trim brush in a group": { "one": "{n} brush de moldura creado en un grupo", "other": "{n} brushes de moldura creados en un grupo" }
+  "Created {n} trim brush in a group": { "one": "{n} brush de moldura creado en un grupo", "other": "{n} brushes de moldura creados en un grupo" },
+  "Add Roof": "Añadir tejado",
+  "Add Roof…": "Añadir tejado…",
+  "Pitch": "Pendiente",
+  "Ends": "Extremos",
+  "Gable": "Hastial",
+  "Hip": "Faldón",
+  "How a ridge end that runs into no other wing stops": "Cómo acaba una cumbrera que no llega a otra ala",
+  "Select the brushes the roof covers, one per wing": "Selecciona los brushes que cubre el tejado, uno por ala",
+  "Add Roof over the selected brushes": "Añadir un tejado sobre los brushes seleccionados"
 }

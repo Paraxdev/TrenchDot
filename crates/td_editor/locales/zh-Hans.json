@@ -2713,5 +2713,14 @@
   "Trim: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "装饰线：单击角点，Enter 结束路径，单击第一个角点闭合，Backspace 撤销",
   "The cross section swept along the path": "沿路径扫掠的截面",
   "Which side of the clicked path the trim sticks out on, Inside lines a room": "装饰线沿路径的哪一侧凸出，内侧会沿房间边缘",
-  "Created {n} trim brush in a group": { "other": "已在组中创建 {n} 个装饰线笔刷" }
+  "Created {n} trim brush in a group": { "other": "已在组中创建 {n} 个装饰线笔刷" },
+  "Add Roof": "添加屋顶",
+  "Add Roof…": "添加屋顶…",
+  "Pitch": "坡度",
+  "Ends": "端部",
+  "Gable": "山墙",
+  "Hip": "四坡",
+  "How a ridge end that runs into no other wing stops": "未连到其他翼的屋脊端部如何收尾",
+  "Select the brushes the roof covers, one per wing": "选择屋顶覆盖的笔刷，每翼一个",
+  "Add Roof over the selected brushes": "在所选笔刷上添加屋顶"
 }

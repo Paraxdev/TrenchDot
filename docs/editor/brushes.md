@@ -565,6 +565,28 @@ The MCP tool `bevel_edges` takes the brushes as `ids` or the selection, `edges` 
 
 </div>
 
+## Add Roof
+
+To put a roof on a house, block out its walls or its floor plan first. Each selected brush becomes one wing of the
+roof, and the roof rests on the highest top among them.
+
+1. Select the brushes the roof covers, one per wing: one for a plain house, two for an L or a T.
+2. Open *Brush > Add Roof…*. A cyan outline shows the roof it would make, in the current material.
+3. Set **Pitch**, the slope of every roof face in degrees, and **Ends**: **Gable** stops a ridge in an upright triangle,
+   **Hip** slopes it down too.
+4. Click **Add Roof**. The roof brushes are selected, and one undo removes them.
+
+Each ridge runs along the longer side of its wing. Where a wing runs into another one, its ridge goes on to the middle
+of that wing, so the two roofs meet in valleys, and only the free ends get a gable or a hip. All wings share one pitch,
+so a narrower wing gets a lower ridge. The roof is solid and its brushes do not overlap.
+
+<div class="td-mcp" markdown>
+
+The MCP tool `create_roof` takes the wings as brush `ids` or the selection, or as `wings` of `min` and `max` corners
+on the floor plan with a `base` height, plus `pitch`, `ends` and `material`.
+
+</div>
+
 ## Sweep Faces
 
 To carry a corridor, pipe or trim on round a corner, sweep the faces at its end. Each face is pushed along a path

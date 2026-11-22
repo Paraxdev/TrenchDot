@@ -2713,5 +2713,14 @@
   "Trim: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Leiste: Ecken klicken, Enter beendet den Pfad, die erste Ecke schließt ihn, Rücktaste macht rückgängig",
   "The cross section swept along the path": "Der Querschnitt, der entlang des Pfads gezogen wird",
   "Which side of the clicked path the trim sticks out on, Inside lines a room": "Auf welcher Seite des Pfads die Leiste absteht, Innen säumt einen Raum",
-  "Created {n} trim brush in a group": { "one": "{n} Leisten-Brush in einer Gruppe erstellt", "other": "{n} Leisten-Brushes in einer Gruppe erstellt" }
+  "Created {n} trim brush in a group": { "one": "{n} Leisten-Brush in einer Gruppe erstellt", "other": "{n} Leisten-Brushes in einer Gruppe erstellt" },
+  "Add Roof": "Dach hinzufügen",
+  "Add Roof…": "Dach hinzufügen…",
+  "Pitch": "Neigung",
+  "Ends": "Enden",
+  "Gable": "Giebel",
+  "Hip": "Walm",
+  "How a ridge end that runs into no other wing stops": "Wie ein First endet, der auf keinen anderen Flügel trifft",
+  "Select the brushes the roof covers, one per wing": "Wähle die Brushes, die das Dach deckt, einen je Flügel",
+  "Add Roof over the selected brushes": "Dach über die ausgewählten Brushes setzen"
 }

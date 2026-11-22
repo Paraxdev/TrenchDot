@@ -1167,6 +1167,7 @@ impl App {
             "create_polygon_brush" => self.tool_create_polygon_brush(&args),
             "place_along_path" => self.tool_place_along_path(&args),
             "bevel_edges" => self.tool_bevel_edges(&args),
+            "create_roof" => self.tool_create_roof(&args),
             "random_fill" => self.tool_random_fill(&args),
             "blend" => self.tool_blend(&args),
             "gameplay" => self.tool_gameplay(&args),

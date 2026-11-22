@@ -2713,5 +2713,14 @@
   "Trim: click corners, Enter ends the path, the first corner closes it, Backspace undoes": "Профиль: щёлкайте углы, Enter завершает путь, первый угол замыкает его, Backspace отменяет",
   "The cross section swept along the path": "Сечение, протягиваемое вдоль пути",
   "Which side of the clicked path the trim sticks out on, Inside lines a room": "С какой стороны пути выступает профиль, Внутри обводит комнату",
-  "Created {n} trim brush in a group": { "one": "Создан {n} браш профиля в группе", "few": "Создано {n} браша профиля в группе", "many": "Создано {n} брашей профиля в группе" }
+  "Created {n} trim brush in a group": { "one": "Создан {n} браш профиля в группе", "few": "Создано {n} браша профиля в группе", "many": "Создано {n} брашей профиля в группе" },
+  "Add Roof": "Добавить крышу",
+  "Add Roof…": "Добавить крышу…",
+  "Pitch": "Уклон",
+  "Ends": "Концы",
+  "Gable": "Фронтон",
+  "Hip": "Вальма",
+  "How a ridge end that runs into no other wing stops": "Как заканчивается конёк, не доходящий до другого крыла",
+  "Select the brushes the roof covers, one per wing": "Выберите браши, которые накрывает крыша, по одному на крыло",
+  "Add Roof over the selected brushes": "Добавить крышу над выбранными брашами"
 }

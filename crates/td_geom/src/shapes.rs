@@ -9,9 +9,11 @@ use crate::rock::{self, Rock};
 use crate::uv::FaceUv;
 
 mod path_stairs;
+mod roof;
 mod tunnel;
 
 pub use path_stairs::{PathStairs, PathStairsParts, path_stairs};
+pub use roof::{RoofEnd, Wing, roof};
 pub use tunnel::{Toward, Tunnel, TunnelProfile, tunnel, tunnel_thickness};
 
 /// The world axis a round shape (cylinder, cone) runs along.

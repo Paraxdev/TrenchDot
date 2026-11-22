@@ -682,6 +682,7 @@ pub struct EditorState {
     /// Outline segments of the copies the open Array Copies dialog would create.
     pub array_preview: Vec<(DVec3, DVec3)>,
     pub bevel_preview: Vec<(DVec3, DVec3)>,
+    pub roof_preview: Vec<(DVec3, DVec3)>,
     /// Edges of what the open Place Along Path dialog would create, drawn as lines.
     pub spline_preview: Vec<(DVec3, DVec3)>,
     /// The Shape Generator's own box while it is open with no brush or mesh selected, drawn and edited in the views.
@@ -935,6 +936,7 @@ impl EditorState {
             shape_preview: Vec::new(),
             array_preview: Vec::new(),
             bevel_preview: Vec::new(),
+            roof_preview: Vec::new(),
             spline_preview: Vec::new(),
             shape_bounds: None,
             selection_box: None,
