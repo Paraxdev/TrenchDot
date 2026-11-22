@@ -2727,5 +2727,9 @@
   "Drop to Floor": "Опустить на пол",
   "Moves each selected object straight down until it rests on what is under it": "Опускает каждый выбранный объект вертикально вниз, пока он не ляжет на то, что под ним",
   "Select the objects to drop first": "Сначала выберите объекты, которые нужно опустить",
-  "Nothing to drop, the objects already rest on something or have nothing under them": "Нечего опускать, объекты уже лежат на чём-то или под ними ничего нет"
+  "Nothing to drop, the objects already rest on something or have nothing under them": "Нечего опускать, объекты уже лежат на чём-то или под ними ничего нет",
+  "Bridge Faces": "Соединить грани",
+  "Fills the space between two selected faces with one brush, a ramp, beam or plug": "Заполняет пространство между двумя выбранными гранями одним брашем: пандус, балка или заглушка",
+  "Select two faces to bridge, on one brush or two": "Выберите две грани для соединения, на одном браше или на двух",
+  "These faces lie in one plane, there is nothing between them to fill": "Эти грани лежат в одной плоскости, между ними нечего заполнять"
 }

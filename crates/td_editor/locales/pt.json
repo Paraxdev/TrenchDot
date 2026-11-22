@@ -2727,5 +2727,9 @@
   "Drop to Floor": "Largar no chão",
   "Moves each selected object straight down until it rests on what is under it": "Desce cada objeto selecionado na vertical até assentar no que está por baixo",
   "Select the objects to drop first": "Selecione primeiro os objetos a largar",
-  "Nothing to drop, the objects already rest on something or have nothing under them": "Nada a largar, os objetos já assentam em algo ou não têm nada por baixo"
+  "Nothing to drop, the objects already rest on something or have nothing under them": "Nada a largar, os objetos já assentam em algo ou não têm nada por baixo",
+  "Bridge Faces": "Unir faces",
+  "Fills the space between two selected faces with one brush, a ramp, beam or plug": "Preenche o espaço entre duas faces selecionadas com um brush, uma rampa, viga ou tampão",
+  "Select two faces to bridge, on one brush or two": "Selecione duas faces para unir, em um brush ou em dois",
+  "These faces lie in one plane, there is nothing between them to fill": "Estas faces estão no mesmo plano, não há nada para preencher entre elas"
 }

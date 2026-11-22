@@ -602,6 +602,26 @@ on the floor plan with a `base` height, plus `pitch`, `ends` and `material`.
 
 </div>
 
+## Bridge Faces
+
+To close the gap between two pieces, bridge their faces. The new brush wraps both faces, so the top faces of a low
+and a high platform give a ramp between them, and two walls facing each other give a beam or a plug that fills the
+gap.
+
+1. Select the two faces in the 3D view. Shift+click picks the first and Ctrl+Shift+click adds the second, or use the
+   Texture tool and click and Ctrl+click. Both faces may sit on one brush.
+2. Open *Brush > Bridge Faces*. The new brush is selected and joins the group or entity of the first face's brush.
+
+Each new face copies the material and alignment of the face on either brush that points most the same way, so a ramp
+between two floors keeps the floor on top.
+Two faces in one plane hold nothing between them, and the status bar says so.
+
+<div class="td-mcp" markdown>
+
+Over MCP, select the faces and call `run_action` with `bridge_faces`.
+
+</div>
+
 ## Sweep Faces
 
 To carry a corridor, pipe or trim on round a corner, sweep the faces at its end. Each face is pushed along a path

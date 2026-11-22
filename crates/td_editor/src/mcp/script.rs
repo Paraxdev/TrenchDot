@@ -85,6 +85,7 @@ const ACTIONS: &[&str] = &[
     "csg_merge",
     "csg_intersect",
     "csg_hollow",
+    "bridge_faces",
     "rotate",
     "flip",
     "mirror_linked",

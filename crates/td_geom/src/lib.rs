@@ -1,5 +1,6 @@
 pub mod bevel;
 pub mod block_text;
+pub mod bridge;
 pub mod brush;
 pub mod csg;
 pub mod displacement;

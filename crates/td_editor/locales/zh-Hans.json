@@ -2727,5 +2727,9 @@
   "Drop to Floor": "落到地面",
   "Moves each selected object straight down until it rests on what is under it": "将每个选中的对象竖直向下移动，直到落在下方的物体上",
   "Select the objects to drop first": "请先选择要落下的对象",
-  "Nothing to drop, the objects already rest on something or have nothing under them": "没有可落下的对象，它们已经落在某物上，或下方什么也没有"
+  "Nothing to drop, the objects already rest on something or have nothing under them": "没有可落下的对象，它们已经落在某物上，或下方什么也没有",
+  "Bridge Faces": "桥接面",
+  "Fills the space between two selected faces with one brush, a ramp, beam or plug": "用一个画刷填满两个所选面之间的空间，可作坡道、横梁或封堵",
+  "Select two faces to bridge, on one brush or two": "选择两个要桥接的面，可在同一个画刷上，也可在两个画刷上",
+  "These faces lie in one plane, there is nothing between them to fill": "这些面位于同一平面，之间没有可填充的空间"
 }

@@ -82,6 +82,7 @@ pub enum Action {
     CsgMerge,
     CsgIntersect,
     CsgHollow,
+    BridgeFaces,
     Rotate {
         axis: usize,
         degrees: f64,
@@ -355,6 +356,7 @@ impl Action {
             Action::CsgMerge => en!("CSG Convex Merge"),
             Action::CsgIntersect => en!("CSG Intersect"),
             Action::CsgHollow => en!("Hollow"),
+            Action::BridgeFaces => en!("Bridge Faces"),
             Action::Rotate { axis, degrees } => return trf!("Rotate {axis} {degrees}°", axis = axis_name(*axis), degrees),
             Action::Flip { axis } => return trf!("Flip {axis}", axis = axis_name(*axis)),
             Action::FlipHorizontal => en!("Flip Horizontal"),
@@ -512,6 +514,7 @@ impl Action {
             Action::CsgMerge => en!("Replaces the selected brushes with one brush that wraps around all of them, like shrink wrap"),
             Action::CsgIntersect => en!("Keeps only the space the selected brushes share"),
             Action::CsgHollow => en!("Turns a solid brush into a hollow room with walls of the set thickness"),
+            Action::BridgeFaces => en!("Fills the space between two selected faces with one brush, a ramp, beam or plug"),
             Action::SnapVertices => en!("Moves every corner of the selected brushes to the nearest grid point"),
             Action::MoveToWorld => en!("Moves the selected brushes out of their brush entity into plain level geometry"),
             Action::TieToEntity => en!("Turns the selected brushes into a brush entity picked from a list, like a door or a trigger"),
@@ -1682,6 +1685,26 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
                     state.fail_status(msg!("Nothing to hollow, the selection is too thin for walls {t} units thick. Lower Wall thickness in Brush > CSG", t))
                 }
             }
+        }
+        Action::BridgeFaces => {
+            let picked: Vec<(NodeId, usize)> = state.doc.selection.faces.iter().copied().collect();
+            let [(a, fa), (b, fb)] = picked[..] else {
+                state.fail_status(msg!("Select two faces to bridge, on one brush or two"));
+                return;
+            };
+            let built = match (state.doc.map.brush(a), state.doc.map.brush(b)) {
+                (Some(ba), Some(bb)) => td_geom::bridge::bridge_faces(ba, fa, bb, fb).ok(),
+                _ => None,
+            };
+            let Some(brush) = built else {
+                state.fail_status(msg!("These faces lie in one plane, there is nothing between them to fill"));
+                return;
+            };
+            state.doc.edit("Bridge Faces", |m, s| {
+                let parent = m.get(a).and_then(|n| n.parent).unwrap_or(m.default_layer());
+                s.clear();
+                s.nodes.insert(m.insert(parent, td_doc::NodeKind::Brush(brush)));
+            });
         }
         Action::Rotate { axis, degrees } => {
             if state.doc.selection.transformables(&state.doc.map).is_empty() {
@@ -5614,6 +5637,32 @@ mod tests {
         assert_eq!(materials(&state), ["models/nature/pine/pine_0"]);
         assert!(state.materials.load_image("models/nature/pine/pine_0").is_some());
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn bridge_faces_fills_the_gap_between_two_platforms() {
+        let mut state = EditorState::new(Default::default());
+        let ctx = egui::Context::default();
+        let layer = state.doc.map.default_layer();
+        let add = |state: &mut EditorState, min: DVec3, max: DVec3| {
+            let b = td_geom::Brush::from_aabb(&Aabb::new(min, max), "dev/grey").unwrap();
+            state.doc.edit("add", |m, _| m.insert(layer, td_doc::NodeKind::Brush(b)))
+        };
+        let low = add(&mut state, DVec3::ZERO, DVec3::new(64.0, 16.0, 64.0));
+        let high = add(&mut state, DVec3::new(128.0, 0.0, 0.0), DVec3::new(192.0, 64.0, 64.0));
+        let top = |state: &EditorState, id| state.doc.map.brush(id).unwrap().faces.iter().position(|f| f.plane.normal.y > 0.99).unwrap();
+
+        state.doc.selection.faces.insert((low, top(&state, low)));
+        execute(&mut state, Action::BridgeFaces, &ctx);
+        assert!(state.status.starts_with("Select two faces"), "{}", state.status);
+
+        state.doc.selection.faces.insert((high, top(&state, high)));
+        execute(&mut state, Action::BridgeFaces, &ctx);
+        let ramp = *state.doc.selection.nodes.iter().next().expect("the ramp is selected");
+        assert!(state.doc.selection.faces.is_empty());
+        let bounds = state.doc.map.brush(ramp).unwrap().bounds();
+        assert!(bounds.min.distance(DVec3::new(0.0, 16.0, 0.0)) < 1e-6 && bounds.max.distance(DVec3::new(192.0, 64.0, 64.0)) < 1e-6, "{bounds:?}");
+        assert_eq!(state.doc.map.get(ramp).and_then(|n| n.parent), Some(layer));
     }
 
     #[test]

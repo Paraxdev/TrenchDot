@@ -1592,6 +1592,7 @@ impl App {
             "csg_merge" => Action::CsgMerge,
             "csg_intersect" => Action::CsgIntersect,
             "csg_hollow" => Action::CsgHollow,
+            "bridge_faces" => Action::BridgeFaces,
             "rotate" | "flip" => {
                 let axis = match &a["axis"] {
                     Value::Null => usize::from(name == "rotate"),

@@ -1695,6 +1695,7 @@ impl App {
                 m.item(ui, None, en!("Add Trim…"), Action::ShowTrimDialog);
                 m.item(ui, None, en!("Bevel Edges…"), Action::ShowBevelDialog);
                 m.item(ui, None, en!("Add Roof…"), Action::ShowRoofDialog);
+                m.item(ui, None, en!("Bridge Faces"), Action::BridgeFaces);
                 m.item(ui, None, en!("Sweep Faces…"), Action::ShowSweepDialog);
                 m.item(ui, None, en!("Place Along Path…"), Action::ShowSplineDialog);
                 m.item(ui, None, en!("Random Fill…"), Action::ShowRandomFillDialog);

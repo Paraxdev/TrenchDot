@@ -2727,5 +2727,9 @@
   "Drop to Floor": "床に落とす",
   "Moves each selected object straight down until it rests on what is under it": "選択した各オブジェクトを、下にあるものに載るまで真下へ動かします",
   "Select the objects to drop first": "先に落とすオブジェクトを選択してください",
-  "Nothing to drop, the objects already rest on something or have nothing under them": "落とすものがありません。オブジェクトはすでに何かに載っているか、下に何もありません"
+  "Nothing to drop, the objects already rest on something or have nothing under them": "落とすものがありません。オブジェクトはすでに何かに載っているか、下に何もありません",
+  "Bridge Faces": "面をブリッジ",
+  "Fills the space between two selected faces with one brush, a ramp, beam or plug": "選択した2つの面の間を1つのブラシで埋めます。スロープ、梁、栓に",
+  "Select two faces to bridge, on one brush or two": "ブリッジする面を2つ選択してください。1つのブラシでも2つでも構いません",
+  "These faces lie in one plane, there is nothing between them to fill": "これらの面は同じ平面上にあり、間に埋める空間がありません"
 }
