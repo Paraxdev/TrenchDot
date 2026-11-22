@@ -1706,6 +1706,19 @@ mod tests {
     }
 
     #[test]
+    fn select_touching_skips_a_brush_that_only_shares_a_face() {
+        let mut m = Map::new();
+        let l = m.default_layer();
+        let floor = create_brush(&mut m, l, Brush::from_aabb(&Aabb::new(DVec3::new(-64.0, -16.0, -64.0), DVec3::new(64.0, 0.0, 64.0)), "floor").unwrap());
+        let pillar = create_brush(&mut m, l, Brush::from_aabb(&Aabb::new(DVec3::new(-8.0, 0.0, -8.0), DVec3::new(8.0, 64.0, 8.0)), "pillar").unwrap());
+        let mut sel = Selection::default();
+        sel.nodes.insert(floor);
+        select_touching(&mut m, &mut sel, &[], false);
+        assert!(sel.nodes.is_empty());
+        assert!(m.contains(pillar) && !m.contains(floor));
+    }
+
+    #[test]
     fn brush_entity_round_trip() {
         let (mut m, ids) = world_with_boxes();
         let layer = m.default_layer();
