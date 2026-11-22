@@ -2692,5 +2692,13 @@
   "Created {n} wall in a group": { "one": "{n} mur créé dans un groupe", "other": "{n} murs créés dans un groupe" },
   "Outside": "Extérieur",
   "Centered": "Centré",
-  "Which side of the clicked path the walls grow on, Outside keeps a room's floor plan": "De quel côté du tracé les murs poussent, Extérieur garde le plan d'une pièce"
+  "Which side of the clicked path the walls grow on, Outside keeps a room's floor plan": "De quel côté du tracé les murs poussent, Extérieur garde le plan d'une pièce",
+  "Bevel": "Biseauter",
+  "Bevel Edges…": "Biseauter les arêtes…",
+  "{n} edge": { "one": "{n} arête", "other": "{n} arêtes" },
+  "One segment cuts the edge off flat, more round it": "Un segment coupe l’arête à plat, davantage l’arrondissent",
+  "Bevel Edges of brushes, flat or rounded": "Biseauter les arêtes des brushes, à plat ou arrondies",
+  "Select brushes, or pick both corners of each edge with the Vertex tool": "Sélectionnez des brushes, ou marquez avec l’outil Sommet les deux coins de chaque arête",
+  "The bevel is wider than a face beside the edge": "Le biseau est plus large qu’une face voisine de l’arête",
+  "The bevelled brush came out invalid, try a smaller width": "Le brush biseauté est invalide, essayez une largeur plus petite"
 }

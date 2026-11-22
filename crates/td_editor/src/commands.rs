@@ -156,6 +156,7 @@ pub enum Action {
     ShowShapeDialog,
     ShowSweepDialog,
     ShowArrayDialog,
+    ShowBevelDialog,
     ShowTransformDialog,
     ShowFindDialog,
     ShowSplineDialog,
@@ -400,6 +401,7 @@ impl Action {
             Action::ShowShapeDialog => en!("Shape Generator"),
             Action::ShowSweepDialog => en!("Sweep Faces"),
             Action::ShowArrayDialog => en!("Array Copies"),
+            Action::ShowBevelDialog => en!("Bevel Edges"),
             Action::ShowTransformDialog => en!("Transform Selection"),
             Action::ShowFindDialog => en!("Find and Replace"),
             Action::ShowSplineDialog => en!("Place Along Path"),
@@ -1878,6 +1880,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         | Action::ShowShapeDialog
         | Action::ShowSweepDialog
         | Action::ShowArrayDialog
+        | Action::ShowBevelDialog
         | Action::ShowTransformDialog
         | Action::TieToEntity
         | Action::FlipHorizontal

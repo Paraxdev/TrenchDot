@@ -650,6 +650,15 @@ pub fn tool_definitions() -> Vec<Value> {
             } }
         }),
         json!({
+            "name": "bevel_edges",
+            "description": "Bevels brush edges as one undo step, like Brush > Bevel Edges. The brushes are ids or the selected ones. edges [[[x, y, z], [x, y, z]], ...] names the edges by their two corners in either order, an edge any brush lacks is skipped, and without edges every edge of the brushes is bevelled. width (8) is how far the cut reaches into both faces beside an edge. segments 1 to 16 (1): one is a flat chamfer, more round the edge off along an arc that touches both faces width from the edge. Each bevel adds a face per segment, so the brush stays convex, and the new faces continue the texture of the face they lean towards. A width that reaches across a face beside the edge is an error. Returns the changed brush ids and their face counts.",
+            "inputSchema": { "type": "object", "properties": {
+                "ids": { "type": "array", "items": { "type": "integer" } },
+                "edges": { "type": "array", "items": { "type": "array", "items": vec3_schema("corner"), "minItems": 2, "maxItems": 2 } },
+                "width": { "type": "number" }, "segments": { "type": "integer" }
+            } }
+        }),
+        json!({
             "name": "prefab_library",
             "description": "The prefab library of the Prefabs panel: ready made pieces (stairs, doorways, pillars, rooms, details) that come with the editor on dev materials, and the project's own .tdm files in res://prefab_library, one folder per category. ops: list {query} (name is category/name, size in map units, source builtin or project), paste {name, origin (centers it there), offset, parent} (plain copies, no link back), copy {name} (the clipboard text), add {name, category, ids (default the selection), keep_position} (saves them as a new project entry, moved so their bottom center sits on the origin, or where they are with keep_position, for kit pieces built around the origin). run_action paste also takes TrenchBroom clipboard text.",
             "inputSchema": { "type": "object", "properties": {

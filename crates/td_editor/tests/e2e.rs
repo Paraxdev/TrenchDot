@@ -3407,6 +3407,23 @@ fn place_along_path_repeats_bends_and_hangs_a_cable() {
     assert!(ed.call_err("place_along_path", json!({ "ids": [post], "chain": "nope" })).contains("no chain"));
 }
 
+#[test]
+#[ignore]
+fn bevel_edges_chamfers_one_edge_and_rounds_all_of_them() {
+    let ed = Editor::launch("bevel");
+    let a = ed.call("create_brush", json!({ "min": [0, 0, 0], "max": [64, 64, 64], "material": "dev/grey" }))["ids"][0].as_u64().unwrap();
+    let one = ed.call("bevel_edges", json!({ "ids": [a], "edges": [[[64, 64, 64], [0, 64, 64]]], "width": 16 }));
+    assert_eq!(one["brushes"], json!([{ "id": a, "faces": 7 }]), "{one}");
+
+    let b = ed.call("create_brush", json!({ "min": [128, 0, 0], "max": [192, 64, 64], "material": "dev/grey" }))["ids"][0].as_u64().unwrap();
+    let round = ed.call("bevel_edges", json!({ "ids": [b], "width": 8, "segments": 3 }));
+    assert_eq!(round["brushes"][0]["faces"], 6 + 12 * 3, "{round}");
+
+    assert!(ed.call_err("bevel_edges", json!({ "ids": [b], "width": 0 })).contains("more than 0"));
+    assert!(ed.call_err("bevel_edges", json!({ "ids": [a], "edges": [[[0, 0, 0], [64, 64, 64]]] })).contains("pick both corners"));
+    assert!(ed.call_err("bevel_edges", json!({ "ids": [a], "edges": [[[0, 0, 0], [64, 0, 0]]], "width": 80 })).contains("wider than a face"));
+}
+
 /// The Array Copies dialog and the duplicate tool share one core: copies turn and scale step by step, and the whole run
 /// is a single undo step.
 #[test]

@@ -3,6 +3,7 @@ pub mod addon_wizard;
 pub mod app;
 pub mod array_dialog;
 pub mod bake;
+pub mod bevel_dialog;
 pub mod blend_tool;
 pub mod brand;
 pub mod camera;

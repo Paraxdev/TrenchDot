@@ -1443,7 +1443,7 @@ impl ToolSet {
             }
         }
 
-        for &(a, b) in state.shape_preview.iter().chain(&state.spline_preview) {
+        for &(a, b) in state.shape_preview.iter().chain(&state.spline_preview).chain(&state.bevel_preview) {
             line(&mut out, a, b, PREVIEW_COLOR);
         }
 

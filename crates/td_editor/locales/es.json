@@ -2692,5 +2692,13 @@
   "Created {n} wall in a group": { "one": "{n} pared creada en un grupo", "other": "{n} paredes creadas en un grupo" },
   "Outside": "Fuera",
   "Centered": "Centrado",
-  "Which side of the clicked path the walls grow on, Outside keeps a room's floor plan": "En qué lado del trazado crecen las paredes, Fuera conserva la planta de una sala"
+  "Which side of the clicked path the walls grow on, Outside keeps a room's floor plan": "En qué lado del trazado crecen las paredes, Fuera conserva la planta de una sala",
+  "Bevel": "Biselar",
+  "Bevel Edges…": "Biselar aristas…",
+  "{n} edge": { "one": "{n} arista", "other": "{n} aristas" },
+  "One segment cuts the edge off flat, more round it": "Un segmento corta la arista en plano, más la redondean",
+  "Bevel Edges of brushes, flat or rounded": "Biselar aristas de brushes, planas o redondeadas",
+  "Select brushes, or pick both corners of each edge with the Vertex tool": "Selecciona brushes o marca con la herramienta Vértice las dos esquinas de cada arista",
+  "The bevel is wider than a face beside the edge": "El bisel es más ancho que una cara junto a la arista",
+  "The bevelled brush came out invalid, try a smaller width": "El brush biselado no es válido, prueba un ancho menor"
 }

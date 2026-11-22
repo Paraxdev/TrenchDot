@@ -2692,5 +2692,13 @@
   "Created {n} wall in a group": { "other": "グループに {n} 枚の壁を作成しました" },
   "Outside": "外側",
   "Centered": "中央",
-  "Which side of the clicked path the walls grow on, Outside keeps a room's floor plan": "パスのどちら側に壁を作るか。外側なら部屋の間取りがそのまま残ります"
+  "Which side of the clicked path the walls grow on, Outside keeps a room's floor plan": "パスのどちら側に壁を作るか。外側なら部屋の間取りがそのまま残ります",
+  "Bevel": "ベベル",
+  "Bevel Edges…": "エッジのベベル…",
+  "{n} edge": { "other": "エッジ{n}本" },
+  "One segment cuts the edge off flat, more round it": "1セグメントで平らに面取り、増やすと丸くなります",
+  "Bevel Edges of brushes, flat or rounded": "ブラシのエッジを平らまたは丸くベベル",
+  "Select brushes, or pick both corners of each edge with the Vertex tool": "ブラシを選択するか、頂点ツールで各エッジの両端を選んでください",
+  "The bevel is wider than a face beside the edge": "ベベルがエッジ横の面より広すぎます",
+  "The bevelled brush came out invalid, try a smaller width": "ベベル後のブラシが無効です、幅を小さくしてください"
 }

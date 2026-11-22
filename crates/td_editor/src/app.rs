@@ -138,6 +138,7 @@ pub struct App {
     trim_dialog: crate::trim::TrimDialog,
     sweep_dialog: crate::sweep_dialog::SweepDialog,
     array_dialog: crate::array_dialog::ArrayDialog,
+    bevel_dialog: crate::bevel_dialog::BevelDialog,
     transform_dialog: crate::transform_dialog::TransformDialog,
     find_dialog: crate::find_dialog::FindDialog,
     spline_dialog: crate::spline_dialog::SplineDialog,
@@ -202,6 +203,7 @@ const WINDOW_TITLES: [&str; 17] = [
     "Add Trim",
     "Sweep Faces",
     "Array Copies",
+    "Bevel Edges",
     "Transform Selection",
     "Find and Replace",
     "Place Along Path",
@@ -1122,6 +1124,7 @@ impl App {
             trim_dialog: Default::default(),
             sweep_dialog: Default::default(),
             array_dialog: Default::default(),
+            bevel_dialog: Default::default(),
             transform_dialog: Default::default(),
             find_dialog: Default::default(),
             spline_dialog: Default::default(),
@@ -1258,6 +1261,7 @@ impl App {
             Action::ShowTrimDialog => self.trim_dialog.open = true,
             Action::ShowSweepDialog => self.sweep_dialog.open = true,
             Action::ShowArrayDialog => self.array_dialog.open = true,
+            Action::ShowBevelDialog => self.bevel_dialog.open = true,
             Action::ShowTransformDialog => self.transform_dialog.toggle(),
             Action::TieToEntity => {
                 if let Some(class) = commands::tie_to_entity_check(&mut self.state) {
@@ -1685,6 +1689,7 @@ impl App {
                 ui.set_min_width(MENU_WIDTH);
                 m.item(ui, Some(icons::SHAPES), en!("Shape Generator…"), Action::ShowShapeDialog);
                 m.item(ui, None, en!("Add Trim…"), Action::ShowTrimDialog);
+                m.item(ui, None, en!("Bevel Edges…"), Action::ShowBevelDialog);
                 m.item(ui, None, en!("Sweep Faces…"), Action::ShowSweepDialog);
                 m.item(ui, None, en!("Place Along Path…"), Action::ShowSplineDialog);
                 m.item(ui, None, en!("Random Fill…"), Action::ShowRandomFillDialog);
@@ -3534,6 +3539,8 @@ impl eframe::App for App {
         self.trim_dialog.show(&ctx, &mut self.state);
         self.sweep_dialog.show(&ctx, &mut self.state);
         self.array_dialog.show(&ctx, &mut self.state);
+        let corners: &[td_core::DVec3] = if self.state.tool == ToolKind::Vertex { &self.tools.vertex.selected } else { &[] };
+        self.bevel_dialog.show(&ctx, &mut self.state, corners);
         self.transform_dialog.show(&ctx, &mut self.state);
         self.find_dialog.show(&ctx, &mut self.state);
         self.spline_dialog.show(&ctx, &mut self.state);

@@ -517,6 +517,30 @@ the box. With **Floor**, and in a **Round** tunnel, the floor is its own slab, o
 lower a box with a floor by its thickness so its inner floor lines up with the floor before it, or lead up to it with
 a ramp.
 
+## Bevel Edges
+
+To take the hard edge off a step, a pillar or a door frame, bevel it. The brush keeps one piece and stays convex,
+each bevel only adds faces.
+
+1. Select the brushes. To bevel only some edges, switch to the Vertex tool, click one corner of an edge and Ctrl+click
+   the other. An edge counts when both its corners are picked, so picking all four corners of a face takes its four
+   edges.
+2. Open *Brush > Bevel Edges…*. A cyan outline shows the brushes as they would come out. With no corners picked, every
+   edge of the selected brushes is bevelled.
+3. Set **Width**, how far the cut reaches into both faces beside the edge, and **Segments**. One segment cuts the edge
+   off flat, more round it off along an arc.
+4. Click **Bevel**. One undo puts the edges back.
+
+The new faces carry on the texture of the face they lean towards. A width that would reach across a whole face beside
+the edge is refused, try a smaller one.
+
+<div class="td-mcp" markdown>
+
+The MCP tool `bevel_edges` takes the brushes as `ids` or the selection, `edges` as pairs of corners, `width` and
+`segments`.
+
+</div>
+
 ## Sweep Faces
 
 To carry a corridor, pipe or trim on round a corner, sweep the faces at its end. Each face is pushed along a path

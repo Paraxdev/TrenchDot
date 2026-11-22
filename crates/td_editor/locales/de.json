@@ -2692,5 +2692,13 @@
   "Created {n} wall in a group": { "one": "{n} Wand in einer Gruppe erstellt", "other": "{n} Wände in einer Gruppe erstellt" },
   "Outside": "Außen",
   "Centered": "Mittig",
-  "Which side of the clicked path the walls grow on, Outside keeps a room's floor plan": "Auf welcher Seite des Pfads die Wände wachsen, Außen behält den Grundriss eines Raums"
+  "Which side of the clicked path the walls grow on, Outside keeps a room's floor plan": "Auf welcher Seite des Pfads die Wände wachsen, Außen behält den Grundriss eines Raums",
+  "Bevel": "Abfasen",
+  "Bevel Edges…": "Kanten abfasen…",
+  "{n} edge": { "one": "{n} Kante", "other": "{n} Kanten" },
+  "One segment cuts the edge off flat, more round it": "Ein Segment schneidet die Kante flach ab, mehr runden sie",
+  "Bevel Edges of brushes, flat or rounded": "Kanten von Brushes abfasen, flach oder gerundet",
+  "Select brushes, or pick both corners of each edge with the Vertex tool": "Wähle Brushes oder markiere mit dem Vertex-Werkzeug beide Ecken jeder Kante",
+  "The bevel is wider than a face beside the edge": "Die Fase ist breiter als eine Fläche neben der Kante",
+  "The bevelled brush came out invalid, try a smaller width": "Der abgefaste Brush ist ungültig, versuche eine kleinere Breite"
 }

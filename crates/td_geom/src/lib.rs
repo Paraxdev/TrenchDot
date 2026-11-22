@@ -1,3 +1,4 @@
+pub mod bevel;
 pub mod block_text;
 pub mod brush;
 pub mod csg;

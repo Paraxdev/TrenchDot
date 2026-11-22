@@ -2692,5 +2692,13 @@
   "Created {n} wall in a group": { "other": "已在一个组中创建 {n} 面墙" },
   "Outside": "外侧",
   "Centered": "居中",
-  "Which side of the clicked path the walls grow on, Outside keeps a room's floor plan": "墙体沿路径的哪一侧生成，外侧会保留房间的平面"
+  "Which side of the clicked path the walls grow on, Outside keeps a room's floor plan": "墙体沿路径的哪一侧生成，外侧会保留房间的平面",
+  "Bevel": "倒角",
+  "Bevel Edges…": "倒角边…",
+  "{n} edge": { "other": "{n} 条边" },
+  "One segment cuts the edge off flat, more round it": "一段为平直倒角，多段则倒圆",
+  "Bevel Edges of brushes, flat or rounded": "为笔刷的边倒角，平直或圆角",
+  "Select brushes, or pick both corners of each edge with the Vertex tool": "请选择笔刷，或用顶点工具选中每条边的两个端点",
+  "The bevel is wider than a face beside the edge": "倒角比边旁的面还宽",
+  "The bevelled brush came out invalid, try a smaller width": "倒角后的笔刷无效，请减小宽度"
 }

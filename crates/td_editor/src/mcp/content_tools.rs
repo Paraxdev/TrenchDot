@@ -580,6 +580,75 @@ impl App {
         }
     }
 
+    pub(crate) fn tool_bevel_edges(&mut self, args: &Value) -> ToolResult {
+        use crate::bevel_dialog::{BevelSpec, MAX_SEGMENTS};
+        let mut spec = BevelSpec::default();
+        match &args["width"] {
+            Value::Null => {}
+            v => match v.as_f64().filter(|w| *w > 0.0) {
+                Some(w) => spec.width = w,
+                None => return err(format!("width must be a number more than 0, got {v}")),
+            },
+        }
+
+        match &args["segments"] {
+            Value::Null => {}
+            v => match v.as_u64().filter(|n| (1..=MAX_SEGMENTS as u64).contains(n)) {
+                Some(n) => spec.segments = n as usize,
+                None => return err(format!("segments must be a whole number from 1 to {MAX_SEGMENTS}, got {v}")),
+            },
+        }
+
+        let mut corners = Vec::new();
+        if let Some(list) = args["edges"].as_array() {
+            for (i, e) in list.iter().enumerate() {
+                match (vec3(&e[0]), vec3(&e[1])) {
+                    (Some(a), Some(b)) => corners.push((a, b)),
+                    _ => return err(format!("edges[{i}] must be two corners [[x, y, z], [x, y, z]]")),
+                }
+            }
+
+            if corners.is_empty() {
+                return err("edges is empty, leave it out to bevel every edge");
+            }
+        }
+
+        let sel = if args["ids"].is_array() {
+            match id_list(args, "ids").and_then(|ids| editable_ids(&self.state, &ids)) {
+                Ok(ids) => {
+                    let mut sel = td_doc::Selection::default();
+                    sel.nodes.extend(ids);
+                    sel
+                }
+                Err(e) => return err(e),
+            }
+        } else {
+            self.state.doc.selection.clone()
+        };
+
+        let ends: Vec<DVec3> = corners.iter().flat_map(|(a, b)| [*a, *b]).collect();
+        let mut picked = crate::bevel_dialog::picked_edges(&self.state.doc.map, &sel, &ends);
+        if !corners.is_empty() {
+            let named = |a: DVec3, b: DVec3| {
+                corners.iter().any(|(p, q)| (p.distance(a) < 1e-6 && q.distance(b) < 1e-6) || (p.distance(b) < 1e-6 && q.distance(a) < 1e-6))
+            };
+            for (_, edges) in &mut picked {
+                edges.retain(|(a, b)| named(*a, *b));
+            }
+
+            picked.retain(|(_, edges)| !edges.is_empty());
+        }
+
+        match crate::bevel_dialog::apply(&mut self.state, &picked, &spec) {
+            Ok(_) => {
+                let changed: Vec<Value> =
+                    picked.iter().filter_map(|(id, _)| self.state.doc.map.brush(*id).map(|b| json!({ "id": id.0, "faces": b.faces.len() }))).collect();
+                ok(json!({ "ok": true, "brushes": changed }))
+            }
+            Err(e) => err(e.message()),
+        }
+    }
+
     /// Trim strips along face edges: baseboards, crown molding, borders.
     pub(crate) fn tool_trim(&mut self, args: &Value) -> ToolResult {
         let mut opts = crate::trim::TrimOptions { material: self.state.current_material.clone(), ..Default::default() };

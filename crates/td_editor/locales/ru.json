@@ -2692,5 +2692,13 @@
   "Created {n} wall in a group": { "one": "Создана {n} стена в группе", "few": "Создано {n} стены в группе", "many": "Создано {n} стен в группе" },
   "Outside": "Снаружи",
   "Centered": "По центру",
-  "Which side of the clicked path the walls grow on, Outside keeps a room's floor plan": "С какой стороны пути растут стены, Снаружи сохраняет план комнаты"
+  "Which side of the clicked path the walls grow on, Outside keeps a room's floor plan": "С какой стороны пути растут стены, Снаружи сохраняет план комнаты",
+  "Bevel": "Фаска",
+  "Bevel Edges…": "Фаска рёбер…",
+  "{n} edge": { "one": "{n} ребро", "few": "{n} ребра", "many": "{n} рёбер" },
+  "One segment cuts the edge off flat, more round it": "Один сегмент срезает ребро плоско, больше скругляют его",
+  "Bevel Edges of brushes, flat or rounded": "Фаска рёбер брашей, плоская или скруглённая",
+  "Select brushes, or pick both corners of each edge with the Vertex tool": "Выберите браши или отметьте инструментом «Вершина» оба угла каждого ребра",
+  "The bevel is wider than a face beside the edge": "Фаска шире грани рядом с ребром",
+  "The bevelled brush came out invalid, try a smaller width": "Браш после фаски получился неверным, уменьшите ширину"
 }

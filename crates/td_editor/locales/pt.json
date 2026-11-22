@@ -2692,5 +2692,13 @@
   "Created {n} wall in a group": { "one": "{n} parede criada em um grupo", "other": "{n} paredes criadas em um grupo" },
   "Outside": "Fora",
   "Centered": "Centralizado",
-  "Which side of the clicked path the walls grow on, Outside keeps a room's floor plan": "De que lado do caminho as paredes crescem, Fora mantém a planta de uma sala"
+  "Which side of the clicked path the walls grow on, Outside keeps a room's floor plan": "De que lado do caminho as paredes crescem, Fora mantém a planta de uma sala",
+  "Bevel": "Chanfrar",
+  "Bevel Edges…": "Chanfrar arestas…",
+  "{n} edge": { "one": "{n} aresta", "other": "{n} arestas" },
+  "One segment cuts the edge off flat, more round it": "Um segmento corta a aresta reta, mais a arredondam",
+  "Bevel Edges of brushes, flat or rounded": "Chanfrar arestas de brushes, retas ou arredondadas",
+  "Select brushes, or pick both corners of each edge with the Vertex tool": "Selecione brushes, ou marque com a ferramenta Vértice os dois cantos de cada aresta",
+  "The bevel is wider than a face beside the edge": "O chanfro é mais largo que uma face ao lado da aresta",
+  "The bevelled brush came out invalid, try a smaller width": "O brush chanfrado ficou inválido, tente uma largura menor"
 }
