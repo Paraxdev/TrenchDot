@@ -93,6 +93,7 @@ const ACTIONS: &[&str] = &[
     "mirror_again",
     "align",
     "distribute",
+    "drop_to_floor",
     "focus_selection",
     "create_brush_entity",
     "place_entities",

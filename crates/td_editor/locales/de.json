@@ -2723,5 +2723,9 @@
   "How a ridge end that runs into no other wing stops": "Wie ein First endet, der auf keinen anderen Flügel trifft",
   "Select the brushes the roof covers, one per wing": "Wähle die Brushes, die das Dach deckt, einen je Flügel",
   "Add Roof over the selected brushes": "Dach über die ausgewählten Brushes setzen",
-  "Pillar": "Säule"
+  "Pillar": "Säule",
+  "Drop to Floor": "Auf den Boden fallen lassen",
+  "Moves each selected object straight down until it rests on what is under it": "Bewegt jedes ausgewählte Objekt senkrecht nach unten, bis es auf dem aufliegt, was darunter ist",
+  "Select the objects to drop first": "Wähle zuerst die Objekte aus, die fallen sollen",
+  "Nothing to drop, the objects already rest on something or have nothing under them": "Nichts fällt, die Objekte liegen schon auf etwas auf oder haben nichts unter sich"
 }

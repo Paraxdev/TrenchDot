@@ -292,6 +292,20 @@ Each command is one undo step and moves by exact amounts, so the results are not
 already line up, the status bar says so and nothing changes. Objects that overlap along the axis end up with the same
 overlap between each pair.
 
+### Drop to Floor
+
+To set crates, props or a group down on the ground, select them and pick *Brush > Transform > Drop to Floor*. Each
+object moves straight down until it touches the first visible brush, terrain or object under it, so a crate on a slope
+or a stair edge lands where it meets it. The lowest objects drop first, so a stack of selected crates settles on top of
+each other. Trigger and cutter brushes are ignored, and an object with nothing under it stays where it is. The drop is
+one undo step.
+
+<div class="td-mcp" markdown>
+
+Over MCP, run `run_action` with `drop_to_floor`. It fails when nothing moves.
+
+</div>
+
 ## Mirror
 
 For a symmetric building, a pair of windows or a left and a right wing, build one half and let the editor keep the other

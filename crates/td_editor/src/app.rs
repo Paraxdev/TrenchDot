@@ -1752,6 +1752,7 @@ impl App {
                             m.item(ui, None, &msg!("Distribute {axis}", axis = commands::axis_name(axis)), Action::Distribute { axis });
                         }
                     });
+                    m.item(ui, None, en!("Drop to Floor"), Action::DropToFloor);
 
                     ui.separator();
                     sub_menu(ui, None, en!("Nudge by Grid"), |ui| {

@@ -1706,6 +1706,7 @@ impl App {
                 };
                 Action::ApplyMirror { distance }
             }
+            "drop_to_floor" => Action::DropToFloor,
             "align" | "distribute" => {
                 let Some(axis) = axis_index(&a["axis"]) else {
                     return err(format!("{name} needs args.axis, x, y or z, got {}", a["axis"]));

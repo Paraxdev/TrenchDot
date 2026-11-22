@@ -332,6 +332,84 @@ pub fn distribute_selection(map: &mut Map, sel: &Selection, axis: usize, opts: E
     move_units(map, &units, &distribute_offsets(&boxes, axis), axis, opts)
 }
 
+/// Drops each selected object straight down until it rests on a brush or a terrain, and returns how many moved. The
+/// lowest go first, so an object over another selected one lands where that one ended up. Hidden brushes, triggers and
+/// cutters are not floors, and an object with nothing under it stays where it is.
+pub fn drop_selection(map: &mut Map, sel: &Selection, opts: EditOptions) -> usize {
+    let mut units = selection_units(map, sel);
+    units.sort_by(|a, b| a.1.min.y.total_cmp(&b.1.min.y));
+    let mut moved = 0;
+    for (id, _) in units {
+        match drop_distance(map, id) {
+            Some(fall) if fall > 1e-6 => {
+                let mut one = Selection::default();
+                one.nodes.insert(id);
+                translate_selection(map, &one, DVec3::new(0.0, -fall, 0.0), opts);
+                moved += 1;
+            }
+            _ => {}
+        }
+    }
+
+    moved
+}
+
+/// How far `id` falls before it rests on something, None when nothing is under it.
+pub fn drop_distance(map: &Map, id: NodeId) -> Option<f64> {
+    let own = |n: NodeId| n == id || map.is_ancestor(id, n);
+    let mut shapes: Vec<Vec<DVec3>> = Vec::new();
+    for n in std::iter::once(id).chain(map.descendants(id)) {
+        match map.get(n).map(|n| &n.kind) {
+            Some(NodeKind::Brush(b)) => shapes.push(b.vertices.clone()),
+            Some(_) if map.get(n).is_some_and(|n| n.children.is_empty()) => {
+                let b = map.bounds(n);
+                if !b.is_empty() {
+                    shapes.push(b.corners().to_vec());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let reach = map.bounds(id);
+    let mut best: Option<f64> = None;
+    for n in map.walk() {
+        if own(n) || map.is_hidden(n) {
+            continue;
+        }
+
+        match map.get(n).map(|n| &n.kind) {
+            Some(NodeKind::Brush(b)) => {
+                let bb = b.bounds();
+                let under = bb.min.y < reach.max.y && bb.min.x < reach.max.x && bb.max.x > reach.min.x && bb.min.z < reach.max.z && bb.max.z > reach.min.z;
+                if !under
+                    || map
+                        .owning_entity(n)
+                        .and_then(|e| map.entity(e))
+                        .is_some_and(|e| e.classname.starts_with("trigger_") || e.classname == crate::cutter::CUTTER_CLASS)
+                {
+                    continue;
+                }
+
+                for shape in &shapes {
+                    if let Some(t) = td_geom::hull::sweep_distance(shape, &b.vertices, DVec3::NEG_Y) {
+                        best = Some(best.map_or(t, |b| b.min(t)));
+                    }
+                }
+            }
+            Some(NodeKind::Terrain(t)) => {
+                let falls = shapes.iter().flatten().filter_map(|p| t.height_at(p.x, p.z).map(|h| p.y - h));
+                if let Some(fall) = falls.reduce(f64::min).filter(|f| *f > -1e-6) {
+                    best = Some(best.map_or(fall, |b| b.min(fall)));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    best.map(|b| b.max(0.0))
+}
+
 pub fn duplicate_selection(map: &mut Map, sel: &mut Selection, offset: DVec3, opts: EditOptions) -> Vec<NodeId> {
     let roots = selection_roots(map, sel);
     let mut new_ids = Vec::new();
@@ -1877,5 +1955,32 @@ mod tests {
         assert_eq!(moved.origin, DVec3::new(64.0, 64.0, 32.0), "the entity rides with the side it is on");
         assert_eq!((moved.angles, &moved.properties), (e.angles, &e.properties), "it keeps its facing and quake angle");
         assert_eq!(m.get(terrain), before.get(terrain), "a terrain cannot lean");
+    }
+
+    #[test]
+    fn dropping_lands_each_object_on_what_is_under_it() {
+        let mut m = Map::new();
+        let l = m.default_layer();
+        let cube = |m: &mut Map, min: DVec3, size: f64| create_brush(m, l, Brush::from_aabb(&Aabb::new(min, min + DVec3::splat(size)), "c").unwrap());
+        create_brush(&mut m, l, Brush::from_aabb(&Aabb::new(DVec3::new(-256.0, -16.0, -256.0), DVec3::new(256.0, 0.0, 256.0)), "floor").unwrap());
+        let low = cube(&mut m, DVec3::new(0.0, 64.0, 0.0), 32.0);
+        let high = cube(&mut m, DVec3::new(8.0, 200.0, 8.0), 16.0);
+        let away = cube(&mut m, DVec3::new(1000.0, 64.0, 0.0), 16.0);
+        let trigger = m.insert(l, NodeKind::Entity(Entity::new("trigger_once")));
+        create_brush(&mut m, trigger, Brush::from_aabb(&Aabb::new(DVec3::new(-64.0, 0.0, -64.0), DVec3::new(64.0, 48.0, 64.0)), "t").unwrap());
+        let mut sel = Selection::default();
+        sel.nodes.extend([high, low, away]);
+        assert_eq!(drop_selection(&mut m, &sel, EditOptions::default()), 2);
+        assert_eq!(m.bounds(low).min.y, 0.0, "the trigger is not a floor");
+        assert_eq!(m.bounds(high).min.y, 32.0, "the higher box lands on the lower one where it ended up");
+        assert_eq!(m.bounds(away).min.y, 64.0, "nothing is under it");
+        assert_eq!(drop_selection(&mut m, &sel, EditOptions::default()), 0, "resting objects stay put");
+
+        let ground = m.insert(l, NodeKind::Terrain(td_geom::Terrain::new(DVec3::new(900.0, -40.0, -100.0), [9, 9], 32.0, "g")));
+        assert!(m.bounds(ground).max.x > 1016.0);
+        sel.nodes.clear();
+        sel.nodes.insert(away);
+        assert_eq!(drop_selection(&mut m, &sel, EditOptions::default()), 1);
+        assert_eq!(m.bounds(away).min.y, -40.0, "it rests on the terrain");
     }
 }

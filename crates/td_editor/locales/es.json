@@ -2723,5 +2723,9 @@
   "How a ridge end that runs into no other wing stops": "Cómo acaba una cumbrera que no llega a otra ala",
   "Select the brushes the roof covers, one per wing": "Selecciona los brushes que cubre el tejado, uno por ala",
   "Add Roof over the selected brushes": "Añadir un tejado sobre los brushes seleccionados",
-  "Pillar": "Columna"
+  "Pillar": "Columna",
+  "Drop to Floor": "Dejar caer al suelo",
+  "Moves each selected object straight down until it rests on what is under it": "Baja cada objeto seleccionado en vertical hasta que se apoye en lo que tiene debajo",
+  "Select the objects to drop first": "Selecciona primero los objetos que quieres dejar caer",
+  "Nothing to drop, the objects already rest on something or have nothing under them": "Nada que dejar caer, los objetos ya se apoyan en algo o no tienen nada debajo"
 }

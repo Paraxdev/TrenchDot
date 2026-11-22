@@ -95,6 +95,29 @@ pub fn convex_hull_planes(input: &[DVec3]) -> Option<Vec<Plane>> {
     (planes.len() >= 4).then_some(planes)
 }
 
+/// How far the convex shape with the `moving` corners can travel along the unit `dir` before it touches the convex
+/// shape with the `obstacle` corners. None when it passes by, or the two already overlap.
+pub fn sweep_distance(moving: &[DVec3], obstacle: &[DVec3], dir: DVec3) -> Option<f64> {
+    // The moved shape touches the obstacle once t * dir enters the hull of the corner differences.
+    let diff: Vec<DVec3> = obstacle.iter().flat_map(|b| moving.iter().map(move |a| *b - *a)).collect();
+    let planes = convex_hull_planes(&diff)?;
+    let (mut enter, mut exit) = (f64::MIN, f64::MAX);
+    for p in &planes {
+        let along = p.normal.dot(dir);
+        if along.abs() < 1e-9 {
+            if p.dist < -1e-6 {
+                return None;
+            }
+        } else if along < 0.0 {
+            enter = enter.max(p.dist / along);
+        } else {
+            exit = exit.min(p.dist / along);
+        }
+    }
+
+    (enter < exit - 1e-6 && enter > -1e-6).then_some(enter.max(0.0))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -119,5 +142,38 @@ mod tests {
     fn coplanar_points_fail() {
         let pts = [DVec3::ZERO, DVec3::X, DVec3::Y, DVec3::ONE.with_z(0.0)];
         assert!(convex_hull_planes(&pts).is_none());
+    }
+
+    fn cube(min: DVec3, size: f64) -> Vec<DVec3> {
+        (0..8).map(|i| min + DVec3::new((i & 1) as f64, ((i >> 1) & 1) as f64, ((i >> 2) & 1) as f64) * size).collect()
+    }
+
+    #[test]
+    fn a_falling_box_stops_on_the_one_below_it() {
+        let floor = cube(DVec3::new(-64.0, -128.0, -64.0), 128.0);
+        let crate_box = cube(DVec3::new(0.0, 40.0, 0.0), 16.0);
+        assert_eq!(sweep_distance(&crate_box, &floor, DVec3::NEG_Y), Some(40.0));
+        assert_eq!(sweep_distance(&crate_box, &floor, DVec3::Y), None, "the floor is behind it");
+        let resting = cube(DVec3::new(0.0, 0.0, 0.0), 16.0);
+        assert_eq!(sweep_distance(&resting, &floor, DVec3::NEG_Y), Some(0.0));
+        let beside = cube(DVec3::new(200.0, 40.0, 0.0), 16.0);
+        assert_eq!(sweep_distance(&beside, &floor, DVec3::NEG_Y), None);
+        let buried = cube(DVec3::new(0.0, -8.0, 0.0), 16.0);
+        assert_eq!(sweep_distance(&buried, &floor, DVec3::NEG_Y), None);
+    }
+
+    #[test]
+    fn edges_meeting_edges_stop_the_fall_too() {
+        let ridge = vec![
+            DVec3::new(-32.0, 0.0, -32.0),
+            DVec3::new(32.0, 0.0, -32.0),
+            DVec3::new(-32.0, 0.0, 32.0),
+            DVec3::new(32.0, 0.0, 32.0),
+            DVec3::new(-32.0, 16.0, 0.0),
+            DVec3::new(32.0, 16.0, 0.0),
+        ];
+        let across: Vec<DVec3> = ridge.iter().map(|p| DVec3::new(p.z, 100.0 + 16.0 - p.y, p.x)).collect();
+        let t = sweep_distance(&across, &ridge, DVec3::NEG_Y).unwrap();
+        assert!((t - 100.0 + 16.0).abs() < 1e-9, "{t}");
     }
 }

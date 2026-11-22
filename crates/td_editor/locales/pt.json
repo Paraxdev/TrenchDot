@@ -2723,5 +2723,9 @@
   "How a ridge end that runs into no other wing stops": "Como termina uma cumeeira que não encontra outra ala",
   "Select the brushes the roof covers, one per wing": "Selecione os brushes que o telhado cobre, um por ala",
   "Add Roof over the selected brushes": "Adicionar um telhado sobre os brushes selecionados",
-  "Pillar": "Coluna"
+  "Pillar": "Coluna",
+  "Drop to Floor": "Largar no chão",
+  "Moves each selected object straight down until it rests on what is under it": "Desce cada objeto selecionado na vertical até assentar no que está por baixo",
+  "Select the objects to drop first": "Selecione primeiro os objetos a largar",
+  "Nothing to drop, the objects already rest on something or have nothing under them": "Nada a largar, os objetos já assentam em algo ou não têm nada por baixo"
 }

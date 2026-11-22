@@ -2723,5 +2723,9 @@
   "How a ridge end that runs into no other wing stops": "Как заканчивается конёк, не доходящий до другого крыла",
   "Select the brushes the roof covers, one per wing": "Выберите браши, которые накрывает крыша, по одному на крыло",
   "Add Roof over the selected brushes": "Добавить крышу над выбранными брашами",
-  "Pillar": "Колонна"
+  "Pillar": "Колонна",
+  "Drop to Floor": "Опустить на пол",
+  "Moves each selected object straight down until it rests on what is under it": "Опускает каждый выбранный объект вертикально вниз, пока он не ляжет на то, что под ним",
+  "Select the objects to drop first": "Сначала выберите объекты, которые нужно опустить",
+  "Nothing to drop, the objects already rest on something or have nothing under them": "Нечего опускать, объекты уже лежат на чём-то или под ними ничего нет"
 }

@@ -117,6 +117,8 @@ pub enum Action {
     Distribute {
         axis: usize,
     },
+    /// Moves each selected object straight down until it rests on the brush, terrain or object under it.
+    DropToFloor,
     SetTool(ToolKind),
     FocusSelection,
     CreateBrushEntity(String),
@@ -360,6 +362,7 @@ impl Action {
             Action::MirrorLinked { axis, .. } => return trf!("Mirror Linked {axis}", axis = axis_name(*axis)),
             Action::SetMirrorGap { .. } => en!("Set Mirror Gap"),
             Action::MirrorAgain => en!("Mirror Again"),
+            Action::DropToFloor => en!("Drop to Floor"),
             Action::ApplyMirror { .. } => en!("Apply Mirror"),
             Action::Align { axis, to } => {
                 let axis = axis_name(*axis);
@@ -529,6 +532,7 @@ impl Action {
             Action::MirrorLinked { .. } => en!("Copies the selection as a linked group mirrored across a plane, edits in either half show in both"),
             Action::SetMirrorGap { .. } => en!("Moves the two mirrored halves apart or together, the mirror plane stays where it is"),
             Action::MirrorAgain => en!("Moves the partner of a half that was slid along the mirror plane back across from it"),
+            Action::DropToFloor => en!("Moves each selected object straight down until it rests on what is under it"),
             Action::ApplyMirror { .. } => en!("Merges the selected mirrored halves into plain geometry, joined where they meet"),
             Action::SelectLinkedGroups => en!("Selects every linked copy of the selected groups, so you can move them together"),
             Action::UnlinkGroups => en!("Makes the selected linked groups plain groups, and frees a copy left without partners"),
@@ -920,6 +924,7 @@ pub fn bindable_actions() -> Vec<Action> {
         Action::EditMesh,
         Action::SelectLinkedGroups,
         Action::MirrorAgain,
+        Action::DropToFloor,
         Action::UnlinkGroups,
         Action::SetCordonFromSelection,
         Action::ToggleCordon,
@@ -1204,6 +1209,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             | Action::MirrorLinked { .. }
             | Action::Align { .. }
             | Action::Distribute { .. }
+            | Action::DropToFloor
             | Action::Nudge(_)
             | Action::Duplicate
     ) {
@@ -1719,6 +1725,17 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             let result = state.doc.try_edit("Distribute", |m, s| Some(ops::distribute_selection(m, s, axis, opts)).filter(|n| *n > 0).ok_or(()));
             if result.is_err() {
                 state.fail_status(msg!("Nothing to distribute, the gaps are already equal"));
+            }
+        }
+        Action::DropToFloor => {
+            if state.doc.selection.nodes.is_empty() {
+                state.fail_status(msg!("Select the objects to drop first"));
+                return;
+            }
+
+            let result = state.doc.try_edit("Drop to Floor", |m, s| Some(ops::drop_selection(m, s, opts)).filter(|n| *n > 0).ok_or(()));
+            if result.is_err() {
+                state.fail_status(msg!("Nothing to drop, the objects already rest on something or have nothing under them"));
             }
         }
         Action::Nudge(offset) => {
@@ -4831,6 +4848,29 @@ mod tests {
 
         execute(&mut state, Action::Align { axis: 0, to: ops::AlignTo::Max }, &ctx);
         assert_eq!(state.doc.history.undo_labels().count(), steps + 1, "an align that moves two objects is one step");
+    }
+
+    #[test]
+    fn drop_to_floor_lands_on_the_brush_below_and_records_nothing_when_resting() {
+        let mut state = EditorState::new(Default::default());
+        let ctx = egui::Context::default();
+        let floor = brush_at(&mut state, 0.0);
+        let crate_id = brush_at(&mut state, 0.0);
+        state.doc.edit("Move", |m, _| {
+            let mut sel = td_doc::Selection::default();
+            sel.select_node(crate_id);
+            ops::translate_selection(m, &sel, DVec3::new(8.0, 100.0, 0.0), Default::default())
+        });
+        state.doc.select(|_, s| s.select_node(crate_id));
+        let steps = state.doc.history.undo_labels().count();
+        execute(&mut state, Action::DropToFloor, &ctx);
+        assert!(!state.status_failed(), "{}", state.status);
+        assert_eq!(state.doc.map.bounds_of([crate_id]).min.y, state.doc.map.bounds_of([floor]).max.y);
+        assert_eq!(state.doc.history.undo_labels().count(), steps + 1);
+
+        execute(&mut state, Action::DropToFloor, &ctx);
+        assert!(state.status_failed(), "a resting object has nowhere to fall");
+        assert_eq!(state.doc.history.undo_labels().count(), steps + 1);
     }
 
     #[test]

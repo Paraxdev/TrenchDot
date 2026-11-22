@@ -2723,5 +2723,9 @@
   "How a ridge end that runs into no other wing stops": "未连到其他翼的屋脊端部如何收尾",
   "Select the brushes the roof covers, one per wing": "选择屋顶覆盖的笔刷，每翼一个",
   "Add Roof over the selected brushes": "在所选笔刷上添加屋顶",
-  "Pillar": "柱子"
+  "Pillar": "柱子",
+  "Drop to Floor": "落到地面",
+  "Moves each selected object straight down until it rests on what is under it": "将每个选中的对象竖直向下移动，直到落在下方的物体上",
+  "Select the objects to drop first": "请先选择要落下的对象",
+  "Nothing to drop, the objects already rest on something or have nothing under them": "没有可落下的对象，它们已经落在某物上，或下方什么也没有"
 }

@@ -2723,5 +2723,9 @@
   "How a ridge end that runs into no other wing stops": "他の翼に届かない棟の端の形",
   "Select the brushes the roof covers, one per wing": "屋根で覆うブラシを翼ごとに1つずつ選択します",
   "Add Roof over the selected brushes": "選択したブラシの上に屋根を追加",
-  "Pillar": "柱"
+  "Pillar": "柱",
+  "Drop to Floor": "床に落とす",
+  "Moves each selected object straight down until it rests on what is under it": "選択した各オブジェクトを、下にあるものに載るまで真下へ動かします",
+  "Select the objects to drop first": "先に落とすオブジェクトを選択してください",
+  "Nothing to drop, the objects already rest on something or have nothing under them": "落とすものがありません。オブジェクトはすでに何かに載っているか、下に何もありません"
 }
