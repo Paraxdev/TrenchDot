@@ -39,6 +39,18 @@ Once a brush is selected you can move it around:
 In 3D the selection also gets a move, rotate and scale gizmo. Rotation snaps to 15°, or 1° with Shift. If it gets in
 your way, turn it off under *View > Transform Gizmo*.
 
+### Box select
+
+When you want to select by dragging, like in Blender, turn on *Edit > Select > Box Select* or press Alt+B. With the
+Select tool, a drag off the selection then draws a box on the screen instead of a brush, in the 3D view as well as the
+2D views. On release it selects every object lying wholly inside. Shift+drag adds to the selection and Ctrl+drag takes
+away from it. A click still selects as before, and Alt+B again goes back to drawing.
+
+With faces selected, the box selects faces instead, the ones whose center lies inside the box. Select a brush and use
+*Edit > Select > Brush Faces* to get into face selection. In the 3D view the box only takes the faces turned to you and
+not hidden behind something, so a drag over a room picks the walls you see. Turn on *Edit > Select > X-Ray* (Alt+Z) to
+take the faces behind and on the far side too. The 2D views always see through.
+
 ## Exact position and size
 
 Sometimes you want exact numbers, like a door cutter exactly as deep as the wall. Select the brush and type them into

@@ -65,6 +65,8 @@ pub enum Action {
     ToggleSnap,
     ToggleUvLock,
     ToggleTransformGizmo,
+    ToggleBoxSelect,
+    ToggleXray,
     ToggleGodotOverlays,
     /// Hides the faces the build drops because they face the void.
     ToggleVoidPreview,
@@ -346,6 +348,8 @@ impl Action {
             Action::ToggleSnap => en!("Toggle Snap to Grid"),
             Action::ToggleUvLock => en!("Toggle UV Lock"),
             Action::ToggleTransformGizmo => en!("Toggle Transform Gizmo"),
+            Action::ToggleBoxSelect => en!("Box Select"),
+            Action::ToggleXray => en!("X-Ray"),
             Action::ToggleGodotOverlays => en!("Toggle Godot Overlays"),
             Action::ToggleVoidPreview => en!("Preview void culling"),
             Action::ToggleWalkable => en!("Toggle Walkable Area"),
@@ -573,6 +577,8 @@ impl Action {
             Action::ToggleWalkable => en!("Shades the floors a player can walk on, baked by Godot"),
             Action::ToggleVoidPreview => en!("Hides the faces the build drops because they face the void"),
             Action::BakeLighting => en!("Traces sun, light and sky into light maps stored in the map"),
+            Action::ToggleBoxSelect => en!("A drag off the selection draws a box that selects, Shift adds and Ctrl removes"),
+            Action::ToggleXray => en!("The selection box also takes faces facing away or hidden behind others"),
             Action::ToggleGodotOverlays => en!("Shows the nodes added on top of the built map in Godot as ghost boxes"),
             Action::RepeatLast => en!("Runs the last rotate, flip, nudge or duplicate again"),
             Action::ShowProjectContent => en!("Adds the nature models or the demo content to the open Godot project"),
@@ -679,6 +685,8 @@ fn trenchbroom_bindings() -> Vec<(KeyboardShortcut, Action)> {
         (sc(CTRL_SHIFT, Key::P), Action::ShowCommandPalette),
         (sc(NONE, Key::F1), Action::ShowCommandPalette),
         (sc(SHIFT, Key::Q), Action::ShowToolsPopup),
+        (sc(ALT, Key::B), Action::ToggleBoxSelect),
+        (sc(ALT, Key::Z), Action::ToggleXray),
         (sc(CTRL_SHIFT, Key::B), Action::ShowShapeDialog),
         (sc(NONE, Key::F5), Action::RunGodotProject),
         (sc(CTRL_SHIFT, Key::E), Action::ConvertToMesh),
@@ -1608,6 +1616,14 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         Action::ToggleTransformGizmo => {
             state.prefs.transform_gizmo = !state.prefs.transform_gizmo;
             state.set_status(if state.prefs.transform_gizmo { msg!("Transform gizmo on") } else { msg!("Transform gizmo off") });
+        }
+        Action::ToggleBoxSelect => {
+            state.prefs.box_select = !state.prefs.box_select;
+            state.set_status(if state.prefs.box_select { msg!("Box select on") } else { msg!("Box select off") });
+        }
+        Action::ToggleXray => {
+            state.prefs.box_xray = !state.prefs.box_xray;
+            state.set_status(if state.prefs.box_xray { msg!("X-ray on") } else { msg!("X-ray off") });
         }
         Action::ToggleGodotOverlays => {
             state.prefs.godot_overlays = !state.prefs.godot_overlays;

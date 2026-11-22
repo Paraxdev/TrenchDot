@@ -3463,6 +3463,40 @@ fn create_roof_covers_selected_walls_and_takes_explicit_wings() {
 
 #[test]
 #[ignore]
+fn box_select_takes_objects_in_2d_and_visible_faces_in_3d() {
+    let ed = Editor::launch("box_select");
+    let a = ed.box_brush([0.0, 0.0, 0.0], [64.0, 64.0, 64.0]);
+    let b = ed.box_brush([-80.0, 0.0, -80.0], [-16.0, 64.0, -16.0]);
+    let c = ed.box_brush([200.0, 0.0, 200.0], [264.0, 64.0, 264.0]);
+    ed.call("run_action", json!({ "action": "toggle_box_select" }));
+    let sorted = |mut v: Vec<u64>| {
+        v.sort_unstable();
+        v
+    };
+
+    ed.input("top", json!([{ "type": "drag", "world": [-100, 0, -100], "to_world": [100, 0, 100] }]));
+    assert_eq!(ed.brushes(), 3, "the drag drew no brush");
+    assert_eq!(sorted(selected(&ed)), sorted(vec![a, b]));
+    ed.input("top", json!([{ "type": "drag", "world": [180, 0, 180], "to_world": [280, 0, 280], "modifiers": ["shift"] }]));
+    assert_eq!(sorted(selected(&ed)), sorted(vec![a, b, c]), "Shift adds");
+    ed.input("top", json!([{ "type": "drag", "world": [-8, 0, -8], "to_world": [72, 0, 72], "modifiers": ["ctrl"] }]));
+    assert_eq!(sorted(selected(&ed)), sorted(vec![b, c]), "Ctrl takes away");
+
+    ed.call("select", json!({ "ids": [a] }));
+    ed.call("run_action", json!({ "action": "select_brush_faces" }));
+    ed.call("set_camera", json!({ "view": "3d", "position": [32, 400, 33], "look_at": [32, 32, 32] }));
+    let drag = json!([{ "type": "drag", "world": [-20, 64, -20], "to_world": [84, 64, 84] }]);
+    ed.input("3d", drag.clone());
+    let (nodes, faces) = selection_of(&ed);
+    assert!(nodes.is_empty());
+    assert_eq!(faces.len(), 1, "only the top face is in plain sight {faces:?}");
+    ed.call("run_action", json!({ "action": "toggle_xray" }));
+    ed.input("3d", drag);
+    assert_eq!(selection_of(&ed).1.len(), 6, "X-ray takes the hidden faces too");
+}
+
+#[test]
+#[ignore]
 fn auto_materials_paints_a_room_by_face_class() {
     let ed = Editor::launch("auto_materials");
     let mut ids = Vec::new();

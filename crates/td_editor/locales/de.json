@@ -2766,5 +2766,15 @@
   "Joined {n} strip brush to the strip it runs into": { "one": "{n} Streifen-Brush an den Streifen angeschlossen, auf den er trifft", "other": "{n} Streifen-Brushes an den Streifen angeschlossen, auf den sie treffen" },
   "Tools at Cursor": "Werkzeuge am Mauszeiger",
   "Type a tool, or press its number…": "Werkzeug eingeben oder seine Nummer drücken…",
-  "Lists the tools at the mouse pointer, type to filter or press a number to pick one": "Zeigt die Werkzeuge am Mauszeiger, tippen filtert, eine Nummer wählt eines"
+  "Lists the tools at the mouse pointer, type to filter or press a number to pick one": "Zeigt die Werkzeuge am Mauszeiger, tippen filtert, eine Nummer wählt eines",
+  "X-Ray": "Röntgenblick",
+  "Box select on": "Rahmenauswahl an",
+  "Box select off": "Rahmenauswahl aus",
+  "X-ray on": "Röntgenblick an",
+  "X-ray off": "Röntgenblick aus",
+  "No face lies inside the box": "Keine Fläche liegt im Rahmen",
+  "A drag off the selection draws a box that selects, Shift adds and Ctrl removes": "Ziehen neben der Auswahl zieht einen Auswahlrahmen auf, Shift fügt hinzu, Ctrl entfernt",
+  "The selection box also takes faces facing away or hidden behind others": "Der Auswahlrahmen nimmt auch abgewandte und verdeckte Flächen",
+  "Deselected {n} face": { "one": "{n} Fläche abgewählt", "other": "{n} Flächen abgewählt" },
+  "Deselected {n} object": { "one": "{n} Objekt abgewählt", "other": "{n} Objekte abgewählt" }
 }

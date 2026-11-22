@@ -100,7 +100,10 @@ pub fn paint_box(painter: &Painter, cam: &Camera, rect: Rect, b: &SelectionBox) 
     }
 
     let (Some(p), Some(q)) = (cam.project(rect, b.a), cam.project(rect, b.b)) else { return };
-    let r = Rect::from_two_pos(p, q);
+    paint_rect(painter, Rect::from_two_pos(p, q));
+}
+
+pub fn paint_rect(painter: &Painter, r: Rect) {
     painter.rect_filled(r, 0.0, Color32::from_rgba_unmultiplied(255, 160, 60, 20));
     painter.rect_stroke(r, 0.0, Stroke::new(1.0, Color32::from_rgb(255, 160, 60)), StrokeKind::Inside);
 }

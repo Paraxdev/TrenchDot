@@ -2766,5 +2766,15 @@
   "Joined {n} strip brush to the strip it runs into": { "one": "{n} браш полосы присоединён к полосе, в которую он упирается", "few": "{n} браша полосы присоединены к полосе, в которую они упираются", "many": "{n} брашей полосы присоединены к полосе, в которую они упираются" },
   "Tools at Cursor": "Инструменты у курсора",
   "Type a tool, or press its number…": "Введите инструмент или нажмите его номер…",
-  "Lists the tools at the mouse pointer, type to filter or press a number to pick one": "Показывает инструменты у указателя мыши, ввод фильтрует, цифра выбирает"
+  "Lists the tools at the mouse pointer, type to filter or press a number to pick one": "Показывает инструменты у указателя мыши, ввод фильтрует, цифра выбирает",
+  "X-Ray": "Рентген",
+  "Box select on": "Выделение рамкой включено",
+  "Box select off": "Выделение рамкой выключено",
+  "X-ray on": "Рентген включён",
+  "X-ray off": "Рентген выключен",
+  "No face lies inside the box": "В рамке нет граней",
+  "A drag off the selection draws a box that selects, Shift adds and Ctrl removes": "Перетаскивание вне выделения рисует рамку выделения, Shift добавляет, Ctrl убирает",
+  "The selection box also takes faces facing away or hidden behind others": "Рамка выделения берёт и грани, повёрнутые от камеры или скрытые за другими",
+  "Deselected {n} face": { "one": "Снято выделение с {n} грани", "few": "Снято выделение с {n} граней", "many": "Снято выделение с {n} граней" },
+  "Deselected {n} object": { "one": "Снято выделение с {n} объекта", "few": "Снято выделение с {n} объектов", "many": "Снято выделение с {n} объектов" }
 }

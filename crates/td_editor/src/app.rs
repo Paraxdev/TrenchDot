@@ -1661,6 +1661,9 @@ impl App {
                     m.item(ui, None, en!("Inverse"), Action::SelectInverse);
                     m.item(ui, None, en!("Brush Faces"), Action::SelectBrushFaces);
                     ui.separator();
+                    m.toggle(ui, en!("Box Select"), self.state.prefs.box_select, Action::ToggleBoxSelect);
+                    m.toggle(ui, en!("X-Ray"), self.state.prefs.box_xray, Action::ToggleXray);
+                    ui.separator();
                     m.item(ui, None, en!("Touching"), Action::SelectTouching);
                     m.item(ui, None, en!("Inside"), Action::SelectInside);
                     m.item(ui, None, en!("Siblings"), Action::SelectSiblings);

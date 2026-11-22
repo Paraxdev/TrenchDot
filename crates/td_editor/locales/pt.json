@@ -2766,5 +2766,15 @@
   "Joined {n} strip brush to the strip it runs into": { "one": "{n} brush de faixa ligado à faixa que encontra", "other": "{n} brushes de faixa ligados à faixa que encontram" },
   "Tools at Cursor": "Ferramentas no cursor",
   "Type a tool, or press its number…": "Digite uma ferramenta ou pressione seu número…",
-  "Lists the tools at the mouse pointer, type to filter or press a number to pick one": "Lista as ferramentas junto ao ponteiro, digite para filtrar ou pressione um número para escolher uma"
+  "Lists the tools at the mouse pointer, type to filter or press a number to pick one": "Lista as ferramentas junto ao ponteiro, digite para filtrar ou pressione um número para escolher uma",
+  "X-Ray": "Raio X",
+  "Box select on": "Seleção por caixa ativada",
+  "Box select off": "Seleção por caixa desativada",
+  "X-ray on": "Raio X ativado",
+  "X-ray off": "Raio X desativado",
+  "No face lies inside the box": "Nenhuma face está dentro da caixa",
+  "A drag off the selection draws a box that selects, Shift adds and Ctrl removes": "Arrastar fora da seleção desenha uma caixa que seleciona, Shift adiciona e Ctrl remove",
+  "The selection box also takes faces facing away or hidden behind others": "A caixa de seleção também pega faces de costas ou escondidas atrás de outras",
+  "Deselected {n} face": { "one": "{n} face desmarcada", "other": "{n} faces desmarcadas" },
+  "Deselected {n} object": { "one": "{n} objeto desmarcado", "other": "{n} objetos desmarcados" }
 }

@@ -109,6 +109,7 @@ impl Viewport {
             let orphaned = match self.drag {
                 Some(Drag::ShapeBounds { .. }) => cx.state.shape_bounds.is_none(),
                 Some(Drag::SelectBox) => cx.state.selection_box.is_none(),
+                Some(Drag::ScreenBox { .. }) => false,
                 _ => !cx.state.doc.in_transaction(),
             };
             if switched || orphaned {
@@ -178,6 +179,11 @@ impl Viewport {
         if matches!(self.drag, Some(Drag::SelectBox)) {
             self.drag = None;
             state.drop_selection_box();
+            return true;
+        }
+
+        if matches!(self.drag, Some(Drag::ScreenBox { .. })) {
+            self.drag = None;
             return true;
         }
 
@@ -619,6 +625,11 @@ impl Viewport {
         if (response.drag_stopped_by(PointerButton::Primary) || (self.drag.is_some() && !self.is_camera_drag() && !ui.input(|i| i.pointer.primary_down())))
             && let Some(drag) = self.drag.take()
         {
+            if let Drag::ScreenBox { start, end, op } = drag {
+                crate::box_select::apply(cx.state, &self.camera, self.rect, start, pointer.unwrap_or(end), op);
+                return;
+            }
+
             if matches!(drag, Drag::CreateBrush { .. } | Drag::CreateBrush2d { .. }) {
                 let b = cx.state.doc.map.bounds_of(cx.state.doc.selection.nodes.iter().copied());
                 if !b.is_empty() {
@@ -745,6 +756,10 @@ impl Viewport {
 
         if self.camera.kind.is_2d() && state.shape_bounds.is_some() {
             return Some(Drag::ShapeBounds { start: self.camera.screen_to_plane(self.rect, origin), side: None });
+        }
+
+        if state.prefs.box_select && state.tool == ToolKind::Select {
+            return Some(Drag::ScreenBox { start: origin, end: origin, op: crate::box_select::BoxOp::from_modifiers(modifiers) });
         }
 
         match empty_drag(&preset, state.tool, Chord::new(Button::Drag, modifiers), self.camera.kind.is_2d()) {
@@ -976,6 +991,11 @@ impl Viewport {
                 let dist = (self.camera.screen_to_plane(rect, pos) - *origin).dot(*normal);
                 if let Some([cx, cz]) = crate::terrain_size::drag_edge(state, *id, *normal, (dist / cell).round() as i64) {
                     state.set_status(msg!("Resized the terrain to {cx} x {cz} cells", cx, cz));
+                }
+            }
+            Drag::ScreenBox { .. } => {
+                if let Some(Drag::ScreenBox { end, .. }) = self.drag.as_mut() {
+                    *end = pos;
                 }
             }
             Drag::SelectBox => {
@@ -1375,6 +1395,9 @@ impl Viewport {
             }
 
             crate::selection_box::paint(&painter, &self.camera, self.rect, state);
+            if let Some(Drag::ScreenBox { start, end, .. }) = self.drag {
+                crate::selection_box::paint_rect(&painter, Rect::from_two_pos(start, end));
+            }
 
             // The pending size outlines the selected terrain, so its labels go on the other sides.
             if let Some(b) = crate::terrain_size::footprint(state) {

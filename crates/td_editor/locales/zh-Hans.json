@@ -2766,5 +2766,15 @@
   "Joined {n} strip brush to the strip it runs into": { "other": "已将 {n} 个条带笔刷接入其相交的条带" },
   "Tools at Cursor": "光标处的工具",
   "Type a tool, or press its number…": "输入工具名或按其编号…",
-  "Lists the tools at the mouse pointer, type to filter or press a number to pick one": "在鼠标指针处列出工具，输入可筛选，按数字可选择"
+  "Lists the tools at the mouse pointer, type to filter or press a number to pick one": "在鼠标指针处列出工具，输入可筛选，按数字可选择",
+  "X-Ray": "X 射线",
+  "Box select on": "框选已开启",
+  "Box select off": "框选已关闭",
+  "X-ray on": "X 射线已开启",
+  "X-ray off": "X 射线已关闭",
+  "No face lies inside the box": "框内没有面",
+  "A drag off the selection draws a box that selects, Shift adds and Ctrl removes": "在选区外拖动会画出选择框，Shift 添加，Ctrl 移除",
+  "The selection box also takes faces facing away or hidden behind others": "选择框也会选中背向或被遮挡的面",
+  "Deselected {n} face": { "other": "已取消选择 {n} 个面" },
+  "Deselected {n} object": { "other": "已取消选择 {n} 个对象" }
 }

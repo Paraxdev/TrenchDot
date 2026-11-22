@@ -6,6 +6,7 @@ pub mod auto_materials_dialog;
 pub mod bake;
 pub mod bevel_dialog;
 pub mod blend_tool;
+pub mod box_select;
 pub mod brand;
 pub mod camera;
 pub mod code_refs;

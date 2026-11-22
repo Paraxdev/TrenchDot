@@ -2766,5 +2766,15 @@
   "Joined {n} strip brush to the strip it runs into": { "other": "{n} 個の帯ブラシを交わる帯につなげました" },
   "Tools at Cursor": "カーソル位置のツール",
   "Type a tool, or press its number…": "ツール名を入力するか番号を押してください…",
-  "Lists the tools at the mouse pointer, type to filter or press a number to pick one": "マウスポインターの位置にツールを一覧表示します。入力で絞り込み、番号で選択します"
+  "Lists the tools at the mouse pointer, type to filter or press a number to pick one": "マウスポインターの位置にツールを一覧表示します。入力で絞り込み、番号で選択します",
+  "X-Ray": "X 線",
+  "Box select on": "矩形選択オン",
+  "Box select off": "矩形選択オフ",
+  "X-ray on": "X 線オン",
+  "X-ray off": "X 線オフ",
+  "No face lies inside the box": "枠内に面がありません",
+  "A drag off the selection draws a box that selects, Shift adds and Ctrl removes": "選択範囲の外をドラッグすると選択枠を描きます。Shift で追加、Ctrl で除外",
+  "The selection box also takes faces facing away or hidden behind others": "選択枠が裏向きの面や他の陰に隠れた面も選択します",
+  "Deselected {n} face": { "other": "{n} 個の面を選択解除" },
+  "Deselected {n} object": { "other": "{n} 個のオブジェクトを選択解除" }
 }

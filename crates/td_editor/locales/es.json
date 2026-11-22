@@ -2766,5 +2766,15 @@
   "Joined {n} strip brush to the strip it runs into": { "one": "{n} brush de franja unido a la franja con la que se cruza", "other": "{n} brushes de franja unidos a la franja con la que se cruzan" },
   "Tools at Cursor": "Herramientas en el cursor",
   "Type a tool, or press its number…": "Escribe una herramienta o pulsa su número…",
-  "Lists the tools at the mouse pointer, type to filter or press a number to pick one": "Muestra las herramientas junto al puntero, escribe para filtrar o pulsa un número para elegir una"
+  "Lists the tools at the mouse pointer, type to filter or press a number to pick one": "Muestra las herramientas junto al puntero, escribe para filtrar o pulsa un número para elegir una",
+  "X-Ray": "Rayos X",
+  "Box select on": "Recuadro activado",
+  "Box select off": "Recuadro desactivado",
+  "X-ray on": "Rayos X activados",
+  "X-ray off": "Rayos X desactivados",
+  "No face lies inside the box": "Ninguna cara queda dentro del recuadro",
+  "A drag off the selection draws a box that selects, Shift adds and Ctrl removes": "Arrastrar fuera de la selección dibuja un recuadro que selecciona, Shift añade y Ctrl quita",
+  "The selection box also takes faces facing away or hidden behind others": "El recuadro de selección también toma las caras de espaldas u ocultas tras otras",
+  "Deselected {n} face": { "one": "{n} cara deseleccionada", "other": "{n} caras deseleccionadas" },
+  "Deselected {n} object": { "one": "{n} objeto deseleccionado", "other": "{n} objetos deseleccionados" }
 }

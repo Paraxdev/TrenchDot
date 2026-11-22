@@ -81,6 +81,8 @@ const ACTIONS: &[&str] = &[
     "toggle_snap",
     "toggle_uv_lock",
     "toggle_textured",
+    "toggle_box_select",
+    "toggle_xray",
     "csg_subtract",
     "csg_merge",
     "csg_intersect",

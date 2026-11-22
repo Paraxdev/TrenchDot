@@ -424,6 +424,10 @@ pub struct Prefs {
     pub help_text: bool,
     /// Move, rotate and scale handles on the selection in the 3D view.
     pub transform_gizmo: bool,
+    /// A drag off the selection with the Select tool draws a selection box on the screen instead of a brush.
+    pub box_select: bool,
+    /// The selection box also takes faces turned away or hidden behind others.
+    pub box_xray: bool,
     /// Ghost boxes of the Godot overlays built on top of the map, read from its overlay sidecar.
     pub godot_overlays: bool,
     /// Hide the faces the build drops because they only face the void of a sealed map.
@@ -545,6 +549,8 @@ impl Default for Prefs {
             follow_display_scaling: true,
             help_text: true,
             transform_gizmo: true,
+            box_select: false,
+            box_xray: false,
             godot_overlays: true,
             preview_void_cull: false,
             walk_agent: Default::default(),

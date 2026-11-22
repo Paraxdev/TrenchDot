@@ -1577,6 +1577,8 @@ impl App {
             "toggle_snap" => Action::ToggleSnap,
             "toggle_uv_lock" => Action::ToggleUvLock,
             "toggle_textured" => Action::ToggleTextured,
+            "toggle_box_select" => Action::ToggleBoxSelect,
+            "toggle_xray" => Action::ToggleXray,
             "csg_subtract" => {
                 if let Some(name) = a["carve_material"].as_str() {
                     let Some(carve) = td_geom::csg::CarveMaterial::from_name(name) else {

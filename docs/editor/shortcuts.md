@@ -150,6 +150,7 @@ right-click menu of the view, or bind a key to either one on the **Keys** tab.
 | Ctrl+click a tool in the toolbar, Cmd+click on macOS | Open its page in the manual |
 | Ctrl+Shift+P | Command palette |
 | Shift+Q | Tools at the pointer, pick one by its number or type its name |
+| Alt+B, Alt+Z | Box select on or off, X-ray for the box on or off |
 | Ctrl+N, Ctrl+O | New map, open map |
 | Ctrl+S, Ctrl+Shift+S | Save, save as |
 | Ctrl+Shift+N, Ctrl+Tab, Ctrl+W | New tab, next tab, close tab |
