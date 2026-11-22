@@ -3289,7 +3289,7 @@ impl App {
 
         let modal = egui::Modal::new(egui::Id::new("confirm_tab_close")).show(ctx, |ui| {
             ui.heading(tr("Unsaved changes"));
-            ui.label(trf!("Save changes to {title} before closing its tab?", title = self.state.doc.title()));
+            ui.label(trf!("Save changes to {title} before closing its tab?", title = self.state.doc.file_name()));
             ui.horizontal(|ui| {
                 if ui.button(tr("Save")).clicked() {
                     commands::execute(&mut self.state, Action::Save, ctx);
