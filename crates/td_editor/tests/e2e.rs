@@ -4500,8 +4500,8 @@ fn hammer_ctrl_l_and_ctrl_i_flip_along_the_view_under_the_pointer() {
 
     ed.call("set_editor", json!({ "keymap": "trenchbroom" }));
     ed.call("select", json!({ "ids": [a] }));
-    press("top", "I", &["ctrl"]);
-    assert_eq!(selected(&ed), vec![far], "TrenchBroom keeps Select Inverse on Ctrl+I");
+    press("top", "A", &["ctrl", "alt"]);
+    assert_eq!(selected(&ed), vec![far], "TrenchBroom selects the inverse on Ctrl+Alt+A");
     press("top", "L", &["ctrl"]);
     assert_eq!(verts(), flipped_xy, "and Ctrl+L stays a CSG intersect, which leaves a lone brush alone");
 }
