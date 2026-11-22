@@ -81,7 +81,7 @@ impl AddonWizard {
         }
 
         let migrated = crate::entity_pack::install_for_maps(state);
-        let status = outcome.message(&root);
+        let status = outcome.message();
         state.set_status(match migrated {
             Some(migrated) => status.then(" ", migrated),
             None => status,
@@ -123,13 +123,13 @@ impl AddonWizard {
         let status = self.status(root, ui.input(|i| i.time));
         if let Some(outcome) = &self.outcome {
             let color = if outcome.error.is_some() { theme::colors().warning() } else { theme::colors().success() };
-            ui.label(RichText::new(outcome.message(root).shown).color(color));
+            ui.label(RichText::new(outcome.message().shown).color(color));
             if outcome.error.as_ref().is_some_and(Error::is_download) {
                 download_links(ui, &[addon_install::ADDON.asset]);
             }
 
             if let Some(backup) = &outcome.backup
-                && ui.button(tr("Show in File Manager")).on_hover_text(tr("Shows the folder with the old addon")).clicked()
+                && ui.button(tr("Show Backup")).on_hover_text(tr("Shows the folder with the old addon")).clicked()
             {
                 crate::panels::show_in_file_manager(backup);
             }
@@ -235,7 +235,10 @@ impl AddonWizard {
                 crate::commands::execute(state, crate::commands::Action::OpenGodotEditor, ui.ctx());
             }
         } else {
-            ui.label(RichText::new(trf!("The addon {version} is installed and enabled.", version = crate::VERSION)).color(theme::colors().success()));
+            if self.outcome.as_ref().is_none_or(|o| o.error.is_some()) {
+                ui.label(RichText::new(trf!("The addon {version} is installed and enabled.", version = crate::VERSION)).color(theme::colors().success()));
+            }
+
             return;
         }
 
@@ -347,7 +350,7 @@ mod tests {
 
         harness.get_by_label("Install the addon").click();
         wait(&mut harness);
-        assert!(harness.query_by_label_contains("Installed the TrenchDot addon").is_some());
+        assert!(harness.query_by_label_contains("Installed the addon").is_some());
         assert_eq!(harness.state().state.game.addon_version.as_deref(), Some(crate::VERSION));
         assert!(harness.query_by_label_contains("installed but not enabled").is_some());
 
@@ -401,7 +404,7 @@ mod tests {
         harness.get_by_label(&update).click();
         wait(&mut harness);
         assert!(harness.query_by_label_contains("Updated the addon from 0.0.1").is_some());
-        assert!(harness.query_by_label("Show in File Manager").is_some());
+        assert!(harness.query_by_label("Show Backup").is_some());
         assert!(harness.query_by_label("the GitHub releases").is_none());
         assert!(root.join(addon_install::BACKUPS).join("func_godot-0.0.1/plugin.cfg").is_file());
         std::fs::remove_dir_all(&root).unwrap();

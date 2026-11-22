@@ -1776,8 +1776,6 @@
   " from the rolling beta": " (ローリングベータ版から)",
   " from the release": " (リリース版から)",
   " from {v}": " ({v} から)",
-  "Installed the TrenchDot addon {version}{from} into res://addons/func_godot.": "TrenchDot アドオン {version}{from}を res://addons/func_godot にインストールしました。",
-  "Updated the addon{old} to {version}{from}. The old one is in the project's {shown} folder, delete it when the new one works.": "アドオン{old}を {version}{from} に更新しました。古い版はプロジェクトの {shown} フォルダにあります。新しい版が動いたら削除してください。",
   "Looking up {asset} in the releases": "リリースから {asset} を検索中",
   "Could not move the old addon ({e}). Close Godot and try again.": "古いアドオンを移動できません（{e}）。Godot を閉じて再試行してください。",
   "Could not put the new addon in place ({e}), the old one is back where it was.": "新しいアドオンを配置できません（{e}）。古い版は元の場所に戻しました。",
@@ -1849,7 +1847,6 @@
   "The gameplay entities come with the addon. Install or update the addon first.": "ゲームプレイエンティティはアドオンに付属します。先にアドオンをインストールまたは更新してください。",
   "Installed in {dir}. The addon has a newer version of {n} of its files. Updating keeps the files you edited.": "{dir} にインストール済み。アドオンに新しい版のファイルが {n} 個あります。更新しても編集済みのファイルは残ります。",
   "Update Gameplay Entities": "ゲームプレイエンティティを更新",
-  "Installed in {dir}, where the project owns the copies.": "{dir} にインストール済み。コピーはプロジェクトのものです。",
   "{name} is new to TrenchDot. Add ready made models or the demo? You can do it later with Godot > Add Content to Project.": "{name} は TrenchDot で初めて開きました。すぐ使えるモデルやデモを追加しますか？後で Godot > プロジェクトにコンテンツを追加 からもできます。",
   "Add ready made models, or the demo to learn from, to {name}.": "{name} にすぐ使えるモデルや学習用のデモを追加します。",
   "Nothing extra": "追加なし",
@@ -2614,7 +2611,6 @@
   "Open every closed group down to it and select it. Outside a closed group it folds or unfolds the row": "そこまでの閉じたグループをすべて開いて選択。閉じたグループの外では行を折りたたむか展開",
   "{shift} or {command}": "{shift}または{command}",
   "Player": "プレイヤー",
-  "Makes info_player_start spawn a first person player you can walk around with. Its script goes in {dir} so you can change it.": "info_player_start から歩き回れる一人称プレイヤーがスポーンするようにします。スクリプトは {dir} に置かれ、変更できます。",
   "Create player": "プレイヤーを作成",
   "info_player_start spawns your player. Change it in {script}.": "info_player_start がプレイヤーをスポーンします。{script} で変更してください。",
   "Shift+drag the selection": "選択範囲をShift+ドラッグ",
@@ -2780,5 +2776,10 @@
   "Deselected {n} face": { "other": "{n} 個の面を選択解除" },
   "Deselected {n} object": { "other": "{n} 個のオブジェクトを選択解除" },
   "Deselected {n} corner": { "other": "{n} 個の角を選択解除" },
-  "Sculpt {mode}: click adds a tile, Shift removes it": "スカルプト {mode}：クリックでタイルを追加、Shift で削除"
+  "Sculpt {mode}: click adds a tile, Shift removes it": "スカルプト {mode}：クリックでタイルを追加、Shift で削除",
+  "Installed the addon {version}.": "アドオン {version} をインストールしました。",
+  "Updated the addon{old} to {version}.": "アドオン{old}を {version} に更新しました。",
+  "Installed in {dir}.": "{dir} にインストール済み。",
+  "Makes info_player_start spawn a first person player you can walk around with.": "info_player_start から歩き回れる一人称プレイヤーがスポーンするようにします。",
+  "Show Backup": "バックアップを表示"
 }

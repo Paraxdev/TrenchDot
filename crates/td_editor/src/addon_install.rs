@@ -260,7 +260,7 @@ pub struct Outcome {
 }
 
 impl Outcome {
-    pub fn message(&self, root: &Path) -> Msg {
+    pub fn message(&self) -> Msg {
         match &self.error {
             // The addon is unpacked beside the project and only moved in once complete, so nothing half done stays.
             Some(Error::Cancelled) => return msg!("Cancelled, the project is as it was."),
@@ -270,27 +270,20 @@ impl Outcome {
         }
 
         let version = self.version.as_deref().unwrap_or_default();
-        let from = if self.tag.as_deref() == Some("beta") { Msg::key(" from the rolling beta") } else { Msg::default() };
-        let Some(backup) = &self.backup else {
-            return Msg::filled(
-                "Installed the TrenchDot addon {version}{from} into res://addons/func_godot.",
-                &[("version", version, version), ("from", &from.en, &from.shown)],
-            );
-        };
+        if self.backup.is_none() {
+            return msg!("Installed the addon {version}.", version);
+        }
+
         let old = match &self.before {
             Installed::Older(v) | Installed::Newer(v) => msg!(" from {v}", v),
             _ => Msg::default(),
         };
-        let shown = backup.strip_prefix(root).unwrap_or(backup).to_string_lossy().replace('\\', "/");
-        Msg::filled(
-            "Updated the addon{old} to {version}{from}. The old one is in the project's {shown} folder, delete it when the new one works.",
-            &[("old", &old.en, &old.shown), ("version", version, version), ("from", &from.en, &from.shown), ("shown", &shown, &shown)],
-        )
+        Msg::filled("Updated the addon{old} to {version}.", &[("old", &old.en, &old.shown), ("version", version, version)])
     }
 
     /// [`Outcome::message`] in English, for MCP and tests.
-    pub fn summary(&self, root: &Path) -> String {
-        self.message(root).en
+    pub fn summary(&self) -> String {
+        self.message().en
     }
 }
 
@@ -589,7 +582,7 @@ mod tests {
         assert_eq!(Status::check(&root).installed, Installed::Current);
         assert!(root.join(DIR).join("src/func_godot_plugin.gd").is_file());
         assert!(!root.join(WORK_DIR).exists(), "nothing is left beside the addon, not even what a crash left");
-        assert!(outcome.summary(&root).starts_with("Installed the TrenchDot addon"), "{}", outcome.summary(&root));
+        assert!(outcome.summary().starts_with("Installed the addon"), "{}", outcome.summary());
         std::fs::remove_dir_all(&root).unwrap();
     }
 
@@ -608,8 +601,8 @@ mod tests {
         assert_eq!(std::fs::read_to_string(backup.join("removed_since.gd")).unwrap(), "old");
         assert!(root.join(BACKUPS).join(".gdignore").is_file() && root.join(BACKUPS).join(".gitignore").is_file());
         assert_eq!(Status::check(&root).installed, Installed::Current);
-        let summary = outcome.summary(&root);
-        assert!(summary.starts_with("Updated the addon from 0.0.1 to") && summary.contains(".trenchdot/addon-backups/func_godot-0.0.1"), "{summary}");
+        let summary = outcome.summary();
+        assert!(summary.starts_with("Updated the addon from 0.0.1 to"), "{summary}");
         assert_eq!(std::fs::read_dir(root.join(WORK_DIR)).unwrap().count(), 1, "only the backups stay");
 
         addon(&root, "0.0.1");
@@ -657,7 +650,7 @@ mod tests {
         server.release("beta", &[(ADDON.asset, &release_zip(crate::VERSION))], true);
         let outcome = install(&root, &server.url, &cancelled);
         assert_eq!(outcome.error, Some(Error::Cancelled));
-        assert_eq!(outcome.summary(&root), "Cancelled, the project is as it was.");
+        assert_eq!(outcome.summary(), "Cancelled, the project is as it was.");
 
         assert_eq!(Status::check(&root).installed, Installed::Older("0.0.1".into()));
         assert_eq!(std::fs::read(root.join("project.godot")).unwrap(), b"config_version=5\n");
@@ -689,10 +682,10 @@ mod tests {
             };
             let progress = job.progress().stage;
             assert!(progress.en.starts_with("Looking up ") && progress.shown.starts_with(stage), "{lang:?}: {progress:?}");
-            let message = outcome.message(&root);
+            let message = outcome.message();
             assert!(message.en.starts_with("Could not reach GitHub"), "{message:?}");
             assert!(message.shown.starts_with(error), "{lang:?}: {message:?}");
-            assert!(outcome.summary(&root).starts_with("Could not reach GitHub"));
+            assert!(outcome.summary().starts_with("Could not reach GitHub"));
             std::fs::remove_dir_all(&root).unwrap();
         }
     }
@@ -700,19 +693,18 @@ mod tests {
     #[test]
     fn an_outcome_words_a_new_install_and_an_update_per_language() {
         let _lang = i18n::scope(i18n::Lang::De);
-        let root = Path::new("/project");
-        let fresh = Outcome { version: Some("1.2.0".into()), tag: Some("beta".into()), ..Default::default() }.message(root);
-        assert_eq!(fresh.en, "Installed the TrenchDot addon 1.2.0 from the rolling beta into res://addons/func_godot.");
-        assert_eq!(fresh.shown, "TrenchDot-Addon 1.2.0 aus der Rolling-Beta in res://addons/func_godot installiert.");
+        let fresh = Outcome { version: Some("1.2.0".into()), tag: Some("beta".into()), ..Default::default() }.message();
+        assert_eq!(fresh.en, "Installed the addon 1.2.0.");
+        assert_eq!(fresh.shown, "Addon 1.2.0 installiert.");
         let updated = Outcome {
             before: Installed::Older("1.0.0".into()),
             version: Some("1.2.0".into()),
-            backup: Some(root.join("backup/func_godot")),
+            backup: Some("/project/backup/func_godot".into()),
             ..Default::default()
         }
-        .message(root);
-        assert!(updated.en.starts_with("Updated the addon from 1.0.0 to 1.2.0. The old one is in the project's backup/func_godot folder"), "{updated:?}");
-        assert!(updated.shown.starts_with("Addon von 1.0.0 auf 1.2.0 aktualisiert. Das alte liegt im Ordner backup/func_godot"), "{updated:?}");
+        .message();
+        assert_eq!(updated.en, "Updated the addon from 1.0.0 to 1.2.0.");
+        assert_eq!(updated.shown, "Addon von 1.0.0 auf 1.2.0 aktualisiert.");
     }
 
     #[test]

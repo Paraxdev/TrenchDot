@@ -268,7 +268,7 @@ impl ContentWizard {
             ));
             ui.button(tr("Update Gameplay Entities")).clicked()
         } else {
-            ui.label(RichText::new(trf!("Installed in {dir}, where the project owns the copies.", dir)).color(theme::colors().success()));
+            ui.label(RichText::new(trf!("Installed in {dir}.", dir)).color(theme::colors().success()));
             false
         };
         if install {
@@ -293,15 +293,16 @@ impl ContentWizard {
         ui.add_space(6.0);
         ui.separator();
         ui.label(RichText::new(tr(PLAYER_HEADING)).strong());
-        let dir = format!("res://{}", crate::entity_override::DIR);
-        ui.label(trf!("Makes info_player_start spawn a first person player you can walk around with. Its script goes in {dir} so you can change it.", dir));
         let definition = crate::entity_override::definition_res("info_player_start");
         if crate::entity_override::is_override(root, &definition) {
             let script = crate::entity_override::script_res("info_player_start");
             ui.label(RichText::new(trf!("info_player_start spawns your player. Change it in {script}.", script)).color(theme::colors().success()));
-        } else if ui.button(tr("Create player")).clicked() {
-            use crate::entity_override::{Script, override_in_project};
-            self.player_note = override_in_project(state, "info_player_start", Script::Player, true).err().map(|refusal| refusal.shown);
+        } else {
+            ui.label(tr("Makes info_player_start spawn a first person player you can walk around with."));
+            if ui.button(tr("Create player")).clicked() {
+                use crate::entity_override::{Script, override_in_project};
+                self.player_note = override_in_project(state, "info_player_start", Script::Player, true).err().map(|refusal| refusal.shown);
+            }
         }
 
         if let Some(note) = &self.player_note {
@@ -535,7 +536,7 @@ mod tests {
         harness.run();
         let files = count_pack_files(&crate::entity_pack::template_dir(&repo));
         assert!(harness.query_by_label_contains(&format!("Added {files} files of the Gameplay entities pack")).is_some());
-        assert!(harness.query_by_label("Installed in res://trenchdot/entities, where the project owns the copies.").is_some());
+        assert!(harness.query_by_label("Installed in res://trenchdot/entities.").is_some());
         let door = harness.state().state.game.entity("func_door").expect("known before Godot exports the game config");
         assert_eq!(door.script, "res://trenchdot/entities/scripts/td_door.gd");
         assert!(root.join("trenchdot/entities/scripts/td_door.gd").is_file() && !root.join("trenchdot/entities/.gdignore").exists());

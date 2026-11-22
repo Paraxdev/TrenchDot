@@ -1776,8 +1776,6 @@
   " from the rolling beta": " aus der Rolling-Beta",
   " from the release": " aus dem Release",
   " from {v}": " von {v}",
-  "Installed the TrenchDot addon {version}{from} into res://addons/func_godot.": "TrenchDot-Addon {version}{from} in res://addons/func_godot installiert.",
-  "Updated the addon{old} to {version}{from}. The old one is in the project's {shown} folder, delete it when the new one works.": "Addon{old} auf {version}{from} aktualisiert. Das alte liegt im Ordner {shown} des Projekts, löschen, wenn das neue läuft.",
   "Looking up {asset} in the releases": "Suche {asset} in den Releases",
   "Could not move the old addon ({e}). Close Godot and try again.": "Das alte Addon konnte nicht verschoben werden ({e}). Godot schließen und erneut versuchen.",
   "Could not put the new addon in place ({e}), the old one is back where it was.": "Das neue Addon konnte nicht eingesetzt werden ({e}), das alte ist wieder an seinem Platz.",
@@ -1849,7 +1847,6 @@
   "The gameplay entities come with the addon. Install or update the addon first.": "Die Gameplay-Entitäten gehören zum Addon. Zuerst das Addon installieren oder aktualisieren.",
   "Installed in {dir}. The addon has a newer version of {n} of its files. Updating keeps the files you edited.": "Installiert in {dir}. Das Addon hat eine neuere Version von {n} seiner Dateien. Beim Aktualisieren bleiben deine bearbeiteten Dateien erhalten.",
   "Update Gameplay Entities": "Gameplay-Entitäten aktualisieren",
-  "Installed in {dir}, where the project owns the copies.": "Installiert in {dir}, dort gehören die Kopien dem Projekt.",
   "{name} is new to TrenchDot. Add ready made models or the demo? You can do it later with Godot > Add Content to Project.": "{name} ist neu bei TrenchDot. Fertige Modelle oder die Demo hinzufügen? Das geht später mit Godot > Inhalt zum Projekt hinzufügen.",
   "Add ready made models, or the demo to learn from, to {name}.": "Fertige Modelle oder die Demo zum Lernen zu {name} hinzufügen.",
   "Nothing extra": "Nichts zusätzlich",
@@ -2614,7 +2611,6 @@
   "Open every closed group down to it and select it. Outside a closed group it folds or unfolds the row": "Jede geschlossene Gruppe bis zu ihr öffnen und sie auswählen. Außerhalb einer geschlossenen Gruppe klappt er die Zeile auf oder zu",
   "{shift} or {command}": "{shift} oder {command}",
   "Player": "Spieler",
-  "Makes info_player_start spawn a first person player you can walk around with. Its script goes in {dir} so you can change it.": "Lässt info_player_start einen Spieler in Egoperspektive spawnen, mit dem du herumlaufen kannst. Sein Skript kommt nach {dir}, damit du es ändern kannst.",
   "Create player": "Spieler erstellen",
   "info_player_start spawns your player. Change it in {script}.": "info_player_start spawnt deinen Spieler. Ändere ihn in {script}.",
   "Shift+drag the selection": "Shift+Ziehen der Auswahl",
@@ -2780,5 +2776,10 @@
   "Deselected {n} face": { "one": "{n} Fläche abgewählt", "other": "{n} Flächen abgewählt" },
   "Deselected {n} object": { "one": "{n} Objekt abgewählt", "other": "{n} Objekte abgewählt" },
   "Deselected {n} corner": { "one": "{n} Ecke abgewählt", "other": "{n} Ecken abgewählt" },
-  "Sculpt {mode}: click adds a tile, Shift removes it": "Modellieren {mode}: Klick fügt eine Kachel hinzu, Shift entfernt sie"
+  "Sculpt {mode}: click adds a tile, Shift removes it": "Modellieren {mode}: Klick fügt eine Kachel hinzu, Shift entfernt sie",
+  "Installed the addon {version}.": "Addon {version} installiert.",
+  "Updated the addon{old} to {version}.": "Addon{old} auf {version} aktualisiert.",
+  "Installed in {dir}.": "Installiert in {dir}.",
+  "Makes info_player_start spawn a first person player you can walk around with.": "Lässt info_player_start einen Spieler in Egoperspektive spawnen, mit dem du herumlaufen kannst.",
+  "Show Backup": "Sicherung zeigen"
 }

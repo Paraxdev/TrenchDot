@@ -1776,8 +1776,6 @@
   " from the rolling beta": " (来自滚动测试版)",
   " from the release": " (来自正式版)",
   " from {v}": " (自 {v})",
-  "Installed the TrenchDot addon {version}{from} into res://addons/func_godot.": "已将 TrenchDot 插件 {version}{from} 安装到 res://addons/func_godot。",
-  "Updated the addon{old} to {version}{from}. The old one is in the project's {shown} folder, delete it when the new one works.": "插件{old}已更新到 {version}{from}。旧版在项目的 {shown} 文件夹中，新版正常后可删除。",
   "Looking up {asset} in the releases": "正在发布中查找 {asset}",
   "Could not move the old addon ({e}). Close Godot and try again.": "无法移动旧插件（{e}）。请关闭 Godot 后重试。",
   "Could not put the new addon in place ({e}), the old one is back where it was.": "无法放置新插件（{e}），旧插件已恢复原位。",
@@ -1849,7 +1847,6 @@
   "The gameplay entities come with the addon. Install or update the addon first.": "玩法实体随插件提供，请先安装或更新插件。",
   "Installed in {dir}. The addon has a newer version of {n} of its files. Updating keeps the files you edited.": "已安装在 {dir}。插件有 {n} 个文件的较新版本。更新会保留你编辑过的文件。",
   "Update Gameplay Entities": "更新玩法实体",
-  "Installed in {dir}, where the project owns the copies.": "已安装在 {dir}，副本归项目所有。",
   "{name} is new to TrenchDot. Add ready made models or the demo? You can do it later with Godot > Add Content to Project.": "{name} 是首次用 TrenchDot 打开。要添加现成模型或演示吗？之后可通过 Godot > 向项目添加内容 操作。",
   "Add ready made models, or the demo to learn from, to {name}.": "向 {name} 添加现成模型，或用于学习的演示。",
   "Nothing extra": "不添加额外内容",
@@ -2614,7 +2611,6 @@
   "Open every closed group down to it and select it. Outside a closed group it folds or unfolds the row": "打开通向它的每个已关闭组并选择它。不在已关闭组内时折叠或展开该行",
   "{shift} or {command}": "{shift}或{command}",
   "Player": "玩家",
-  "Makes info_player_start spawn a first person player you can walk around with. Its script goes in {dir} so you can change it.": "让 info_player_start 生成一个可以四处走动的第一人称玩家。它的脚本放在 {dir}，方便你修改。",
   "Create player": "创建玩家",
   "info_player_start spawns your player. Change it in {script}.": "info_player_start 会生成你的玩家。请在 {script} 中修改它。",
   "Shift+drag the selection": "Shift+拖动选择",
@@ -2780,5 +2776,10 @@
   "Deselected {n} face": { "other": "已取消选择 {n} 个面" },
   "Deselected {n} object": { "other": "已取消选择 {n} 个对象" },
   "Deselected {n} corner": { "other": "已取消选择 {n} 个角" },
-  "Sculpt {mode}: click adds a tile, Shift removes it": "雕刻 {mode}：单击添加地块，Shift 移除"
+  "Sculpt {mode}: click adds a tile, Shift removes it": "雕刻 {mode}：单击添加地块，Shift 移除",
+  "Installed the addon {version}.": "已安装插件 {version}。",
+  "Updated the addon{old} to {version}.": "插件{old}已更新到 {version}。",
+  "Installed in {dir}.": "已安装在 {dir}。",
+  "Makes info_player_start spawn a first person player you can walk around with.": "让 info_player_start 生成一个可以四处走动的第一人称玩家。",
+  "Show Backup": "显示备份"
 }

@@ -1776,8 +1776,6 @@
   " from the rolling beta": " из скользящей беты",
   " from the release": " из релиза",
   " from {v}": " с {v}",
-  "Installed the TrenchDot addon {version}{from} into res://addons/func_godot.": "Аддон TrenchDot {version}{from} установлен в res://addons/func_godot.",
-  "Updated the addon{old} to {version}{from}. The old one is in the project's {shown} folder, delete it when the new one works.": "Аддон обновлён{old} до {version}{from}. Старый лежит в папке {shown} проекта, удалите его, когда новый заработает.",
   "Looking up {asset} in the releases": "Поиск {asset} в релизах",
   "Could not move the old addon ({e}). Close Godot and try again.": "Не удалось переместить старый аддон ({e}). Закройте Godot и повторите.",
   "Could not put the new addon in place ({e}), the old one is back where it was.": "Не удалось поставить новый аддон ({e}), старый возвращён на место.",
@@ -1849,7 +1847,6 @@
   "The gameplay entities come with the addon. Install or update the addon first.": "Сущности геймплея входят в аддон. Сначала установите или обновите аддон.",
   "Installed in {dir}. The addon has a newer version of {n} of its files. Updating keeps the files you edited.": "Установлено в {dir}. В аддоне есть более новая версия файлов: {n}. Обновление сохраняет файлы, которые вы изменили.",
   "Update Gameplay Entities": "Обновить сущности геймплея",
-  "Installed in {dir}, where the project owns the copies.": "Установлено в {dir}, копии принадлежат проекту.",
   "{name} is new to TrenchDot. Add ready made models or the demo? You can do it later with Godot > Add Content to Project.": "{name} впервые открыт в TrenchDot. Добавить готовые модели или демо? Это можно сделать позже через Godot > Добавить контент в проект.",
   "Add ready made models, or the demo to learn from, to {name}.": "Добавьте в {name} готовые модели или демо для изучения.",
   "Nothing extra": "Ничего лишнего",
@@ -2614,7 +2611,6 @@
   "Open every closed group down to it and select it. Outside a closed group it folds or unfolds the row": "Открыть все закрытые группы до неё и выделить её. Вне закрытой группы сворачивает или разворачивает строку",
   "{shift} or {command}": "{shift} или {command}",
   "Player": "Игрок",
-  "Makes info_player_start spawn a first person player you can walk around with. Its script goes in {dir} so you can change it.": "info_player_start будет создавать игрока от первого лица, которым можно ходить. Его скрипт попадает в {dir}, чтобы вы могли его менять.",
   "Create player": "Создать игрока",
   "info_player_start spawns your player. Change it in {script}.": "info_player_start создаёт вашего игрока. Меняйте его в {script}.",
   "Shift+drag the selection": "Shift+перетаскивание выделения",
@@ -2780,5 +2776,10 @@
   "Deselected {n} face": { "one": "Снято выделение с {n} грани", "few": "Снято выделение с {n} граней", "many": "Снято выделение с {n} граней" },
   "Deselected {n} object": { "one": "Снято выделение с {n} объекта", "few": "Снято выделение с {n} объектов", "many": "Снято выделение с {n} объектов" },
   "Deselected {n} corner": { "one": "Снято выделение с {n} угла", "few": "Снято выделение с {n} углов", "many": "Снято выделение с {n} углов" },
-  "Sculpt {mode}: click adds a tile, Shift removes it": "Лепка {mode}: щелчок добавляет тайл, Shift убирает его"
+  "Sculpt {mode}: click adds a tile, Shift removes it": "Лепка {mode}: щелчок добавляет тайл, Shift убирает его",
+  "Installed the addon {version}.": "Аддон {version} установлен.",
+  "Updated the addon{old} to {version}.": "Аддон обновлён{old} до {version}.",
+  "Installed in {dir}.": "Установлено в {dir}.",
+  "Makes info_player_start spawn a first person player you can walk around with.": "info_player_start будет создавать игрока от первого лица, которым можно ходить.",
+  "Show Backup": "Показать резервную копию"
 }
