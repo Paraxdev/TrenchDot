@@ -1806,7 +1806,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         Action::CreateDecal { material, at, normal, size } => create_decal(state, &material, at, normal, size),
         Action::MoveToWorld => {
             let layer = state.valid_layer();
-            state.doc.edit("Move to World", |m, s| ops::move_brushes_to_world(m, s, layer));
+            edit_or(state, "Move to World", msg!("Select brushes first"), |m, s| (!s.geometry(m).is_empty()).then(|| ops::move_brushes_to_world(m, s, layer)));
         }
         Action::MoveToLayer(layer) => state.doc.edit("Move to Layer", |m, s| ops::move_to_layer(m, s, layer)),
         Action::AddLayer => {
@@ -3771,6 +3771,29 @@ mod tests {
 
         state.game.entities = vec![solid_class("func_door")];
         assert_eq!(tie_to_entity_check(&mut state).as_deref(), Some("func_door"), "one of two brushes may be tied, it leaves the door");
+    }
+
+    #[test]
+    fn move_to_world_with_nothing_selected_records_nothing() {
+        let mut state = tie_state(vec![solid_class("func_door")]);
+        let ctx = egui::Context::default();
+        let a = brush_at(&mut state, 40.0);
+        state.doc.select(|_, s| s.select_node(a));
+        execute(&mut state, Action::CreateBrushEntity("func_door".into()), &ctx);
+        let door = state.doc.map.owning_entity(a).unwrap();
+        state.doc.select(|_, s| s.clear());
+        state.doc.mark_saved();
+        let steps = state.doc.history.undo_labels().count();
+        execute(&mut state, Action::MoveToWorld, &ctx);
+        assert!(state.status_failed(), "{}", state.status);
+        assert_eq!(state.status, "Select brushes first");
+        assert!(!state.doc.is_modified());
+        assert_eq!(state.doc.history.undo_labels().count(), steps);
+
+        state.doc.select(|_, s| s.select_node(door));
+        execute(&mut state, Action::MoveToWorld, &ctx);
+        assert_eq!(state.doc.map.owning_entity(a), None);
+        assert!(state.doc.is_modified());
     }
 
     #[test]

@@ -3581,7 +3581,9 @@ mod tests {
         let ctx = egui::Context::default();
         let mut s = state();
         s.prefs.live_link = false;
-        for action in [Action::ToggleCordon, Action::ToggleLiveMode, Action::HotspotTexture, Action::CreateDisplacement(3), Action::CsgHollow] {
+        for action in
+            [Action::ToggleCordon, Action::ToggleLiveMode, Action::HotspotTexture, Action::CreateDisplacement(3), Action::CsgHollow, Action::MoveToWorld]
+        {
             crate::commands::execute(&mut s, action.clone(), &ctx);
             assert!(s.status_failed(), "{action:?}: {}", s.status);
         }
