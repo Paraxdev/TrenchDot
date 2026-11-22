@@ -502,6 +502,7 @@ shapes have options of their own. **Rock** fills the box with a stone:
 | | **Flat base** | Cuts the underside flat so it sits on the ground |
 | | **Seed** | A different stone of the same kind |
 | | **Detail** | With **Create as editable mesh**, how finely the surface is divided |
+| Pillar | **sides** | A column filling the box: a square plinth and abacus, and a round base, shaft and capital with that many sides, each round part one brush. The round parts take the smaller of the box's width and depth |
 | Text | **Text** | The letters to build, A-Z, 0-9 and some punctuation, Enter for a new line. The shape turns them into block letters made of brushes, for signs and floor lettering |
 
 As a brush the rock is one low poly convex stone that works with CSG and collides like any brush. As an editable mesh it

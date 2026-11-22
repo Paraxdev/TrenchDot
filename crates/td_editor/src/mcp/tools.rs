@@ -2609,6 +2609,17 @@ impl App {
             "spiral_stairs" => {
                 shapes::spiral_stairs(&bounds, args["steps"].as_u64().unwrap_or(16) as usize, thickness, args["turns"].as_f64().unwrap_or(1.0), &material)
             }
+            "pillar" => match &args["lathe"] {
+                Value::Null => shapes::pillar(&bounds, sides, &material),
+                v => {
+                    let points: Option<Vec<(f64, f64)>> =
+                        v.as_array().map(|list| list.iter().map(|p| Some((p.get(0)?.as_f64()?, p.get(1)?.as_f64()?))).collect()).unwrap_or(None);
+                    match points {
+                        Some(points) if points.len() >= 2 && points.iter().all(|(r, _)| *r >= 0.0) => shapes::lathe(&bounds, &points, sides, &material),
+                        _ => return err("lathe must be at least two [radius, height] points, radius 0 or more"),
+                    }
+                }
+            },
             "gable" => {
                 let (a, b) = (bounds.min, bounds.max);
                 let along_x = match ridge_along_x(args, false) {

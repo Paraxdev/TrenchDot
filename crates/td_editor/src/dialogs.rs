@@ -490,10 +490,11 @@ pub enum ShapeKind {
     Grid,
     Text,
     Rock,
+    Pillar,
 }
 
 impl ShapeKind {
-    const ALL: [ShapeKind; 17] = [
+    const ALL: [ShapeKind; 18] = [
         ShapeKind::Cylinder,
         ShapeKind::Cone,
         ShapeKind::Sphere,
@@ -511,6 +512,7 @@ impl ShapeKind {
         ShapeKind::Grid,
         ShapeKind::Text,
         ShapeKind::Rock,
+        ShapeKind::Pillar,
     ];
 
     fn label(&self) -> &'static str {
@@ -532,6 +534,7 @@ impl ShapeKind {
             ShapeKind::Grid => en!("Grid"),
             ShapeKind::Text => en!("Text"),
             ShapeKind::Rock => en!("Rock"),
+            ShapeKind::Pillar => en!("Pillar"),
         }
     }
 
@@ -804,6 +807,7 @@ impl ShapeDialog {
             (ShapeKind::Text, _) => brushes(self.text.brushes(bounds.min, material).unwrap_or_default()),
             (ShapeKind::Rock, true) => smooth(mesh_shapes::rock(bounds, &self.rock, material)),
             (ShapeKind::Rock, false) => brushes(shapes::rock(bounds, &self.rock, material).into_iter().collect()),
+            (ShapeKind::Pillar, _) => brushes(shapes::pillar(bounds, self.sides, material)),
         }
     }
 
@@ -1031,7 +1035,14 @@ impl ShapeDialog {
                 || round
                 || matches!(
                     self.kind,
-                    ShapeKind::Cylinder | ShapeKind::Cone | ShapeKind::Sphere | ShapeKind::Arch | ShapeKind::Pipe | ShapeKind::Torus | ShapeKind::ArchWall
+                    ShapeKind::Cylinder
+                        | ShapeKind::Cone
+                        | ShapeKind::Sphere
+                        | ShapeKind::Arch
+                        | ShapeKind::Pipe
+                        | ShapeKind::Torus
+                        | ShapeKind::ArchWall
+                        | ShapeKind::Pillar
                 )
             {
                 let segments = arched || matches!(self.kind, ShapeKind::Arch | ShapeKind::ArchWall);
@@ -2957,6 +2968,10 @@ mod tests {
             d.kind = k;
             assert!(!d.generate(&bounds, "m").is_empty(), "{k:?}");
         }
+
+        d.kind = ShapeKind::Pillar;
+        let pillar = d.generate(&bounds, "m");
+        assert!(pillar.len() > 3 && pillar.iter().all(|k| matches!(k, NodeKind::Brush(_))), "a pillar is brushes even after a mesh shape");
     }
 
     #[test]

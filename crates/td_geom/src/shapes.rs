@@ -268,6 +268,40 @@ fn arc_segments(bounds: &Aabb, sides: usize, thickness: f64, start_deg: f64, end
         .collect()
 }
 
+/// A turned profile of `(radius, height)` points from the bottom up around the bounds' vertical axis, heights measured
+/// from the bounds' bottom. Each pair of points one above the other makes one convex slice, so two points at one height
+/// make a step.
+pub fn lathe(bounds: &Aabb, profile: &[(f64, f64)], sides: usize, material: &str) -> Vec<Brush> {
+    let (c, _) = xz(bounds);
+    let sides = sides.max(3);
+    let ring = |r: f64, h: f64| -> Vec<DVec3> {
+        let y = bounds.min.y + h;
+        if r <= 0.0 {
+            return vec![DVec3::new(c.x, y, c.y)];
+        }
+
+        ring(c, DVec2::splat(r), sides, 0.0).into_iter().map(|p| DVec3::new(p.x, y, p.y)).collect()
+    };
+    profile
+        .windows(2)
+        .filter(|w| w[1].1 > w[0].1 + 1e-6 && (w[0].0 > 0.0 || w[1].0 > 0.0))
+        .filter_map(|w| hull(&[ring(w[0].0, w[0].1), ring(w[1].0, w[1].1)].concat(), material))
+        .collect()
+}
+
+/// A pillar filling the bounds: a square plinth, a round base moulding, a shaft that narrows towards the top, an echinus
+/// and a square abacus. The round parts take the smaller of the bounds' width and depth.
+pub fn pillar(bounds: &Aabb, sides: usize, material: &str) -> Vec<Brush> {
+    const PROFILE: [(f64, f64); 7] = [(0.85, 0.06), (0.85, 0.09), (0.68, 0.12), (0.6, 0.87), (0.66, 0.87), (0.66, 0.89), (0.86, 0.93)];
+    let size = bounds.size();
+    let r = size.x.min(size.z) * 0.5;
+    let profile: Vec<(f64, f64)> = PROFILE.iter().map(|(f, h)| (f * r, h * size.y)).collect();
+    let slab = |from: f64, to: f64| {
+        Brush::from_aabb(&Aabb::new(bounds.min.with_y(bounds.min.y + from * size.y), bounds.max.with_y(bounds.min.y + to * size.y)), material).ok()
+    };
+    slab(0.0, 0.06).into_iter().chain(lathe(bounds, &profile, sides, material)).chain(slab(0.93, 1.0)).collect()
+}
+
 /// Staircase rising towards -Z (Godot forward).
 pub fn stairs(bounds: &Aabb, steps: usize, material: &str) -> Vec<Brush> {
     let steps = steps.max(1);
@@ -342,6 +376,25 @@ mod tests {
         let c = cylinder(&b(), 8, "m").unwrap();
         assert_eq!(c.faces.len(), 10);
         c.validate().unwrap();
+    }
+
+    #[test]
+    fn a_pillar_stacks_plinth_round_slices_and_abacus() {
+        let bounds = Aabb::new(DVec3::new(0.0, 0.0, 0.0), DVec3::new(64.0, 256.0, 64.0));
+        let p = pillar(&bounds, 12, "stone");
+        assert_eq!(p.len(), 7, "plinth, five round slices and the abacus");
+        for b in &p {
+            b.validate().unwrap();
+            let bb = b.bounds();
+            assert!(bb.min.cmpge(bounds.min - 1e-6).all() && bb.max.cmple(bounds.max + 1e-6).all(), "{bb:?} stays inside");
+        }
+
+        assert!((p[0].bounds().max.y - 256.0 * 0.06).abs() < 1e-6 && (p[6].bounds().min.y - 256.0 * 0.93).abs() < 1e-6);
+        let heights: f64 = p.iter().map(|b| b.bounds().size().y).sum();
+        assert!((heights - 256.0).abs() < 1e-6, "the slices stack without gaps");
+
+        let cone = lathe(&bounds, &[(32.0, 0.0), (0.0, 64.0), (0.0, 80.0)], 8, "m");
+        assert_eq!(cone.len(), 1, "a point to a point makes no slice");
     }
 
     #[test]

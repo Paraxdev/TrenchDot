@@ -3123,6 +3123,17 @@ fn mesh_uv_projections_adjustments_and_the_mesh_vertex_gizmo() {
 
 #[test]
 #[ignore]
+fn pillars_from_create_brush_classical_and_turned() {
+    let ed = Editor::launch("pillars");
+    let classic = ed.call("create_brush", json!({ "shape": "pillar", "min": [0, 0, 0], "max": [64, 256, 64], "sides": 8 }));
+    assert_eq!(classic["ids"].as_array().map(Vec::len), Some(7), "{classic}");
+    let turned = ed.call("create_brush", json!({ "shape": "pillar", "min": [128, 0, 0], "max": [192, 128, 64], "lathe": [[24, 0], [24, 96], [32, 128]] }));
+    assert_eq!(turned["ids"].as_array().map(Vec::len), Some(2), "{turned}");
+    assert!(ed.call_err("create_brush", json!({ "shape": "pillar", "min": [0, 0, 0], "max": [64, 64, 64], "lathe": [[8, 0]] })).contains("at least two"));
+}
+
+#[test]
+#[ignore]
 fn rocks_from_create_brush_and_create_mesh() {
     let ed = Editor::launch("rocks");
     let brush = ed.call("create_brush", json!({ "shape": "rock", "min": [0, 0, 0], "max": [96, 48, 64], "seed": 7, "facets": 3 }));
