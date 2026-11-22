@@ -185,6 +185,7 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
         entry(en!("Group"), en!("Select Linked Groups"), Action::SelectLinkedGroups),
         entry(en!("Group"), en!("Mirror Again"), Action::MirrorAgain),
         entry(en!("Transform"), en!("Drop to Floor"), Action::DropToFloor),
+        entry(en!("Transform"), en!("Snap to Wall"), Action::SnapToWall),
         entry(en!("Group"), en!("Separate Linked Groups"), Action::UnlinkGroups),
         entry(en!("Mesh"), en!("Edit Mesh"), Action::EditMesh),
         entry(en!("Edit"), en!("Toggle Edit Mode"), Action::ToggleEditMode),

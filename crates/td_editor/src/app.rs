@@ -1759,6 +1759,7 @@ impl App {
                         }
                     });
                     m.item(ui, None, en!("Drop to Floor"), Action::DropToFloor);
+                    m.item(ui, None, en!("Snap to Wall"), Action::SnapToWall);
 
                     ui.separator();
                     sub_menu(ui, None, en!("Nudge by Grid"), |ui| {

@@ -95,6 +95,7 @@ const ACTIONS: &[&str] = &[
     "align",
     "distribute",
     "drop_to_floor",
+    "snap_to_wall",
     "focus_selection",
     "create_brush_entity",
     "place_entities",

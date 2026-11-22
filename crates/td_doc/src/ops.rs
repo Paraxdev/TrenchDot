@@ -354,8 +354,33 @@ pub fn drop_selection(map: &mut Map, sel: &Selection, opts: EditOptions) -> usiz
     moved
 }
 
+/// Moves each selected object sideways along X or Z, whichever way reaches a visible brush soonest, until it touches it,
+/// and returns how many moved. An object already touching a brush beside it stays where it is, like one with nothing
+/// beside it.
+pub fn snap_to_wall_selection(map: &mut Map, sel: &Selection, opts: EditOptions) -> usize {
+    let mut moved = 0;
+    for (id, _) in selection_units(map, sel) {
+        let dirs = [DVec3::X, DVec3::NEG_X, DVec3::Z, DVec3::NEG_Z];
+        let nearest = dirs.into_iter().filter_map(|d| sweep_distance(map, id, d).map(|t| (t, d))).min_by(|a, b| a.0.total_cmp(&b.0));
+        if let Some((t, dir)) = nearest.filter(|(t, _)| *t > 1e-6) {
+            let mut one = Selection::default();
+            one.nodes.insert(id);
+            translate_selection(map, &one, dir * t, opts);
+            moved += 1;
+        }
+    }
+
+    moved
+}
+
 /// How far `id` falls before it rests on something, None when nothing is under it.
 pub fn drop_distance(map: &Map, id: NodeId) -> Option<f64> {
+    sweep_distance(map, id, DVec3::NEG_Y)
+}
+
+/// How far `id` travels along the axis direction `dir` before it touches a visible brush, or a terrain when it falls.
+/// Triggers and cutters are passed through, and so is what it only slides along.
+fn sweep_distance(map: &Map, id: NodeId, dir: DVec3) -> Option<f64> {
     let own = |n: NodeId| n == id || map.is_ancestor(id, n);
     let mut shapes: Vec<Vec<DVec3>> = Vec::new();
     for n in std::iter::once(id).chain(map.descendants(id)) {
@@ -381,8 +406,12 @@ pub fn drop_distance(map: &Map, id: NodeId) -> Option<f64> {
         match map.get(n).map(|n| &n.kind) {
             Some(NodeKind::Brush(b)) => {
                 let bb = b.bounds();
-                let under = bb.min.y < reach.max.y && bb.min.x < reach.max.x && bb.max.x > reach.min.x && bb.min.z < reach.max.z && bb.max.z > reach.min.z;
-                if !under
+                let ahead = (0..3).all(|k| match dir[k] {
+                    d if d > 0.0 => bb.max[k] > reach.min[k],
+                    d if d < 0.0 => bb.min[k] < reach.max[k],
+                    _ => bb.min[k] < reach.max[k] - 1e-6 && bb.max[k] > reach.min[k] + 1e-6,
+                });
+                if !ahead
                     || map
                         .owning_entity(n)
                         .and_then(|e| map.entity(e))
@@ -392,12 +421,12 @@ pub fn drop_distance(map: &Map, id: NodeId) -> Option<f64> {
                 }
 
                 for shape in &shapes {
-                    if let Some(t) = td_geom::hull::sweep_distance(shape, &b.vertices, DVec3::NEG_Y) {
+                    if let Some(t) = td_geom::hull::sweep_distance(shape, &b.vertices, dir) {
                         best = Some(best.map_or(t, |b| b.min(t)));
                     }
                 }
             }
-            Some(NodeKind::Terrain(t)) => {
+            Some(NodeKind::Terrain(t)) if dir == DVec3::NEG_Y => {
                 let falls = shapes.iter().flatten().filter_map(|p| t.height_at(p.x, p.z).map(|h| p.y - h));
                 if let Some(fall) = falls.reduce(f64::min).filter(|f| *f > -1e-6) {
                     best = Some(best.map_or(fall, |b| b.min(fall)));
@@ -1982,5 +2011,25 @@ mod tests {
         sel.nodes.insert(away);
         assert_eq!(drop_selection(&mut m, &sel, EditOptions::default()), 1);
         assert_eq!(m.bounds(away).min.y, -40.0, "it rests on the terrain");
+    }
+
+    #[test]
+    fn snapping_moves_each_object_to_the_nearest_wall_beside_it() {
+        let mut m = Map::new();
+        let l = m.default_layer();
+        let block = |m: &mut Map, min: DVec3, max: DVec3| create_brush(m, l, Brush::from_aabb(&Aabb::new(min, max), "c").unwrap());
+        block(&mut m, DVec3::new(-256.0, -16.0, -256.0), DVec3::new(256.0, 0.0, 256.0));
+        block(&mut m, DVec3::new(128.0, 0.0, -256.0), DVec3::new(144.0, 128.0, 256.0));
+        block(&mut m, DVec3::new(-256.0, 0.0, -96.0), DVec3::new(256.0, 128.0, -80.0));
+        let near_x = block(&mut m, DVec3::new(64.0, 0.0, 0.0), DVec3::new(96.0, 32.0, 32.0));
+        let near_z = block(&mut m, DVec3::new(-32.0, 0.0, -64.0), DVec3::new(0.0, 32.0, -32.0));
+        let alone = block(&mut m, DVec3::new(1000.0, 0.0, 1000.0), DVec3::new(1032.0, 32.0, 1032.0));
+        let mut sel = Selection::default();
+        sel.nodes.extend([near_x, near_z, alone]);
+        assert_eq!(snap_to_wall_selection(&mut m, &sel, EditOptions::default()), 2);
+        assert_eq!(m.bounds(near_x).min, DVec3::new(96.0, 0.0, 0.0), "it slides along the floor to the wall at x 128");
+        assert_eq!(m.bounds(near_z).min, DVec3::new(-32.0, 0.0, -80.0), "the wall at z -80 is nearer than the one at x 128");
+        assert_eq!(m.bounds(alone).min, DVec3::new(1000.0, 0.0, 1000.0), "nothing is beside it");
+        assert_eq!(snap_to_wall_selection(&mut m, &sel, EditOptions::default()), 0, "touching objects stay put");
     }
 }

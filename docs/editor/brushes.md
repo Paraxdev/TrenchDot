@@ -362,6 +362,20 @@ Over MCP, run `run_action` with `drop_to_floor`. It fails when nothing moves.
 
 </div>
 
+### Snap to Wall
+
+To push a crate, a shelf or a group against a wall, select it and pick *Brush > Transform > Snap to Wall*. Each object
+looks along X and Z in both directions and slides toward the nearest visible brush until it touches it, so a table
+moves to whichever wall is closest. A floor or ceiling it rests against does not stop it, it slides along them. Trigger
+and cutter brushes are ignored, and an object already against a wall or with nothing beside it stays where it is. The
+snap is one undo step, and Drop to Floor followed by Snap to Wall sets a prop into a corner.
+
+<div class="td-mcp" markdown>
+
+Over MCP, run `run_action` with `snap_to_wall`. It fails when nothing moves.
+
+</div>
+
 ## Mirror
 
 For a symmetric building, a pair of windows or a left and a right wing, build one half and let the editor keep the other

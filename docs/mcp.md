@@ -150,6 +150,7 @@ See [Reviewing changes](editor/reviewing.md) for keeping maps in git.
 | --- | --- |
 | `run_action` `copy`, `cut`, `paste` | Copy and cut return the clipboard text, paste takes it as `args.text` with an optional `offset` or `origin` |
 | `run_action` `align`, `distribute` | `align` takes `args.axis` and `args.to` (`min`, `center` or `max`), `distribute` takes `args.axis`. Both treat each selected group, brush entity or object as one unit and do not snap |
+| `run_action` `snap_to_wall` | Moves each selected group, brush entity or object along X or Z, whichever way reaches a visible brush soonest, until it touches it. Trigger and `func_cutter` brushes are ignored, objects already against a wall stay. One undo step, an error when nothing moves |
 | `run_action` `drop_to_floor` | Moves each selected group, brush entity or object straight down onto the nearest visible brush, terrain or object below it, lowest first so a selected stack settles. Trigger and `func_cutter` brushes are ignored. One undo step, an error when nothing moves |
 | `run_action` `clip_apply` | Takes a plane (`point` and `normal`, or three `points`) and `keep`: `front`, `back` or `both` |
 | `run_action` `create_decal` | Places a [decal](editor/decals.md), use it instead of thin brushes |

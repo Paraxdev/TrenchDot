@@ -120,6 +120,7 @@ pub enum Action {
     },
     /// Moves each selected object straight down until it rests on the brush, terrain or object under it.
     DropToFloor,
+    SnapToWall,
     SetTool(ToolKind),
     FocusSelection,
     CreateBrushEntity(String),
@@ -367,6 +368,7 @@ impl Action {
             Action::SetMirrorGap { .. } => en!("Set Mirror Gap"),
             Action::MirrorAgain => en!("Mirror Again"),
             Action::DropToFloor => en!("Drop to Floor"),
+            Action::SnapToWall => en!("Snap to Wall"),
             Action::ApplyMirror { .. } => en!("Apply Mirror"),
             Action::Align { axis, to } => {
                 let axis = axis_name(*axis);
@@ -541,6 +543,7 @@ impl Action {
             Action::SetMirrorGap { .. } => en!("Moves the two mirrored halves apart or together, the mirror plane stays where it is"),
             Action::MirrorAgain => en!("Moves the partner of a half that was slid along the mirror plane back across from it"),
             Action::DropToFloor => en!("Moves each selected object straight down until it rests on what is under it"),
+            Action::SnapToWall => en!("Moves each selected object sideways along X or Z until it touches the nearest wall"),
             Action::ApplyMirror { .. } => en!("Merges the selected mirrored halves into plain geometry, joined where they meet"),
             Action::SelectLinkedGroups => en!("Selects every linked copy of the selected groups, so you can move them together"),
             Action::UnlinkGroups => en!("Makes the selected linked groups plain groups, and frees a copy left without partners"),
@@ -934,6 +937,7 @@ pub fn bindable_actions() -> Vec<Action> {
         Action::SelectLinkedGroups,
         Action::MirrorAgain,
         Action::DropToFloor,
+        Action::SnapToWall,
         Action::UnlinkGroups,
         Action::SetCordonFromSelection,
         Action::ToggleCordon,
@@ -1219,6 +1223,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             | Action::Align { .. }
             | Action::Distribute { .. }
             | Action::DropToFloor
+            | Action::SnapToWall
             | Action::Nudge(_)
             | Action::Duplicate
     ) {
@@ -1765,6 +1770,17 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
             let result = state.doc.try_edit("Drop to Floor", |m, s| Some(ops::drop_selection(m, s, opts)).filter(|n| *n > 0).ok_or(()));
             if result.is_err() {
                 state.fail_status(msg!("Nothing to drop, the objects already rest on something or have nothing under them"));
+            }
+        }
+        Action::SnapToWall => {
+            if state.doc.selection.nodes.is_empty() {
+                state.fail_status(msg!("Select the objects to snap first"));
+                return;
+            }
+
+            let result = state.doc.try_edit("Snap to Wall", |m, s| Some(ops::snap_to_wall_selection(m, s, opts)).filter(|n| *n > 0).ok_or(()));
+            if result.is_err() {
+                state.fail_status(msg!("Nothing to snap, the objects already touch a wall or have none beside them"));
             }
         }
         Action::Nudge(offset) => {
@@ -4901,6 +4917,29 @@ mod tests {
 
         execute(&mut state, Action::DropToFloor, &ctx);
         assert!(state.status_failed(), "a resting object has nowhere to fall");
+        assert_eq!(state.doc.history.undo_labels().count(), steps + 1);
+    }
+
+    #[test]
+    fn snap_to_wall_slides_to_the_brush_beside_it_and_records_nothing_when_touching() {
+        let mut state = EditorState::new(Default::default());
+        let ctx = egui::Context::default();
+        let wall = brush_at(&mut state, 0.0);
+        let crate_id = brush_at(&mut state, 0.0);
+        state.doc.edit("Move", |m, _| {
+            let mut sel = td_doc::Selection::default();
+            sel.select_node(crate_id);
+            ops::translate_selection(m, &sel, DVec3::new(200.0, 8.0, 4.0), Default::default())
+        });
+        state.doc.select(|_, s| s.select_node(crate_id));
+        let steps = state.doc.history.undo_labels().count();
+        execute(&mut state, Action::SnapToWall, &ctx);
+        assert!(!state.status_failed(), "{}", state.status);
+        assert_eq!(state.doc.map.bounds_of([crate_id]).min.x, state.doc.map.bounds_of([wall]).max.x);
+        assert_eq!(state.doc.history.undo_labels().count(), steps + 1);
+
+        execute(&mut state, Action::SnapToWall, &ctx);
+        assert!(state.status_failed(), "a touching object has nowhere to slide");
         assert_eq!(state.doc.history.undo_labels().count(), steps + 1);
     }
 
