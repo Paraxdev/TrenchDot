@@ -21,6 +21,9 @@ pub struct PathStairs {
 pub struct PathStairsParts {
     pub steps: Vec<Brush>,
     pub ramps: Vec<Brush>,
+    /// A climbing flight had no room left between the landings, which happens when the stairs are wider than the
+    /// path's segments are long, so the stairs never reach some point's height.
+    pub squeezed: bool,
 }
 
 fn flat(v: DVec3) -> DVec3 {
@@ -151,11 +154,12 @@ pub fn path_stairs(points: &[DVec3], spec: &PathStairs, material: &str, ramp_mat
         let start = flat(from) + if i > 0 { d * half } else { DVec3::ZERO };
         let end = flat(to) - if i + 1 < last { d * half } else { DVec3::ZERO };
         let run = (end - start).dot(d);
+        let rise = to.y - from.y;
         if run <= 1e-3 {
+            parts.squeezed |= rise.abs() >= 1e-6;
             continue;
         }
 
-        let rise = to.y - from.y;
         if rise.abs() < 1e-6 {
             parts.steps.extend(hull(&slab(start, end, d, half, bottom, from.y), material));
             continue;
@@ -219,6 +223,14 @@ mod tests {
         up.sort();
         down.sort();
         assert_eq!(up, down);
+    }
+
+    #[test]
+    fn landings_wider_than_the_path_leave_a_flight_squeezed_out() {
+        let points = [DVec3::ZERO, DVec3::new(128.0, 32.0, 0.0), DVec3::new(128.0, 64.0, 128.0)];
+        assert!(!path_stairs(&points, &SPEC, "m", None).squeezed);
+        let wide = path_stairs(&points, &PathStairs { width: 1000.0, ..SPEC }, "m", None);
+        assert!(wide.squeezed, "{} brushes", wide.steps.len());
     }
 
     #[test]

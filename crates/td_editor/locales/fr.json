@@ -2784,5 +2784,6 @@
   "Show Backup": "Afficher la sauvegarde",
   "Nothing to duplicate": "Rien à dupliquer",
   "Nothing to ungroup, select a group": "Rien à dégrouper, sélectionnez un groupe",
-  "Nothing is hidden": "Rien n'est masqué"
+  "Nothing is hidden": "Rien n'est masqué",
+  "The stairs are too wide for the path, make them narrower or space the points further apart": "L'escalier est trop large pour le chemin, rétrécissez-le ou écartez les points"
 }

@@ -71,6 +71,7 @@ pub enum SplineError {
     NothingToBend,
     TooDetailed,
     NoRun,
+    TooWide,
 }
 
 impl SplineError {
@@ -81,6 +82,9 @@ impl SplineError {
             SplineError::NothingToBend => "only brushes and meshes bend, select one of those",
             SplineError::TooDetailed => "the piece has too many faces to bend along a path this long",
             SplineError::NoRun => "the points need to stand apart on the ground, a path straight up has no room for steps",
+            SplineError::TooWide => {
+                "the stairs are too wide for the path, the landings leave a flight no room; make them narrower or space the points further apart"
+            }
         }
     }
 
@@ -91,6 +95,7 @@ impl SplineError {
             SplineError::NothingToBend => tr("Only brushes and meshes bend, select one of those").to_string(),
             SplineError::TooDetailed => tr("The piece has too many faces to bend along a path this long").to_string(),
             SplineError::NoRun => tr("The points need to stand apart on the ground, a path straight up has no room for steps").to_string(),
+            SplineError::TooWide => tr("The stairs are too wide for the path, make them narrower or space the points further apart").to_string(),
         }
     }
 }
@@ -152,6 +157,10 @@ pub fn build(state: &EditorState, spec: &SplineSpec, piece: &[NodeId], points: &
         let parts = td_geom::shapes::path_stairs(points, &shape, material, ramp);
         if parts.steps.is_empty() {
             return Err(SplineError::NoRun);
+        }
+
+        if parts.squeezed {
+            return Err(SplineError::TooWide);
         }
 
         return Ok(Placement::Brushes(parts.steps.into_iter().chain(parts.ramps).collect()));
@@ -523,6 +532,9 @@ mod tests {
         let up = [DVec3::ZERO, DVec3::Y * 64.0];
         assert_eq!(build(&state, &spec, &[], &up, "dev/grey").err(), Some(SplineError::NoRun));
         assert_eq!(build(&state, &spec, &[], &up[..1], "dev/grey").err(), Some(SplineError::NoPoints));
+        let turn = [DVec3::ZERO, DVec3::new(128.0, 32.0, 0.0), DVec3::new(128.0, 64.0, 128.0)];
+        let wide = SplineSpec { width: 1000.0, ..spec };
+        assert_eq!(build(&state, &wide, &[], &turn, "dev/grey").err(), Some(SplineError::TooWide));
     }
 
     #[test]

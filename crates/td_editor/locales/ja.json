@@ -2784,5 +2784,6 @@
   "Show Backup": "バックアップを表示",
   "Nothing to duplicate": "複製するものがありません",
   "Nothing to ungroup, select a group": "解除するグループがありません、グループを選択してください",
-  "Nothing is hidden": "非表示のものはありません"
+  "Nothing is hidden": "非表示のものはありません",
+  "The stairs are too wide for the path, make them narrower or space the points further apart": "階段がパスに対して広すぎます。幅を狭めるか点の間隔を広げてください"
 }
