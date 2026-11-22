@@ -2779,5 +2779,6 @@
   "The selection box also takes faces facing away or hidden behind others": "Рамка выделения берёт и грани, повёрнутые от камеры или скрытые за другими",
   "Deselected {n} face": { "one": "Снято выделение с {n} грани", "few": "Снято выделение с {n} граней", "many": "Снято выделение с {n} граней" },
   "Deselected {n} object": { "one": "Снято выделение с {n} объекта", "few": "Снято выделение с {n} объектов", "many": "Снято выделение с {n} объектов" },
-  "Deselected {n} corner": { "one": "Снято выделение с {n} угла", "few": "Снято выделение с {n} углов", "many": "Снято выделение с {n} углов" }
+  "Deselected {n} corner": { "one": "Снято выделение с {n} угла", "few": "Снято выделение с {n} углов", "many": "Снято выделение с {n} углов" },
+  "Sculpt {mode}: click adds a tile, Shift removes it": "Лепка {mode}: щелчок добавляет тайл, Shift убирает его"
 }

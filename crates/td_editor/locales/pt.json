@@ -2779,5 +2779,6 @@
   "The selection box also takes faces facing away or hidden behind others": "A caixa de seleção também pega faces de costas ou escondidas atrás de outras",
   "Deselected {n} face": { "one": "{n} face desmarcada", "other": "{n} faces desmarcadas" },
   "Deselected {n} object": { "one": "{n} objeto desmarcado", "other": "{n} objetos desmarcados" },
-  "Deselected {n} corner": { "one": "{n} canto desmarcado", "other": "{n} cantos desmarcados" }
+  "Deselected {n} corner": { "one": "{n} canto desmarcado", "other": "{n} cantos desmarcados" },
+  "Sculpt {mode}: click adds a tile, Shift removes it": "Esculpir {mode}: clique adiciona um bloco, Shift o remove"
 }

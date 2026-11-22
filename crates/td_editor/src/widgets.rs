@@ -517,7 +517,7 @@ mod tests {
     #[test]
     fn every_tool_hint_fits_a_small_view_in_each_language() {
         use crate::i18n::{Lang, scope, tr};
-        const HINTS: [&str; 15] = [
+        const HINTS: [&str; 16] = [
             "Clip: click to place points, keep {side} (Tab), Enter to apply",
             "Vertex: drag a corner or a blue dot, double click a corner for a gizmo, Del removes",
             "Scale: drag handles, Alt scales symmetrically",
@@ -533,6 +533,7 @@ mod tests {
             "Gizmo: arrows and squares move, rings rotate, boxes scale. Esc hides it",
             "Bevel: move the mouse to set the width, click to confirm",
             "Sculpt {mode}: drag to apply, Shift inverts, Ctrl smooths",
+            "Sculpt {mode}: click adds a tile, Shift removes it",
         ];
         let view = Rect::from_min_size(Pos2::new(40.0, 30.0), egui::vec2(480.0, 300.0));
         for lang in [Lang::De, Lang::Ru, Lang::Ja] {

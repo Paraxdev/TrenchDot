@@ -1712,6 +1712,8 @@ impl ToolSet {
                 // An empty list is the whole map here: the hint is about the map having nothing to sculpt at all.
                 let hint = if !has_terrain && td_doc::terrain::displacement_faces(&state.doc.map, &[]).is_empty() {
                     trf!("Sculpt: no terrain or displacements. Terrain > Create Terrain, or select quad faces and use Brush > Displacement")
+                } else if state.sculpt.mode.is_tile() {
+                    trf!("Sculpt {mode}: click adds a tile, Shift removes it", mode = tr(state.sculpt.mode.label()))
                 } else {
                     trf!("Sculpt {mode}: drag to apply, Shift inverts, Ctrl smooths", mode = tr(state.sculpt.mode.label()))
                 };

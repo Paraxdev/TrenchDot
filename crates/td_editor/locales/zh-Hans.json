@@ -2779,5 +2779,6 @@
   "The selection box also takes faces facing away or hidden behind others": "选择框也会选中背向或被遮挡的面",
   "Deselected {n} face": { "other": "已取消选择 {n} 个面" },
   "Deselected {n} object": { "other": "已取消选择 {n} 个对象" },
-  "Deselected {n} corner": { "other": "已取消选择 {n} 个角" }
+  "Deselected {n} corner": { "other": "已取消选择 {n} 个角" },
+  "Sculpt {mode}: click adds a tile, Shift removes it": "雕刻 {mode}：单击添加地块，Shift 移除"
 }

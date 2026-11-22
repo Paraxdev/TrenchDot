@@ -2779,5 +2779,6 @@
   "The selection box also takes faces facing away or hidden behind others": "Der Auswahlrahmen nimmt auch abgewandte und verdeckte Flächen",
   "Deselected {n} face": { "one": "{n} Fläche abgewählt", "other": "{n} Flächen abgewählt" },
   "Deselected {n} object": { "one": "{n} Objekt abgewählt", "other": "{n} Objekte abgewählt" },
-  "Deselected {n} corner": { "one": "{n} Ecke abgewählt", "other": "{n} Ecken abgewählt" }
+  "Deselected {n} corner": { "one": "{n} Ecke abgewählt", "other": "{n} Ecken abgewählt" },
+  "Sculpt {mode}: click adds a tile, Shift removes it": "Modellieren {mode}: Klick fügt eine Kachel hinzu, Shift entfernt sie"
 }

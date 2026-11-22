@@ -2779,5 +2779,6 @@
   "The selection box also takes faces facing away or hidden behind others": "選択枠が裏向きの面や他の陰に隠れた面も選択します",
   "Deselected {n} face": { "other": "{n} 個の面を選択解除" },
   "Deselected {n} object": { "other": "{n} 個のオブジェクトを選択解除" },
-  "Deselected {n} corner": { "other": "{n} 個の角を選択解除" }
+  "Deselected {n} corner": { "other": "{n} 個の角を選択解除" },
+  "Sculpt {mode}: click adds a tile, Shift removes it": "スカルプト {mode}：クリックでタイルを追加、Shift で削除"
 }
