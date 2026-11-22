@@ -2674,5 +2674,12 @@
   "Only 90° and 180° bends end on the grid": "只有 90° 和 180° 的弯曲会终止在网格上",
   "The floor climbs at {angle}°": "地面以 {angle}° 上升",
   "The radius stays between {min} and {max} u": "半径保持在 {min} 到 {max} u 之间",
-  "Right drag or Space+drag looks around, Z toggles mouse look and WASD flies. Middle drag pans, the wheel moves forward and back.": "右键拖动或空格+拖动环视，Z 切换鼠标观察，WASD 飞行。中键拖动平移，滚轮前进后退。"
+  "Right drag or Space+drag looks around, Z toggles mouse look and WASD flies. Middle drag pans, the wheel moves forward and back.": "右键拖动或空格+拖动环视，Z 切换鼠标观察，WASD 飞行。中键拖动平移，滚轮前进后退。",
+  "Steps climbing from point to point, with a landing at each point between the ends": "从一个点爬升到下一个点的台阶，两端之间的每个点都有平台",
+  "Width": "宽度",
+  "Step height": "台阶高度",
+  "The tallest a step may be, each flight takes as many as it needs to climb to the next point": "单级台阶的最大高度，每段楼梯按需使用台阶以到达下一个点",
+  "Clip ramp": "Clip 坡道",
+  "A clip brush over each flight, so players walk up it smoothly": "在每段楼梯上放一个 clip 笔刷，让玩家平滑地走上去",
+  "The points need to stand apart on the ground, a path straight up has no room for steps": "这些点在地面上需要彼此分开，竖直向上的路径没有放台阶的空间"
 }

@@ -488,12 +488,14 @@ impl App {
                 "repeat" => SplineMode::Repeat,
                 "bend" => SplineMode::Bend,
                 "cable" => SplineMode::Cable,
-                _ => return err(format!("unknown mode {name}, use repeat, bend or cable")),
+                "stairs" => SplineMode::Stairs,
+                _ => return err(format!("unknown mode {name}, use repeat, bend, cable or stairs")),
             };
         }
 
         let s = &mut spec;
-        for (key, slot) in [("spacing", &mut s.spacing), ("sag", &mut s.sag), ("radius", &mut s.radius)] {
+        for (key, slot) in [("spacing", &mut s.spacing), ("sag", &mut s.sag), ("radius", &mut s.radius), ("width", &mut s.width), ("step_height", &mut s.step)]
+        {
             match &args[key] {
                 Value::Null => {}
                 v => match v.as_f64() {
@@ -503,8 +505,8 @@ impl App {
             }
         }
 
-        if spec.spacing <= 0.0 || spec.radius <= 0.0 {
-            return err("spacing and radius must be more than 0");
+        if spec.spacing <= 0.0 || spec.radius <= 0.0 || spec.width <= 0.0 || spec.step <= 0.0 {
+            return err("spacing, radius, width and step_height must be more than 0");
         }
 
         match &args["sides"] {
@@ -516,6 +518,7 @@ impl App {
         }
 
         spec.upright = args["upright"].as_bool().unwrap_or(spec.upright);
+        spec.clip_ramp = args["clip_ramp"].as_bool().unwrap_or(spec.clip_ramp);
         let material = args["material"].as_str().map_or_else(|| self.state.current_material.clone(), str::to_string);
         let piece = if args["ids"].is_array() {
             let ids = match id_list(args, "ids").and_then(|ids| editable_ids(&self.state, &ids)) {

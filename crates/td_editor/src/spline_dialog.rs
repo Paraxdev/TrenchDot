@@ -1,14 +1,14 @@
 //! Place Along Path: copies of a piece repeated along a curve through a chain of path points, the piece bent to follow
-//! it, or a cable hanging between the points.
+//! it, a cable hanging between the points, or stairs climbing from point to point.
 
 use egui::RichText;
 use td_core::{Aabb, DMat4, DVec3, NodeId};
 use td_doc::{Map, NodeKind, Selection, ops};
-use td_geom::FaceData;
 use td_geom::mesh::Mesh;
 use td_geom::spline::{self, Piece};
 use td_geom::sweep::Curve;
 use td_geom::uv::FaceUv;
+use td_geom::{Brush, FaceData};
 
 use crate::i18n::{en, tr, tr_n};
 use crate::state::EditorState;
@@ -29,6 +29,8 @@ pub enum SplineMode {
     Bend,
     /// A round cable hanging between the points.
     Cable,
+    /// Straight flights of steps between the points, a landing at each one between the ends.
+    Stairs,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -39,11 +41,14 @@ pub struct SplineSpec {
     pub sag: f64,
     pub radius: f64,
     pub sides: u32,
+    pub width: f64,
+    pub step: f64,
+    pub clip_ramp: bool,
 }
 
 impl Default for SplineSpec {
     fn default() -> Self {
-        Self { mode: SplineMode::Repeat, spacing: 64.0, upright: true, sag: 32.0, radius: 2.0, sides: 6 }
+        Self { mode: SplineMode::Repeat, spacing: 64.0, upright: true, sag: 32.0, radius: 2.0, sides: 6, width: 64.0, step: 8.0, clip_ramp: false }
     }
 }
 
@@ -53,6 +58,7 @@ pub enum SplineError {
     NoPiece,
     NothingToBend,
     TooDetailed,
+    NoRun,
 }
 
 impl SplineError {
@@ -62,6 +68,7 @@ impl SplineError {
             SplineError::NoPiece => "select what to place along the path first",
             SplineError::NothingToBend => "only brushes and meshes bend, select one of those",
             SplineError::TooDetailed => "the piece has too many faces to bend along a path this long",
+            SplineError::NoRun => "the points need to stand apart on the ground, a path straight up has no room for steps",
         }
     }
 
@@ -71,6 +78,7 @@ impl SplineError {
             SplineError::NoPiece => tr("Select what to place along the path, then click Use Selection").to_string(),
             SplineError::NothingToBend => tr("Only brushes and meshes bend, select one of those").to_string(),
             SplineError::TooDetailed => tr("The piece has too many faces to bend along a path this long").to_string(),
+            SplineError::NoRun => tr("The points need to stand apart on the ground, a path straight up has no room for steps").to_string(),
         }
     }
 }
@@ -79,6 +87,7 @@ impl SplineError {
 pub enum Placement {
     Copies(Vec<DMat4>),
     Meshes(Vec<(Option<NodeId>, Mesh)>),
+    Brushes(Vec<Brush>),
 }
 
 /// The piece's roots, leaving out points of any chain so picking a path along with the piece still works.
@@ -117,9 +126,25 @@ fn bendable(map: &Map, piece: &[NodeId]) -> Vec<(NodeId, Mesh)> {
         .collect()
 }
 
-/// Works out what `spec` places along `points` without touching the map. A cable takes `material`.
+/// Works out what `spec` places along `points` without touching the map. A cable and stairs take `material`, a clip
+/// ramp the game's clip texture.
 pub fn build(state: &EditorState, spec: &SplineSpec, piece: &[NodeId], points: &[DVec3], material: &str) -> Result<Placement, SplineError> {
     let map = &state.doc.map;
+    if spec.mode == SplineMode::Stairs {
+        if points.len() < 2 {
+            return Err(SplineError::NoPoints);
+        }
+
+        let shape = td_geom::shapes::PathStairs { width: spec.width, step: spec.step };
+        let ramp = spec.clip_ramp.then_some(state.game.tool_textures.clip.as_str());
+        let parts = td_geom::shapes::path_stairs(points, &shape, material, ramp);
+        if parts.steps.is_empty() {
+            return Err(SplineError::NoRun);
+        }
+
+        return Ok(Placement::Brushes(parts.steps.into_iter().chain(parts.ramps).collect()));
+    }
+
     if spec.mode == SplineMode::Cable {
         let data = FaceData::new(material.to_string(), FaceUv::default());
         let mesh = spline::cable(points, spec.sag, spec.radius, spec.sides, CABLE_STEPS, &data).ok_or(SplineError::NoPoints)?;
@@ -169,6 +194,7 @@ pub fn apply(state: &mut EditorState, spec: &SplineSpec, piece: &[NodeId], point
                     ids.push(m.insert(parent, NodeKind::Mesh(mesh)));
                 }
             }
+            Placement::Brushes(brushes) => ids.extend(brushes.into_iter().map(|b| ops::create_brush(m, fallback, b))),
         }
 
         s.clear();
@@ -225,6 +251,11 @@ fn preview_lines(map: &Map, piece: &[NodeId], placement: &Placement) -> Vec<(DVe
 
             out.truncate(MAX_PREVIEW_SEGMENTS);
         }
+        Placement::Brushes(brushes) => {
+            for b in brushes {
+                out.extend(b.edges().into_iter().map(|(i, j)| (b.vertices[i as usize], b.vertices[j as usize])));
+            }
+        }
     }
 
     out
@@ -275,6 +306,7 @@ impl SplineDialog {
                     (SplineMode::Repeat, en!("Repeat"), en!("Copies of the selection along the path, like fence posts")),
                     (SplineMode::Bend, en!("Bend"), en!("The selection laid end to end and bent along the path, like a road or a pipe")),
                     (SplineMode::Cable, en!("Cable"), en!("A cable hanging between the points, in the current material")),
+                    (SplineMode::Stairs, en!("Stairs"), en!("Steps climbing from point to point, with a landing at each point between the ends")),
                 ] {
                     ui.selectable_value(&mut spec.mode, mode, tr(label)).on_hover_text(tr(tip));
                 }
@@ -294,7 +326,7 @@ impl SplineDialog {
                 });
                 ui.end_row();
 
-                if spec.mode != SplineMode::Cable {
+                if !matches!(spec.mode, SplineMode::Cable | SplineMode::Stairs) {
                     ui.label(tr("Piece"));
                     ui.horizontal(|ui| {
                         ui.label(tr_n!(piece.len(), "{n} object", "{n} objects"));
@@ -328,6 +360,18 @@ impl SplineDialog {
                         ui.add(egui::Slider::new(&mut spec.sides, 3..=64));
                         ui.end_row();
                     }
+                    SplineMode::Stairs => {
+                        ui.label(tr("Width"));
+                        ui.add(egui::DragValue::new(&mut spec.width).range(1.0..=4096.0).suffix(" u"));
+                        ui.end_row();
+                        ui.label(tr("Step height"));
+                        ui.add(egui::DragValue::new(&mut spec.step).range(1.0..=256.0).suffix(" u"))
+                            .on_hover_text(tr("The tallest a step may be, each flight takes as many as it needs to climb to the next point"));
+                        ui.end_row();
+                        ui.label("");
+                        ui.checkbox(&mut spec.clip_ramp, tr("Clip ramp")).on_hover_text(tr("A clip brush over each flight, so players walk up it smoothly"));
+                        ui.end_row();
+                    }
                 }
             });
 
@@ -339,6 +383,7 @@ impl SplineDialog {
                 let count = built.map(|p| match p {
                     Placement::Copies(c) => c.len(),
                     Placement::Meshes(m) => m.len(),
+                    Placement::Brushes(b) => b.len(),
                 });
                 *preview = Some((key, count));
             }
@@ -347,6 +392,7 @@ impl SplineDialog {
                 Some(Ok(n)) => {
                     let text = match spec.mode {
                         SplineMode::Repeat => tr_n!(n, "{n} copy", "{n} copies"),
+                        SplineMode::Stairs => tr_n!(n, "{n} brush", "{n} brushes"),
                         _ => tr_n!(n, "{n} mesh", "{n} meshes"),
                     };
                     ui.label(RichText::new(text).weak());
@@ -436,6 +482,32 @@ mod tests {
         undo_once(&mut state);
         assert_eq!(apply(&mut state, &spec, &[], &points, "dev/grey"), Err(SplineError::NoPiece));
         assert_eq!(apply(&mut state, &spec, &[post], &points[..1], "dev/grey"), Err(SplineError::NoPoints));
+    }
+
+    #[test]
+    fn stairs_climb_the_chain_with_a_clip_ramp_as_one_undo_step() {
+        let (mut state, _, _) = setup();
+        corner(&mut state, "s1", "s2", DVec3::ZERO);
+        corner(&mut state, "s2", "", DVec3::new(128.0, 64.0, 0.0));
+        let points = pick_chain(&state.doc.map, &[], point_chains(&state.doc.map).iter().find(|c| c.name == "s1").map(|c| c.start)).unwrap().points;
+        let spec = SplineSpec { mode: SplineMode::Stairs, step: 16.0, clip_ramp: true, ..Default::default() };
+        let ids = apply(&mut state, &spec, &[], &points, "dev/grey").unwrap();
+        assert_eq!(ids.len(), 5, "four steps and a ramp");
+        assert_eq!(state.doc.selection.nodes.len(), 5);
+        let clip = state.game.tool_textures.clip.clone();
+        let materials: Vec<bool> = ids
+            .iter()
+            .map(|id| match &state.doc.map.get(*id).unwrap().kind {
+                NodeKind::Brush(b) => b.faces[0].data.material == clip,
+                _ => panic!("stairs are brushes"),
+            })
+            .collect();
+        assert_eq!(materials, [false, false, false, false, true]);
+        assert_eq!(state.undo().as_deref(), Some("Place Along Path"));
+
+        let up = [DVec3::ZERO, DVec3::Y * 64.0];
+        assert_eq!(build(&state, &spec, &[], &up, "dev/grey").err(), Some(SplineError::NoRun));
+        assert_eq!(build(&state, &spec, &[], &up[..1], "dev/grey").err(), Some(SplineError::NoPoints));
     }
 
     #[test]

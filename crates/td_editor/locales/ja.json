@@ -2674,5 +2674,12 @@
   "Only 90° and 180° bends end on the grid": "90° と 180° の曲がりだけがグリッドの上で終わります",
   "The floor climbs at {angle}°": "床は {angle}° で上ります",
   "The radius stays between {min} and {max} u": "半径は {min} から {max} u の間に収まります",
-  "Right drag or Space+drag looks around, Z toggles mouse look and WASD flies. Middle drag pans, the wheel moves forward and back.": "右ドラッグか Space+ドラッグで見回し、Z でマウスルックを切り替え、WASD で移動。中ドラッグでパン、ホイールで前後。"
+  "Right drag or Space+drag looks around, Z toggles mouse look and WASD flies. Middle drag pans, the wheel moves forward and back.": "右ドラッグか Space+ドラッグで見回し、Z でマウスルックを切り替え、WASD で移動。中ドラッグでパン、ホイールで前後。",
+  "Steps climbing from point to point, with a landing at each point between the ends": "点から点へ上る階段。両端の間の各点に踊り場を置きます",
+  "Width": "幅",
+  "Step height": "段の高さ",
+  "The tallest a step may be, each flight takes as many as it needs to climb to the next point": "1段の最大の高さ。各段は次の点まで上るのに必要なだけ段を使います",
+  "Clip ramp": "クリップのスロープ",
+  "A clip brush over each flight, so players walk up it smoothly": "各段の上にクリップのブラシを置き、プレイヤーが滑らかに上れるようにします",
+  "The points need to stand apart on the ground, a path straight up has no room for steps": "点は地面上で離れている必要があります。真上に伸びるパスには段を置けません"
 }

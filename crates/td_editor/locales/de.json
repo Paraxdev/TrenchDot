@@ -2674,5 +2674,12 @@
   "Only 90° and 180° bends end on the grid": "Nur 90°- und 180°-Biegungen enden auf dem Raster",
   "The floor climbs at {angle}°": "Der Boden steigt mit {angle}° an",
   "The radius stays between {min} and {max} u": "Der Radius bleibt zwischen {min} und {max} u",
-  "Right drag or Space+drag looks around, Z toggles mouse look and WASD flies. Middle drag pans, the wheel moves forward and back.": "Rechts ziehen oder Leertaste+ziehen zum Umsehen, Z schaltet den Mausblick um, WASD fliegt. Mittlere Maustaste verschiebt, das Rad bewegt vor und zurück."
+  "Right drag or Space+drag looks around, Z toggles mouse look and WASD flies. Middle drag pans, the wheel moves forward and back.": "Rechts ziehen oder Leertaste+ziehen zum Umsehen, Z schaltet den Mausblick um, WASD fliegt. Mittlere Maustaste verschiebt, das Rad bewegt vor und zurück.",
+  "Steps climbing from point to point, with a landing at each point between the ends": "Stufen von Punkt zu Punkt, mit einem Absatz an jedem Punkt zwischen den Enden",
+  "Width": "Breite",
+  "Step height": "Stufenhöhe",
+  "The tallest a step may be, each flight takes as many as it needs to climb to the next point": "Die größte erlaubte Stufenhöhe, jeder Lauf nimmt so viele Stufen, wie er bis zum nächsten Punkt braucht",
+  "Clip ramp": "Clip-Rampe",
+  "A clip brush over each flight, so players walk up it smoothly": "Ein Clip-Brush über jedem Lauf, damit Spieler gleichmäßig hinaufgehen",
+  "The points need to stand apart on the ground, a path straight up has no room for steps": "Die Punkte müssen am Boden auseinanderliegen, ein Pfad senkrecht nach oben hat keinen Platz für Stufen"
 }
