@@ -200,8 +200,36 @@ pub fn to_string_with_lightmap(map: &Map) -> String {
     crate::json_fmt::to_string(&value_with_lightmap(map))
 }
 
-fn value_with_lightmap(map: &Map) -> Value {
+/// [`to_value`] plus what only the Godot build reads: each brush a cutter overlaps gets its pieces under `cut`,
+/// which loading ignores and the editor works out again.
+pub fn build_value(map: &Map) -> Value {
     let mut value = to_value(map);
+    let mut cut = crate::cutter::cut_pieces(map);
+    if !cut.is_empty() {
+        add_cuts(&mut value, &mut cut);
+    }
+
+    value
+}
+
+fn add_cuts(value: &mut Value, cut: &mut BTreeMap<NodeId, Vec<Brush>>) {
+    if let Some(obj) = value.as_object_mut() {
+        if obj.get("type").and_then(Value::as_str) == Some("brush")
+            && let Some(pieces) = obj.get("id").and_then(Value::as_u64).and_then(|id| cut.remove(&NodeId(id)))
+        {
+            obj.insert("cut".into(), serde_json::to_value(pieces).expect("brushes serialize"));
+        }
+
+        for key in ["layers", "children"] {
+            if let Some(Value::Array(list)) = obj.get_mut(key) {
+                list.iter_mut().for_each(|v| add_cuts(v, cut));
+            }
+        }
+    }
+}
+
+fn value_with_lightmap(map: &Map) -> Value {
+    let mut value = build_value(map);
     if let Some(lm) = &map.lightmap
         && let Some(obj) = value.as_object_mut()
     {
@@ -222,16 +250,16 @@ pub fn to_bytes(map: &Map) -> Result<Vec<u8>, FormatError> {
         Some(lm) => {
             let mut chunks = map.unknown_chunks.clone();
             chunks.push(crate::binary::bulk_chunk(crate::lightmap::TAG, &lm.to_chunk(&lm.stale_nodes(map))));
-            crate::binary::encode(to_value(map), &chunks)
+            crate::binary::encode(build_value(map), &chunks)
         }
-        None => crate::binary::encode(to_value(map), &map.unknown_chunks),
+        None => crate::binary::encode(build_value(map), &map.unknown_chunks),
     };
     Ok(encoded?)
 }
 
 /// Identifies the map content the way the END chunk of `to_bytes` records it.
 pub fn content_id(map: &Map) -> i64 {
-    crate::binary::content_id(&to_value(map)).as_i64()
+    crate::binary::content_id(&build_value(map)).as_i64()
 }
 
 /// One node as it appears in the file, without its children.

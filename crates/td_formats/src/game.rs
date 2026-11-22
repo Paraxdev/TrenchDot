@@ -861,6 +861,7 @@ mod tests {
             [
                 "env_reflection_probe",
                 "env_voxel_gi",
+                "func_cutter",
                 "func_detail",
                 "func_detail_illusionary",
                 "func_geo",

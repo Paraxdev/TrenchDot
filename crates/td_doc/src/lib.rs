@@ -1,5 +1,6 @@
 pub mod binary;
 pub mod blend;
+pub mod cutter;
 pub mod diff;
 pub mod document;
 pub mod entity;

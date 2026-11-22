@@ -595,6 +595,24 @@ To punch a doorway or window, place a brush where the hole goes and Subtract it,
 [Build your first room](../getting-started.md) walks you through one. The faces a cut opens take the cutter's material,
 unless you tick *Carved faces keep the target's material* in the same menu.
 
+### Cutters
+
+Subtract changes the wall for good, so moving the doorway later means patching the wall back together. A cutter keeps
+the hole movable instead:
+
+1. Place a brush where the hole goes.
+2. Select it, right click and pick *Create Brush Entity*, then pick **func_cutter**.
+3. The brush turns see-through like a trigger, and every brush it overlaps shows the hole.
+
+Move, resize or delete the cutter and the hole follows. The walls stay whole in the map, only the Godot build and the
+3D view use the cut pieces, and the faces the hole opens take the wall's material. When the hole should stay where it
+is, select the cutter and Subtract it (Ctrl+K) to cut the walls for real.
+
+> [!NOTE]
+> Clicking through the hole still selects the wall. Baked lighting does not reach cut pieces, so they build without
+> light map coordinates and look unlit in a baked map. Bake the cutter with Subtract before you bake the lighting.
+> A cutter only cuts the brushes of its own map, not the contents of a prefab instance.
+
 ## Displacements
 
 For uneven ground inside a brush level, like a rubble slope, you can turn a face into a displacement and sculpt it.

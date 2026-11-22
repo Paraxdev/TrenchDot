@@ -119,6 +119,7 @@ func _initialize() -> void:
 	test_face_cull()
 	test_large_plane_face_cull()
 	test_interior_face_culling()
+	test_cut_pieces()
 	test_dense_mesh_interior_face_cull()
 	test_mesh_faces_keep_their_corner_order()
 	test_nested_instances_are_bounded()
@@ -1877,6 +1878,22 @@ func cull_brushes(children: Array) -> Array[FuncGodotData.BrushData]:
 	DirAccess.remove_absolute(path)
 	FuncGodotGeometryGenerator.new(settings).build(0, data.entities)
 	return data.entities[0].brushes
+
+func test_cut_pieces() -> void:
+	print("- cutter pieces")
+	var wall := box_node(2, Vector3(0, 0, 0), Vector3(64, 64, 64))
+	wall["cut"] = [box_node(0, Vector3(0, 0, 0), Vector3(16, 64, 64)), box_node(0, Vector3(48, 0, 0), Vector3(64, 64, 64))]
+	var swallowed := box_node(3, Vector3(200, 0, 0), Vector3(208, 8, 8))
+	swallowed["cut"] = []
+	var cutter := { "type": "entity", "id": 10, "classname": "func_cutter", "properties": {}, "children": [box_node(11, Vector3(16, -8, -8), Vector3(48, 72, 72), "special/clip")] }
+	var path := OS.get_temp_dir().path_join("td_cut_pieces_test.tdm")
+	var map_json := { "format": "trenchdot-map", "properties": {}, "layers": [{ "type": "layer", "id": 1, "children": [wall, swallowed, cutter] }] }
+	FileAccess.open(path, FileAccess.WRITE).store_string(JSON.stringify(map_json))
+	var data := FuncGodotParser.new().parse_map_data(path, load(SETTINGS))
+	DirAccess.remove_absolute(path)
+	check(data.entities.all(func(e): return e.properties.get("classname", "") != "func_cutter"), "a cutter entity builds nothing")
+	var brushes: Array = data.entities[0].brushes
+	check(brushes.size() == 2 and brushes.all(func(b): return b.node_id == 2), "a cut brush builds its pieces under its own id, a swallowed one nothing, got %d" % brushes.size())
 
 func test_interior_face_culling() -> void:
 	print("- interior face culling")

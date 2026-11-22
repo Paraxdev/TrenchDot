@@ -199,6 +199,8 @@ pub struct SceneCache {
     shadow_center: Option<DVec3>,
     scene_bounds: Aabb,
     face_cull: FaceCull,
+    /// Pieces of the brushes cutters overlap, drawn in place of the whole brush.
+    cuts: BTreeMap<NodeId, Vec<td_geom::Brush>>,
     drag: Option<DragLayer>,
     /// Fixtures of lights that start off: left out of the lit view like the game hides them, or drawn without their glow.
     fixtures: td_doc::entity::OffFixtures,
@@ -407,6 +409,7 @@ fn push_line(list: &mut Vec<LineVertex>, a: DVec3, b: DVec3, color: [f32; 4]) {
 /// A trigger, another Area3D entity or a probe volume, whose brushes are drawn see-through rather than solid walls.
 pub fn is_volume(game: &GameConfig, e: &Entity) -> bool {
     e.classname.starts_with("trigger")
+        || e.classname == td_doc::cutter::CUTTER_CLASS
         || game.entity(&e.classname).is_some_and(|d| d.node_class == "Area3D" || crate::code_refs::PROBE_VOLUMES.contains(&d.node_class.as_str()))
 }
 
@@ -1517,6 +1520,7 @@ struct BucketCtx<'a> {
     selection: &'a Selection,
     selected_faces: &'a BTreeSet<(NodeId, usize)>,
     pieces: &'a HashMap<NodeId, FacePieces>,
+    cuts: &'a BTreeMap<NodeId, Vec<td_geom::Brush>>,
     entity_models: &'a HashMap<NodeId, std::sync::Arc<crate::models::Model>>,
     drag_nodes: &'a BTreeSet<NodeId>,
     fixtures: &'a td_doc::entity::OffFixtures,
@@ -1589,9 +1593,14 @@ fn build_bucket<'a>(ctx: &BucketCtx<'a>, ids: &[NodeId]) -> Builder<'a> {
         builder.dark = in_set(&ctx.fixtures.dark);
         builder.charts = crate::bake::charts_of(map, id);
         match &node.kind {
-            NodeKind::Brush(brush) => {
-                builder.brush(brush, tint, selected, |fi| ctx.selected_faces.contains(&(id, fi)), edge_2d, is_trigger, EDGE_COLOR, ctx.pieces.get(&id))
-            }
+            NodeKind::Brush(brush) => match ctx.cuts.get(&id) {
+                Some(pieces) => {
+                    for piece in pieces {
+                        builder.brush(piece, tint, selected, |_| false, edge_2d, is_trigger, EDGE_COLOR, None);
+                    }
+                }
+                None => builder.brush(brush, tint, selected, |fi| ctx.selected_faces.contains(&(id, fi)), edge_2d, is_trigger, EDGE_COLOR, ctx.pieces.get(&id)),
+            },
             NodeKind::Mesh(mesh) => builder.mesh(mesh, tint, selected, |fi| ctx.selected_faces.contains(&(id, fi)), edge_2d, is_trigger, ctx.pieces.get(&id)),
             NodeKind::Terrain(_) => builder.stats.terrains += 1,
             NodeKind::Entity(e) if node.children.is_empty() => {
@@ -1973,6 +1982,10 @@ impl SceneCache {
             !full && state.doc.in_transaction() && dirty.iter().filter_map(|id| map.get(*id)).map(node_face_count).sum::<usize>() > CULL_DEFER_FACES;
         let recull = if heavy_drag { self.face_cull.clear_pieces(&dirty) } else { self.face_cull.update(&map, &game, &opaque, &dirty, full) };
         dirty.extend(recull);
+        let cuts = td_doc::cutter::cut_pieces(&map);
+        let recut: Vec<NodeId> = cuts.keys().chain(self.cuts.keys()).filter(|id| cuts.get(id) != self.cuts.get(id)).copied().collect();
+        dirty.extend(recut);
+        self.cuts = cuts;
 
         let selected_brush_like: BTreeSet<NodeId> = selection.geometry(&map).into_iter().collect();
         let is_selected = |id: NodeId| selection.nodes.contains(&id) || map.ancestors(id).iter().any(|a| selection.nodes.contains(a));
@@ -2066,6 +2079,7 @@ impl SceneCache {
                     selection: &selection,
                     selected_faces: &selected_faces,
                     pieces: with_void.as_ref().unwrap_or(&self.face_cull.pieces),
+                    cuts: &self.cuts,
                     entity_models: &entity_models,
                     drag_nodes: &drag_nodes,
                     fixtures: &self.fixtures,
