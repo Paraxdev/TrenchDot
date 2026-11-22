@@ -191,6 +191,25 @@ by side. All of them are selected, and one undo takes them back. Winding does no
 line are dropped. An outline that crosses itself is refused with a line in the status bar, press Backspace to remove
 the corner that made the crossing.
 
+### Holes
+
+For a courtyard, a floor with a stairwell or a wall with a window, cut holes into the outline before it is extruded.
+
+1. Click the corners of the outline, then hold Shift and click its first corner. The outline stays on screen instead of
+   turning into a brush.
+2. Click the corners of a hole inside it. To add another hole, hold Shift on the hole's first corner again.
+3. Click the first corner of the last hole, or press Enter, to make the brush.
+
+The holes go right through, and what is left is cut into convex brushes like any other outline. A hole has to lie
+wholly inside the outline and must not touch another hole, else the status bar says so and nothing is made. Backspace
+with no corner placed opens the last closed outline again.
+
+<div class="td-mcp" markdown>
+
+Over MCP, `create_polygon_brush` takes `holes`, a list of outlines in the same `[x, y, z]` form as `points`.
+
+</div>
+
 ### Walls
 
 To lay out the walls of a room or a corridor, pick **Walls** instead of **Outline** in the mode list of the tool

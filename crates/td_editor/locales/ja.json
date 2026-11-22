@@ -2267,7 +2267,7 @@
   "Click a surface or the ground to start the outline": "輪郭を始めるには面か地面をクリックしてください",
   "Created {n} polygon brush": { "other": "ポリゴンブラシを{n}個作成しました" },
   "Polygon: click to place the first corner": "ポリゴン：クリックで最初の角を置く",
-  "Polygon: click corners, the first one or Enter closes, Backspace undoes": "ポリゴン：クリックで角を置く、最初の角か Enter で閉じる、Backspace で戻す",
+  "Polygon: click corners, the first one or Enter closes, Shift on the first one cuts holes next, Backspace undoes": "ポリゴン：クリックで角を置く、最初の角か Enter で閉じる、最初の角で Shift を押すと次は穴を切る、Backspace で戻す",
   "A shape this heavy can slow the editor down": "これほど重い形状はエディターを遅くすることがあります",
   "Place Along Path": "パスに沿って配置",
   "Place Along Path…": "パスに沿って配置…",
@@ -2734,5 +2734,9 @@
   "These faces lie in one plane, there is nothing between them to fill": "これらの面は同じ平面上にあり、間に埋める空間がありません",
   "Preset name": "プリセット名",
   "Save Preset": "プリセットを保存",
-  "Keeps these settings under the name for every map": "この設定を名前付きで保存し、どのマップでも使えます"
+  "Keeps these settings under the name for every map": "この設定を名前付きで保存し、どのマップでも使えます",
+  "Polygon hole: click its corners inside the outline, Shift on its first corner starts another, Enter makes the brush": "ポリゴンの穴：輪郭の内側で角をクリック、最初の角で Shift を押すと次の穴、Enter でブラシを作成",
+  "A hole has to lie inside the outline, apart from the other holes": "穴は輪郭の内側にあり、ほかの穴と離れている必要があります",
+  "Click the corners of a hole inside the outline, Enter makes the brush": "輪郭の内側で穴の角をクリックしてください。Enter でブラシを作成します",
+  "Created {n} polygon brush around the holes": { "other": "穴の周りに {n} 個のポリゴンブラシを作成しました" }
 }

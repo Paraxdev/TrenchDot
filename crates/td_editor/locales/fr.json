@@ -2267,7 +2267,7 @@
   "Click a surface or the ground to start the outline": "Cliquer sur une surface ou sur le sol pour commencer le contour",
   "Created {n} polygon brush": { "one": "{n} brush polygonal créé", "other": "{n} brushes polygonaux créés" },
   "Polygon: click to place the first corner": "Polygone : cliquer place le premier coin",
-  "Polygon: click corners, the first one or Enter closes, Backspace undoes": "Polygone : cliquer les coins, le premier ou Enter ferme, Backspace annule",
+  "Polygon: click corners, the first one or Enter closes, Shift on the first one cuts holes next, Backspace undoes": "Polygone : cliquer les coins, le premier ou Enter ferme, Shift sur le premier découpe des trous ensuite, Backspace annule",
   "A shape this heavy can slow the editor down": "Une forme aussi lourde peut ralentir l'éditeur",
   "Place Along Path": "Placer le long du chemin",
   "Place Along Path…": "Placer le long du chemin…",
@@ -2734,5 +2734,9 @@
   "These faces lie in one plane, there is nothing between them to fill": "Ces faces sont dans un même plan, il n'y a rien à remplir entre elles",
   "Preset name": "Nom du préréglage",
   "Save Preset": "Enregistrer le préréglage",
-  "Keeps these settings under the name for every map": "Garde ces réglages sous ce nom pour toutes les cartes"
+  "Keeps these settings under the name for every map": "Garde ces réglages sous ce nom pour toutes les cartes",
+  "Polygon hole: click its corners inside the outline, Shift on its first corner starts another, Enter makes the brush": "Trou : cliquer ses coins dans le contour, Shift sur son premier coin en commence un autre, Enter crée le brush",
+  "A hole has to lie inside the outline, apart from the other holes": "Un trou doit être à l'intérieur du contour, à l'écart des autres trous",
+  "Click the corners of a hole inside the outline, Enter makes the brush": "Cliquez les coins d'un trou dans le contour, Enter crée le brush",
+  "Created {n} polygon brush around the holes": { "one": "{n} brush polygone créé autour des trous", "other": "{n} brushes polygone créés autour des trous" }
 }

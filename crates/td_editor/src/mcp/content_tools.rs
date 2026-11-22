@@ -482,6 +482,22 @@ impl App {
             v => return err(format!("trim is a profile name or a list of [x, y] points, got {v}")),
         };
         let path = wall.is_some() || trim.is_some();
+        let mut holes: Vec<Vec<DVec3>> = Vec::new();
+        match &args["holes"] {
+            Value::Null => {}
+            _ if path => return err("holes only apply to a solid outline, not to walls or trim"),
+            Value::Array(list) => {
+                for hole in list {
+                    let corners: Option<Vec<DVec3>> = hole.as_array().map(|h| h.iter().map(vec3).collect()).unwrap_or(None);
+                    match corners {
+                        Some(c) => holes.push(c),
+                        None => return err(format!("every hole is a list of [x, y, z] corners, got {hole}")),
+                    }
+                }
+            }
+            v => return err(format!("holes is a list of outlines, each a list of [x, y, z] corners, got {v}")),
+        }
+
         let closed = match bool_arg(args, "closed") {
             Ok(c) => c.unwrap_or(false),
             Err(e) => return err(e),
@@ -553,7 +569,7 @@ impl App {
             };
         }
 
-        match crate::polygon_tool::create(&mut self.state, parent, &points, normal, height, &material) {
+        match crate::polygon_tool::create(&mut self.state, parent, &points, &holes, normal, height, &material) {
             Ok(ids) => {
                 let b = self.state.doc.map.bounds_of(ids.iter().copied());
                 ok(json!({ "ok": true, "ids": ids.iter().map(|id| id.0).collect::<Vec<_>>(), "bounds": bounds_json(&b) }))

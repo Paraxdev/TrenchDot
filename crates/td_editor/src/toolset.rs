@@ -504,7 +504,7 @@ impl ToolSet {
                     return true;
                 }
 
-                if !self.polygon.points.is_empty() {
+                if !self.polygon.is_empty() {
                     if ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Backspace)) {
                         self.polygon.pop();
                         return true;
@@ -2969,10 +2969,22 @@ mod tests {
 
     /// Runs one frame of the viewport tools over a 400 by 400 view with the pointer at `pos`.
     fn view_frame(ctx: &egui::Context, tools: &mut ToolSet, state: &mut EditorState, cam: &Camera, pos: Pos2, pressed: Option<bool>) {
+        view_frame_with(ctx, tools, state, cam, pos, pressed, egui::Modifiers::NONE);
+    }
+
+    fn view_frame_with(
+        ctx: &egui::Context,
+        tools: &mut ToolSet,
+        state: &mut EditorState,
+        cam: &Camera,
+        pos: Pos2,
+        pressed: Option<bool>,
+        modifiers: egui::Modifiers,
+    ) {
         let rect = input_rect();
-        let mut events = vec![egui::Event::PointerMoved(pos)];
+        let mut events = vec![egui::Event::ModifiersChanged(modifiers), egui::Event::PointerMoved(pos)];
         if let Some(pressed) = pressed {
-            events.push(egui::Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE });
+            events.push(egui::Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers });
         }
 
         let raw = egui::RawInput { screen_rect: Some(rect), events, ..Default::default() };
@@ -3158,6 +3170,49 @@ mod tests {
         assert_eq!(state.doc.history.undo_labels().count(), undo_before + 1);
         assert_eq!(state.doc.history.undo_labels().next(), Some("Create Polygon Brush"));
         assert!(tools.polygon.points.is_empty(), "the tool is ready for the next outline");
+    }
+
+    #[test]
+    fn shift_on_the_first_corner_turns_the_next_outlines_into_holes() {
+        let mut state = EditorState::new(Default::default());
+        let mut tools = polygon_tools(&mut state);
+        let top = centered_view(ViewKind::Top);
+        let shift_corner = |tools: &mut ToolSet, state: &mut EditorState, world: [f64; 3]| {
+            let pos = top.project(input_rect(), DVec3::from(world)).expect("the corner is in view");
+            let ctx = egui::Context::default();
+            for pressed in [None, Some(true), Some(false), None] {
+                view_frame_with(&ctx, tools, state, &top, pos, pressed, egui::Modifiers::SHIFT);
+            }
+        };
+        for c in [[-96.0, 0.0, -96.0], [96.0, 0.0, -96.0], [96.0, 0.0, 96.0], [-96.0, 0.0, 96.0]] {
+            corner(&mut tools, &mut state, &top, c);
+        }
+
+        shift_corner(&mut tools, &mut state, [-96.0, 0.0, -96.0]);
+        assert_eq!((tools.polygon.loops.len(), tools.polygon.points.len()), (1, 0), "the outline is kept for holes");
+        for c in [[-32.0, 0.0, -32.0], [32.0, 0.0, -32.0], [32.0, 0.0, 32.0]] {
+            corner(&mut tools, &mut state, &top, c);
+        }
+
+        assert!(press(&mut tools, &mut state, Key::Backspace));
+        assert!(press(&mut tools, &mut state, Key::Backspace));
+        assert!(press(&mut tools, &mut state, Key::Backspace));
+        assert!(press(&mut tools, &mut state, Key::Backspace), "Backspace reopens the outline");
+        assert_eq!((tools.polygon.loops.len(), tools.polygon.points.len()), (0, 4));
+        shift_corner(&mut tools, &mut state, [-96.0, 0.0, -96.0]);
+        for c in [[-32.0, 0.0, -32.0], [32.0, 0.0, -32.0], [32.0, 0.0, 32.0], [-32.0, 0.0, 32.0]] {
+            corner(&mut tools, &mut state, &top, c);
+        }
+
+        let undo_before = state.doc.history.undo_labels().count();
+        corner(&mut tools, &mut state, &top, [-32.0, 0.0, -32.0]);
+        assert!(!state.status_failed(), "{}", state.status);
+        let made: Vec<NodeId> = state.doc.selection.nodes.iter().copied().collect();
+        assert!(made.len() >= 4, "a square ring takes at least four convex brushes, got {}", made.len());
+        let volume: f64 = made.iter().map(|id| state.doc.map.brush(*id).unwrap().volume()).sum();
+        assert!((volume - (192.0 * 192.0 - 64.0 * 64.0) * crate::viewport::FIRST_BRUSH_DEPTH).abs() < 1e-3);
+        assert_eq!(state.doc.history.undo_labels().count(), undo_before + 1);
+        assert!(tools.polygon.is_empty());
     }
 
     #[test]

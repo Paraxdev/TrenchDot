@@ -2267,7 +2267,7 @@
   "Click a surface or the ground to start the outline": "Eine Oberfläche oder den Boden anklicken, um die Kontur zu beginnen",
   "Created {n} polygon brush": { "one": "{n} Polygon-Brush erstellt", "other": "{n} Polygon-Brushes erstellt" },
   "Polygon: click to place the first corner": "Polygon: Klicken setzt den ersten Eckpunkt",
-  "Polygon: click corners, the first one or Enter closes, Backspace undoes": "Polygon: Ecken anklicken, erster Punkt oder Enter schließt, Backspace macht rückgängig",
+  "Polygon: click corners, the first one or Enter closes, Shift on the first one cuts holes next, Backspace undoes": "Polygon: Ecken anklicken, erster Punkt oder Enter schließt, Shift auf dem ersten schneidet danach Löcher, Backspace macht rückgängig",
   "A shape this heavy can slow the editor down": "Eine so schwere Form kann den Editor verlangsamen",
   "Place Along Path": "Entlang Pfad platzieren",
   "Place Along Path…": "Entlang Pfad platzieren…",
@@ -2734,5 +2734,9 @@
   "These faces lie in one plane, there is nothing between them to fill": "Diese Flächen liegen in einer Ebene, zwischen ihnen gibt es nichts zu füllen",
   "Preset name": "Name der Voreinstellung",
   "Save Preset": "Voreinstellung speichern",
-  "Keeps these settings under the name for every map": "Behält diese Einstellungen unter dem Namen für jede Karte"
+  "Keeps these settings under the name for every map": "Behält diese Einstellungen unter dem Namen für jede Karte",
+  "Polygon hole: click its corners inside the outline, Shift on its first corner starts another, Enter makes the brush": "Polygon-Loch: Ecken innerhalb des Umrisses anklicken, Shift auf der ersten Ecke beginnt ein weiteres, Enter erstellt den Brush",
+  "A hole has to lie inside the outline, apart from the other holes": "Ein Loch muss innerhalb des Umrisses liegen, getrennt von den anderen Löchern",
+  "Click the corners of a hole inside the outline, Enter makes the brush": "Klicke die Ecken eines Lochs innerhalb des Umrisses, Enter erstellt den Brush",
+  "Created {n} polygon brush around the holes": { "one": "{n} Polygon-Brush um die Löcher erstellt", "other": "{n} Polygon-Brushes um die Löcher erstellt" }
 }

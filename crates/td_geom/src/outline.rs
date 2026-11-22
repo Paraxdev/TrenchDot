@@ -23,6 +23,8 @@ pub enum OutlineError {
     Flat,
     /// Two edges cross, touch or lie on top of each other.
     SelfIntersecting,
+    /// A hole is not wholly inside the outline, or it meets another hole.
+    BadHole,
     /// The corners do not lie on one plane across the extrusion direction.
     NotPlanar,
     /// The extrusion is shorter than a hair.
@@ -38,6 +40,7 @@ impl std::fmt::Display for OutlineError {
             OutlineError::TooMany => "the outline has too many corners",
             OutlineError::Flat => "the outline has no area, its corners lie on one line",
             OutlineError::SelfIntersecting => "the outline crosses itself",
+            OutlineError::BadHole => "a hole reaches outside the outline or meets another hole",
             OutlineError::NotPlanar => "the corners do not lie on one plane across the extrusion direction",
             OutlineError::NoHeight => "the extrusion height is zero",
             OutlineError::BadBrush => "a piece of the outline did not make a valid brush",
@@ -194,6 +197,114 @@ fn join(p: &[usize], q: &[usize]) -> Option<Vec<usize>> {
     None
 }
 
+/// Most holes one outline may have.
+pub const MAX_HOLES: usize = 32;
+
+fn inside(poly: &[DVec2], p: DVec2) -> bool {
+    let n = poly.len();
+    let mut odd = false;
+    for i in 0..n {
+        let (a, b) = (poly[i], poly[(i + 1) % n]);
+        if (a.y > p.y) != (b.y > p.y) && p.x < a.x + (p.y - a.y) / (b.y - a.y) * (b.x - a.x) {
+            odd = !odd;
+        }
+    }
+
+    odd
+}
+
+fn edges(poly: &[DVec2]) -> impl Iterator<Item = (DVec2, DVec2)> + '_ {
+    (0..poly.len()).map(|i| (poly[i], poly[(i + 1) % poly.len()]))
+}
+
+/// Like [`convex_pieces`] for an outline with holes cut out of it. Each hole lies wholly inside the outline and apart
+/// from the other holes. Every hole is bridged to the outline by a cut from its rightmost corner to the nearest corner
+/// it can see, which leaves one polygon that touches itself only along the cuts, and that is cut up as usual.
+pub fn convex_pieces_with_holes(points: &[DVec2], holes: &[Vec<DVec2>]) -> Result<Vec<Vec<DVec2>>, OutlineError> {
+    if holes.is_empty() {
+        return convex_pieces(points);
+    }
+
+    if holes.len() > MAX_HOLES {
+        return Err(OutlineError::TooMany);
+    }
+
+    let outer = clean(points)?;
+    let holes: Vec<Vec<DVec2>> = holes.iter().map(|h| clean(h).map_err(|_| OutlineError::BadHole)).collect::<Result<_, _>>()?;
+    for (i, hole) in holes.iter().enumerate() {
+        let crosses = |other: &[DVec2]| edges(hole).any(|(a, b)| edges(other).any(|(c, d)| segments_meet(a, b, c, d)));
+        if !hole.iter().all(|p| inside(&outer, *p)) || crosses(&outer) {
+            return Err(OutlineError::BadHole);
+        }
+
+        for other in &holes[i + 1..] {
+            if crosses(other) || inside(other, hole[0]) || inside(hole, other[0]) {
+                return Err(OutlineError::BadHole);
+            }
+        }
+    }
+
+    let mut order: Vec<usize> = (0..holes.len()).collect();
+    let right = |h: &[DVec2]| (0..h.len()).max_by(|&a, &b| h[a].x.total_cmp(&h[b].x)).unwrap_or(0);
+    order.sort_by(|&a, &b| holes[b][right(&holes[b])].x.total_cmp(&holes[a][right(&holes[a])].x));
+    let mut ring = outer.clone();
+    let mut cuts: Vec<(DVec2, DVec2)> = Vec::new();
+    for &h in &order {
+        let hole: Vec<DVec2> = holes[h].iter().rev().copied().collect();
+        let m = right(&hole);
+        let from = hole[m];
+        let mut near: Vec<usize> = (0..ring.len()).collect();
+        near.sort_by(|&a, &b| ring[a].distance_squared(from).total_cmp(&ring[b].distance_squared(from)));
+        let sees = |to: DVec2| {
+            let mid = (from + to) * 0.5;
+            let blocked = |(c, d): (DVec2, DVec2)| c != from && d != from && c != to && d != to && segments_meet(from, to, c, d);
+            inside(&outer, mid)
+                && !holes.iter().any(|o| inside(o, mid))
+                && !edges(&outer).chain(holes.iter().flat_map(|o| edges(o))).chain(cuts.iter().copied()).any(blocked)
+        };
+        let Some(j) = near.into_iter().find(|&j| sees(ring[j])) else { return Err(OutlineError::BadBrush) };
+        cuts.push((from, ring[j]));
+        let mut joined = ring[..=j].to_vec();
+        joined.extend((0..=hole.len()).map(|k| hole[(m + k) % hole.len()]));
+        joined.extend_from_slice(&ring[j..]);
+        ring = joined;
+    }
+
+    let id: Vec<usize> = (0..ring.len()).map(|i| (0..=i).find(|&k| ring[k] == ring[i]).unwrap_or(i)).collect();
+    let flat: Vec<DVec3> = ring.iter().map(|p| p.extend(0.0)).collect();
+    let mut pieces: Vec<Vec<usize>> = polygon::triangulate(&flat, DVec3::Z)
+        .into_iter()
+        .filter(|t| cross(ring[t[0]], ring[t[1]], ring[t[2]]) > 1e-9)
+        .map(|t| t.iter().map(|&k| id[k]).collect())
+        .collect();
+    let want = signed_area(&outer) - holes.iter().map(|h| signed_area(h)).sum::<f64>();
+    let got: f64 = pieces.iter().map(|t| cross(ring[t[0]], ring[t[1]], ring[t[2]]) * 0.5).sum();
+    if (got - want).abs() > 1e-6 * want.max(1.0) {
+        return Err(OutlineError::BadBrush);
+    }
+
+    loop {
+        let mut merged = None;
+        'search: for i in 0..pieces.len() {
+            for j in i + 1..pieces.len() {
+                if let Some(joined) = join(&pieces[i], &pieces[j])
+                    && joined.iter().enumerate().all(|(a, k)| !joined[a + 1..].contains(k))
+                    && is_convex(&joined.iter().map(|&k| ring[k]).collect::<Vec<_>>())
+                {
+                    merged = Some((i, j, joined));
+                    break 'search;
+                }
+            }
+        }
+
+        let Some((i, j, joined)) = merged else { break };
+        pieces[i] = joined;
+        pieces.remove(j);
+    }
+
+    Ok(pieces.into_iter().map(|piece| piece.into_iter().map(|k| ring[k]).collect()).collect())
+}
+
 /// The prism of a convex counter-clockwise polygon in the plane spanned by `u` and `v` (`u` x `v` = `normal`) through
 /// `origin`, running `height` along `normal`. Faces get the default alignment.
 fn prism(poly: &[DVec2], origin: DVec3, (u, v): (DVec3, DVec3), normal: DVec3, height: f64, material: &str) -> Result<Brush, OutlineError> {
@@ -214,21 +325,27 @@ fn prism(poly: &[DVec2], origin: DVec3, (u, v): (DVec3, DVec3), normal: DVec3, h
 /// plane `height` units along `normal`, or against it for a negative height. A convex outline makes one brush, a
 /// concave one a brush per convex piece. The winding of the points does not matter.
 pub fn extrude(points: &[DVec3], normal: DVec3, height: f64, material: &str) -> Result<Vec<Brush>, OutlineError> {
+    extrude_with_holes(points, &[], normal, height, material)
+}
+
+/// Like [`extrude`] with `holes` cut through the prism, each an outline on the same plane inside `points`.
+pub fn extrude_with_holes(points: &[DVec3], holes: &[Vec<DVec3>], normal: DVec3, height: f64, material: &str) -> Result<Vec<Brush>, OutlineError> {
     let normal = normal.try_normalize().ok_or(OutlineError::NotPlanar)?;
     if height.is_nan() || height.abs() < 1e-3 {
         return Err(OutlineError::NoHeight);
     }
 
     let Some(first) = points.first() else { return Err(OutlineError::TooFew) };
-    if points.iter().any(|p| (*p - *first).dot(normal).abs() > 1e-3) {
+    if points.iter().chain(holes.iter().flatten()).any(|p| (*p - *first).dot(normal).abs() > 1e-3) {
         return Err(OutlineError::NotPlanar);
     }
 
     let basis = Plane::new(normal, 0.0).basis();
-    let flat: Vec<DVec2> = points.iter().map(|p| DVec2::new(p.dot(basis.0), p.dot(basis.1))).collect();
+    let to_flat = |pts: &[DVec3]| pts.iter().map(|p| DVec2::new(p.dot(basis.0), p.dot(basis.1))).collect::<Vec<_>>();
+    let flat_holes: Vec<Vec<DVec2>> = holes.iter().map(|h| to_flat(h)).collect();
     let base = normal * first.dot(normal);
     let (origin, height) = if height < 0.0 { (base + normal * height, -height) } else { (base, height) };
-    convex_pieces(&flat)?.iter().map(|piece| prism(piece, origin, basis, normal, height, material)).collect()
+    convex_pieces_with_holes(&to_flat(points), &flat_holes)?.iter().map(|piece| prism(piece, origin, basis, normal, height, material)).collect()
 }
 
 /// Below this cosine of half the turn a mitre would reach more than four times the width out, so the corner gets
@@ -466,6 +583,47 @@ mod tests {
 
     fn volume(brushes: &[Brush]) -> f64 {
         brushes.iter().map(|b| b.volume()).sum()
+    }
+
+    fn square(x: f64, y: f64, size: f64) -> Vec<DVec2> {
+        pts(&[(x, y), (x + size, y), (x + size, y + size), (x, y + size)])
+    }
+
+    #[test]
+    fn holes_cut_through_and_keep_the_volume_of_what_is_left() {
+        let outer = square(0.0, 0.0, 256.0);
+        let one = vec![square(96.0, 96.0, 64.0)];
+        let two = vec![square(32.0, 32.0, 64.0), pts(&[(160.0, 160.0), (224.0, 192.0), (176.0, 224.0)])];
+        for holes in [one, two] {
+            let pieces = convex_pieces_with_holes(&outer, &holes).unwrap();
+            assert!(pieces.iter().all(|p| is_convex(p) && signed_area(p) > 0.0));
+            let area = 256.0 * 256.0 - holes.iter().map(|h| signed_area(&clean(h).unwrap())).sum::<f64>();
+            assert!((pieces.iter().map(|p| signed_area(p)).sum::<f64>() - area).abs() < 1e-6);
+            let flat_holes: Vec<Vec<DVec3>> = holes.iter().map(|h| lift(h, 0.0)).collect();
+            let brushes = extrude_with_holes(&lift(&outer, 0.0), &flat_holes, DVec3::Z, 16.0, "m").unwrap();
+            assert!((volume(&brushes) - area * 16.0).abs() < 1e-3);
+            for hole in &holes {
+                let centre = hole.iter().fold(DVec2::ZERO, |a, p| a + *p) / hole.len() as f64;
+                assert!(!brushes.iter().any(|b| b.contains_point(centre.extend(8.0))), "the hole at {centre} is filled");
+            }
+        }
+
+        let ring = convex_pieces_with_holes(&outer, &[square(1.0, 1.0, 254.0)]).unwrap();
+        assert!((ring.iter().map(|p| signed_area(p)).sum::<f64>() - (256.0 * 256.0 - 254.0 * 254.0)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn holes_must_sit_inside_and_apart() {
+        let outer = square(0.0, 0.0, 128.0);
+        for holes in [
+            vec![square(100.0, 32.0, 64.0)],
+            vec![square(200.0, 32.0, 16.0)],
+            vec![square(16.0, 16.0, 64.0), square(48.0, 48.0, 64.0)],
+            vec![square(16.0, 16.0, 96.0), square(48.0, 48.0, 16.0)],
+            vec![square(0.0, 32.0, 32.0)],
+        ] {
+            assert_eq!(convex_pieces_with_holes(&outer, &holes), Err(OutlineError::BadHole), "{holes:?}");
+        }
     }
 
     #[test]

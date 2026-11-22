@@ -2267,7 +2267,7 @@
   "Click a surface or the ground to start the outline": "Щёлкните по поверхности или по земле, чтобы начать контур",
   "Created {n} polygon brush": { "one": "Создан {n} полигональный браш", "few": "Создано {n} полигональных браша", "many": "Создано {n} полигональных брашей" },
   "Polygon: click to place the first corner": "Многоугольник: щелчок ставит первый угол",
-  "Polygon: click corners, the first one or Enter closes, Backspace undoes": "Многоугольник: щелчки ставят углы, первый угол или Enter замыкает, Backspace отменяет",
+  "Polygon: click corners, the first one or Enter closes, Shift on the first one cuts holes next, Backspace undoes": "Многоугольник: щелчки ставят углы, первый угол или Enter замыкает, Shift на первом вырезает затем отверстия, Backspace отменяет",
   "A shape this heavy can slow the editor down": "Такая тяжёлая фигура может замедлить редактор",
   "Place Along Path": "Разместить вдоль пути",
   "Place Along Path…": "Разместить вдоль пути…",
@@ -2734,5 +2734,9 @@
   "These faces lie in one plane, there is nothing between them to fill": "Эти грани лежат в одной плоскости, между ними нечего заполнять",
   "Preset name": "Имя пресета",
   "Save Preset": "Сохранить пресет",
-  "Keeps these settings under the name for every map": "Сохраняет эти настройки под именем для всех карт"
+  "Keeps these settings under the name for every map": "Сохраняет эти настройки под именем для всех карт",
+  "Polygon hole: click its corners inside the outline, Shift on its first corner starts another, Enter makes the brush": "Отверстие: щёлкайте его углы внутри контура, Shift на первом угле начинает следующее, Enter создаёт браш",
+  "A hole has to lie inside the outline, apart from the other holes": "Отверстие должно лежать внутри контура и не касаться других отверстий",
+  "Click the corners of a hole inside the outline, Enter makes the brush": "Щёлкайте углы отверстия внутри контура, Enter создаёт браш",
+  "Created {n} polygon brush around the holes": { "one": "Создан {n} многоугольный браш вокруг отверстий", "few": "Создано {n} многоугольных браша вокруг отверстий", "many": "Создано {n} многоугольных брашей вокруг отверстий" }
 }

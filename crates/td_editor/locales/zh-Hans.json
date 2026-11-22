@@ -2267,7 +2267,7 @@
   "Click a surface or the ground to start the outline": "点击一个表面或地面以开始绘制轮廓",
   "Created {n} polygon brush": { "other": "已创建 {n} 个多边形笔刷" },
   "Polygon: click to place the first corner": "多边形：点击放置第一个角点",
-  "Polygon: click corners, the first one or Enter closes, Backspace undoes": "多边形：点击放角点，点第一个点或 Enter 闭合，Backspace 撤销",
+  "Polygon: click corners, the first one or Enter closes, Shift on the first one cuts holes next, Backspace undoes": "多边形：点击放角点，点第一个点或 Enter 闭合，按住 Shift 点第一个点则接着挖洞，Backspace 撤销",
   "A shape this heavy can slow the editor down": "这么重的形状可能会让编辑器变慢",
   "Place Along Path": "沿路径放置",
   "Place Along Path…": "沿路径放置…",
@@ -2734,5 +2734,9 @@
   "These faces lie in one plane, there is nothing between them to fill": "这些面位于同一平面，之间没有可填充的空间",
   "Preset name": "预设名称",
   "Save Preset": "保存预设",
-  "Keeps these settings under the name for every map": "以此名称保存这些设置，所有地图都可使用"
+  "Keeps these settings under the name for every map": "以此名称保存这些设置，所有地图都可使用",
+  "Polygon hole: click its corners inside the outline, Shift on its first corner starts another, Enter makes the brush": "多边形洞：在轮廓内点击洞的角点，按住 Shift 点其第一个角点开始下一个洞，Enter 创建笔刷",
+  "A hole has to lie inside the outline, apart from the other holes": "洞必须位于轮廓内部，并且与其他洞分开",
+  "Click the corners of a hole inside the outline, Enter makes the brush": "在轮廓内点击洞的角点，Enter 创建笔刷",
+  "Created {n} polygon brush around the holes": { "other": "已在洞的周围创建 {n} 个多边形笔刷" }
 }

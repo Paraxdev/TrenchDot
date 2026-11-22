@@ -1,6 +1,6 @@
 //! Polygon tool: click the corners of an outline in a view, close it and it is extruded into a brush, or into a few
 //! when the outline is concave. In wall and trim mode the corners are a path and every segment becomes a wall brush, or
-//! a trim profile swept along it.
+//! a trim profile swept along it. Shift on the first corner keeps an outline and the next ones become holes in it.
 
 use egui::{Color32, PointerButton, Pos2, Rect, Response, Stroke, Ui, Vec2};
 use td_core::{Aabb, DVec2, DVec3, NodeId, Plane};
@@ -75,6 +75,8 @@ impl Default for TrimOptions {
 #[derive(Default)]
 pub struct PolygonTool {
     pub points: Vec<DVec3>,
+    /// Outlines closed with Shift, the first is the outline and the rest are holes in it.
+    pub loops: Vec<Vec<DVec3>>,
     frame: Option<Frame>,
     cursor: Option<DVec3>,
 }
@@ -91,10 +93,18 @@ pub fn draw_depth(state: &EditorState, last_brush: Option<Aabb>, axis: usize) ->
     if last.is_empty() || last.size()[axis] < 1e-6 { (0.0, state.grid) } else { (last.min[axis], last.max[axis]) }
 }
 
-/// Makes the brushes of an outline as one undo step, inserts them into `parent` and selects them. The points lie on
-/// one plane across `normal`, the extrusion runs `height` along it.
-pub fn create(state: &mut EditorState, parent: NodeId, points: &[DVec3], normal: DVec3, height: f64, material: &str) -> Result<Vec<NodeId>, OutlineError> {
-    let brushes = outline::extrude(points, normal, height, material)?;
+/// Makes the brushes of an outline with `holes` cut through it as one undo step, inserts them into `parent` and
+/// selects them. The points lie on one plane across `normal`, the extrusion runs `height` along it.
+pub fn create(
+    state: &mut EditorState,
+    parent: NodeId,
+    points: &[DVec3],
+    holes: &[Vec<DVec3>],
+    normal: DVec3,
+    height: f64,
+    material: &str,
+) -> Result<Vec<NodeId>, OutlineError> {
+    let brushes = outline::extrude_with_holes(points, holes, normal, height, material)?;
     let bounds = brushes.iter().fold(Aabb::EMPTY, |b, brush| b.union(&brush.bounds()));
     let ids = state.doc.edit(en!("Create Polygon Brush"), |m, s| {
         s.clear();
@@ -171,6 +181,7 @@ fn error_msg(e: OutlineError, path: bool) -> Msg {
         OutlineError::TooMany => msg!("The outline has too many corners"),
         OutlineError::Flat => msg!("The outline has no area"),
         OutlineError::SelfIntersecting => msg!("The outline crosses itself, press Backspace to remove corners"),
+        OutlineError::BadHole => msg!("A hole has to lie inside the outline, apart from the other holes"),
         OutlineError::NotPlanar => msg!("The corners do not lie on one plane"),
         OutlineError::NoHeight => msg!("The extrusion has no height"),
         OutlineError::BadBrush => msg!("That outline does not make a valid brush"),
@@ -237,7 +248,13 @@ impl PolygonTool {
 
         let Some(pos) = response.interact_pointer_pos() else { return };
         if self.points.len() >= 3 && screen_dist(cam, rect, self.points[0], pos) < HANDLE_RADIUS {
-            self.finish(state, true);
+            if state.polygon_mode == PolygonMode::Outline && response.ctx.input(|i| i.modifiers.shift) {
+                self.loops.push(std::mem::take(&mut self.points));
+                state.set_status(msg!("Click the corners of a hole inside the outline, Enter makes the brush"));
+            } else {
+                self.finish(state, true);
+            }
+
             return;
         }
 
@@ -261,11 +278,34 @@ impl PolygonTool {
         *self = Self::default();
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.points.is_empty() && self.loops.is_empty()
+    }
+
+    /// Removes the last corner, or reopens the last closed outline when no corner of a new one is placed.
     pub fn pop(&mut self) {
-        self.points.pop();
         if self.points.is_empty() {
+            self.points = self.loops.pop().unwrap_or_default();
+        } else {
+            self.points.pop();
+        }
+
+        if self.is_empty() {
             self.reset();
         }
+    }
+
+    /// The outline and its holes, the corners placed so far closing the last hole.
+    fn outline_and_holes(&self) -> Result<(&[DVec3], Vec<Vec<DVec3>>), OutlineError> {
+        let Some((first, rest)) = self.loops.split_first() else { return Ok((&self.points, Vec::new())) };
+        let mut holes = rest.to_vec();
+        match self.points.len() {
+            0 => {}
+            1 | 2 => return Err(OutlineError::TooFew),
+            _ => holes.push(self.points.clone()),
+        }
+
+        Ok((first, holes))
     }
 
     /// Makes the brushes. `closed` is whether the path joins back to its first corner, which only matters for walls
@@ -279,7 +319,10 @@ impl PolygonTool {
         let parent = state.insert_parent();
         let material = state.current_material.clone();
         let made = match mode {
-            PolygonMode::Outline => create(state, parent, &self.points, frame.normal, frame.height, &material),
+            PolygonMode::Outline => match self.outline_and_holes() {
+                Ok((outer, holes)) => create(state, parent, outer, &holes, frame.normal, frame.height, &material),
+                Err(e) => Err(e),
+            },
             PolygonMode::Walls => create_walls(state, parent, &self.points, closed, frame.normal, state.walls, &material).map(|(_, ids)| ids),
             PolygonMode::Trim => {
                 let t = state.trim;
@@ -290,6 +333,9 @@ impl PolygonTool {
         match made {
             Ok(ids) => {
                 state.set_status(match mode {
+                    PolygonMode::Outline if !self.loops.is_empty() => {
+                        msg_n!(ids.len(), "Created {n} polygon brush around the holes", "Created {n} polygon brushes around the holes")
+                    }
                     PolygonMode::Outline => msg_n!(ids.len(), "Created {n} polygon brush", "Created {n} polygon brushes"),
                     PolygonMode::Walls => msg_n!(ids.len(), "Created {n} wall in a group", "Created {n} walls in a group"),
                     PolygonMode::Trim => msg_n!(ids.len(), "Created {n} trim brush in a group", "Created {n} trim brushes in a group"),
@@ -308,6 +354,14 @@ impl PolygonTool {
         }
 
         let lift = frame.normal * frame.height;
+        for ring in &self.loops {
+            for i in 0..ring.len() {
+                let (a, b) = (ring[i], ring[(i + 1) % ring.len()]);
+                line(out, a, b, COLOR);
+                line(out, a + lift, b + lift, FAINT);
+            }
+        }
+
         let pts = &self.points;
         for w in pts.windows(2) {
             line(out, w[0], w[1], COLOR);
@@ -346,6 +400,7 @@ impl PolygonTool {
     }
 
     pub fn paint_overlay(&self, ui: &Ui, cam: &Camera, rect: Rect, mode: PolygonMode) {
+        let holes = mode == PolygonMode::Outline && !self.loops.is_empty();
         let painter = ui.painter_at(rect);
         let hover = ui.input(|i| i.pointer.hover_pos());
         for (i, p) in self.points.iter().enumerate() {
@@ -363,8 +418,13 @@ impl PolygonTool {
             (PolygonMode::Walls, false) => crate::i18n::trf!("Walls: click corners, Enter ends the path, the first corner closes it, Backspace undoes"),
             (PolygonMode::Trim, true) => crate::i18n::trf!("Trim: click to place the first corner"),
             (PolygonMode::Trim, false) => crate::i18n::trf!("Trim: click corners, Enter ends the path, the first corner closes it, Backspace undoes"),
+            (PolygonMode::Outline, _) if holes => {
+                crate::i18n::trf!("Polygon hole: click its corners inside the outline, Shift on its first corner starts another, Enter makes the brush")
+            }
             (PolygonMode::Outline, true) => crate::i18n::trf!("Polygon: click to place the first corner"),
-            (PolygonMode::Outline, false) => crate::i18n::trf!("Polygon: click corners, the first one or Enter closes, Backspace undoes"),
+            (PolygonMode::Outline, false) => {
+                crate::i18n::trf!("Polygon: click corners, the first one or Enter closes, Shift on the first one cuts holes next, Backspace undoes")
+            }
         };
         corner_hint(&painter, rect, text, Color32::from_rgb(170, 255, 110));
     }
@@ -378,8 +438,8 @@ mod tests {
     fn every_outline_error_has_its_own_message() {
         use OutlineError::*;
         let texts: std::collections::HashSet<String> =
-            [TooFew, TooMany, Flat, SelfIntersecting, NotPlanar, NoHeight, BadBrush].into_iter().map(|e| error_msg(e, false).en).collect();
-        assert_eq!(texts.len(), 7, "{texts:?}");
+            [TooFew, TooMany, Flat, SelfIntersecting, BadHole, NotPlanar, NoHeight, BadBrush].into_iter().map(|e| error_msg(e, false).en).collect();
+        assert_eq!(texts.len(), 8, "{texts:?}");
         assert_ne!(error_msg(TooFew, true).en, error_msg(TooFew, false).en);
     }
 }

@@ -3619,10 +3619,20 @@ fn polygon_brush_extrudes_convex_and_concave_outlines() {
     assert!(ed.call_err("create_polygon_brush", json!({ "points": slanted })).contains("do not share exactly one coordinate"));
     let both = json!({ "points": [[0, 0, 0], [64, 0, 0], [0, 0, 64]], "axis": "y", "normal": [0, 1, 0] });
     assert!(ed.call_err("create_polygon_brush", both).contains("not both"));
+    let yard = json!([[0, 0, 900], [192, 0, 900], [192, 0, 1092], [0, 0, 1092]]);
+    let outside_hole = json!([[[160, 0, 960], [256, 0, 960], [256, 0, 1024]]]);
+    assert!(ed.call_err("create_polygon_brush", json!({ "points": yard, "holes": outside_hole })).contains("hole reaches outside"));
+    let hole = json!([[[64, 0, 964], [128, 0, 964], [128, 0, 1028], [64, 0, 1028]]]);
+    assert!(ed.call_err("create_polygon_brush", json!({ "points": yard, "holes": hole, "wall": 8 })).contains("only apply to a solid outline"));
     assert_eq!(ed.brushes(), before, "refused outlines change nothing");
 
     ed.call("run_action", json!({ "action": "undo" }));
     assert_eq!(ed.brushes(), before - 2, "one undo removes both pieces");
+
+    let ring = ed.call("create_polygon_brush", json!({ "points": yard, "holes": hole, "height": 16 }));
+    assert!(ring["ids"].as_array().unwrap().len() >= 4, "a square ring takes four convex pieces or more: {ring}");
+    assert_eq!(ring["bounds"], json!({ "min": [0.0, 0.0, 900.0], "max": [192.0, 16.0, 1092.0] }));
+    ed.call("run_action", json!({ "action": "undo" }));
 
     let room = json!([[600, 0, 0], [728, 0, 0], [728, 0, 128], [600, 0, 128]]);
     let walls = ed.call("create_polygon_brush", json!({ "points": room, "wall": 8, "closed": true, "height": 96, "align": "center" }));

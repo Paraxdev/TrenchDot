@@ -2267,7 +2267,7 @@
   "Click a surface or the ground to start the outline": "Hacer clic en una superficie o en el suelo para empezar el contorno",
   "Created {n} polygon brush": { "one": "{n} brush poligonal creado", "other": "{n} brushes poligonales creados" },
   "Polygon: click to place the first corner": "Polígono: clic coloca la primera esquina",
-  "Polygon: click corners, the first one or Enter closes, Backspace undoes": "Polígono: clic en esquinas, la primera o Enter cierra, Backspace deshace",
+  "Polygon: click corners, the first one or Enter closes, Shift on the first one cuts holes next, Backspace undoes": "Polígono: clic en esquinas, la primera o Enter cierra, Shift en la primera corta agujeros después, Backspace deshace",
   "A shape this heavy can slow the editor down": "Una forma tan pesada puede ralentizar el editor",
   "Place Along Path": "Colocar a lo largo de la ruta",
   "Place Along Path…": "Colocar a lo largo de la ruta…",
@@ -2734,5 +2734,9 @@
   "These faces lie in one plane, there is nothing between them to fill": "Estas caras están en un mismo plano, no hay nada que rellenar entre ellas",
   "Preset name": "Nombre del preajuste",
   "Save Preset": "Guardar preajuste",
-  "Keeps these settings under the name for every map": "Guarda estos ajustes con el nombre para todos los mapas"
+  "Keeps these settings under the name for every map": "Guarda estos ajustes con el nombre para todos los mapas",
+  "Polygon hole: click its corners inside the outline, Shift on its first corner starts another, Enter makes the brush": "Agujero: clic en sus esquinas dentro del contorno, Shift en su primera esquina empieza otro, Enter crea el brush",
+  "A hole has to lie inside the outline, apart from the other holes": "Un agujero tiene que estar dentro del contorno y separado de los demás agujeros",
+  "Click the corners of a hole inside the outline, Enter makes the brush": "Haz clic en las esquinas de un agujero dentro del contorno, Enter crea el brush",
+  "Created {n} polygon brush around the holes": { "one": "{n} brush de polígono creado alrededor de los agujeros", "other": "{n} brushes de polígono creados alrededor de los agujeros" }
 }
