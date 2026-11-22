@@ -161,6 +161,7 @@ pub enum Action {
     ShowArrayDialog,
     ShowBevelDialog,
     ShowRoofDialog,
+    ShowAutoMaterialsDialog,
     ShowTransformDialog,
     ShowFindDialog,
     ShowSplineDialog,
@@ -409,6 +410,7 @@ impl Action {
             Action::ShowArrayDialog => en!("Array Copies"),
             Action::ShowBevelDialog => en!("Bevel Edges"),
             Action::ShowRoofDialog => en!("Add Roof"),
+            Action::ShowAutoMaterialsDialog => en!("Auto Materials"),
             Action::ShowTransformDialog => en!("Transform Selection"),
             Action::ShowFindDialog => en!("Find and Replace"),
             Action::ShowSplineDialog => en!("Place Along Path"),
@@ -1924,6 +1926,7 @@ fn run(state: &mut EditorState, action: Action, ctx: &egui::Context) {
         | Action::ShowArrayDialog
         | Action::ShowBevelDialog
         | Action::ShowRoofDialog
+        | Action::ShowAutoMaterialsDialog
         | Action::ShowTransformDialog
         | Action::TieToEntity
         | Action::FlipHorizontal

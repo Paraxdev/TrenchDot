@@ -4,6 +4,7 @@ pub mod bridge;
 pub mod brush;
 pub mod csg;
 pub mod displacement;
+pub mod face_class;
 pub mod heightfield;
 pub mod hull;
 pub mod mesh;

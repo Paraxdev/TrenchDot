@@ -44,6 +44,24 @@ Dropping a material on a terrain sets a terrain layer instead, see [Terrain laye
 
 UV lock (Ctrl+Shift+U) is on by default, so textures stay attached to a brush while you move it.
 
+## Auto Materials
+
+**Texture > Auto Materials…** paints a whole blockout in one go. Select the brushes of a building, then fill in a
+material for floors, ceilings, inside walls and outside walls, typing a name or clicking **Use current** to take the one
+picked in the Materials panel. **Apply** paints every face of the selection by what it is, as one undo step. A class
+you leave empty keeps its materials, so you can repaint only the outside walls, for example.
+
+Faces within about 45 degrees of level count as floors when they face up and ceilings when they face down. A wall faces
+inside when other brushes stand ahead of it and 45 degrees to either side, which is true in a room but not on the street
+side of a lone building. Every brush of the map counts as a wall here, selected or not.
+
+<div class="td-mcp" markdown>
+
+Over MCP, `auto_materials` takes `ids` (default the selection) and `floor`, `ceiling`, `inside_wall` and
+`outside_wall`, and returns how many faces each class painted.
+
+</div>
+
 ## Built in colors
 
 The Materials panel always offers `dev/grey`, `dev/dark`, `dev/orange`, `dev/blue` and `dev/green`, grid textures

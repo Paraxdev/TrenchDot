@@ -1168,6 +1168,7 @@ impl App {
             "place_along_path" => self.tool_place_along_path(&args),
             "bevel_edges" => self.tool_bevel_edges(&args),
             "create_roof" => self.tool_create_roof(&args),
+            "auto_materials" => self.tool_auto_materials(&args),
             "random_fill" => self.tool_random_fill(&args),
             "blend" => self.tool_blend(&args),
             "gameplay" => self.tool_gameplay(&args),

@@ -2742,5 +2742,16 @@
   "Winding corners": "回り階段の角",
   "Corners turn on wedge steps instead of a flat landing": "角を平らな踊り場ではなくくさび形の段で回ります",
   "Rounds every corner into an arc this big, 0 keeps the corners sharp": "すべての角をこの大きさの円弧で丸めます。0 なら角はとがったままです",
-  "How many straight pieces each rounded corner is made of": "丸めた角それぞれを何本の直線で作るか"
+  "How many straight pieces each rounded corner is made of": "丸めた角それぞれを何本の直線で作るか",
+  "Auto Materials": "自動マテリアル",
+  "Auto Materials…": "自動マテリアル…",
+  "Auto Materials for floors, ceilings and walls": "床、天井、壁の自動マテリアル",
+  "Inside walls": "内壁",
+  "Outside walls": "外壁",
+  "Unchanged": "変更なし",
+  "Use current": "現在のものを使用",
+  "Takes the material picked in the Materials panel": "マテリアルパネルで選んだマテリアルを使います",
+  "Select the brushes to paint": "塗るブラシを選択してください",
+  "A wall faces inside when walls stand ahead of it and to both sides": "正面と両側に壁があれば内壁になります",
+  "Apply to {n} brush": {"other": "ブラシ{n}個に適用"}
 }

@@ -2742,5 +2742,16 @@
   "Winding corners": "Esquinas compensadas",
   "Corners turn on wedge steps instead of a flat landing": "Las esquinas giran con peldaños en cuña en lugar de un descansillo plano",
   "Rounds every corner into an arc this big, 0 keeps the corners sharp": "Redondea cada esquina en un arco de este tamaño, 0 deja las esquinas en punta",
-  "How many straight pieces each rounded corner is made of": "De cuántos tramos rectos se compone cada esquina redondeada"
+  "How many straight pieces each rounded corner is made of": "De cuántos tramos rectos se compone cada esquina redondeada",
+  "Auto Materials": "Materiales automáticos",
+  "Auto Materials…": "Materiales automáticos…",
+  "Auto Materials for floors, ceilings and walls": "Materiales automáticos para suelos, techos y paredes",
+  "Inside walls": "Paredes interiores",
+  "Outside walls": "Paredes exteriores",
+  "Unchanged": "Sin cambios",
+  "Use current": "Usar el actual",
+  "Takes the material picked in the Materials panel": "Toma el material elegido en el panel Materiales",
+  "Select the brushes to paint": "Selecciona los brushes que pintar",
+  "A wall faces inside when walls stand ahead of it and to both sides": "Una pared mira hacia dentro cuando hay paredes delante y a ambos lados",
+  "Apply to {n} brush": {"one": "Aplicar a {n} brush", "other": "Aplicar a {n} brushes"}
 }

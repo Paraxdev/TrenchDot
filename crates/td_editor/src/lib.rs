@@ -2,6 +2,7 @@ pub mod addon_install;
 pub mod addon_wizard;
 pub mod app;
 pub mod array_dialog;
+pub mod auto_materials_dialog;
 pub mod bake;
 pub mod bevel_dialog;
 pub mod blend_tool;

@@ -799,6 +799,34 @@ impl App {
         ok(json!({ "ok": true, "ids": ids.iter().map(|id| id.0).collect::<Vec<_>>(), "base": base }))
     }
 
+    pub(crate) fn tool_auto_materials(&mut self, args: &Value) -> ToolResult {
+        let text = |k: &str| args[k].as_str().unwrap_or_default().to_string();
+        let materials = crate::auto_materials_dialog::AutoMaterials {
+            floor: text("floor"),
+            ceiling: text("ceiling"),
+            inside_wall: text("inside_wall"),
+            outside_wall: text("outside_wall"),
+        };
+        if materials == Default::default() {
+            return err("give at least one of floor, ceiling, inside_wall and outside_wall");
+        }
+
+        let ids = if args["ids"].is_array() {
+            match id_list(args, "ids").and_then(|ids| editable_ids(&self.state, &ids)) {
+                Ok(ids) => ids,
+                Err(e) => return err(e),
+            }
+        } else {
+            self.state.doc.selection.brushes(&self.state.doc.map)
+        };
+        if ids.is_empty() {
+            return err("give brush ids or select brushes");
+        }
+
+        let [floor, ceiling, inside_wall, outside_wall] = crate::auto_materials_dialog::apply(&mut self.state, &ids, &materials);
+        ok(json!({ "ok": true, "floor": floor, "ceiling": ceiling, "inside_wall": inside_wall, "outside_wall": outside_wall }))
+    }
+
     /// Trim strips along face edges: baseboards, crown molding, borders.
     pub(crate) fn tool_trim(&mut self, args: &Value) -> ToolResult {
         let mut opts = crate::trim::TrimOptions { material: self.state.current_material.clone(), ..Default::default() };

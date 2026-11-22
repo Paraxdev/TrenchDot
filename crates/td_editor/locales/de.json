@@ -2742,5 +2742,16 @@
   "Winding corners": "Gewendelte Ecken",
   "Corners turn on wedge steps instead of a flat landing": "Ecken drehen auf keilförmigen Stufen statt auf einem flachen Podest",
   "Rounds every corner into an arc this big, 0 keeps the corners sharp": "Rundet jede Ecke zu einem Bogen dieser Größe ab, 0 lässt die Ecken spitz",
-  "How many straight pieces each rounded corner is made of": "Aus wie vielen geraden Stücken jede abgerundete Ecke besteht"
+  "How many straight pieces each rounded corner is made of": "Aus wie vielen geraden Stücken jede abgerundete Ecke besteht",
+  "Auto Materials": "Automatische Materialien",
+  "Auto Materials…": "Automatische Materialien…",
+  "Auto Materials for floors, ceilings and walls": "Automatische Materialien für Böden, Decken und Wände",
+  "Inside walls": "Innenwände",
+  "Outside walls": "Außenwände",
+  "Unchanged": "Unverändert",
+  "Use current": "Aktuelles nehmen",
+  "Takes the material picked in the Materials panel": "Übernimmt das im Materialien-Panel gewählte Material",
+  "Select the brushes to paint": "Wähle die Brushes zum Bemalen",
+  "A wall faces inside when walls stand ahead of it and to both sides": "Eine Wand zeigt nach innen, wenn vor ihr und zu beiden Seiten Wände stehen",
+  "Apply to {n} brush": {"one": "Auf {n} Brush anwenden", "other": "Auf {n} Brushes anwenden"}
 }

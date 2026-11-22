@@ -2742,5 +2742,16 @@
   "Winding corners": "Angles balancés",
   "Corners turn on wedge steps instead of a flat landing": "Les angles tournent sur des marches en éventail au lieu d'un palier plat",
   "Rounds every corner into an arc this big, 0 keeps the corners sharp": "Arrondit chaque coin en un arc de cette taille, 0 garde les coins vifs",
-  "How many straight pieces each rounded corner is made of": "Nombre de segments droits qui forment chaque coin arrondi"
+  "How many straight pieces each rounded corner is made of": "Nombre de segments droits qui forment chaque coin arrondi",
+  "Auto Materials": "Matériaux automatiques",
+  "Auto Materials…": "Matériaux automatiques…",
+  "Auto Materials for floors, ceilings and walls": "Matériaux automatiques pour sols, plafonds et murs",
+  "Inside walls": "Murs intérieurs",
+  "Outside walls": "Murs extérieurs",
+  "Unchanged": "Inchangé",
+  "Use current": "Utiliser l'actuel",
+  "Takes the material picked in the Materials panel": "Prend le matériau choisi dans le panneau Matériaux",
+  "Select the brushes to paint": "Sélectionnez les brushes à peindre",
+  "A wall faces inside when walls stand ahead of it and to both sides": "Un mur donne sur l'intérieur quand des murs se dressent devant lui et des deux côtés",
+  "Apply to {n} brush": {"one": "Appliquer à {n} brush", "other": "Appliquer à {n} brushes"}
 }

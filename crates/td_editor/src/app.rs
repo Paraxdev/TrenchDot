@@ -140,6 +140,7 @@ pub struct App {
     array_dialog: crate::array_dialog::ArrayDialog,
     bevel_dialog: crate::bevel_dialog::BevelDialog,
     roof_dialog: crate::roof_dialog::RoofDialog,
+    auto_materials_dialog: crate::auto_materials_dialog::AutoMaterialsDialog,
     transform_dialog: crate::transform_dialog::TransformDialog,
     find_dialog: crate::find_dialog::FindDialog,
     spline_dialog: crate::spline_dialog::SplineDialog,
@@ -199,13 +200,14 @@ pub struct App {
     pub(crate) tool_options_rect: egui::Rect,
 }
 
-const WINDOW_TITLES: [&str; 19] = [
+const WINDOW_TITLES: [&str; 20] = [
     "Shape Generator",
     "Add Trim",
     "Sweep Faces",
     "Array Copies",
     "Bevel Edges",
     "Add Roof",
+    "Auto Materials",
     "Transform Selection",
     "Find and Replace",
     "Place Along Path",
@@ -1128,6 +1130,7 @@ impl App {
             array_dialog: Default::default(),
             bevel_dialog: Default::default(),
             roof_dialog: Default::default(),
+            auto_materials_dialog: Default::default(),
             transform_dialog: Default::default(),
             find_dialog: Default::default(),
             spline_dialog: Default::default(),
@@ -1266,6 +1269,7 @@ impl App {
             Action::ShowArrayDialog => self.array_dialog.open = true,
             Action::ShowBevelDialog => self.bevel_dialog.open = true,
             Action::ShowRoofDialog => self.roof_dialog.open = true,
+            Action::ShowAutoMaterialsDialog => self.auto_materials_dialog.open = true,
             Action::ShowTransformDialog => self.transform_dialog.toggle(),
             Action::TieToEntity => {
                 if let Some(class) = commands::tie_to_entity_check(&mut self.state) {
@@ -1822,6 +1826,7 @@ impl App {
                 m.item(ui, Some(icons::TEXTURE), en!("Texture Tool"), Action::SetTool(ToolKind::Texture));
                 m.item(ui, None, en!("UV Editor"), Action::ShowUvEditor);
                 m.item(ui, None, en!("Hotspot Editor…"), Action::ShowHotspotEditor);
+                m.item(ui, None, en!("Auto Materials…"), Action::ShowAutoMaterialsDialog);
                 ui.separator();
                 m.toggle(ui, en!("UV Lock"), self.state.uv_lock, Action::ToggleUvLock);
                 ui.separator();
@@ -3606,6 +3611,7 @@ impl eframe::App for App {
         let corners: &[td_core::DVec3] = if self.state.tool == ToolKind::Vertex { &self.tools.vertex.selected } else { &[] };
         self.bevel_dialog.show(&ctx, &mut self.state, corners);
         self.roof_dialog.show(&ctx, &mut self.state);
+        self.auto_materials_dialog.show(&ctx, &mut self.state);
         self.transform_dialog.show(&ctx, &mut self.state);
         self.find_dialog.show(&ctx, &mut self.state);
         self.spline_dialog.show(&ctx, &mut self.state);

@@ -2742,5 +2742,16 @@
   "Winding corners": "扇形转角",
   "Corners turn on wedge steps instead of a flat landing": "转角处用扇形踏步转弯，而不是平台",
   "Rounds every corner into an arc this big, 0 keeps the corners sharp": "把每个角倒成这么大的圆弧，0 保持尖角",
-  "How many straight pieces each rounded corner is made of": "每个圆角由多少段直线组成"
+  "How many straight pieces each rounded corner is made of": "每个圆角由多少段直线组成",
+  "Auto Materials": "自动材质",
+  "Auto Materials…": "自动材质…",
+  "Auto Materials for floors, ceilings and walls": "为地板、天花板和墙壁自动分配材质",
+  "Inside walls": "内墙",
+  "Outside walls": "外墙",
+  "Unchanged": "不变",
+  "Use current": "使用当前",
+  "Takes the material picked in the Materials panel": "使用材质面板中选中的材质",
+  "Select the brushes to paint": "选择要上色的笔刷",
+  "A wall faces inside when walls stand ahead of it and to both sides": "前方和两侧都有墙时，墙面算作内墙",
+  "Apply to {n} brush": {"other": "应用到 {n} 个笔刷"}
 }

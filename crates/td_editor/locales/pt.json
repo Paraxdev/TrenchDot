@@ -2742,5 +2742,16 @@
   "Winding corners": "Cantos em leque",
   "Corners turn on wedge steps instead of a flat landing": "Os cantos viram em degraus em cunha em vez de um patamar plano",
   "Rounds every corner into an arc this big, 0 keeps the corners sharp": "Arredonda cada canto num arco deste tamanho, 0 mantém os cantos vivos",
-  "How many straight pieces each rounded corner is made of": "De quantos trechos retos cada canto arredondado é feito"
+  "How many straight pieces each rounded corner is made of": "De quantos trechos retos cada canto arredondado é feito",
+  "Auto Materials": "Materiais automáticos",
+  "Auto Materials…": "Materiais automáticos…",
+  "Auto Materials for floors, ceilings and walls": "Materiais automáticos para pisos, tetos e paredes",
+  "Inside walls": "Paredes internas",
+  "Outside walls": "Paredes externas",
+  "Unchanged": "Sem alteração",
+  "Use current": "Usar o atual",
+  "Takes the material picked in the Materials panel": "Usa o material escolhido no painel Materiais",
+  "Select the brushes to paint": "Selecione os brushes a pintar",
+  "A wall faces inside when walls stand ahead of it and to both sides": "Uma parede fica voltada para dentro quando há paredes à frente e dos dois lados",
+  "Apply to {n} brush": {"one": "Aplicar a {n} brush", "other": "Aplicar a {n} brushes"}
 }

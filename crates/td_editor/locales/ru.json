@@ -2742,5 +2742,16 @@
   "Winding corners": "Забежные углы",
   "Corners turn on wedge steps instead of a flat landing": "Углы поворачивают забежными ступенями вместо плоской площадки",
   "Rounds every corner into an arc this big, 0 keeps the corners sharp": "Скругляет каждый угол дугой такого размера, 0 оставляет углы острыми",
-  "How many straight pieces each rounded corner is made of": "Из скольких прямых отрезков состоит каждый скруглённый угол"
+  "How many straight pieces each rounded corner is made of": "Из скольких прямых отрезков состоит каждый скруглённый угол",
+  "Auto Materials": "Автоматериалы",
+  "Auto Materials…": "Автоматериалы…",
+  "Auto Materials for floors, ceilings and walls": "Автоматериалы для полов, потолков и стен",
+  "Inside walls": "Внутренние стены",
+  "Outside walls": "Наружные стены",
+  "Unchanged": "Без изменений",
+  "Use current": "Взять текущий",
+  "Takes the material picked in the Materials panel": "Берёт материал, выбранный в панели «Материалы»",
+  "Select the brushes to paint": "Выберите браши для покраски",
+  "A wall faces inside when walls stand ahead of it and to both sides": "Стена внутренняя, если впереди и по обе стороны от неё стоят стены",
+  "Apply to {n} brush": {"one": "Применить к {n} брашу", "few": "Применить к {n} брашам", "many": "Применить к {n} брашам"}
 }

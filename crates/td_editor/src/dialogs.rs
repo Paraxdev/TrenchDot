@@ -158,6 +158,7 @@ fn palette_entries(state: &EditorState) -> Vec<(Msg, Action)> {
         entry(en!("Texture"), en!("Toggle UV Lock"), Action::ToggleUvLock),
         entry(en!("Texture"), en!("Hotspot Fit"), Action::HotspotTexture),
         entry(en!("Texture"), en!("UV Editor"), Action::ShowUvEditor),
+        entry(en!("Texture"), en!("Auto Materials for floors, ceilings and walls"), Action::ShowAutoMaterialsDialog),
         entry(en!("Layer"), en!("Add Layer"), Action::AddLayer),
         entry(en!("Godot"), en!("Bake Lighting"), Action::BakeLighting),
         entry(en!("View"), en!("Set Cordon from Selection"), Action::SetCordonFromSelection),

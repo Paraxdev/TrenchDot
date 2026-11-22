@@ -3461,6 +3461,31 @@ fn create_roof_covers_selected_walls_and_takes_explicit_wings() {
     assert!(ed.call_err("create_roof", json!({ "ids": [bar], "ends": "flat" })).contains("gable or hip"));
 }
 
+#[test]
+#[ignore]
+fn auto_materials_paints_a_room_by_face_class() {
+    let ed = Editor::launch("auto_materials");
+    let mut ids = Vec::new();
+    for (min, max) in [
+        ([0, -16, 0], [256, 0, 256]),
+        ([0, 128, 0], [256, 144, 256]),
+        ([0, 0, 0], [16, 128, 256]),
+        ([240, 0, 0], [256, 128, 256]),
+        ([16, 0, 0], [240, 128, 16]),
+        ([16, 0, 240], [240, 128, 256]),
+    ] {
+        ids.push(ed.call("create_brush", json!({ "min": min, "max": max, "material": "dev/grey" }))["ids"][0].as_u64().unwrap());
+    }
+
+    let t = ed.call("auto_materials", json!({ "ids": ids, "floor": "dev/green", "inside_wall": "dev/red", "outside_wall": "dev/blue" }));
+    assert_eq!(t["ceiling"], 0, "{t}");
+    assert!(t["floor"].as_u64().unwrap() > 0 && t["inside_wall"].as_u64().unwrap() >= 4 && t["outside_wall"].as_u64().unwrap() >= 4, "{t}");
+    let wall = ed.call("get_node", json!({ "id": ids[2] })).to_string();
+    assert!(wall.contains("dev/red") && wall.contains("dev/blue") && wall.contains("dev/grey"), "{wall}");
+
+    assert!(ed.call_err("auto_materials", json!({ "ids": ids })).contains("at least one"));
+}
+
 /// The Array Copies dialog and the duplicate tool share one core: copies turn and scale step by step, and the whole run
 /// is a single undo step.
 #[test]

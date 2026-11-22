@@ -677,6 +677,14 @@ pub fn tool_definitions() -> Vec<Value> {
             } }
         }),
         json!({
+            "name": "auto_materials",
+            "description": "Paints the brushes in ids or the selection by face class as one undo step, like Texture > Auto Materials. Faces within about 45 degrees of level are floor (facing up) or ceiling (facing down). A wall is an inside_wall when rays from it straight ahead and 45 degrees to either side all hit a brush, else an outside_wall. A class left out or empty keeps its materials. Returns how many faces each class painted.",
+            "inputSchema": { "type": "object", "properties": {
+                "ids": { "type": "array", "items": { "type": "integer" } }, "floor": { "type": "string" }, "ceiling": { "type": "string" },
+                "inside_wall": { "type": "string" }, "outside_wall": { "type": "string" }
+            } }
+        }),
+        json!({
             "name": "prefab_library",
             "description": "The prefab library of the Prefabs panel: ready made pieces (stairs, doorways, pillars, rooms, details) that come with the editor on dev materials, and the project's own .tdm files in res://prefab_library, one folder per category. ops: list {query} (name is category/name, size in map units, source builtin or project), paste {name, origin (centers it there), offset, parent} (plain copies, no link back), copy {name} (the clipboard text), add {name, category, ids (default the selection), keep_position} (saves them as a new project entry, moved so their bottom center sits on the origin, or where they are with keep_position, for kit pieces built around the origin). run_action paste also takes TrenchBroom clipboard text.",
             "inputSchema": { "type": "object", "properties": {
