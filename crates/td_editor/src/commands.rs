@@ -4541,6 +4541,31 @@ mod tests {
     }
 
     #[test]
+    fn a_status_about_the_selection_clears_after_an_edit() {
+        let ctx = egui::Context::default();
+        let mut state = EditorState::new(Default::default());
+        brush_at(&mut state, 72.0);
+        execute(&mut state, Action::Undo, &ctx);
+        state.expire_selection_status();
+        assert!(state.status.starts_with("Undo "), "{}", state.status);
+
+        let b = brush_at(&mut state, 200.0);
+        state.expire_selection_status();
+        assert_eq!(state.status, "", "an edit that keeps the selection still outdates it");
+
+        state.show_cycle_hint(msg!("2 objects under the cursor"));
+        state.expire_selection_status();
+        state.doc.select(|_, s| s.select_node(b));
+        state.expire_selection_status();
+        assert_eq!(state.status, "");
+
+        state.set_status("Saved");
+        brush_at(&mut state, 300.0);
+        state.expire_selection_status();
+        assert_eq!(state.status, "Saved");
+    }
+
+    #[test]
     fn the_block_tool_key_toggles_back_to_select() {
         let ctx = egui::Context::default();
         let mut state = EditorState::new(Default::default());

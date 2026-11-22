@@ -1061,13 +1061,14 @@ impl EditorState {
         self.status_tool = Some(self.tool);
     }
 
-    /// Also clears a failure once an edit, undo or redo lands after it was first shown, it no longer describes the map.
-    /// Binding on show rather than on [`Self::fail_status`] keeps a failure that its own command followed with an edit.
+    /// Also clears a failure or a status bound to the selection once an edit, undo or redo lands after it was first
+    /// shown, it no longer describes the map. Binding on show rather than on [`Self::fail_status`] keeps a status that
+    /// its own command followed with an edit.
     pub fn expire_selection_status(&mut self) {
         let (doc, content, _) = self.doc.content_key();
-        let stale_failure = self.status_failed && *self.status_content.get_or_insert((doc, content)) != (doc, content);
-        let stale_selection = self.status_selection.as_ref().is_some_and(|bound| *bound != self.doc.selection);
-        if stale_failure || stale_selection || self.status_tool.is_some_and(|bound| bound != self.tool) {
+        let edited = *self.status_content.get_or_insert((doc, content)) != (doc, content);
+        let stale_selection = self.status_selection.as_ref().is_some_and(|bound| *bound != self.doc.selection || edited);
+        if (self.status_failed && edited) || stale_selection || self.status_tool.is_some_and(|bound| bound != self.tool) {
             self.status.clear();
             self.status_tr = None;
             self.status_failed = false;
@@ -1228,6 +1229,8 @@ impl EditorState {
         } else {
             self.set_status(hint);
         }
+
+        self.bind_status_to_selection();
     }
 
     /// Opens the closed groups around `id`, outer first, and `id` itself when it is a group. Open groups that do not
