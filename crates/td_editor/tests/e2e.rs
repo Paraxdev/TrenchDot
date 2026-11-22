@@ -4315,6 +4315,35 @@ fn locked_and_hidden_objects_leave_the_selection() {
     assert_eq!(selection_of(&ed), (vec![], vec![]), "hiding the selected brush drops it from the selection");
 }
 
+#[test]
+#[ignore]
+fn actions_with_nothing_to_act_on_fail_without_an_undo_step() {
+    let ed = Editor::launch("noop_actions");
+    let undo_len = || ed.state()["undo"].as_array().unwrap().len();
+    let before = undo_len();
+    for (action, why) in [("duplicate", "Nothing to duplicate"), ("ungroup", "Nothing to ungroup"), ("unhide_all", "Nothing is hidden")] {
+        let e = ed.call_err("run_action", json!({ "action": action }));
+        assert!(e.contains(why), "{action}: {e}");
+    }
+
+    assert_eq!(undo_len(), before, "no undo step from an action that did nothing");
+
+    let a = ed.box_brush([0.0, 0.0, 0.0], [64.0, 64.0, 64.0]);
+    for count in [0, 513] {
+        let e = ed.call_err("duplicate", json!({ "ids": [a], "count": count }));
+        assert!(e.contains("count must be 1 to 512"), "{e}");
+    }
+
+    let t = ed.call("create_terrain", json!({ "origin": [512, 0, 0], "resolution": 9, "cell_size": 32, "shape": "flat" }))["id"].clone();
+    let paint = |layer: Value| ed.call_err("terrain_edit", json!({ "id": t, "op": "sculpt", "mode": "paint_layer", "center": [640, 128], "layer": layer }));
+    for layer in [json!(9), json!(-1), json!(1.5)] {
+        assert!(paint(layer.clone()).contains("layer must be 0 to 3"), "layer {layer}");
+    }
+
+    let e = ed.call_err("terrain_edit", json!({ "id": t, "op": "sculpt", "mode": "terrace", "center": [640, 128], "step": 0 }));
+    assert!(e.contains("step must be above 0"), "{e}");
+}
+
 fn selection_of(ed: &Editor) -> (Vec<u64>, Vec<(u64, u64)>) {
     let state = ed.state();
     let mut nodes: Vec<u64> = state["selection"]["nodes"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap()).collect();

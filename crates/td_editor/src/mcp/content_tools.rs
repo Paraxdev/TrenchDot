@@ -2018,6 +2018,19 @@ impl App {
             };
         }
 
+        if matches!(op.as_str(), "sculpt" | "sculpt_path" | "paint_path") {
+            let slots = td_geom::heightfield::MAX_LAYERS;
+            match &args["layer"] {
+                Value::Null => {}
+                v if v.as_u64().is_some_and(|l| (l as usize) < slots) => {}
+                v => return err(format!("layer must be 0 to {}, not {v}", slots - 1)),
+            }
+
+            if args["step"].as_f64().is_some_and(|s| s <= 0.0) {
+                return err("step must be above 0");
+            }
+        }
+
         let a = args.clone();
         let result: Result<Value, String> = self.state.doc.try_edit(&format!("Terrain {op}"), |m, _| {
             let Some(t) = m.terrain_mut(id) else { return Err("terrain vanished".to_string()) };
@@ -2275,7 +2288,13 @@ impl App {
             Err(e) => return err(e),
         };
         let spec = ops::ArraySpec {
-            count: args["count"].as_u64().unwrap_or(1).clamp(1, ops::MAX_COPIES as u64) as usize,
+            count: match &args["count"] {
+                Value::Null => 1,
+                v => match v.as_u64().filter(|c| (1..=ops::MAX_COPIES as u64).contains(c)) {
+                    Some(c) => c as usize,
+                    None => return err(format!("count must be 1 to {}", ops::MAX_COPIES)),
+                },
+            },
             offset,
             rotate: rotate.unwrap_or(DVec3::new(0.0, args["rotate_y"].as_f64().unwrap_or(0.0), 0.0)),
             scale,
