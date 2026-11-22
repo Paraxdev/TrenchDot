@@ -493,7 +493,9 @@ pub fn ungroup_selection(map: &mut Map, sel: &mut Selection) {
         sel.nodes.remove(&g);
         for c in node.children {
             map.reparent(c, parent);
-            sel.nodes.insert(c);
+            if map.is_editable(c) {
+                sel.nodes.insert(c);
+            }
         }
 
         map.remove(g);
@@ -2013,6 +2015,12 @@ mod tests {
         ungroup_selection(&mut m, &mut sel);
         assert!(!m.contains(g));
         assert_eq!(sel.nodes.len(), 2);
+
+        let g = group_selection(&mut m, &mut sel, "g", layer).unwrap();
+        set_locked(&mut m, &[ids[0]], true);
+        ungroup_selection(&mut m, &mut sel);
+        assert!(!m.contains(g));
+        assert_eq!(sel.nodes.iter().copied().collect::<Vec<_>>(), [ids[1]], "the locked child stays out of the selection");
     }
 
     #[test]

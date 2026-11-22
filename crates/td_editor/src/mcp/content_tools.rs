@@ -1842,7 +1842,7 @@ impl App {
                 }
 
                 let (hidden, locked, omit) = (args["hidden"].as_bool(), args["locked"].as_bool(), args["omit_from_export"].as_bool());
-                self.state.doc.edit("Set Flags", |m, _| {
+                self.state.doc.edit("Set Flags", |m, s| {
                     for id in &list {
                         if let Some(n) = m.get_mut(*id) {
                             if let Some(h) = hidden {
@@ -1858,6 +1858,9 @@ impl App {
                             }
                         }
                     }
+
+                    s.nodes.retain(|id| m.is_editable(*id));
+                    s.faces.retain(|(id, _)| m.is_editable(*id));
                 });
                 ok(json!({ "changed": list.len() }))
             }

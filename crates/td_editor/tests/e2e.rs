@@ -4297,6 +4297,24 @@ fn open_uv_editor(ed: &Editor) {
     ed.input("window", json!([{ "type": "move", "x": 10, "y": 10 }, { "type": "key", "key": "F1" }, { "type": "text", "text": "texture: uv editor" }, { "type": "key", "key": "Enter" }]));
 }
 
+#[test]
+#[ignore]
+fn locked_and_hidden_objects_leave_the_selection() {
+    let ed = Editor::launch("locked_leave_selection");
+    let a = ed.box_brush([0.0, 0.0, 0.0], [64.0, 64.0, 64.0]);
+    let b = ed.box_brush([128.0, 0.0, 0.0], [192.0, 64.0, 64.0]);
+    ed.call("select", json!({ "ids": [a, b] }));
+    ed.call("run_action", json!({ "action": "group" }));
+    ed.call("hierarchy", json!({ "op": "set_flags", "ids": [a], "locked": true }));
+    ed.call("run_action", json!({ "action": "select_brush_faces" }));
+    let owners: Vec<u64> = selection_of(&ed).1.iter().map(|f| f.0).collect();
+    assert_eq!(owners, [b; 6], "only the unlocked brush of the group gives its faces");
+
+    ed.call("select", json!({ "ids": [b] }));
+    ed.call("hierarchy", json!({ "op": "set_flags", "ids": [b], "hidden": true }));
+    assert_eq!(selection_of(&ed), (vec![], vec![]), "hiding the selected brush drops it from the selection");
+}
+
 fn selection_of(ed: &Editor) -> (Vec<u64>, Vec<(u64, u64)>) {
     let state = ed.state();
     let mut nodes: Vec<u64> = state["selection"]["nodes"].as_array().unwrap().iter().map(|v| v.as_u64().unwrap()).collect();

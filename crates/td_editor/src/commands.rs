@@ -711,7 +711,7 @@ fn trenchbroom_bindings() -> Vec<(KeyboardShortcut, Action)> {
 /// The selected brushes and meshes, groups and brush entities expanded.
 fn selected_faced_objects(state: &EditorState) -> Vec<NodeId> {
     let map = &state.doc.map;
-    state.doc.selection.geometry(map).into_iter().filter(|id| map.brush(*id).is_some() || map.mesh(*id).is_some()).collect()
+    state.doc.selection.geometry(map).into_iter().filter(|id| (map.brush(*id).is_some() || map.mesh(*id).is_some()) && map.is_editable(*id)).collect()
 }
 
 fn report_faces(state: &mut EditorState) {
