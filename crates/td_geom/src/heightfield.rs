@@ -336,6 +336,15 @@ impl Terrain {
 
     /// Nearest hit along the ray, walking the cells under it.
     pub fn ray_cast(&self, ray: &Ray) -> Option<(f64, DVec3)> {
+        self.cast(ray, false)
+    }
+
+    /// Like [`Self::ray_cast`], but a hole still hits the heights it hides, so a brush can reach into it.
+    pub fn ray_cast_through_holes(&self, ray: &Ray) -> Option<(f64, DVec3)> {
+        self.cast(ray, true)
+    }
+
+    fn cast(&self, ray: &Ray, through_holes: bool) -> Option<(f64, DVec3)> {
         if !self.is_valid() {
             return None;
         }
@@ -345,7 +354,7 @@ impl Terrain {
         let [cw, cd] = self.cells();
         let flat = DVec2::new(ray.dir.x, ray.dir.z);
         let test_cell = |ci: i64, cj: i64| -> Option<f64> {
-            if ci < 0 || cj < 0 || ci >= cw as i64 || cj >= cd as i64 || self.is_hole(ci as u32, cj as u32) {
+            if ci < 0 || cj < 0 || ci >= cw as i64 || cj >= cd as i64 || (!through_holes && self.is_hole(ci as u32, cj as u32)) {
                 return None;
             }
 

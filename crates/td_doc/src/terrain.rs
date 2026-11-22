@@ -264,6 +264,12 @@ pub fn terrain_ray_cast(map: &Map, terrains: &[NodeId], ray: &Ray) -> Option<(f6
     terrains.iter().filter_map(|id| map.terrain(*id).and_then(|t| t.ray_cast(ray)).map(|(d, p)| (d, p, *id))).min_by(|a, b| a.0.total_cmp(&b.0))
 }
 
+/// Where a sculpt brush points: like [`terrain_ray_cast`], but holes still catch the ray, so Unhole and the other
+/// modes can start a stroke over one.
+pub fn sculpt_ray_cast(map: &Map, terrains: &[NodeId], ray: &Ray) -> Option<(f64, DVec3, NodeId)> {
+    terrains.iter().filter_map(|id| map.terrain(*id).and_then(|t| t.ray_cast_through_holes(ray)).map(|(d, p)| (d, p, *id))).min_by(|a, b| a.0.total_cmp(&b.0))
+}
+
 /// Squared distance along x and z from `p` to the ground of `t`, 0 over it.
 fn ground_gap(t: &td_geom::Terrain, p: DVec3) -> f64 {
     let size = DVec3::new(t.cells()[0] as f64, 0.0, t.cells()[1] as f64) * t.cell_size;

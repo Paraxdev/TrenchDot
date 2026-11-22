@@ -594,7 +594,7 @@ impl ToolSet {
             } else if sculpting {
                 let disp = td_doc::terrain::ray_cast(&state.doc.map, &faces, &ray)
                     .map(|(d, p, id, face)| (d, p, state.doc.map.brush(id).map(|b| b.faces[face].plane.normal).unwrap_or(DVec3::Y)));
-                let terrain = td_doc::terrain::terrain_ray_cast(&state.doc.map, &terrains, &ray).map(|(d, p, _)| (d, p, DVec3::Y));
+                let terrain = td_doc::terrain::sculpt_ray_cast(&state.doc.map, &terrains, &ray).map(|(d, p, _)| (d, p, DVec3::Y));
                 [disp, terrain].into_iter().flatten().min_by(|a, b| a.0.total_cmp(&b.0)).map(|(_, p, n)| (p, n))
             } else {
                 // Vertex paint only reaches brush faces, a mesh or anything else in front shows no brush ring.
@@ -3127,6 +3127,24 @@ mod tests {
         let raised: Vec<DVec3> = (0..d).flat_map(|j| (0..w).map(move |i| (i, j))).map(|(i, j)| terrain.vertex(i, j)).filter(|v| v.y > 0.0).collect();
         assert!(!raised.is_empty(), "the stroke raised nothing");
         assert!(raised.iter().all(|v| v.x.abs() < 200.0 && v.z.abs() < 200.0), "the top view dabbed too: {raised:?}");
+    }
+
+    #[test]
+    fn an_unhole_stroke_can_start_over_a_hole() {
+        let (mut state, id, cam) = terrain_under_camera();
+        state.doc.edit("cut", |m, _| m.terrain_mut(id).unwrap().set_holes_rect(glam::DVec2::splat(-300.0), glam::DVec2::splat(300.0), true));
+        assert!(state.doc.map.terrain(id).unwrap().is_hole(32, 32));
+        state.sculpt.mode = td_doc::terrain::SculptMode::Unhole;
+        state.sculpt.radius = 100.0;
+        let mut tools = ToolSet::default();
+        let ctx = egui::Context::default();
+        let pos = input_rect().center();
+        for pressed in [None, Some(true), None, Some(false)] {
+            view_frame(&ctx, &mut tools, &mut state, &cam, pos, pressed);
+        }
+
+        let t = state.doc.map.terrain(id).unwrap();
+        assert!(!t.is_hole(32, 32) && t.is_hole(36, 36), "the cells under the brush are filled, the rest of the hole stays");
     }
 
     #[test]
