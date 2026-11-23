@@ -75,12 +75,19 @@ pub fn vector_input(ui: &mut Ui, values: &mut [f64], width: f32, speed: f64) -> 
 /// through 1 and 12 on the way. Escape keeps the old value.
 pub fn vector_input_snapped(ui: &mut Ui, values: &mut [f64], width: f32, speed: f64, grid: f64) -> bool {
     let n = values.len().max(1) as f32;
-    let field_w = ((width - AXIS_GAP * (n - 1.0)) / n - AXIS_LABEL - 2.0).max(28.0);
+    let room = field_room(width, values.len()).max(28.0 * n);
+    let needs = field_needs(ui, values);
+    let needed: f32 = needs.iter().sum();
+    // Wide values take a bigger share of the row, and when even that cannot fit they are cut off rather than pushing
+    // the row past the panel.
+    let field_widths: Vec<f32> =
+        if needed <= room { needs.iter().map(|w| w + (room - needed) / n).collect() } else { needs.iter().map(|w| room * w / needed).collect() };
     let mut changed = false;
     ui.scope(|ui| {
         field_style(ui);
         ui.spacing_mut().item_spacing.x = 2.0;
         for (i, value) in values.iter_mut().enumerate() {
+            let field_w = field_widths[i];
             if i > 0 {
                 ui.add_space(AXIS_GAP - 2.0);
             }
@@ -93,7 +100,10 @@ pub fn vector_input_snapped(ui: &mut Ui, values: &mut [f64], width: f32, speed: 
             ui.add_sized([AXIS_LABEL, ROW_HEIGHT - 2.0], egui::Label::new(RichText::new(letter).color(color).strong()));
             let before = *value;
             let drag = egui::DragValue::new(value).speed(speed).update_while_editing(false).custom_formatter(|n, _| format_display(n));
-            let response = ui.add_sized([field_w, ROW_HEIGHT - 2.0], drag);
+            let (rect, _) = ui.allocate_exact_size(Vec2::new(field_w, ROW_HEIGHT - 2.0), egui::Sense::hover());
+            let mut field = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(Layout::left_to_right(Align::Center)));
+            field.set_clip_rect(rect.expand(1.0).intersect(ui.clip_rect()));
+            let response = field.add_sized(rect.size(), drag);
             // egui still sees the lost focus one frame after Escape and applies the typed text then, so undo that.
             let escaped = response.id.with("escaped");
             if ui.data_mut(|d| d.remove_temp::<bool>(escaped)).is_some() && response.changed() {
@@ -119,6 +129,37 @@ pub fn vector_input_snapped(ui: &mut Ui, values: &mut [f64], width: f32, speed: 
         }
     });
     changed
+}
+
+fn field_room(width: f32, n: usize) -> f32 {
+    let n = n.max(1) as f32;
+    width - AXIS_GAP * (n - 1.0) - (AXIS_LABEL + 2.0) * n
+}
+
+fn field_needs(ui: &Ui, values: &[f64]) -> Vec<f32> {
+    let pad = ui.spacing().button_padding.x * 2.0 + 4.0;
+    let font = egui::TextStyle::Button.resolve(ui.style());
+    values.iter().map(|v| ui.fonts_mut(|f| f.layout_no_wrap(format_display(*v), font.clone(), Color32::WHITE).size().x) + pad).collect()
+}
+
+/// A [`row`] holding a [`vector_input_snapped`], whose fields move onto a line of their own under the label when
+/// they would not fit beside it.
+#[allow(clippy::too_many_arguments)]
+pub fn vector_row(ui: &mut Ui, index: usize, label: impl Into<WidgetText>, hover: &str, label_w: f32, values: &mut [f64], speed: f64, grid: f64) -> bool {
+    let beside = ui.available_width() - label_w;
+    let needed: f32 = field_needs(ui, values).iter().sum();
+    for trailing in [TRAILING, 0.0] {
+        if needed <= field_room(beside - trailing, values.len()) {
+            return row(ui, index, label, hover, label_w, |ui| vector_input_snapped(ui, values, ui.available_width() - trailing, speed, grid));
+        }
+    }
+
+    row(ui, index, label, hover, label_w, |_| {});
+    ui.horizontal(|ui| {
+        ui.add_space(8.0);
+        vector_input_snapped(ui, values, ui.available_width() - 8.0, speed, grid)
+    })
+    .inner
 }
 
 pub fn drag_field(ui: &mut Ui, value: &mut f64, width: f32, speed: f64, integer: bool) -> bool {
@@ -408,6 +449,31 @@ mod tests {
         pass(vec![button(to, false)]);
         let moved = pass(vec![]);
         assert!((moved.center() - (rect.center() - egui::vec2(300.0, 200.0))).length() < 2.0, "{moved:?} stays where it was dragged");
+    }
+
+    #[test]
+    fn vector_rows_stay_inside_a_narrow_panel_and_wrap_wide_values() {
+        let ctx = egui::Context::default();
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(300.0, 400.0));
+        let lay_out = |values: [f64; 3]| {
+            let mut used = (egui::Rect::NOTHING, 0.0);
+            for _ in 0..2 {
+                ctx.run_ui(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ui| {
+                    let mut values = values;
+                    let top = ui.cursor().top();
+                    vector_row(ui, 0, "Origin", "", 110.0, &mut values, 1.0, 0.0);
+                    used = (ui.min_rect(), ui.cursor().top() - top);
+                })
+                .drop_without_applying_deltas();
+            }
+
+            used
+        };
+        let (small, small_h) = lay_out([-4096.0, 0.0, 512.0]);
+        let (wide, wide_h) = lay_out([-12345.5, -640.0, 99999.0]);
+        assert!(small.right() <= screen.right() && wide.right() <= screen.right(), "{small:?} {wide:?}");
+        assert!(small_h < ROW_HEIGHT * 1.6, "small values stay beside the label: {small_h}");
+        assert!(wide_h > ROW_HEIGHT * 1.6, "wide values go under it: {wide_h}");
     }
 
     #[test]

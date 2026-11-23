@@ -852,19 +852,16 @@ fn bounds_rows(ui: &mut Ui, state: &mut EditorState, label_w: f32, first_row: us
     let grid = state.effective_grid();
     let mut min = bounds.min.to_array();
     let mut size = bounds.size().to_array();
-    let width = |ui: &Ui| ui.available_width() - widgets::TRAILING;
-    let moved = widgets::row(ui, first_row, tr("Position"), tr("Lowest corner of the bounds in map units, 32 per meter"), label_w, |ui| {
-        widgets::vector_input_snapped(ui, &mut min, width(ui), 1.0, grid)
-    });
-    let resized =
-        widgets::row(ui, first_row + 1, tr("Size"), tr("Width, height and depth of the bounds. A new size scales from the lowest corner"), label_w, |ui| {
-            if scalable {
-                widgets::vector_input_snapped(ui, &mut size, width(ui), 1.0, grid)
-            } else {
-                ui.label(RichText::new(xyz(bounds.size(), " x ")).weak()).on_hover_text(tr("Only brushes and meshes scale, move this selection with position"));
-                false
-            }
-        });
+    let moved = widgets::vector_row(ui, first_row, tr("Position"), tr("Lowest corner of the bounds in map units, 32 per meter"), label_w, &mut min, 1.0, grid);
+    let size_hover = tr("Width, height and depth of the bounds. A new size scales from the lowest corner");
+    let resized = if scalable {
+        widgets::vector_row(ui, first_row + 1, tr("Size"), size_hover, label_w, &mut size, 1.0, grid)
+    } else {
+        widgets::row(ui, first_row + 1, tr("Size"), size_hover, label_w, |ui| {
+            ui.label(RichText::new(xyz(bounds.size(), " x ")).weak()).on_hover_text(tr("Only brushes and meshes scale, move this selection with position"));
+            false
+        })
+    };
 
     let min = DVec3::from_array(min);
     let old_size = bounds.size();
@@ -1062,12 +1059,12 @@ fn terrain_inspector(ui: &mut Ui, state: &mut EditorState, id: NodeId, actions: 
     let mut edited = t.clone();
     let mut changed = false;
     let mut origin = edited.origin.to_array();
-    widgets::row(ui, 0, tr("Origin"), "", widgets::label_width(ui), |ui| {
-        if widgets::vector_input(ui, &mut origin, ui.available_width() - widgets::TRAILING, 1.0) {
-            edited.origin = DVec3::from_array(origin);
-            changed = true;
-        }
-    });
+    let label_w = widgets::label_width(ui);
+    if widgets::vector_row(ui, 0, tr("Origin"), "", label_w, &mut origin, 1.0, 0.0) {
+        edited.origin = DVec3::from_array(origin);
+        changed = true;
+    }
+
     crate::terrain_size::size_ui(ui, state, id, &t);
     egui::Grid::new("terrain_props").num_columns(2).show(ui, |ui| {
         ui.label(tr("Chunk cells"));
@@ -1434,12 +1431,8 @@ fn entity_inspector(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, i
         let mut origin = [entity.origin.x, entity.origin.y, entity.origin.z];
         let mut angles = [entity.angles.x, entity.angles.y, entity.angles.z];
         let mut changed = false;
-        widgets::row(ui, 1, "origin", tr("Position in map units"), label_w, |ui| {
-            changed |= widgets::vector_input(ui, &mut origin, ui.available_width() - widgets::TRAILING, 1.0);
-        });
-        widgets::row(ui, 2, "angles", tr("Pitch, yaw and roll in degrees"), label_w, |ui| {
-            changed |= widgets::vector_input(ui, &mut angles, ui.available_width() - widgets::TRAILING, 1.0);
-        });
+        changed |= widgets::vector_row(ui, 1, "origin", tr("Position in map units"), label_w, &mut origin, 1.0, 0.0);
+        changed |= widgets::vector_row(ui, 2, "angles", tr("Pitch, yaw and roll in degrees"), label_w, &mut angles, 1.0, 0.0);
         if changed {
             state.doc.edit_coalesced("Set Transform", |m, _| {
                 if let Some(e) = m.entity_mut(id) {
