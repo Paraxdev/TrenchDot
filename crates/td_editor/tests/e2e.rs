@@ -4342,6 +4342,8 @@ fn actions_with_nothing_to_act_on_fail_without_an_undo_step() {
 
     let e = ed.call_err("terrain_edit", json!({ "id": t, "op": "sculpt", "mode": "terrace", "center": [640, 128], "step": 0 }));
     assert!(e.contains("step must be above 0"), "{e}");
+    let e = ed.call_err("terrain_edit", json!({ "id": t, "op": "sculpt", "mode": "add_tile", "center": [99999999, 0] }));
+    assert!(e.contains("at most 2048 cells"), "{e}");
 }
 
 fn selection_of(ed: &Editor) -> (Vec<u64>, Vec<(u64, u64)>) {

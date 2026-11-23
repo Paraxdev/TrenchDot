@@ -2067,6 +2067,13 @@ impl App {
                         any |= td_doc::terrain::sculpt_terrains_single(t, p, &brush, &mirror);
                     }
 
+                    if !any
+                        && mode == SculptMode::AddTile
+                        && let Some(e) = points.iter().find_map(|p| t.add_tile_error(*p))
+                    {
+                        return Err(e);
+                    }
+
                     any
                 }
                 "paint_path" => {

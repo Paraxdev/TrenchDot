@@ -127,12 +127,7 @@ impl Terrain {
         let n = self.chunk_cells.max(1) as i64;
         let [cw, cd] = self.cells().map(|c| c as i64);
         let [ti, tj] = self.tile_at(p);
-        let sides = Sides {
-            north: (-tj * n).max(0) as i32,
-            south: ((tj + 1) * n - cd).max(0) as i32,
-            west: (-ti * n).max(0) as i32,
-            east: ((ti + 1) * n - cw).max(0) as i32,
-        };
+        let sides = self.tile_sides(p);
         let Ok(mut grown) = self.resized(sides, EdgeFill::Zero) else { return false };
         let [gw, gd] = grown.cells().map(|c| c as i64);
         let (ow, on) = (sides.west as i64, sides.north as i64);
@@ -156,6 +151,23 @@ impl Terrain {
 
         *self = grown;
         true
+    }
+
+    /// Why [`Terrain::add_tile`] cannot add the tile under `p`, when the terrain would grow past [`MAX_CELLS`].
+    pub fn add_tile_error(&self, p: DVec3) -> Option<String> {
+        self.resized(self.tile_sides(p), EdgeFill::Zero).err()
+    }
+
+    fn tile_sides(&self, p: DVec3) -> Sides {
+        let n = self.chunk_cells.max(1) as i64;
+        let [cw, cd] = self.cells().map(|c| c as i64);
+        let [ti, tj] = self.tile_at(p);
+        Sides {
+            north: (-tj * n).max(0) as i32,
+            south: ((tj + 1) * n - cd).max(0) as i32,
+            west: (-ti * n).max(0) as i32,
+            east: ((ti + 1) * n - cw).max(0) as i32,
+        }
     }
 
     /// Cuts the tile under `p` out as holes, then crops the border tiles that are holes throughout. The last solid
