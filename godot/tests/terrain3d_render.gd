@@ -34,6 +34,10 @@ func _run() -> void:
 		print("terrain3d_render: skipped, headless renders nothing, run it with a window or xvfb")
 		quit(0)
 		return
+	if method != "gl_compatibility" and RenderingServer.get_video_adapter_name().containsn("llvmpipe"):
+		print("terrain3d_render: skipped, Terrain3D 1.1.0 crashes software Vulkan (llvmpipe), run %s on a GPU" % method)
+		quit(0)
+		return
 	root.size = Vector2i(1280, 720)
 	var instance: Node = (load(SCENE) as PackedScene).instantiate()
 	root.add_child(instance)
