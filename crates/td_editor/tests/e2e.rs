@@ -9510,6 +9510,26 @@ fn click_look(ed: &Editor, name: &str) {
     std::thread::sleep(Duration::from_millis(300));
 }
 
+/// Clicks a list of the Look block open and returns the state that shows it. A click lands again when the list did not
+/// open, since on software Vulkan the Inspector can still move under the first one.
+fn open_look_list(ed: &Editor, list: &str) -> Value {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        click_look(ed, list);
+        let retry = Instant::now() + Duration::from_secs(3);
+        while Instant::now() < retry {
+            let state = ed.state();
+            if look_list_open(&state, list) {
+                return state;
+            }
+
+            std::thread::sleep(Duration::from_millis(100));
+        }
+
+        assert!(Instant::now() < deadline, "the {list} list never opened: {}", ed.state()["ui"]["terrain3d_look"]);
+    }
+}
+
 /// Whether the open list of the Look block holds an entry of `list`, entries are named `list:` and the res path.
 fn look_list_open(state: &Value, list: &str) -> bool {
     let prefix = format!("{list}:");
@@ -9557,8 +9577,7 @@ fn terrain3d_inspector_look_sends_the_chosen_paths_to_godot() {
     ed.call("select", json!({ "ids": [node] }));
     wait_state(&ed, "the enabled Look block", |s| s["ui"]["terrain3d_look"]["enabled"] == true);
 
-    click_look(&ed, "material");
-    let open = wait_state(&ed, "the material list", |s| look_list_open(s, "material"));
+    let open = open_look_list(&ed, "material");
     let mut options: Vec<String> =
         open["ui"]["terrain3d_look"]["rects"].as_object().unwrap().keys().filter_map(|k| k.strip_prefix("material:")).map(String::from).collect();
     options.sort();
@@ -9578,7 +9597,7 @@ fn terrain3d_inspector_look_sends_the_chosen_paths_to_godot() {
     let asked = sent_events(&sent, "terrain3d_settings");
     assert_eq!((asked[1]["ocean_enabled"].clone(), asked[1].get("material")), (json!(true), None), "{}", asked[1]);
 
-    click_look(&ed, "assets");
+    open_look_list(&ed, "assets");
     wait_state(&ed, "the assets list", |s| look_rect(s, "assets:res://terrain/assets.tres").is_some());
     assert!(look_rect(&ed.state(), "assets:res://terrain/M_alt.tres").is_none(), "a material is no assets");
     click_look(&ed, "assets:res://terrain/assets.tres");
@@ -9586,8 +9605,7 @@ fn terrain3d_inspector_look_sends_the_chosen_paths_to_godot() {
     let asked = sent_events(&sent, "terrain3d_settings");
     assert_eq!((asked[2]["assets"].clone(), asked[2].get("material")), (json!("res://terrain/assets.tres"), None));
 
-    click_look(&ed, "material");
-    wait_state(&ed, "the list again", |s| look_list_open(s, "material"));
+    open_look_list(&ed, "material");
     click_look(&ed, "material:");
     wait_state(&ed, "the clearing request", |_| sent_events(&sent, "terrain3d_settings").len() == 4);
     assert_eq!(sent_events(&sent, "terrain3d_settings")[3]["material"], json!(""), "None clears the material");
