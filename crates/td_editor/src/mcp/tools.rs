@@ -3149,9 +3149,10 @@ impl App {
                     let p = self.resolve_pos(target, ev, "x", "world")?;
                     steps.push_back(step(vec![Event::PointerMoved(p)]));
                     let times = if t == "click" { 1 } else { 2 };
+                    // Press and release share a frame, a frame slower than egui's 0.8 s click limit (software Vulkan)
+                    // would otherwise turn the click into a long press.
                     for _ in 0..times {
-                        steps.push_back(step(vec![press(p, true)]));
-                        steps.push_back(step(vec![press(p, false)]));
+                        steps.push_back(step(vec![press(p, true), press(p, false)]));
                     }
 
                     steps.push_back(step(vec![]));
