@@ -1220,6 +1220,7 @@ fn group_gestures_walk(ed: &Editor, view: &str, spots: GroupSpots) {
     assert_eq!(open_groups(ed), json!([]), "a click outside the open group closes it");
     assert_eq!(selected(ed), [brush_c], "and drops the brush picked inside it");
     assert!(status().starts_with("Closed group"), "{}", status());
+    assert!(status().contains("left the selection"), "a Ctrl+click says the brush inside dropped out: {}", status());
 
     // A double click on empty space closes the innermost open group and clears the selection.
     double_click(a);

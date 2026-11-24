@@ -1180,14 +1180,15 @@ impl EditorState {
 
     /// Closes every open group that does not hold `id`, so a click elsewhere neither keeps a forgotten group open nor
     /// sends the next brush into it. The group `id` itself and the groups around it stay open. Objects selected inside
-    /// a group it closes leave the selection, a closed group is only ever selected whole.
-    pub fn leave_groups_outside(&mut self, id: NodeId) {
+    /// a group it closes leave the selection, a closed group is only ever selected whole. Returns whether any did.
+    pub fn leave_groups_outside(&mut self, id: NodeId) -> bool {
         let around = self.doc.map.ancestors(id);
         let (kept, closed): (Vec<NodeId>, Vec<NodeId>) = self.open_groups.iter().partition(|g| **g == id || around.contains(g));
         self.open_groups = kept;
         let map = &self.doc.map;
         let inside = |n: &NodeId| closed.iter().any(|g| map.is_ancestor(*g, *n));
-        if self.doc.selection.nodes.iter().any(inside) {
+        let dropped = self.doc.selection.nodes.iter().any(inside);
+        if dropped {
             self.doc.select(|m, s| s.nodes.retain(|n| !closed.iter().any(|g| m.is_ancestor(*g, *n))));
         }
 
@@ -1200,13 +1201,21 @@ impl EditorState {
                 self.set_status(msg!("Closed groups {names}", names));
             }
         }
+
+        dropped
     }
 
     /// Says that a click selected `target` whole when it is a closed group, the one thing a click does not show plainly.
+    /// A note that the same click closed a group stays in front of it.
     pub fn report_group_selected(&mut self, target: NodeId) {
         if is_group(&self.doc.map, target) && !self.open_groups.contains(&target) {
             let name = self.doc.map.get(target).map(|n| n.name()).unwrap_or_default();
-            self.set_status(msg!("Selected group {name}, double click to open it", name));
+            let said = msg!("Selected group {name}, double click to open it", name);
+            if self.status.starts_with("Closed group") {
+                self.extend_status(". ", said);
+            } else {
+                self.set_status(said);
+            }
         }
     }
 

@@ -1468,6 +1468,7 @@
   "Selected group {name}, double click to open it": "已选择组 {name}，双击可打开",
   "Opened group {name}, double click empty space or press Esc to close it": "已打开组 {name}，双击空白处或按 Esc 关闭",
   "Closed group {name}": "已关闭组 {name}",
+  "what was selected inside left the selection": "其中选中的对象已移出选择",
   "Edit Gizmo": "编辑控件",
   "Resize Brushes": "调整笔刷大小",
   "Duplicate Objects": "复制对象",

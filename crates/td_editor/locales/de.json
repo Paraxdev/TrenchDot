@@ -1468,6 +1468,7 @@
   "Selected group {name}, double click to open it": "Gruppe {name} gewählt, Doppelklick öffnet sie",
   "Opened group {name}, double click empty space or press Esc to close it": "Gruppe {name} geöffnet, Doppelklick auf leeren Raum oder Esc schließt sie",
   "Closed group {name}": "Gruppe {name} geschlossen",
+  "what was selected inside left the selection": "was darin ausgewählt war, ist nicht mehr ausgewählt",
   "Edit Gizmo": "Gizmo bearbeiten",
   "Resize Brushes": "Brush-Größe ändern",
   "Duplicate Objects": "Objekte duplizieren",

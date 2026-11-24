@@ -567,7 +567,10 @@ impl Viewport {
                         });
                     }
                     _ => {
-                        cx.state.leave_groups_outside(h.node);
+                        if cx.state.leave_groups_outside(h.node) && rule == ClickRule::ToggleObject {
+                            cx.state.extend_status(", ", msg!("what was selected inside left the selection"));
+                        }
+
                         let map = &cx.state.doc.map;
                         let target = map.click_target(h.node, &cx.state.open_groups);
                         cx.state.last_bounds = map.bounds(target);

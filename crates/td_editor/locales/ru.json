@@ -1468,6 +1468,7 @@
   "Selected group {name}, double click to open it": "Группа {name} выбрана, двойной щелчок откроет её",
   "Opened group {name}, double click empty space or press Esc to close it": "Группа {name} открыта, двойной щелчок по пустому месту или Esc закроет её",
   "Closed group {name}": "Группа {name} закрыта",
+  "what was selected inside left the selection": "то, что было выделено внутри, снято с выделения",
   "Edit Gizmo": "Правка гизмо",
   "Resize Brushes": "Изменение размера брашей",
   "Duplicate Objects": "Дублирование объектов",

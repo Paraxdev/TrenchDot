@@ -1468,6 +1468,7 @@
   "Selected group {name}, double click to open it": "グループ {name} を選択しました。ダブルクリックで開きます",
   "Opened group {name}, double click empty space or press Esc to close it": "グループ {name} を開きました。何もない所をダブルクリックするか Esc で閉じます",
   "Closed group {name}": "グループ {name} を閉じました",
+  "what was selected inside left the selection": "中で選択していたものは選択から外れました",
   "Edit Gizmo": "ギズモを編集",
   "Resize Brushes": "ブラシのサイズ変更",
   "Duplicate Objects": "オブジェクトを複製",
