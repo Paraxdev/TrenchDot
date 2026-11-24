@@ -5304,6 +5304,25 @@ fn blender_shift_click_toggles_in_the_current_mode() {
     key("1");
     click("top", on_light, &[]);
     assert_eq!((mode(), selection_of(&ed)), ("object".into(), (vec![light], vec![])), "back in Object mode the entity is picked");
+
+    ed.call("select", json!({ "ids": [a, light] }));
+    ed.call("run_action", json!({ "action": "group" }));
+    let house = selected(&ed)[0];
+    ed.call("hierarchy", json!({ "op": "close_group", "all": true }));
+    ed.call("run_action", json!({ "action": "select_none" }));
+    key("3");
+    let double_click = |at: [f64; 3]| {
+        ed.call("set_camera", json!({ "view": "top", "center": at, "zoom": 1.0 }));
+        ed.input("top", json!([{ "type": "double_click", "world": at }]));
+        std::thread::sleep(Duration::from_millis(400));
+    };
+    double_click(on_light);
+    assert_eq!(open_groups(&ed), json!([house]), "a double click on the light opens its group");
+    assert_eq!((mode(), selection_of(&ed)), ("face".into(), (vec![], vec![])), "and stays in Face mode, a light has no face to pick");
+    ed.call("hierarchy", json!({ "op": "close_group", "all": true }));
+    double_click(top_a);
+    let (nodes, faces) = selection_of(&ed);
+    assert_eq!((mode(), nodes, faces.first().map(|f| f.0)), ("face".into(), vec![], Some(a)), "a double click on a grouped brush picks faces");
 }
 
 /// Ctrl+Shift+A is Select None as in TrenchBroom, the Hammer preset keeps it for Select Brush Faces, and the MCP action

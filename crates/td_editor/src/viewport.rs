@@ -15,7 +15,7 @@ use crate::panels::DndPayload;
 use crate::picking::{self, Hit};
 use crate::scene::{SceneCache, v3};
 use crate::selection_box::SelectionBox;
-use crate::state::EditorState;
+use crate::state::{EditorState, SelectMode};
 use crate::tools::{Drag, ToolKind, line_ray_param};
 use crate::toolset::ToolSet;
 
@@ -641,6 +641,12 @@ impl Viewport {
             };
             match (action, hit, group) {
                 (DoubleClick::OpenGroup, Some(h), Some(group)) => {
+                    // Blender's Face mode is a switch of its own, so opening a group there picks the face under the
+                    // cursor rather than an object, which would flip the mode to Object.
+                    let face_mode = cx.state.prefs.keymap_preset == "blender" && cx.state.select_mode == SelectMode::Face;
+                    let face = face_mode
+                        .then(|| h.face.or_else(|| picking::pick(cx.state, &self.camera.ray(self.rect, pos)).filter(|p| p.node == h.node).and_then(|p| p.face)))
+                        .flatten();
                     cx.state.open_groups_to(group);
                     let map = &cx.state.doc.map;
                     let target = map.click_target(h.node, &cx.state.open_groups);
@@ -648,7 +654,11 @@ impl Viewport {
                     cx.state.outliner_reveal = Some(target);
                     cx.state.doc.select(|_, s| {
                         s.clear();
-                        s.select_node(target);
+                        match face {
+                            Some(face) => s.select_face(h.node, face),
+                            None if face_mode => {}
+                            None => s.select_node(target),
+                        }
                     });
                 }
                 (DoubleClick::CloseGroup, ..) => {
