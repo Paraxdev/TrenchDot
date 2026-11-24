@@ -3,7 +3,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque};
 use std::io::{BufRead, BufReader, ErrorKind, Write};
-use std::net::{SocketAddr, TcpStream};
+use std::net::{Shutdown, SocketAddr, TcpStream};
 use std::path::Path;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Condvar, Mutex};
@@ -521,6 +521,14 @@ impl Drop for LiveLink {
 struct Connection {
     writer: TcpStream,
     reader: BufReader<TcpStream>,
+}
+
+// Note: a child process started meanwhile, like a headless Godot, can inherit the socket on Windows. Closing only our
+// handle then leaves the connection open until that child exits, so Godot would not see the editor go.
+impl Drop for Connection {
+    fn drop(&mut self) {
+        let _ = self.writer.shutdown(Shutdown::Both);
+    }
 }
 
 enum Work {
@@ -1504,6 +1512,7 @@ mod tests {
                 loop {
                     let mut line = String::new();
                     if reader.read_line(&mut line).unwrap_or(0) == 0 || hang_up.swap(false, Ordering::SeqCst) {
+                        let _ = stream.shutdown(Shutdown::Both);
                         break;
                     }
 
