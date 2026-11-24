@@ -110,7 +110,17 @@ impl Editor {
             std::thread::sleep(Duration::from_millis(250));
         }
 
-        // Let the first frames lay out the viewports.
+        // Software Vulkan on CI can take seconds to build the pipelines of the first frame, so wait for the tool row.
+        let deadline = Instant::now() + Duration::from_secs(30);
+        while Instant::now() < deadline {
+            let laid_out = editor.try_call("get_state", json!({})).is_ok_and(|s| s["ui"]["tool_buttons"].as_array().is_some_and(|b| !b.is_empty()));
+            if laid_out {
+                break;
+            }
+
+            std::thread::sleep(Duration::from_millis(100));
+        }
+
         std::thread::sleep(Duration::from_millis(500));
         editor
     }
