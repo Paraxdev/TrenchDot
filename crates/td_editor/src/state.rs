@@ -677,6 +677,8 @@ pub struct EditorState {
     live_link_status: Option<std::sync::mpsc::Receiver<Msg>>,
     /// Saves whose build notice waits for the Terrain3D apply they started.
     held_saves: Vec<SavedNotice>,
+    /// The next live link status follows the Terrain3D apply outcome on the status line instead of replacing it.
+    after_apply: bool,
     /// The scan Godot runs for an installed Gameplay pack, until it is done, see [`crate::live_link::scan`].
     pub godot_scan: Option<u64>,
     /// Godot's answer to Run Project, see [`crate::commands::poll_play`].
@@ -1023,6 +1025,7 @@ impl EditorState {
             gameplay_pack: Default::default(),
             live_link_status: None,
             held_saves: Vec::new(),
+            after_apply: false,
             godot_scan: None,
             play_reply: None,
             unopened_links: std::sync::mpsc::channel(),
@@ -1833,7 +1836,9 @@ impl EditorState {
             return;
         }
 
-        for notice in std::mem::take(&mut self.held_saves) {
+        let held = std::mem::take(&mut self.held_saves);
+        self.after_apply |= !held.is_empty();
+        for notice in held {
             self.tell_saved(notice);
         }
     }
@@ -1862,7 +1867,11 @@ impl EditorState {
             && let Ok(msg) = rx.try_recv()
         {
             self.live_link_status = None;
-            self.set_status(msg);
+            if std::mem::take(&mut self.after_apply) {
+                self.extend_status(". ", msg);
+            } else {
+                self.set_status(msg);
+            }
         }
     }
 
@@ -1932,7 +1941,11 @@ impl EditorState {
         self.link_state = state;
         self.note_scan_done();
         for msg in messages {
-            self.link_status(msg);
+            if std::mem::take(&mut self.after_apply) {
+                self.extend_status(". ", msg);
+            } else {
+                self.link_status(msg);
+            }
         }
 
         if self.doc.revision != self.live.revision {
