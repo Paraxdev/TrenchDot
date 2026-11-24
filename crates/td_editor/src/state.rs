@@ -1354,6 +1354,7 @@ impl EditorState {
         let label = self.doc.undo();
         self.doc.map.editor.cameras = cameras;
         self.validate_insert_context();
+        self.select_closed_groups_whole();
         label
     }
 
@@ -1362,7 +1363,29 @@ impl EditorState {
         let label = self.doc.redo();
         self.doc.map.editor.cameras = cameras;
         self.validate_insert_context();
+        self.select_closed_groups_whole();
         label
+    }
+
+    /// An undo can bring back a selection made before its group was closed, or a node that has since moved into one.
+    /// Swaps each selected object inside a closed group for what a click on it picks now.
+    fn select_closed_groups_whole(&mut self) {
+        let map = &self.doc.map;
+        let vertex = self.tool == ToolKind::Vertex;
+        let mut targets: Vec<NodeId> = Vec::new();
+        for n in &self.doc.selection.nodes {
+            let t = if vertex { map.vertex_click_target(*n, &self.open_groups) } else { map.click_target(*n, &self.open_groups) };
+            if !targets.contains(&t) {
+                targets.push(t);
+            }
+        }
+
+        if targets.iter().any(|t| !self.doc.selection.nodes.contains(t)) {
+            self.doc.select(|_, s| {
+                s.nodes.clear();
+                s.nodes.extend(targets);
+            });
+        }
     }
 
     pub fn shade_mode(&self) -> ShadeMode {
@@ -3225,6 +3248,36 @@ importer=\"texture\"
             Nest { outer, inner, leg, side, other_group, loose }
         });
         (state, n)
+    }
+
+    #[test]
+    fn undo_selects_a_closed_group_whole() {
+        let (mut state, n) = nest();
+        state.open_groups = vec![n.outer, n.inner];
+        state.doc.select(|_, s| {
+            s.clear();
+            s.nodes.extend([n.leg, n.loose]);
+        });
+        state.doc.edit("rename", |m, _| m.rename(n.loose, "stool"));
+        state.open_groups.clear();
+        let selected = |state: &EditorState| state.doc.selection.nodes.clone();
+        state.undo();
+        assert_eq!(selected(&state), [n.outer, n.loose].into(), "the brush comes back as its closed group");
+
+        state.open_groups = vec![n.outer];
+        state.redo();
+        assert_eq!(selected(&state), [n.inner, n.loose].into(), "redo too, one level down with outer open");
+
+        state.open_groups = vec![n.outer, n.inner];
+        state.doc.select(|_, s| {
+            s.clear();
+            s.nodes.extend([n.leg, n.loose]);
+        });
+        state.doc.edit("rename", |m, _| m.rename(n.loose, "bench"));
+        state.open_groups.clear();
+        state.tool = ToolKind::Vertex;
+        state.undo();
+        assert_eq!(selected(&state), [n.leg, n.loose].into(), "the Vertex tool keeps brushes inside plain groups");
     }
 
     #[test]
