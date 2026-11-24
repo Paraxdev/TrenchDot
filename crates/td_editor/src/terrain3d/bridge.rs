@@ -851,6 +851,11 @@ mod tests {
         (path, args)
     }
 
+    // Note: Rust quotes a batch file argument holding characters like the `~` of a short path, such as RUNNER~1 on CI.
+    fn recorded_args(path: &Path) -> String {
+        std::fs::read_to_string(path).unwrap().replace('"', "")
+    }
+
     fn request(dir: &Path, port: Option<u16>, godot: Option<PathBuf>) -> Apply {
         Apply { port, project: dir.join("game"), godot, folder: dir.join("game").join("terrain"), force: false }
     }
@@ -900,7 +905,7 @@ mod tests {
         let out = apply(&req);
         assert_eq!(out.route, Route::Headless);
         assert_eq!((out.accepted.clone(), out.refused.clone()), (vec![A], vec![(B, "changed".to_string())]));
-        let args = std::fs::read_to_string(&args).unwrap();
+        let args = recorded_args(&args);
         for part in ["--headless", "--path", "terrain3d_cli.gd", " -- apply "] {
             assert!(args.contains(part), "{part} is missing from {args}");
         }
@@ -919,7 +924,7 @@ mod tests {
         let (exe, args) = fake_godot(dir.path(), r#"{"ok":true,"written":[[0,0]],"removed":0,"problems":[]}"#);
         let req = request(dir.path(), Some(port), Some(exe));
         assert_eq!(export(&req), Ok(vec![[0, 0]]));
-        let args = std::fs::read_to_string(&args).unwrap();
+        let args = recorded_args(&args);
         assert!(args.contains(" -- export ") && args.trim_end().ends_with(&live_link::godot_path(&req.folder)), "{args}");
 
         let (exe, _) = fake_godot(dir.path(), r#"{"ok":false,"error":"Terrain3D is not installed in this project"}"#);
@@ -1171,7 +1176,7 @@ exit 3
             (got.backup.as_str(), got.regions, got.problems),
             ("C:/game/terrain/.trenchdot/backups/20261119T101500", 3, vec!["kept the spacing".to_string()])
         );
-        let args = std::fs::read_to_string(&args).unwrap();
+        let args = recorded_args(&args);
         for part in ["--headless", "--path", "terrain3d_cli.gd", " -- settings "] {
             assert!(args.contains(part), "{part} is missing from {args}");
         }
