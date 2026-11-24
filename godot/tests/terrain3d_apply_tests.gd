@@ -520,13 +520,18 @@ static func _add_instance(terrain: Node3D) -> void:
 	var xforms: Array[Transform3D] = [Transform3D(Basis(), spot + Vector3.UP * terrain.get(&"data").get_height(spot))]
 	terrain.get(&"instancer").call(&"add_transforms", 2, xforms)
 
-## Every file below [param folder] by its path under it, with its MD5.
+## Every file below [param folder] by its path under it, with its MD5. Dot folders like .trenchdot count, which
+## [method DirAccess.get_directories_at] skips on Linux.
 static func _tree(folder: String, below := "") -> Dictionary:
 	var out := {}
-	var dir := folder.path_join(below)
-	for file in DirAccess.get_files_at(dir):
-		out[below.path_join(file)] = FileAccess.get_md5(dir.path_join(file))
-	for sub in DirAccess.get_directories_at(dir):
+	var path := folder.path_join(below)
+	var dir := DirAccess.open(path)
+	if dir == null:
+		return out
+	dir.include_hidden = true
+	for file in dir.get_files():
+		out[below.path_join(file)] = FileAccess.get_md5(path.path_join(file))
+	for sub in dir.get_directories():
 		out.merge(_tree(folder, below.path_join(sub)))
 	return out
 
