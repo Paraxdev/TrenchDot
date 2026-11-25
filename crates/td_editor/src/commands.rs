@@ -664,6 +664,7 @@ fn base_bindings() -> Vec<(KeyboardShortcut, Action)> {
         (sc(NONE, Key::CloseBracket), Action::GridUp),
         (sc(NONE, Key::Minus), Action::GridDown),
         (sc(NONE, Key::Equals), Action::GridUp),
+        (sc(NONE, Key::Plus), Action::GridUp),
         (sc(CTRL_SHIFT, Key::U), Action::ToggleUvLock),
         (sc(CTRL, Key::K), Action::CsgSubtract),
         (sc(CTRL, Key::M), Action::CsgMerge),
@@ -704,6 +705,7 @@ fn base_bindings() -> Vec<(KeyboardShortcut, Action)> {
         (sc(CTRL, Key::W), Action::CloseTab),
         (sc(CTRL_SHIFT, Key::N), Action::NewTab),
         (sc(CTRL, Key::Equals), Action::UiScaleUp),
+        (sc(CTRL, Key::Plus), Action::UiScaleUp),
         (sc(CTRL, Key::Minus), Action::UiScaleDown),
         (sc(CTRL, Key::Num0), Action::UiScaleReset),
         (sc(SHIFT, Key::Space), Action::ToggleMaximizeView),
@@ -6244,5 +6246,20 @@ mod tests {
         let status = state.status_msg();
         assert!(status.en.contains("(Shift+click)"), "MCP reads English whatever the language: {}", status.en);
         assert!(status.shown.contains("Shift+Klick"), "{}", status.shown);
+    }
+
+    #[test]
+    fn plus_raises_the_grid_and_the_interface_on_layouts_where_it_is_not_shift_equals() {
+        for preset in PRESETS {
+            let bindings = preset_bindings(preset);
+            let has = |chord: KeyboardShortcut, action: Action| bindings.iter().any(|(c, a)| *c == chord && *a == action);
+            assert!(has(sc(NONE, Key::Plus), Action::GridUp), "{preset}");
+            assert!(has(sc(CTRL, Key::Plus), Action::UiScaleUp), "{preset}");
+            assert_eq!(
+                bindings.iter().find(|(_, a)| *a == Action::UiScaleUp).map(|(c, _)| *c),
+                Some(sc(CTRL, Key::Equals)),
+                "{preset} menus keep showing Ctrl+="
+            );
+        }
     }
 }
