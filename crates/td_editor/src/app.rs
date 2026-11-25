@@ -418,6 +418,25 @@ fn fraction_at(min: f32, size: f32, pos: f32) -> f32 {
     (pos - min).clamp(MIN_VIEW_SIZE, size - MIN_VIEW_SIZE) / size
 }
 
+/// The dock splits by fraction, so a high interface scale on a small screen would leave a panel beside the views too
+/// narrow for its rows. Such a panel keeps `PANEL_MIN_WIDTH`, or a third of its split when even that does not fit.
+fn keep_panels_wide(tree: &mut Tree<Tab>) {
+    let panel = |i: NodeIndex| i.0 < tree.len() && tree[i].tabs().is_some_and(|t| !t.is_empty() && !t.iter().any(|t| matches!(t, Tab::View(_))));
+    let sides: Vec<(NodeIndex, bool, bool)> = (0..tree.len()).map(NodeIndex).map(|h| (h, panel(h.left()), panel(h.right()))).collect();
+    for (h, left, right) in sides {
+        let Node::Horizontal(s) = &mut tree[h] else { continue };
+        let width = s.rect.width();
+        if left == right || width <= 0.0 {
+            continue;
+        }
+
+        let min = PANEL_MIN_WIDTH.min(width / 3.0) / width;
+        s.fraction = if left { s.fraction.max(min) } else { s.fraction.min(1.0 - min) };
+    }
+}
+
+const PANEL_MIN_WIDTH: f32 = 280.0;
+
 /// Handle where the view separators cross, dragging it resizes all four views at once.
 fn view_grid_corner(ui: &mut Ui, dock: &mut DockState<Tab>) {
     let tree = dock.main_surface_mut();
@@ -3723,6 +3742,7 @@ impl eframe::App for App {
                 first_run: &mut self.first_run,
             };
             let style = crate::theme::dock_style(ui.style());
+            keep_panels_wide(self.dock.main_surface_mut());
             DockArea::new(&mut self.dock).style(style).show_leaf_collapse_buttons(false).show_leaf_close_all_buttons(false).show_inside(ui, &mut tabs);
             // Closing every tab of a leaf at once can take the last view with it.
             let open = open_views(&self.dock);
@@ -4081,6 +4101,31 @@ mod tests {
         let grouped: Vec<MeshOp> = MESH_OP_GROUPS.iter().flat_map(|(_, ops)| ops.iter().copied()).collect();
         assert_eq!(grouped.len(), MeshOp::ALL.len());
         assert!(MeshOp::ALL.iter().all(|op| grouped.contains(op)));
+    }
+
+    #[test]
+    fn side_panels_keep_their_width_in_a_narrow_window() {
+        let fractions = |window: f32| {
+            let mut dock = default_dock();
+            let tree = dock.main_surface_mut();
+            for i in 0..tree.len() {
+                if let Node::Horizontal(s) | Node::Vertical(s) = &mut tree[NodeIndex(i)] {
+                    s.rect = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(window, 500.0));
+                }
+            }
+
+            keep_panels_wide(tree);
+            let fraction = |i: NodeIndex| split_node(&tree[i]).unwrap().fraction;
+            let [grid, _, _] = view_grid(tree).unwrap();
+            (fraction(NodeIndex::root()), fraction(NodeIndex::root().left()), fraction(grid))
+        };
+
+        let (inspector, outliner, grid) = fractions(900.0);
+        assert!(((1.0 - inspector) * 900.0 - PANEL_MIN_WIDTH).abs() < 0.01, "the Inspector side grows to the minimum");
+        assert!((outliner * 900.0 - PANEL_MIN_WIDTH).abs() < 0.01, "the Outliner side grows to the minimum");
+        assert_eq!(grid, 0.5, "a split between views is left alone");
+        assert_eq!(fractions(2000.0).0, 0.78, "a panel already wide enough keeps its size");
+        assert!((fractions(600.0).0 - 2.0 / 3.0).abs() < 1e-6, "a window too narrow for the minimum gives a panel a third");
     }
 
     #[test]
