@@ -3041,122 +3041,127 @@ impl App {
     fn prefs_window(&mut self, ctx: &egui::Context) {
         self.mcp_pref_rects.clear();
         let mut open = self.show_prefs;
+        let max_height = (ctx.content_rect().height() - 96.0).max(160.0);
         crate::widgets::centered_window(en!("Preferences"), ctx).open(&mut open).resizable(false).show(ctx, |ui| {
-            egui::Grid::new("prefs_ui").num_columns(2).min_col_width(PREFS_LABEL_WIDTH).show(ui, |ui| self.ui_scale_prefs(ui));
-            ui.separator();
-            let p = &mut self.state.prefs;
-            egui::Grid::new("prefs").num_columns(2).min_col_width(PREFS_LABEL_WIDTH).show(ui, |ui| {
-                ui.label(tr("Fly speed"));
-                ui.add(egui::Slider::new(&mut p.fly_speed, 64.0..=8192.0).logarithmic(true));
-                ui.end_row();
-                ui.label(tr("Look sensitivity"));
-                ui.add(egui::Slider::new(&mut p.look_sensitivity, 0.001..=0.02));
-                ui.end_row();
-                ui.label(tr("Invert look Y"));
-                ui.checkbox(&mut p.invert_y, "");
-                ui.end_row();
-                ui.label(tr("Fly up and down"));
-                egui::ComboBox::from_id_salt("fly_keys")
-                    .selected_text(tr(crate::mouse_map::fly_choice_label(&p.fly_keys)))
-                    .show_ui(ui, |ui| {
-                        for choice in crate::mouse_map::FLY_CHOICES {
-                            ui.selectable_value(&mut p.fly_keys, choice.to_string(), tr(crate::mouse_map::fly_choice_label(choice)));
+            // egui's floating scroll bar is invisible until hovered, so a cut off window would not look scrollable.
+            ui.spacing_mut().scroll = egui::style::ScrollStyle::solid();
+            egui::ScrollArea::vertical().max_height(max_height).min_scrolled_height(max_height).show(ui, |ui| {
+                egui::Grid::new("prefs_ui").num_columns(2).min_col_width(PREFS_LABEL_WIDTH).show(ui, |ui| self.ui_scale_prefs(ui));
+                ui.separator();
+                let p = &mut self.state.prefs;
+                egui::Grid::new("prefs").num_columns(2).min_col_width(PREFS_LABEL_WIDTH).show(ui, |ui| {
+                    ui.label(tr("Fly speed"));
+                    ui.add(egui::Slider::new(&mut p.fly_speed, 64.0..=8192.0).logarithmic(true));
+                    ui.end_row();
+                    ui.label(tr("Look sensitivity"));
+                    ui.add(egui::Slider::new(&mut p.look_sensitivity, 0.001..=0.02));
+                    ui.end_row();
+                    ui.label(tr("Invert look Y"));
+                    ui.checkbox(&mut p.invert_y, "");
+                    ui.end_row();
+                    ui.label(tr("Fly up and down"));
+                    egui::ComboBox::from_id_salt("fly_keys")
+                        .selected_text(tr(crate::mouse_map::fly_choice_label(&p.fly_keys)))
+                        .show_ui(ui, |ui| {
+                            for choice in crate::mouse_map::FLY_CHOICES {
+                                ui.selectable_value(&mut p.fly_keys, choice.to_string(), tr(crate::mouse_map::fly_choice_label(choice)));
+                            }
+                        })
+                        .response
+                        .on_hover_text(tr("The keys that fly the camera up and down while the right mouse button is held"));
+                    ui.end_row();
+                    ui.label(tr("Tips on an empty map"));
+                    ui.checkbox(&mut p.start_hints, "");
+                    ui.end_row();
+                    ui.label(tr("Help text"));
+                    ui.checkbox(&mut p.help_text, "").on_hover_text(tr("Short guidance lines in the tool options bar and the panels"));
+                    ui.end_row();
+                    ui.label(tr("Grid opacity (3D)"));
+                    ui.add(egui::Slider::new(&mut p.grid_alpha, 0.0..=1.0));
+                    ui.end_row();
+                    ui.label(tr("Texture filtering"));
+                    let before = p.texture_filter;
+                    egui::ComboBox::from_id_salt("prefs_filter").selected_text(tr(p.texture_filter.label())).show_ui(ui, |ui| {
+                        use crate::state::TextureFilter;
+                        for filter in [TextureFilter::Auto, TextureFilter::Nearest, TextureFilter::Linear] {
+                            ui.selectable_value(&mut p.texture_filter, filter, tr(filter.label()));
                         }
-                    })
-                    .response
-                    .on_hover_text(tr("The keys that fly the camera up and down while the right mouse button is held"));
-                ui.end_row();
-                ui.label(tr("Tips on an empty map"));
-                ui.checkbox(&mut p.start_hints, "");
-                ui.end_row();
-                ui.label(tr("Help text"));
-                ui.checkbox(&mut p.help_text, "").on_hover_text(tr("Short guidance lines in the tool options bar and the panels"));
-                ui.end_row();
-                ui.label(tr("Grid opacity (3D)"));
-                ui.add(egui::Slider::new(&mut p.grid_alpha, 0.0..=1.0));
-                ui.end_row();
-                ui.label(tr("Texture filtering"));
-                let before = p.texture_filter;
-                egui::ComboBox::from_id_salt("prefs_filter").selected_text(tr(p.texture_filter.label())).show_ui(ui, |ui| {
-                    use crate::state::TextureFilter;
-                    for filter in [TextureFilter::Auto, TextureFilter::Nearest, TextureFilter::Linear] {
-                        ui.selectable_value(&mut p.texture_filter, filter, tr(filter.label()));
-                    }
-                });
-                if p.texture_filter != before {
-                    self.state.material_reload = true;
-                }
-
-                ui.end_row();
-                ui.label(tr("Godot executable"));
-                ui.horizontal(|ui| {
-                    let mut text = p.godot_path.to_string_lossy().into_owned();
-                    if ui.add(egui::TextEdit::singleline(&mut text).hint_text(tr("auto (GODOT env or PATH)")).desired_width(220.0)).changed() {
-                        p.godot_path = std::path::PathBuf::from(text);
+                    });
+                    if p.texture_filter != before {
+                        self.state.material_reload = true;
                     }
 
-                    if ui.button("…").clicked()
-                        && let Some(f) = crate::commands::file_dialog_in(None, rfd::FileDialog::pick_file)
-                    {
-                        p.godot_path = f;
-                    }
+                    ui.end_row();
+                    ui.label(tr("Godot executable"));
+                    ui.horizontal(|ui| {
+                        let mut text = p.godot_path.to_string_lossy().into_owned();
+                        if ui.add(egui::TextEdit::singleline(&mut text).hint_text(tr("auto (GODOT env or PATH)")).desired_width(220.0)).changed() {
+                            p.godot_path = std::path::PathBuf::from(text);
+                        }
+
+                        if ui.button("…").clicked()
+                            && let Some(f) = crate::commands::file_dialog_in(None, rfd::FileDialog::pick_file)
+                        {
+                            p.godot_path = f;
+                        }
+                    });
+                    ui.end_row();
+                    ui.label("");
+                    match &self.state.godot.exe {
+                        Some(exe) => ui.label(RichText::new(trf!("Using {path}", path = exe.display())).weak()),
+                        None => ui.label(
+                            RichText::new(tr("Not found, Run Project and Open Project in Godot Editor are disabled")).color(crate::theme::colors().yellow),
+                        ),
+                    };
+                    ui.end_row();
+                    ui.label(tr("Autosave (minutes, 0 = off)"));
+                    ui.add(egui::DragValue::new(&mut p.autosave_minutes).range(0.0..=60.0));
+                    ui.end_row();
+                    ui.label(tr("Editor updates"));
+                    ui.checkbox(&mut p.update_check, tr("Look for a newer build once a day"));
+                    ui.end_row();
+                    ui.label(tr("Godot live link"));
+                    ui.horizontal(|ui| {
+                        ui.checkbox(&mut p.live_link, tr("rebuild maps in Godot on save"));
+                        ui.add(egui::DragValue::new(&mut p.live_link_port).range(1024..=65535));
+                    });
+                    ui.end_row();
+                    ui.label(tr("Godot live mode"));
+                    ui.add_enabled_ui(p.live_link, |ui| ui.checkbox(&mut p.live_mode, tr("push edits to Godot before saving")))
+                        .response
+                        .on_hover_text(tr("Edits appear right away in a Godot scene that uses the map. Saving still rebuilds it fully"));
+                    ui.end_row();
+                    ui.label(tr("Running game hot reload"));
+                    ui.horizontal(|ui| {
+                        ui.checkbox(&mut p.hot_reload, tr("reload maps in a running game"));
+                        ui.add(egui::DragValue::new(&mut p.hot_reload_port).range(1024..=65535));
+                    });
+                    ui.end_row();
+                    ui.label(tr("Keymap preset"));
+                    egui::ComboBox::from_id_salt("prefs_keymap").selected_text(commands::preset_label(&p.keymap_preset)).show_ui(ui, |ui| {
+                        for preset in commands::PRESETS {
+                            ui.selectable_value(&mut p.keymap_preset, preset.to_string(), commands::preset_label(preset));
+                        }
+                    });
+                    ui.end_row();
+                    ui.label(tr("New brush depth from selection"));
+                    ui.checkbox(&mut p.draw_depth_from_selection, "")
+                        .on_hover_text(tr("A brush drawn in a 2D view takes the depth of the selection, like in Hammer"));
+                    ui.end_row();
+                    ui.label(tr("Experimental"));
+                    crate::terrain3d::experimental_toggle(ui, p);
+                    ui.end_row();
                 });
-                ui.end_row();
-                ui.label("");
-                match &self.state.godot.exe {
-                    Some(exe) => ui.label(RichText::new(trf!("Using {path}", path = exe.display())).weak()),
-                    None => {
-                        ui.label(RichText::new(tr("Not found, Run Project and Open Project in Godot Editor are disabled")).color(crate::theme::colors().yellow))
-                    }
-                };
-                ui.end_row();
-                ui.label(tr("Autosave (minutes, 0 = off)"));
-                ui.add(egui::DragValue::new(&mut p.autosave_minutes).range(0.0..=60.0));
-                ui.end_row();
-                ui.label(tr("Editor updates"));
-                ui.checkbox(&mut p.update_check, tr("Look for a newer build once a day"));
-                ui.end_row();
-                ui.label(tr("Godot live link"));
-                ui.horizontal(|ui| {
-                    ui.checkbox(&mut p.live_link, tr("rebuild maps in Godot on save"));
-                    ui.add(egui::DragValue::new(&mut p.live_link_port).range(1024..=65535));
+                ui.separator();
+                let advanced = crate::widgets::collapsing(tr("Advanced")).id_salt("Advanced").default_open(false).show(ui, |ui| {
+                    ui.label(tr("For scripts and AI tools that drive the editor over MCP. Off by default."));
+                    self.mcp_prefs(ui);
                 });
-                ui.end_row();
-                ui.label(tr("Godot live mode"));
-                ui.add_enabled_ui(p.live_link, |ui| ui.checkbox(&mut p.live_mode, tr("push edits to Godot before saving")))
-                    .response
-                    .on_hover_text(tr("Edits appear right away in a Godot scene that uses the map. Saving still rebuilds it fully"));
-                ui.end_row();
-                ui.label(tr("Running game hot reload"));
-                ui.horizontal(|ui| {
-                    ui.checkbox(&mut p.hot_reload, tr("reload maps in a running game"));
-                    ui.add(egui::DragValue::new(&mut p.hot_reload_port).range(1024..=65535));
-                });
-                ui.end_row();
-                ui.label(tr("Keymap preset"));
-                egui::ComboBox::from_id_salt("prefs_keymap").selected_text(commands::preset_label(&p.keymap_preset)).show_ui(ui, |ui| {
-                    for preset in commands::PRESETS {
-                        ui.selectable_value(&mut p.keymap_preset, preset.to_string(), commands::preset_label(preset));
-                    }
-                });
-                ui.end_row();
-                ui.label(tr("New brush depth from selection"));
-                ui.checkbox(&mut p.draw_depth_from_selection, "")
-                    .on_hover_text(tr("A brush drawn in a 2D view takes the depth of the selection, like in Hammer"));
-                ui.end_row();
-                ui.label(tr("Experimental"));
-                crate::terrain3d::experimental_toggle(ui, p);
-                ui.end_row();
+                self.mcp_pref_rects.push(("advanced", advanced.header_response.rect));
+
+                ui.separator();
+                crate::trust::trusted_list(ui, &mut self.state);
             });
-            ui.separator();
-            let advanced = crate::widgets::collapsing(tr("Advanced")).id_salt("Advanced").default_open(false).show(ui, |ui| {
-                ui.label(tr("For scripts and AI tools that drive the editor over MCP. Off by default."));
-                self.mcp_prefs(ui);
-            });
-            self.mcp_pref_rects.push(("advanced", advanced.header_response.rect));
-
-            ui.separator();
-            crate::trust::trusted_list(ui, &mut self.state);
         });
         self.show_prefs = open;
     }
