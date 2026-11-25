@@ -262,6 +262,7 @@ pub(crate) fn key_scope(ctx: &egui::Context, had_focus: bool, view_hovered: bool
 }
 
 const PREFS_LABEL_WIDTH: f32 = 180.0;
+const PREFS_PATH_WIDTH: f32 = 220.0;
 const UI_SCALE_PRESETS: [f32; 6] = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 
 const PANEL_TABS: [Tab; 12] = [
@@ -3095,7 +3096,7 @@ impl App {
                     ui.label(tr("Godot executable"));
                     ui.horizontal(|ui| {
                         let mut text = p.godot_path.to_string_lossy().into_owned();
-                        if ui.add(egui::TextEdit::singleline(&mut text).hint_text(tr("auto (GODOT env or PATH)")).desired_width(220.0)).changed() {
+                        if crate::widgets::path_edit(ui, "godot_path", &mut text, tr("auto (GODOT env or PATH)"), PREFS_PATH_WIDTH).changed() {
                             p.godot_path = std::path::PathBuf::from(text);
                         }
 
@@ -3108,7 +3109,11 @@ impl App {
                     ui.end_row();
                     ui.label("");
                     match &self.state.godot.exe {
-                        Some(exe) => ui.label(RichText::new(trf!("Using {path}", path = exe.display())).weak()),
+                        Some(exe) => {
+                            let full = exe.display().to_string();
+                            let shown = crate::widgets::elide_start(ui, &full, &egui::TextStyle::Body.resolve(ui.style()), PREFS_PATH_WIDTH);
+                            ui.label(RichText::new(trf!("Using {path}", path = shown)).weak()).on_hover_text(full)
+                        }
                         None => ui.label(
                             RichText::new(tr("Not found, Run Project and Open Project in Godot Editor are disabled")).color(crate::theme::colors().yellow),
                         ),

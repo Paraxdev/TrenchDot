@@ -205,6 +205,50 @@ pub fn text_field(ui: &mut Ui, value: &mut String, width: f32) -> bool {
     ui.add_sized([width.max(40.0), ROW_HEIGHT - 2.0], egui::TextEdit::singleline(value)).changed()
 }
 
+/// The end of `text` that fits in `width` behind an ellipsis, since the end of a path names the file.
+pub fn elide_start(ui: &Ui, text: &str, font: &FontId, width: f32) -> String {
+    let measure = |s: &str| ui.fonts_mut(|f| f.layout_no_wrap(s.to_string(), font.clone(), Color32::WHITE).size().x);
+    if measure(text) <= width {
+        return text.to_string();
+    }
+
+    let mut room = width - measure("…");
+    let mut start = text.len();
+    ui.fonts_mut(|f| {
+        for (i, c) in text.char_indices().rev() {
+            room -= f.glyph_width(font, c);
+            if room < 0.0 {
+                break;
+            }
+
+            start = i;
+        }
+    });
+    format!("…{}", &text[start..])
+}
+
+/// A one line path field. egui shows an unfocused field from its start and cuts it mid glyph, which hides the file
+/// name, so until it has focus a path too long for it shows its end, with the whole path on hover.
+pub fn path_edit(ui: &mut Ui, id_salt: &str, path: &mut String, hint: &str, width: f32) -> egui::Response {
+    let id = ui.make_persistent_id(id_salt);
+    let font = egui::TextStyle::Body.resolve(ui.style());
+    let shown = elide_start(ui, path, &font, width - 8.0);
+    if shown == *path || ui.memory(|m| m.has_focus(id)) {
+        return ui.add(egui::TextEdit::singleline(path).id(id).hint_text(hint).desired_width(width));
+    }
+
+    let mut shown = shown;
+    let response = ui.add(egui::TextEdit::singleline(&mut shown).id(id).desired_width(width)).on_hover_text(path.as_str());
+    if response.has_focus() {
+        let mut state = egui::text_edit::TextEditState::load(ui.ctx(), id).unwrap_or_default();
+        let end = egui::text::CCursor::new(path.chars().count());
+        state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
+        state.store(ui.ctx(), id);
+    }
+
+    response
+}
+
 /// Swatch that opens a picker, next to the raw value so it can also be typed.
 pub fn color_input(ui: &mut Ui, value: &mut String, width: f32) -> bool {
     let mut hsva = picker_hsva(ui.ctx(), value);
@@ -698,5 +742,22 @@ mod tests {
         assert_eq!(picker_hsva(&ctx, &value).h, green.h);
 
         assert_eq!(picker_hsva(&egui::Context::default(), "0 0 0").h, 0.0, "a typed gray has no hue to keep");
+    }
+
+    #[test]
+    fn a_path_too_long_for_its_field_keeps_its_end() {
+        let ctx = egui::Context::default();
+        ctx.begin_pass(egui::RawInput::default());
+        egui::Window::new("path").show(&ctx, |ui| {
+            let font = egui::TextStyle::Body.resolve(ui.style());
+            let path = r"C:\APPS\Godot_v4.7.2-stable_win64.exe\Godot_v4.7.2-stable_win64.exe";
+            assert_eq!(elide_start(ui, path, &font, 2000.0), path, "a path that fits stays whole");
+            let shown = elide_start(ui, path, &font, 150.0);
+            let tail = shown.strip_prefix('…').unwrap_or_else(|| panic!("{shown} starts with an ellipsis"));
+            assert!(path.ends_with(tail) && tail.ends_with("win64.exe"), "{shown}");
+            let width = ui.fonts_mut(|f| f.layout_no_wrap(shown.clone(), font.clone(), Color32::WHITE).size().x);
+            assert!(width <= 150.0, "{shown} is {width} wide");
+        });
+        ctx.end_pass().drop_without_applying_deltas();
     }
 }
