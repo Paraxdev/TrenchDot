@@ -934,6 +934,28 @@ fn selected(ed: &Editor) -> Vec<u64> {
 
 #[test]
 #[ignore]
+fn shift_alt_pushes_and_ctrl_shift_alt_extrudes_a_face_in_hammer() {
+    let ed = Editor::launch("hammer_face_push");
+    let slab = ed.box_brush([-384.0, 112.0, -384.0], [384.0, 128.0, 384.0]);
+    ed.call("set_editor", json!({ "keymap": "hammer" }));
+    ed.call("select", json!({ "ids": [slab] }));
+    ed.call("set_camera", json!({ "view": "3d", "position": [-300, 250, 300], "look_at": [0, 64, 0] }));
+    ed.input("3d", json!([{ "type": "drag", "world": [-200, 128, 200], "to_world": [-200, 192, 200], "modifiers": ["shift", "alt"], "steps": 12 }]));
+    let (min, max) = ed.selection_bounds();
+    assert!(min[1] == 112.0 && max[1] > 128.0, "Shift+Alt should raise only the top face, got {min:?} {max:?}");
+    assert_eq!(ed.brushes(), 1, "a push copies nothing");
+
+    // The raised slab's rotate ring now crosses the first spot on screen.
+    let top = max[1];
+    ed.input(
+        "3d",
+        json!([{ "type": "drag", "world": [200, top, 200], "to_world": [200, top + 64.0, 200], "modifiers": ["ctrl", "shift", "alt"], "steps": 12 }]),
+    );
+    assert_eq!(ed.brushes(), 2, "Ctrl+Shift+Alt extrudes a new brush, undo {}", ed.state()["undo"]);
+}
+
+#[test]
+#[ignore]
 fn the_shape_generator_shows_its_own_box() {
     let ed = Editor::launch("shape_box");
     let a = ed.box_brush([-37.0, 5.0, 22.0], [51.0, 70.0, 99.0]);

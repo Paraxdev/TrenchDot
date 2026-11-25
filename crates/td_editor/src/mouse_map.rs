@@ -175,11 +175,16 @@ pub enum SelectionDrag {
     ExtrudeFace,
 }
 
-/// What dragging the selection does with the modifiers held when the button went down. Alt only changes the plane of
-/// a move, so it does not appear here. An unknown preset id drags like TrenchBroom.
+/// What dragging the selection does with the modifiers held when the button went down. Alt otherwise only changes the
+/// plane of a move. Shift+Alt pushes a selected face and Ctrl+Shift+Alt extrudes it in every preset. An unknown preset
+/// id drags like TrenchBroom.
 pub fn selection_drag(preset: &str, chord: Chord, hit: DragHit) -> SelectionDrag {
-    let Chord { command, shift, .. } = chord;
+    let Chord { command, shift, alt, .. } = chord;
     if preset == "hammer" {
+        if hit == DragHit::SelectedFace3d && shift && alt {
+            return if command { SelectionDrag::ExtrudeFace } else { SelectionDrag::PushFace };
+        }
+
         return match hit {
             _ if command || shift => SelectionDrag::Copy,
             DragHit::Edge2d => SelectionDrag::Resize,
@@ -466,6 +471,8 @@ pub fn mouse_rows_flying(preset: &str, fly_choice: &str) -> Vec<MouseRow> {
             drag("", en!("Drag the selection"), en!("Move it"), DragHit::Selected, SelectionDrag::Move),
             drag("s", en!("Shift+drag the selection"), en!("Copy it and move the copy"), DragHit::Selected, SelectionDrag::Copy),
             drag("c", en!("Ctrl+drag the selection"), en!("Copy it and move the copy"), DragHit::Selected, SelectionDrag::Copy),
+            drag("as", en!("Shift+Alt+drag a selected face (3D)"), en!("Push or pull the face"), DragHit::SelectedFace3d, SelectionDrag::PushFace),
+            drag("acs", en!("Ctrl+Shift+Alt+drag a selected face (3D)"), en!("Extrude a new brush"), DragHit::SelectedFace3d, SelectionDrag::ExtrudeFace),
             drag("", en!("Drag a selection edge (2D)"), en!("Resize along it. Shift or Ctrl copies instead"), DragHit::Edge2d, SelectionDrag::Resize),
             space(en!("Space+drag (2D)"), en!("Pan"), true, CameraDrag::Pan),
             space(en!("Space+drag (3D)"), fly_text(preset, fly_choice), false, CameraDrag::Look),
@@ -910,13 +917,31 @@ mod tests {
     }
 
     #[test]
-    fn hammer_copies_with_shift_or_ctrl_and_never_resizes_a_face() {
+    fn hammer_copies_with_shift_or_ctrl_and_pushes_a_face_only_with_shift_alt() {
         use SelectionDrag::*;
         for (command, shift, alt) in MODS {
             for hit in [DragHit::SelectedFace3d, DragHit::Selected] {
-                let want = if command || shift { Copy } else { Move };
+                let want = match () {
+                    _ if hit == DragHit::SelectedFace3d && shift && alt => {
+                        if command {
+                            ExtrudeFace
+                        } else {
+                            PushFace
+                        }
+                    }
+                    _ if command || shift => Copy,
+                    _ => Move,
+                };
                 assert_eq!(selection_drag("hammer", drag(command, shift, alt), hit), want, "{command} {shift} {alt} {hit:?}");
             }
+        }
+    }
+
+    #[test]
+    fn shift_alt_pushes_and_ctrl_shift_alt_extrudes_a_face_in_every_preset() {
+        for preset in crate::commands::PRESETS.into_iter().chain(["unknown"]) {
+            assert_eq!(selection_drag(preset, drag(false, true, true), DragHit::SelectedFace3d), SelectionDrag::PushFace, "{preset}");
+            assert_eq!(selection_drag(preset, drag(true, true, true), DragHit::SelectedFace3d), SelectionDrag::ExtrudeFace, "{preset}");
         }
     }
 
@@ -970,8 +995,8 @@ mod tests {
             assert!(has(SelectionDrag::Resize), "{preset}");
             assert!(has(SelectionDrag::Move), "{preset}");
             assert_eq!(has(SelectionDrag::Copy), preset == "hammer", "{preset}");
-            assert_eq!(has(SelectionDrag::PushFace), preset != "hammer", "{preset}");
-            assert_eq!(has(SelectionDrag::ExtrudeFace), preset != "hammer", "{preset}");
+            assert!(has(SelectionDrag::PushFace), "{preset}");
+            assert!(has(SelectionDrag::ExtrudeFace), "{preset}");
         }
 
         let copies = |preset| {

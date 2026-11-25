@@ -244,9 +244,10 @@ fn the_hammer_mouse_table_names_its_clicks_and_leaves_shift_to_cloning() {
 }
 
 #[test]
-fn the_hammer_mouse_table_has_no_face_drags() {
+fn the_hammer_mouse_table_drags_a_face_only_with_alt() {
     let cells = mouse_cells(&table("Hammer input").rows);
-    assert!(cells.iter().all(|c| !c.contains("face")), "{cells:?}");
+    let faces: Vec<_> = cells.iter().filter(|c| c.contains("face")).collect();
+    assert_eq!(faces, ["shift+alt+drag a selected face (3d)", "ctrl+shift+alt+drag a selected face (3d)"], "{cells:?}");
 }
 
 #[test]

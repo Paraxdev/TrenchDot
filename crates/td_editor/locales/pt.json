@@ -2926,5 +2926,7 @@
   "E up, Q down": "E sobe, Q desce",
   "Q up, X down": "Q sobe, X desce",
   "As in the keymap preset": "Como no preset de teclas",
-  "The keys that fly the camera up and down while the right mouse button is held": "As teclas que sobem e descem a câmera ao voar com o botão direito do mouse pressionado"
+  "The keys that fly the camera up and down while the right mouse button is held": "As teclas que sobem e descem a câmera ao voar com o botão direito do mouse pressionado",
+  "Shift+Alt+drag a selected face (3D)": "Shift+Alt+arrastar uma face selecionada (3D)",
+  "Ctrl+Shift+Alt+drag a selected face (3D)": "Ctrl+Shift+Alt+arrastar uma face selecionada (3D)"
 }

@@ -2926,5 +2926,7 @@
   "E up, Q down": "E 上升，Q 下降",
   "Q up, X down": "Q 上升，X 下降",
   "As in the keymap preset": "跟随快捷键预设",
-  "The keys that fly the camera up and down while the right mouse button is held": "按住鼠标右键飞行时，让相机上升和下降的按键"
+  "The keys that fly the camera up and down while the right mouse button is held": "按住鼠标右键飞行时，让相机上升和下降的按键",
+  "Shift+Alt+drag a selected face (3D)": "Shift+Alt+拖动选中的面 (3D)",
+  "Ctrl+Shift+Alt+drag a selected face (3D)": "Ctrl+Shift+Alt+拖动选中的面 (3D)"
 }
