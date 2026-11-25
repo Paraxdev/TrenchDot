@@ -499,14 +499,14 @@ pub fn mouse_rows_flying(preset: &str, fly_choice: &str) -> Vec<MouseRow> {
         empty(
             "ca",
             en!("Ctrl+Alt+drag off the selection"),
-            en!("Draw a box that selects what lies wholly inside it"),
+            en!("Draw a box that selects what it touches in a 2D view, or what lies wholly inside it in 3D"),
             None,
             EmptyDrag::ScreenBox { add: false },
         ),
         empty(
             "csa",
             en!("Ctrl+Shift+Alt+drag off the selection"),
-            en!("Draw a box that adds what lies wholly inside it to the selection"),
+            en!("Draw a box that adds to the selection, like Ctrl+Alt+drag"),
             None,
             EmptyDrag::ScreenBox { add: true },
         ),

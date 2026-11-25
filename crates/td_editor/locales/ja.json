@@ -2929,11 +2929,12 @@
   "Shift+Alt+drag a selected face (3D)": "選択した面を Shift+Alt+ドラッグ (3D)",
   "Ctrl+Shift+Alt+drag a selected face (3D)": "選択した面を Ctrl+Shift+Alt+ドラッグ (3D)",
   "Ctrl+Alt+drag off the selection": "選択範囲の外をCtrl+Alt+ドラッグ",
-  "Draw a box that selects what lies wholly inside it": "ボックスを描き、完全に内側にあるものを選択する",
+  "Draw a box that selects what it touches in a 2D view, or what lies wholly inside it in 3D": "ボックスを描き、2D ビューでは触れたものを、3D では完全に内側にあるものを選択する",
   "Ctrl+Shift+Alt+drag off the selection": "選択範囲の外をCtrl+Shift+Alt+ドラッグ",
-  "Draw a box that adds what lies wholly inside it to the selection": "ボックスを描き、完全に内側にあるものを選択に追加する",
+  "Draw a box that adds to the selection, like Ctrl+Alt+drag": "Ctrl+Alt+ドラッグと同じくボックスを描き、選択に追加する",
   "Face Cut": "面で切り抜き",
   "Push {dist}, Tab switches to Extrude": "押す {dist}、Tab で押し出しへ",
   "Extrude {dist}, Tab switches to Cut": "押し出し {dist}、Tab で切り抜きへ",
-  "Cut {dist}, Tab switches to Push": "切り抜き {dist}、Tab で押すへ"
+  "Cut {dist}, Tab switches to Push": "切り抜き {dist}、Tab で押すへ",
+  "The box touches nothing": "ボックスは何にも触れていません"
 }

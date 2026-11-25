@@ -47,7 +47,9 @@ Select tool, a drag off the selection then draws a box on the screen instead of 
 away from it. A click still selects as before, and Alt+B again goes back to drawing.
 
 You can also draw one box without turning Box Select on. With the Select tool, hold Ctrl+Alt and drag off the selection,
-in any view and with any keymap preset. It selects the same way, and Ctrl+Shift+Alt+drag adds to the selection.
+in any view and with any keymap preset. In a 2D view this box selects every object it touches, a slanted brush only where
+its outline reaches into the box, so you can grab a row of brushes without fitting each one inside. In the 3D view it
+takes what lies wholly inside, like Box Select. Ctrl+Shift+Alt+drag adds to the selection.
 
 With faces selected, the box selects faces instead, the ones whose center lies inside the box. Select a brush and use
 *Edit > Select > Brush Faces* to get into face selection. In the 3D view the box only takes the faces turned to you and

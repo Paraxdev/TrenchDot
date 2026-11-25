@@ -201,11 +201,13 @@ pub enum Drag {
     },
     /// Drawing the Hammer preset's selection box, kept in `EditorState::selection_box`. Holds no transaction either.
     SelectBox,
-    /// Box Select's box on the screen, from `start` to `end`. Holds no transaction.
+    /// Box Select's box on the screen, from `start` to `end`. Holds no transaction. With `touch` it takes every object
+    /// it reaches rather than only whole ones.
     ScreenBox {
         start: egui::Pos2,
         end: egui::Pos2,
         op: crate::box_select::BoxOp,
+        touch: bool,
     },
     /// Tool specific drags handled by the tool itself.
     Tool,

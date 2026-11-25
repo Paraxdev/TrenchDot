@@ -951,6 +951,9 @@ fn ctrl_alt_drag_box_selects_in_every_preset_and_view() {
         assert_eq!(selected(&ed), [a], "{preset} 2D box");
         ed.input("top", json!([{ "type": "drag", "world": [80, 0, -16], "to_world": [144, 0, 48], "modifiers": ["ctrl", "shift", "alt"] }]));
         assert_eq!(sorted(selected(&ed)), sorted(vec![a, b]), "{preset} Shift adds");
+        ed.call("run_action", json!({ "action": "select_none" }));
+        ed.input("top", json!([{ "type": "drag", "world": [16, 0, 8], "to_world": [112, 0, 24], "modifiers": ["ctrl", "alt"] }]));
+        assert_eq!(sorted(selected(&ed)), sorted(vec![a, b]), "{preset} a 2D box takes what it only touches");
 
         ed.call("set_camera", json!({ "view": "3d", "position": [64, 400, 260], "look_at": [64, 0, 16] }));
         ed.call("run_action", json!({ "action": "select_none" }));

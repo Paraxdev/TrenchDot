@@ -2929,11 +2929,12 @@
   "Shift+Alt+drag a selected face (3D)": "Shift+Alt+拖动选中的面 (3D)",
   "Ctrl+Shift+Alt+drag a selected face (3D)": "Ctrl+Shift+Alt+拖动选中的面 (3D)",
   "Ctrl+Alt+drag off the selection": "在选择之外 Ctrl+Alt+拖动",
-  "Draw a box that selects what lies wholly inside it": "绘制一个框，选择完全在框内的对象",
+  "Draw a box that selects what it touches in a 2D view, or what lies wholly inside it in 3D": "绘制一个框，在 2D 视图中选择它接触到的对象，在 3D 中选择完全在框内的对象",
   "Ctrl+Shift+Alt+drag off the selection": "在选择之外 Ctrl+Shift+Alt+拖动",
-  "Draw a box that adds what lies wholly inside it to the selection": "绘制一个框，把完全在框内的对象加入选择",
+  "Draw a box that adds to the selection, like Ctrl+Alt+drag": "像 Ctrl+Alt+拖动一样绘制一个框，并加入选择",
   "Face Cut": "面切割",
   "Push {dist}, Tab switches to Extrude": "推动 {dist}，Tab 切换到挤出",
   "Extrude {dist}, Tab switches to Cut": "挤出 {dist}，Tab 切换到切割",
-  "Cut {dist}, Tab switches to Push": "切割 {dist}，Tab 切换到推动"
+  "Cut {dist}, Tab switches to Push": "切割 {dist}，Tab 切换到推动",
+  "The box touches nothing": "框没有接触到任何对象"
 }

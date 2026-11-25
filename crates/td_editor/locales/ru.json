@@ -2929,11 +2929,12 @@
   "Shift+Alt+drag a selected face (3D)": "Shift+Alt+тянуть выделенную грань (3D)",
   "Ctrl+Shift+Alt+drag a selected face (3D)": "Ctrl+Shift+Alt+тянуть выделенную грань (3D)",
   "Ctrl+Alt+drag off the selection": "Ctrl+Alt+тянуть вне выделения",
-  "Draw a box that selects what lies wholly inside it": "Нарисовать рамку, которая выделяет то, что целиком внутри",
+  "Draw a box that selects what it touches in a 2D view, or what lies wholly inside it in 3D": "Нарисовать рамку, которая в 2D виде выделяет то, чего касается, а в 3D то, что целиком внутри",
   "Ctrl+Shift+Alt+drag off the selection": "Ctrl+Shift+Alt+тянуть вне выделения",
-  "Draw a box that adds what lies wholly inside it to the selection": "Нарисовать рамку, которая добавляет к выделению то, что целиком внутри",
+  "Draw a box that adds to the selection, like Ctrl+Alt+drag": "Нарисовать рамку, которая добавляет к выделению, как Ctrl+Alt+тянуть",
   "Face Cut": "Вырез гранью",
   "Push {dist}, Tab switches to Extrude": "Сдвиг {dist}, Tab переключает на выдавливание",
   "Extrude {dist}, Tab switches to Cut": "Выдавливание {dist}, Tab переключает на вырез",
-  "Cut {dist}, Tab switches to Push": "Вырез {dist}, Tab переключает на сдвиг"
+  "Cut {dist}, Tab switches to Push": "Вырез {dist}, Tab переключает на сдвиг",
+  "The box touches nothing": "Рамка ничего не касается"
 }

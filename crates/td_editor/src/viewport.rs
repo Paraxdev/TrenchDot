@@ -719,8 +719,8 @@ impl Viewport {
         if (response.drag_stopped_by(PointerButton::Primary) || (self.drag.is_some() && !self.is_camera_drag() && !ui.input(|i| i.pointer.primary_down())))
             && let Some(drag) = self.drag.take()
         {
-            if let Drag::ScreenBox { start, end, op } = drag {
-                crate::box_select::apply(cx.state, &self.camera, self.rect, start, pointer.unwrap_or(end), op);
+            if let Drag::ScreenBox { start, end, op, touch } = drag {
+                crate::box_select::apply(cx.state, &self.camera, self.rect, start, pointer.unwrap_or(end), op, touch);
                 return;
             }
 
@@ -856,11 +856,11 @@ impl Viewport {
         let empty = empty_drag(&preset, state.tool, Chord::new(Button::Drag, modifiers), self.camera.kind.is_2d());
         if let EmptyDrag::ScreenBox { add } = empty {
             let op = if add { crate::box_select::BoxOp::Add } else { crate::box_select::BoxOp::Replace };
-            return Some(Drag::ScreenBox { start: origin, end: origin, op });
+            return Some(Drag::ScreenBox { start: origin, end: origin, op, touch: self.camera.kind.is_2d() });
         }
 
         if state.prefs.box_select && state.tool == ToolKind::Select {
-            return Some(Drag::ScreenBox { start: origin, end: origin, op: crate::box_select::BoxOp::from_modifiers(modifiers) });
+            return Some(Drag::ScreenBox { start: origin, end: origin, op: crate::box_select::BoxOp::from_modifiers(modifiers), touch: false });
         }
 
         match empty {

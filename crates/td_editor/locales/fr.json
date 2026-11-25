@@ -2929,11 +2929,12 @@
   "Shift+Alt+drag a selected face (3D)": "Shift+Alt+glisser une face sélectionnée (3D)",
   "Ctrl+Shift+Alt+drag a selected face (3D)": "Ctrl+Shift+Alt+glisser une face sélectionnée (3D)",
   "Ctrl+Alt+drag off the selection": "Ctrl+Alt+glisser hors de la sélection",
-  "Draw a box that selects what lies wholly inside it": "Tracer une boîte qui sélectionne ce qui s'y trouve entièrement",
+  "Draw a box that selects what it touches in a 2D view, or what lies wholly inside it in 3D": "Tracer une boîte qui sélectionne ce qu'elle touche dans une vue 2D, ou ce qui s'y trouve entièrement en 3D",
   "Ctrl+Shift+Alt+drag off the selection": "Ctrl+Shift+Alt+glisser hors de la sélection",
-  "Draw a box that adds what lies wholly inside it to the selection": "Tracer une boîte qui ajoute à la sélection ce qui s'y trouve entièrement",
+  "Draw a box that adds to the selection, like Ctrl+Alt+drag": "Tracer une boîte qui ajoute à la sélection, comme Ctrl+Alt+glisser",
   "Face Cut": "Découpe par face",
   "Push {dist}, Tab switches to Extrude": "Pousser {dist}, Tab passe à Extruder",
   "Extrude {dist}, Tab switches to Cut": "Extruder {dist}, Tab passe à Découper",
-  "Cut {dist}, Tab switches to Push": "Découper {dist}, Tab passe à Pousser"
+  "Cut {dist}, Tab switches to Push": "Découper {dist}, Tab passe à Pousser",
+  "The box touches nothing": "La boîte ne touche rien"
 }
