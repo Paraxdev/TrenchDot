@@ -934,6 +934,34 @@ fn selected(ed: &Editor) -> Vec<u64> {
 
 #[test]
 #[ignore]
+fn ctrl_alt_drag_box_selects_in_every_preset_and_view() {
+    let ed = Editor::launch("ctrl_alt_box");
+    let a = ed.box_brush([0.0, 0.0, 0.0], [32.0, 32.0, 32.0]);
+    let b = ed.box_brush([96.0, 0.0, 0.0], [128.0, 32.0, 32.0]);
+    let count = || ed.call("list_nodes", json!({ "type": "brush" }))["nodes"].as_array().unwrap().len();
+    let sorted = |mut ids: Vec<u64>| {
+        ids.sort();
+        ids
+    };
+    for preset in ["trenchbroom", "hammer", "blender"] {
+        ed.call("set_editor", json!({ "keymap": preset }));
+        ed.call("set_camera", json!({ "view": "top", "center": [64, 0, 16], "zoom": 1.0 }));
+        ed.call("run_action", json!({ "action": "select_none" }));
+        ed.input("top", json!([{ "type": "drag", "world": [-16, 0, -16], "to_world": [48, 0, 48], "modifiers": ["ctrl", "alt"] }]));
+        assert_eq!(selected(&ed), [a], "{preset} 2D box");
+        ed.input("top", json!([{ "type": "drag", "world": [80, 0, -16], "to_world": [144, 0, 48], "modifiers": ["ctrl", "shift", "alt"] }]));
+        assert_eq!(sorted(selected(&ed)), sorted(vec![a, b]), "{preset} Shift adds");
+
+        ed.call("set_camera", json!({ "view": "3d", "position": [64, 400, 260], "look_at": [64, 0, 16] }));
+        ed.call("run_action", json!({ "action": "select_none" }));
+        ed.input("3d", json!([{ "type": "drag", "world": [-120, 0, -120], "to_world": [250, 0, 150], "modifiers": ["ctrl", "alt"], "steps": 8 }]));
+        assert_eq!(sorted(selected(&ed)), sorted(vec![a, b]), "{preset} 3D box");
+        assert_eq!(count(), 2, "{preset} the box draws no brush");
+    }
+}
+
+#[test]
+#[ignore]
 fn shift_alt_pushes_and_ctrl_shift_alt_extrudes_a_face_in_hammer() {
     let ed = Editor::launch("hammer_face_push");
     let slab = ed.box_brush([-384.0, 112.0, -384.0], [384.0, 128.0, 384.0]);

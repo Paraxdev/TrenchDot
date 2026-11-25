@@ -46,6 +46,9 @@ Select tool, a drag off the selection then draws a box on the screen instead of 
 2D views. On release it selects every object lying wholly inside. Shift+drag adds to the selection and Ctrl+drag takes
 away from it. A click still selects as before, and Alt+B again goes back to drawing.
 
+You can also draw one box without turning Box Select on. With the Select tool, hold Ctrl+Alt and drag off the selection,
+in any view and with any keymap preset. It selects the same way, and Ctrl+Shift+Alt+drag adds to the selection.
+
 With faces selected, the box selects faces instead, the ones whose center lies inside the box. Select a brush and use
 *Edit > Select > Brush Faces* to get into face selection. In the 3D view the box only takes the faces turned to you and
 not hidden behind something, so a drag over a room picks the walls you see. Turn on *Edit > Select > X-Ray* (Alt+Z) to

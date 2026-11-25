@@ -214,13 +214,19 @@ pub enum EmptyDrag {
     SelectBox {
         add: bool,
     },
+    /// The Box Select box on the screen, drawn with Ctrl+Alt in every preset. `add` keeps what is selected.
+    ScreenBox {
+        add: bool,
+    },
     Nothing,
 }
 
 /// What a drag off the selection does with `tool` active. Hammer leaves drawing to the Block tool, its 2D views draw
 /// a selection box instead.
 pub fn empty_drag(preset: &str, tool: ToolKind, chord: Chord, in_2d: bool) -> EmptyDrag {
-    if tool == ToolKind::Block || draw_tool(preset) != ToolKind::Block {
+    if tool == ToolKind::Select && chord.command && chord.alt {
+        EmptyDrag::ScreenBox { add: chord.shift }
+    } else if tool == ToolKind::Block || draw_tool(preset) != ToolKind::Block {
         EmptyDrag::DrawBrush
     } else if in_2d {
         EmptyDrag::SelectBox { add: chord.command }
@@ -490,6 +496,20 @@ pub fn mouse_rows_flying(preset: &str, fly_choice: &str) -> Vec<MouseRow> {
     }
 
     rows.extend([
+        empty(
+            "ca",
+            en!("Ctrl+Alt+drag off the selection"),
+            en!("Draw a box that selects what lies wholly inside it"),
+            None,
+            EmptyDrag::ScreenBox { add: false },
+        ),
+        empty(
+            "csa",
+            en!("Ctrl+Shift+Alt+drag off the selection"),
+            en!("Draw a box that adds what lies wholly inside it to the selection"),
+            None,
+            EmptyDrag::ScreenBox { add: true },
+        ),
         fixed(VIEWS, en!("Right drag (3D)"), fly_text(preset, fly_choice)),
         fixed(VIEWS, en!("Middle drag"), en!("Pan")),
         fixed(VIEWS, en!("Alt+right drag (3D)"), en!("Orbit")),
@@ -808,10 +828,15 @@ mod tests {
         use EmptyDrag::*;
         for chord in chords(Button::Drag) {
             for in_2d in [false, true] {
-                assert_eq!(empty_drag("trenchbroom", ToolKind::Select, chord, in_2d), DrawBrush);
-                assert_eq!(empty_drag("blender", ToolKind::Select, chord, in_2d), DrawBrush);
                 assert_eq!(empty_drag("hammer", ToolKind::Block, chord, in_2d), DrawBrush, "the Block tool draws in every view");
                 let hammer = empty_drag("hammer", ToolKind::Select, chord, in_2d);
+                if chord.command && chord.alt {
+                    assert_eq!(hammer, ScreenBox { add: chord.shift });
+                    continue;
+                }
+
+                assert_eq!(empty_drag("trenchbroom", ToolKind::Select, chord, in_2d), DrawBrush);
+                assert_eq!(empty_drag("blender", ToolKind::Select, chord, in_2d), DrawBrush);
                 assert_eq!(hammer, if in_2d { SelectBox { add: chord.command } } else { Nothing });
                 let rows: Vec<_> = mouse_rows("hammer")
                     .into_iter()
@@ -820,9 +845,26 @@ mod tests {
                 assert!(rows.iter().any(|(_, _, v, d)| *d == hammer && v.is_none_or(|v| v == in_2d)), "no Hammer row for {chord:?} in 2D {in_2d}");
                 for (gesture, c, v, d) in rows {
                     assert!(gesture.starts_with(&chord_prefix(c)), "{gesture} is not {c:?}");
-                    assert!(v.is_some_and(|v| gesture.ends_with(if v { "(2D)" } else { "(3D)" })), "{gesture} names its view");
-                    assert_eq!(empty_drag("hammer", ToolKind::Select, c, v.unwrap()), d, "{gesture}");
+                    if let Some(v) = v {
+                        assert!(gesture.ends_with(if v { "(2D)" } else { "(3D)" }), "{gesture} names its view");
+                    }
+
+                    for in_2d in v.map_or(vec![false, true], |v| vec![v]) {
+                        assert_eq!(empty_drag("hammer", ToolKind::Select, c, in_2d), d, "{gesture}");
+                    }
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn ctrl_alt_draws_a_screen_box_with_the_select_tool_in_every_preset() {
+        for preset in crate::commands::PRESETS {
+            for in_2d in [false, true] {
+                let box_drag = |shift, tool| empty_drag(preset, tool, Chord { button: Button::Drag, command: true, shift, alt: true }, in_2d);
+                assert_eq!(box_drag(false, ToolKind::Select), EmptyDrag::ScreenBox { add: false }, "{preset}");
+                assert_eq!(box_drag(true, ToolKind::Select), EmptyDrag::ScreenBox { add: true }, "{preset}");
+                assert_eq!(box_drag(false, ToolKind::Block), EmptyDrag::DrawBrush, "{preset} the Block tool draws");
             }
         }
     }

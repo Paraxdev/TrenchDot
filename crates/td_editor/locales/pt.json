@@ -2928,5 +2928,9 @@
   "As in the keymap preset": "Como no preset de teclas",
   "The keys that fly the camera up and down while the right mouse button is held": "As teclas que sobem e descem a câmera ao voar com o botão direito do mouse pressionado",
   "Shift+Alt+drag a selected face (3D)": "Shift+Alt+arrastar uma face selecionada (3D)",
-  "Ctrl+Shift+Alt+drag a selected face (3D)": "Ctrl+Shift+Alt+arrastar uma face selecionada (3D)"
+  "Ctrl+Shift+Alt+drag a selected face (3D)": "Ctrl+Shift+Alt+arrastar uma face selecionada (3D)",
+  "Ctrl+Alt+drag off the selection": "Ctrl+Alt+arrastar fora da seleção",
+  "Draw a box that selects what lies wholly inside it": "Desenhar uma caixa que seleciona o que fica totalmente dentro",
+  "Ctrl+Shift+Alt+drag off the selection": "Ctrl+Shift+Alt+arrastar fora da seleção",
+  "Draw a box that adds what lies wholly inside it to the selection": "Desenhar uma caixa que adiciona à seleção o que fica totalmente dentro"
 }

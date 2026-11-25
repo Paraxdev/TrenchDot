@@ -82,6 +82,7 @@ it, Ctrl+M in the Hammer preset.
 | Input | Result |
 | --- | --- |
 | Drag off the selection | Draw a brush |
+| Ctrl+Alt+drag off the selection, Ctrl+Shift+Alt+drag off the selection | Draw a box that selects what lies wholly inside it, or adds that to the selection, in every view and preset. See [Box select](brushes.md#box-select) |
 | Drag the selection | Move. Ctrl copies, Shift locks the axis, Alt moves vertically in 3D. The Hammer preset copies with Shift too and has no axis lock, see [Other presets](#other-presets) |
 | Drag a selection edge (2D) | Resize the selection along that side, slanted sides of one brush too. Hold Ctrl when you press the button to copy the selection instead |
 | Click | Select the object under the cursor, or the whole group around it. Clicking an object while faces are selected leaves face selection |
@@ -103,7 +104,7 @@ it, Ctrl+M in the Hammer preset.
 | Wheel (3D) | Move forward and back |
 | Wheel (2D) | Zoom at the cursor |
 | Alt+right drag (3D) | Orbit around the point under the cursor |
-| Alt+left drag (3D) | Orbit. In the Select tool a drag that starts on the selection or its gizmo moves it vertically instead |
+| Alt+left drag (3D) | Orbit. In the Select tool a drag that starts on the selection or its gizmo moves it vertically instead, and Ctrl+Alt+drag draws a selection box |
 | Ctrl+wheel (Sculpt, Blend, Paint, Scatter) | Resize the brush |
 
 ## Editing

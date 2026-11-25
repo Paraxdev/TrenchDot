@@ -3,7 +3,7 @@
 
 use std::collections::BTreeSet;
 use td_editor::commands::{Action, parse_shortcut, preset_bindings, shortcut_to_text};
-use td_editor::mouse_map::{Bound, ClickRule, chord_label, mouse_rows};
+use td_editor::mouse_map::{Bound, ClickRule, EmptyDrag, chord_label, mouse_rows};
 
 struct Table {
     header: Vec<String>,
@@ -197,9 +197,17 @@ fn the_mouse_tables_name_every_drag_of_the_selection() {
 
 #[test]
 fn the_mouse_tables_name_every_drag_off_the_selection() {
-    for (preset, column, count) in [("trenchbroom", "Input", 1), ("hammer", "Hammer input", 3)] {
+    // The Ctrl+Alt box is the same in every preset, so only the main table names it.
+    let own = |preset: &str| -> Vec<_> {
+        mouse_rows(preset)
+            .into_iter()
+            .filter(|r| matches!(r.bound, Some(Bound::EmptyDrag(..))))
+            .filter(|r| preset == "trenchbroom" || !matches!(r.bound, Some(Bound::EmptyDrag(_, _, EmptyDrag::ScreenBox { .. }))))
+            .collect()
+    };
+    for (preset, column, count) in [("trenchbroom", "Input", 3), ("hammer", "Hammer input", 3)] {
         let cells = mouse_cells(&table(column).rows);
-        let rows: Vec<_> = mouse_rows(preset).into_iter().filter(|r| matches!(r.bound, Some(Bound::EmptyDrag(..)))).collect();
+        let rows = own(preset);
         assert_eq!(rows.len(), count, "{preset}");
         for row in rows {
             let label = row.gesture.to_ascii_lowercase();

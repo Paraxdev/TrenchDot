@@ -267,7 +267,11 @@ impl Viewport {
                     self.looked = true;
                 } else if response.drag_started_by(PointerButton::Middle) {
                     self.drag = Some(Drag::Pan);
-                } else if response.drag_started_by(PointerButton::Primary) && modifiers.alt && self.alt_drag_orbits(press_origin, cx) {
+                } else if response.drag_started_by(PointerButton::Primary)
+                    && modifiers.alt
+                    && !(modifiers.command && cx.state.tool == ToolKind::Select)
+                    && self.alt_drag_orbits(press_origin, cx)
+                {
                     self.drag = Some(Drag::Orbit { pivot: pivot(self) });
                 }
 
@@ -840,12 +844,18 @@ impl Viewport {
             return Some(Drag::ShapeBounds { start: self.camera.screen_to_plane(self.rect, origin), side: None });
         }
 
+        let empty = empty_drag(&preset, state.tool, Chord::new(Button::Drag, modifiers), self.camera.kind.is_2d());
+        if let EmptyDrag::ScreenBox { add } = empty {
+            let op = if add { crate::box_select::BoxOp::Add } else { crate::box_select::BoxOp::Replace };
+            return Some(Drag::ScreenBox { start: origin, end: origin, op });
+        }
+
         if state.prefs.box_select && state.tool == ToolKind::Select {
             return Some(Drag::ScreenBox { start: origin, end: origin, op: crate::box_select::BoxOp::from_modifiers(modifiers) });
         }
 
-        match empty_drag(&preset, state.tool, Chord::new(Button::Drag, modifiers), self.camera.kind.is_2d()) {
-            EmptyDrag::DrawBrush => {}
+        match empty {
+            EmptyDrag::DrawBrush | EmptyDrag::ScreenBox { .. } => {}
             EmptyDrag::SelectBox { add } => {
                 let at = self.camera.screen_to_plane(self.rect, origin);
                 let b = SelectionBox { view: self.camera.kind, a: at, b: at, add };

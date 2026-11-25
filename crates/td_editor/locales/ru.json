@@ -2928,5 +2928,9 @@
   "As in the keymap preset": "Как в раскладке клавиш",
   "The keys that fly the camera up and down while the right mouse button is held": "Клавиши, которыми камера летит вверх и вниз, пока зажата правая кнопка мыши",
   "Shift+Alt+drag a selected face (3D)": "Shift+Alt+тянуть выделенную грань (3D)",
-  "Ctrl+Shift+Alt+drag a selected face (3D)": "Ctrl+Shift+Alt+тянуть выделенную грань (3D)"
+  "Ctrl+Shift+Alt+drag a selected face (3D)": "Ctrl+Shift+Alt+тянуть выделенную грань (3D)",
+  "Ctrl+Alt+drag off the selection": "Ctrl+Alt+тянуть вне выделения",
+  "Draw a box that selects what lies wholly inside it": "Нарисовать рамку, которая выделяет то, что целиком внутри",
+  "Ctrl+Shift+Alt+drag off the selection": "Ctrl+Shift+Alt+тянуть вне выделения",
+  "Draw a box that adds what lies wholly inside it to the selection": "Нарисовать рамку, которая добавляет к выделению то, что целиком внутри"
 }
