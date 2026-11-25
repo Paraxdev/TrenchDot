@@ -1703,11 +1703,18 @@ pub fn key_uses(prefs: &crate::state::Prefs, chord: &egui::KeyboardShortcut) -> 
     (actions.into_iter().map(|(_, a)| a).collect(), rows)
 }
 
+/// egui reports Ctrl, Shift, Alt and Super as key presses of their own, a chord waits for the key they modify.
+fn is_modifier_key(key: Key) -> bool {
+    matches!(key, Key::ShiftLeft | Key::ShiftRight | Key::ControlLeft | Key::ControlRight | Key::AltLeft | Key::AltRight | Key::SuperLeft | Key::SuperRight)
+}
+
 /// Takes the next key press of the frame, and whether Esc was pressed. Nothing else sees the keys that frame.
 fn capture_chord(ctx: &egui::Context) -> (Option<egui::KeyboardShortcut>, bool) {
     ctx.input_mut(|i| {
         let found = i.events.iter().find_map(|e| match e {
-            egui::Event::Key { key, pressed: true, modifiers, .. } if !matches!(key, Key::Escape) => Some(egui::KeyboardShortcut::new(*modifiers, *key)),
+            egui::Event::Key { key, pressed: true, modifiers, .. } if !matches!(key, Key::Escape) && !is_modifier_key(*key) => {
+                Some(egui::KeyboardShortcut::new(*modifiers, *key))
+            }
             _ => None,
         });
         let escape = i.consume_key(egui::Modifiers::NONE, Key::Escape);
@@ -4083,6 +4090,23 @@ mod tests {
         assert_eq!(h.state().0.key_search, None);
         assert!(h.query_by_label("Nothing uses this key").is_none());
         assert!(h.query_by_label(Action::SelectAll.title().as_str()).is_some());
+    }
+
+    #[test]
+    fn a_held_modifier_waits_for_the_key_it_modifies() {
+        use egui_kittest::kittest::Queryable;
+        let mut h = keymap_harness();
+        h.get_by_label("Press a key").click();
+        h.run();
+        for key in [Key::ControlLeft, Key::AltLeft, Key::ShiftRight] {
+            h.key_press(key);
+            h.run();
+        }
+
+        assert!(h.state().0.searching, "a modifier alone is no chord");
+        h.key_press_modifiers(egui::Modifiers::COMMAND, Key::S);
+        h.run();
+        assert_eq!(h.state().0.key_search, Some(chord(egui::Modifiers::COMMAND, Key::S)));
     }
 
     #[test]
