@@ -263,6 +263,7 @@ pub(crate) fn key_scope(ctx: &egui::Context, had_focus: bool, view_hovered: bool
 
 const PREFS_LABEL_WIDTH: f32 = 180.0;
 const PREFS_PATH_WIDTH: f32 = 220.0;
+const GRID_COMBO_WIDTH: f32 = 56.0;
 const UI_SCALE_PRESETS: [f32; 6] = [0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 
 const PANEL_TABS: [Tab; 12] = [
@@ -2374,11 +2375,16 @@ impl App {
             tools_rect |= group;
             group = egui::Rect::NOTHING;
             group_gap(ui);
+            // A combo box does not wrap on its own, it runs past the bar and pushes the Godot buttons off screen.
+            if ui.available_size_before_wrap().x < size + GRID_COMBO_WIDTH + 2.0 * ui.spacing().button_padding.x + 24.0 {
+                ui.end_row();
+            }
+
             icon_count += 1;
             group |= ui.add(icons::GRID.image(size).tint(ui.visuals().text_color())).on_hover_text(tr("Grid size, [ and ] change it")).rect;
             group |= egui::ComboBox::from_id_salt("grid")
                 .selected_text(format!("{}", self.state.grid))
-                .width(56.0)
+                .width(GRID_COMBO_WIDTH)
                 .show_ui(ui, |ui| {
                     for g in [0.125, 0.25, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0, 512.0, 1024.0] {
                         ui.selectable_value(&mut self.state.grid, g, format!("{g}"));
