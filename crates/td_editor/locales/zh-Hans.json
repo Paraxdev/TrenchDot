@@ -1477,7 +1477,6 @@
   "Resize Brushes": "调整笔刷大小",
   "Duplicate Objects": "复制对象",
   "Move Objects": "移动对象",
-  "Resize {dist}": "大小 {dist}",
   "Brush {x} x {y} x {z}": "笔刷 {x} x {y} x {z}",
   "{axis} {depth}": "{axis} {depth}",
   "{axis} {depth}, hold Alt to drop through": "{axis} {depth}，按住 Alt 穿透",
@@ -2932,5 +2931,9 @@
   "Ctrl+Alt+drag off the selection": "在选择之外 Ctrl+Alt+拖动",
   "Draw a box that selects what lies wholly inside it": "绘制一个框，选择完全在框内的对象",
   "Ctrl+Shift+Alt+drag off the selection": "在选择之外 Ctrl+Shift+Alt+拖动",
-  "Draw a box that adds what lies wholly inside it to the selection": "绘制一个框，把完全在框内的对象加入选择"
+  "Draw a box that adds what lies wholly inside it to the selection": "绘制一个框，把完全在框内的对象加入选择",
+  "Face Cut": "面切割",
+  "Push {dist}, Tab switches to Extrude": "推动 {dist}，Tab 切换到挤出",
+  "Extrude {dist}, Tab switches to Cut": "挤出 {dist}，Tab 切换到切割",
+  "Cut {dist}, Tab switches to Push": "切割 {dist}，Tab 切换到推动"
 }

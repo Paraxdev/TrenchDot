@@ -77,18 +77,31 @@ You can reshape a selected brush without leaving the Select tool:
 
 | Input | Result |
 | --- | --- |
-| Shift+drag a face of a selected brush (3D), TrenchBroom preset | Push or pull that face. Click the brush to select it first, a face picked with Shift+click alone is not enough and the drag draws a new brush instead |
-| Ctrl+Shift+drag a face of a selected brush (3D), TrenchBroom preset | Extrude a new brush out of that face |
+| Shift+drag a face of a selected brush (3D) | Push or pull that face. Click the brush to select it first, a face picked with Shift+click alone is not enough and the drag draws a new brush instead |
+| Ctrl+Shift+drag a face of a selected brush (3D) | Extrude a new brush out of that face |
+| Tab while you drag a face | Switch the drag between Push, Extrude and Cut, see [below](#cut-with-a-face) |
 | Drag a selection edge (2D) | Resize along that side. The side lights up yellow and the cursor changes where a drag resizes. Ctrl copies the selection instead, and so does Shift in the Hammer preset |
 | E, with brush faces selected | Extrude each selected face into a new brush, in the Blender preset, see [below](#extrude-faces-with-e) |
 
-In the Hammer preset Shift+drag copies the selection instead, so there is no push, pull or extrude on a face. Resize by
-the edges in a 2D view, or use the transform gizmo.
+In the Hammer preset Shift+drag copies the selection, so hold Alt as well there. Shift+Alt+drag pushes a face and
+Ctrl+Shift+Alt+drag extrudes one, and both work the same in every preset.
 
 While snapping is on, a face you drag lands on a grid line, even when the brush was off the grid before. Slanted faces
 move in grid steps instead.
 
 ![Shift+dragging the side face of a selected box in the 3D view, the box stretches in grid steps](../assets/brushes/push-face.gif)
+
+### Cut with a face
+
+A face drag can do three things, and Tab switches between them while you hold the mouse button: Push, then Extrude,
+then Cut, then Push again. The status bar names the current one and the view shows its result as you drag. Let go to
+keep it, or press Esc to drop it. If your drag holds Alt, let go of Alt before you press Tab, since most systems take
+Alt+Tab. The drag stays a face drag without the keys.
+
+Cut carves the space the face sweeps through out of every brush in its way, its own brush included. Push the top face
+of a block down past the floor it stands on and the block is gone and the floor has a pit as deep as you dragged. Pull
+the face of a block that touches a wall out through the wall and the wall gets an opening the shape of that face. The
+cut faces take their material the way CSG Subtract does, and the whole cut is one undo step called **Face Cut**.
 
 In the Top, Front and Side views the sides of what you selected are handles, and what a drag grabs depends on the
 selection:

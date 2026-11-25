@@ -99,6 +99,7 @@ it, Ctrl+M in the Hammer preset.
 | Shift+click in the Outliner | Select the rows from the last clicked one |
 | Shift+drag a selected face (3D) | Push or pull a face of a selected brush. The whole brush has to be selected, a face picked with Shift+click alone is not enough. Shift+Alt+drag does the same in every preset, the Hammer preset copies the selection on a plain Shift+drag |
 | Ctrl+Shift+drag a selected face (3D) | Extrude a new brush out of a face of a selected brush. Ctrl+Shift+Alt+drag does the same in every preset, the Hammer preset copies the selection on a plain Ctrl+Shift+drag |
+| Tab while you drag a face | Switch the drag between Push, Extrude and Cut. Cut carves the space the face sweeps through out of the brushes in its way, see [Cut with a face](brushes.md#cut-with-a-face) |
 | Right drag (3D) | Look around. Hold it and use WASD to fly, Q and X to go up and down. The Hammer and Blender presets use E and Q, and **Fly up and down** in Preferences picks either pair for any preset |
 | Middle drag | Pan |
 | Wheel (3D) | Move forward and back |

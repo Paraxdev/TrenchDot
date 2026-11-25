@@ -1289,6 +1289,13 @@ impl App {
                 ctx.memory_mut(|m| m.move_focus(egui::FocusDirection::None));
             }
 
+            // A face drag takes Tab with whatever modifiers its chord still holds, so neither Ctrl+Tab nor Shift+Tab
+            // shortcuts fire on top of it.
+            if ctx.input(|i| i.key_pressed(egui::Key::Tab)) && self.viewports.iter_mut().any(|v| v.cycle_face_drag(&mut self.state)) {
+                ctx.input_mut(|i| i.events.retain(|e| !matches!(e, egui::Event::Key { key: egui::Key::Tab, .. })));
+                return;
+            }
+
             // While a view flies with WASD, Q and E, ToolSet::keys swallows plain keys so no single key shortcut fires.
             self.tools.flying |= self.viewports.iter().any(|v| v.is_flying());
             if self.panels.uv.take_escape(ctx) || self.panels.logic.take_keys(ctx, &mut self.state) || self.tools.keys(ctx, &mut self.state) {

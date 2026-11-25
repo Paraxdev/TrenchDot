@@ -729,7 +729,7 @@ fn a_slanted_side_resizes_in_2d_and_a_selected_face_drags_alone() {
     ed.input("side", drag.clone());
     let state = ed.state();
     assert!(same(&bounds(), &resized), "{:?}", bounds());
-    assert!(state["status"].as_str().unwrap().starts_with("Resize 16.000"), "{}", state["status"]);
+    assert!(state["status"].as_str().unwrap().starts_with("Push 16.000"), "{}", state["status"]);
     assert_eq!(state["undo"][0], "Resize Brushes");
     assert_eq!(state["undo"].as_array().unwrap().len(), undo_before + 1);
 
@@ -980,6 +980,37 @@ fn shift_alt_pushes_and_ctrl_shift_alt_extrudes_a_face_in_hammer() {
         json!([{ "type": "drag", "world": [200, top, 200], "to_world": [200, top + 64.0, 200], "modifiers": ["ctrl", "shift", "alt"], "steps": 12 }]),
     );
     assert_eq!(ed.brushes(), 2, "Ctrl+Shift+Alt extrudes a new brush, undo {}", ed.state()["undo"]);
+}
+
+#[test]
+#[ignore]
+fn tab_switches_a_face_drag_to_cut() {
+    let ed = Editor::launch("face_cut");
+    ed.box_brush([-256.0, 0.0, -256.0], [256.0, 128.0, 256.0]);
+    let block = ed.box_brush([-160.0, 128.0, -160.0], [160.0, 192.0, 160.0]);
+    ed.call("select", json!({ "ids": [block] }));
+    ed.call("set_camera", json!({ "view": "3d", "position": [-300, 400, 300], "look_at": [0, 64, 0] }));
+    ed.input(
+        "3d",
+        json!([
+            { "type": "drag", "world": [-120, 192, -120], "to_world": [-120, 176, -120], "modifiers": ["shift", "alt"], "steps": 6, "release": false }
+        ]),
+    );
+    let status = ed.state()["status"].clone();
+    assert!(status.as_str().unwrap_or_default().starts_with("Push"), "Shift+Alt grabs the face, not the gizmo, status {status}");
+    ed.input(
+        "3d",
+        json!([
+            { "type": "key", "key": "Tab" },
+            { "type": "key", "key": "Tab" },
+            { "type": "move", "world": [-120, 96, -120] },
+            { "type": "move", "world": [-120, 96, -120] },
+            { "type": "release" }
+        ]),
+    );
+    let state = ed.state();
+    assert!(state["status"].as_str().unwrap_or_default().starts_with("Cut"), "status {}", state["status"]);
+    assert!(ed.brushes() > 2, "the floor splits around a pit and the block is gone, undo {}", state["undo"]);
 }
 
 #[test]

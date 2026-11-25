@@ -350,6 +350,13 @@ impl Document {
         }
     }
 
+    /// Renames the open transaction, for a drag that switches what it does on the way.
+    pub fn relabel_transaction(&mut self, label: &str) {
+        if let Some(t) = &mut self.transaction {
+            t.label = label.into();
+        }
+    }
+
     pub fn transaction_base(&self) -> Option<&Map> {
         self.transaction.as_ref().map(|t| &t.map)
     }

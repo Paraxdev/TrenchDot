@@ -1477,7 +1477,6 @@
   "Resize Brushes": "Изменение размера брашей",
   "Duplicate Objects": "Дублирование объектов",
   "Move Objects": "Перемещение объектов",
-  "Resize {dist}": "Размер {dist}",
   "Brush {x} x {y} x {z}": "Браш {x} x {y} x {z}",
   "{axis} {depth}": "{axis} {depth}",
   "{axis} {depth}, hold Alt to drop through": "{axis} {depth}, удерживайте Alt, чтобы пройти сквозь",
@@ -2932,5 +2931,9 @@
   "Ctrl+Alt+drag off the selection": "Ctrl+Alt+тянуть вне выделения",
   "Draw a box that selects what lies wholly inside it": "Нарисовать рамку, которая выделяет то, что целиком внутри",
   "Ctrl+Shift+Alt+drag off the selection": "Ctrl+Shift+Alt+тянуть вне выделения",
-  "Draw a box that adds what lies wholly inside it to the selection": "Нарисовать рамку, которая добавляет к выделению то, что целиком внутри"
+  "Draw a box that adds what lies wholly inside it to the selection": "Нарисовать рамку, которая добавляет к выделению то, что целиком внутри",
+  "Face Cut": "Вырез гранью",
+  "Push {dist}, Tab switches to Extrude": "Сдвиг {dist}, Tab переключает на выдавливание",
+  "Extrude {dist}, Tab switches to Cut": "Выдавливание {dist}, Tab переключает на вырез",
+  "Cut {dist}, Tab switches to Push": "Вырез {dist}, Tab переключает на сдвиг"
 }

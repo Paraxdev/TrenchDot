@@ -1477,7 +1477,6 @@
   "Resize Brushes": "ブラシのサイズ変更",
   "Duplicate Objects": "オブジェクトを複製",
   "Move Objects": "オブジェクトを移動",
-  "Resize {dist}": "サイズ {dist}",
   "Brush {x} x {y} x {z}": "ブラシ {x} x {y} x {z}",
   "{axis} {depth}": "{axis} {depth}",
   "{axis} {depth}, hold Alt to drop through": "{axis} {depth}、Alt を押しながらで貫通",
@@ -2932,5 +2931,9 @@
   "Ctrl+Alt+drag off the selection": "選択範囲の外をCtrl+Alt+ドラッグ",
   "Draw a box that selects what lies wholly inside it": "ボックスを描き、完全に内側にあるものを選択する",
   "Ctrl+Shift+Alt+drag off the selection": "選択範囲の外をCtrl+Shift+Alt+ドラッグ",
-  "Draw a box that adds what lies wholly inside it to the selection": "ボックスを描き、完全に内側にあるものを選択に追加する"
+  "Draw a box that adds what lies wholly inside it to the selection": "ボックスを描き、完全に内側にあるものを選択に追加する",
+  "Face Cut": "面で切り抜き",
+  "Push {dist}, Tab switches to Extrude": "押す {dist}、Tab で押し出しへ",
+  "Extrude {dist}, Tab switches to Cut": "押し出し {dist}、Tab で切り抜きへ",
+  "Cut {dist}, Tab switches to Push": "切り抜き {dist}、Tab で押すへ"
 }

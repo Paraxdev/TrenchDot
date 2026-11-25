@@ -1477,7 +1477,6 @@
   "Resize Brushes": "Redimensionar brushes",
   "Duplicate Objects": "Duplicar objetos",
   "Move Objects": "Mover objetos",
-  "Resize {dist}": "Tamanho {dist}",
   "Brush {x} x {y} x {z}": "Tamanho do brush {x} x {y} x {z}",
   "{axis} {depth}": "{axis} {depth}",
   "{axis} {depth}, hold Alt to drop through": "{axis} {depth}, manter Alt para atravessar",
@@ -2932,5 +2931,9 @@
   "Ctrl+Alt+drag off the selection": "Ctrl+Alt+arrastar fora da seleção",
   "Draw a box that selects what lies wholly inside it": "Desenhar uma caixa que seleciona o que fica totalmente dentro",
   "Ctrl+Shift+Alt+drag off the selection": "Ctrl+Shift+Alt+arrastar fora da seleção",
-  "Draw a box that adds what lies wholly inside it to the selection": "Desenhar uma caixa que adiciona à seleção o que fica totalmente dentro"
+  "Draw a box that adds what lies wholly inside it to the selection": "Desenhar uma caixa que adiciona à seleção o que fica totalmente dentro",
+  "Face Cut": "Corte com face",
+  "Push {dist}, Tab switches to Extrude": "Empurrar {dist}, Tab muda para Extrudar",
+  "Extrude {dist}, Tab switches to Cut": "Extrudar {dist}, Tab muda para Cortar",
+  "Cut {dist}, Tab switches to Push": "Cortar {dist}, Tab muda para Empurrar"
 }

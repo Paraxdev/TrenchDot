@@ -1477,7 +1477,6 @@
   "Resize Brushes": "Brush-Größe ändern",
   "Duplicate Objects": "Objekte duplizieren",
   "Move Objects": "Objekte verschieben",
-  "Resize {dist}": "Größe {dist}",
   "Brush {x} x {y} x {z}": "Brush-Maße {x} x {y} x {z}",
   "{axis} {depth}": "{axis} {depth}",
   "{axis} {depth}, hold Alt to drop through": "{axis} {depth}, Alt halten zum Hindurchsetzen",
@@ -2932,5 +2931,9 @@
   "Ctrl+Alt+drag off the selection": "Ctrl+Alt+Ziehen neben der Auswahl",
   "Draw a box that selects what lies wholly inside it": "Eine Box aufziehen, die auswählt, was ganz darin liegt",
   "Ctrl+Shift+Alt+drag off the selection": "Ctrl+Shift+Alt+Ziehen neben der Auswahl",
-  "Draw a box that adds what lies wholly inside it to the selection": "Eine Box aufziehen, die hinzufügt, was ganz darin liegt"
+  "Draw a box that adds what lies wholly inside it to the selection": "Eine Box aufziehen, die hinzufügt, was ganz darin liegt",
+  "Face Cut": "Flächenschnitt",
+  "Push {dist}, Tab switches to Extrude": "Schieben {dist}, Tab wechselt zu Extrudieren",
+  "Extrude {dist}, Tab switches to Cut": "Extrudieren {dist}, Tab wechselt zu Schneiden",
+  "Cut {dist}, Tab switches to Push": "Schneiden {dist}, Tab wechselt zu Schieben"
 }

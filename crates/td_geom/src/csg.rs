@@ -152,6 +152,11 @@ pub fn hollow(brush: &Brush, thickness: f64) -> Vec<Brush> {
 
 /// Extrudes a face outward by `distance`, creating a new brush attached to it.
 pub fn extrude_face(brush: &Brush, face: usize, distance: f64) -> Result<Brush, BrushError> {
+    sweep_face(brush, face, distance)
+}
+
+/// The volume a face sweeps when it moves `distance` along its normal, inward when negative.
+pub fn sweep_face(brush: &Brush, face: usize, distance: f64) -> Result<Brush, BrushError> {
     let f = &brush.faces[face];
     let normal = f.plane.normal;
     let points = brush.face_points(face);
@@ -169,6 +174,17 @@ mod tests {
 
     fn boxb(min: DVec3, max: DVec3) -> Brush {
         Brush::from_aabb(&Aabb::new(min, max), "m").unwrap()
+    }
+
+    #[test]
+    fn a_face_sweeps_outward_and_inward() {
+        let b = boxb(DVec3::ZERO, DVec3::splat(64.0));
+        let top = b.faces.iter().position(|f| f.plane.normal == DVec3::Y).unwrap();
+        let out = sweep_face(&b, top, 16.0).unwrap();
+        assert!((out.bounds().min.y - 64.0).abs() < 1e-9 && (out.bounds().max.y - 80.0).abs() < 1e-9);
+        let inward = sweep_face(&b, top, -16.0).unwrap();
+        assert!((inward.bounds().min.y - 48.0).abs() < 1e-9 && (inward.bounds().max.y - 64.0).abs() < 1e-9);
+        inward.validate().unwrap();
     }
 
     #[test]

@@ -803,13 +803,25 @@ pub fn csg_subtract(map: &mut Map, sel: &mut Selection, carve: csg::CarveMateria
     }
 
     let cutter_ids: Vec<NodeId> = cutters.iter().map(|(id, _)| *id).collect();
-    let targets: Vec<NodeId> = map.brushes().filter(|(id, _)| !cutter_ids.contains(id) && map.is_editable(*id)).map(|(id, _)| id).collect();
+    let shapes: Vec<Brush> = cutters.into_iter().map(|(_, b)| b).collect();
+    let changed = carve_out(map, &shapes, &cutter_ids, carve, &mut replaced);
+    let parents = remove_nodes(map, &cutter_ids);
+    remove_empty_containers(map, parents);
+    replaced.extend(cutter_ids.into_iter().map(|c| (c, Vec::new())));
+    sel.clear();
+    (changed, replaced)
+}
+
+/// Subtracts `cutters` from every editable brush outside `skip` that they overlap, recording each cut brush and its
+/// pieces in `replaced`. Returns how many brushes were cut.
+pub fn carve_out(map: &mut Map, cutters: &[Brush], skip: &[NodeId], carve: csg::CarveMaterial, replaced: &mut Replaced) -> usize {
+    let targets: Vec<NodeId> = map.brushes().filter(|(id, _)| !skip.contains(id) && map.is_editable(*id)).map(|(id, _)| id).collect();
     let mut changed = 0;
     let mut parents = BTreeSet::new();
     for t in targets {
         let Some(original) = map.brush(t).cloned() else { continue };
         let mut pieces = vec![original.clone()];
-        for (_, c) in &cutters {
+        for c in cutters {
             pieces = pieces.iter().flat_map(|p| csg::subtract_with(p, c, carve)).collect();
         }
 
@@ -825,11 +837,8 @@ pub fn csg_subtract(map: &mut Map, sel: &mut Selection, carve: csg::CarveMateria
         replaced.insert(t, new_ids);
     }
 
-    parents.extend(remove_nodes(map, &cutter_ids));
     remove_empty_containers(map, parents);
-    replaced.extend(cutter_ids.into_iter().map(|c| (c, Vec::new())));
-    sel.clear();
-    (changed, replaced)
+    changed
 }
 
 pub fn csg_merge(map: &mut Map, sel: &mut Selection, default_material: &str) -> Option<NodeId> {

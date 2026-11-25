@@ -17,7 +17,7 @@ use crate::scene::{SceneCache, v3};
 use crate::selection_box::SelectionBox;
 use crate::state::{EditorState, SelectMode};
 use crate::terrain3d::overlay::Edge;
-use crate::tools::{Drag, ToolKind, line_ray_param};
+use crate::tools::{Drag, FaceDragMode, ToolKind, line_ray_param};
 use crate::toolset::ToolSet;
 
 pub struct ViewCtx<'a> {
@@ -204,6 +204,14 @@ impl Viewport {
         self.drag = None;
         state.drag_preview = None;
         state.doc.cancel();
+        true
+    }
+
+    /// Switches a running face drag to its next mode. The drag shows the new mode on its next frame.
+    pub fn cycle_face_drag(&mut self, state: &mut EditorState) -> bool {
+        let Some(Drag::FaceResize { mode, .. }) = &mut self.drag else { return false };
+        *mode = mode.next();
+        state.doc.relabel_transaction(face_drag_label(*mode));
         true
     }
 
@@ -810,8 +818,9 @@ impl Viewport {
             if let (SelectionDrag::PushFace | SelectionDrag::ExtrudeFace, Some((face, brush))) = (action, face) {
                 let plane = brush.faces[face].plane;
                 let faces = coplanar_selected_faces(state, &plane);
-                state.doc.begin(if action == SelectionDrag::ExtrudeFace { en!("Extrude") } else { en!("Resize Brushes") });
-                return Some(Drag::FaceResize { faces, origin: h.point, normal: plane.normal, last_ok: 0.0 });
+                let mode = if action == SelectionDrag::ExtrudeFace { FaceDragMode::Extrude } else { FaceDragMode::Push };
+                state.doc.begin(face_drag_label(mode));
+                return Some(Drag::FaceResize { faces, origin: h.point, normal: plane.normal, last_ok: 0.0, mode });
             }
 
             if selected(h.node) {
@@ -909,7 +918,7 @@ impl Viewport {
         match selection_drag(&state.prefs.keymap_preset, Chord::new(Button::Drag, modifiers), DragHit::Edge2d) {
             SelectionDrag::Resize => {
                 state.doc.begin(en!("Resize Brushes"));
-                Some(Drag::FaceResize { faces: edge.faces, origin: at, normal: edge.normal, last_ok: 0.0 })
+                Some(Drag::FaceResize { faces: edge.faces, origin: at, normal: edge.normal, last_ok: 0.0, mode: FaceDragMode::Push })
             }
             SelectionDrag::Copy if state.tool != ToolKind::Block => {
                 state.doc.begin(en!("Duplicate Objects"));
@@ -1032,7 +1041,7 @@ impl Viewport {
                     None => crate::shape_bounds::drawn(*start, current, &base, self.camera.kind.depth_axis(), state.grid, state.snap),
                 });
             }
-            Drag::FaceResize { faces, origin, normal, last_ok } => {
+            Drag::FaceResize { faces, origin, normal, last_ok, mode } => {
                 let dist = match self.camera.kind {
                     ViewKind::Perspective => line_ray_param(*origin, *normal, &ray),
                     _ => Some((self.camera.screen_to_plane(rect, pos) - *origin).dot(*normal)),
@@ -1040,43 +1049,58 @@ impl Viewport {
                 let Some(dist) = dist else { return };
                 state.doc.reset_transaction();
                 let dist = snap_face_move(state, faces, *normal, dist);
-                let extrude = self.press_modifiers.command && self.camera.kind == ViewKind::Perspective;
                 let applied = if dist.abs() < 1e-9 {
                     0.0
-                } else if extrude && dist > 0.0 {
-                    let faces = faces.clone();
-                    state.doc.edit("Resize", |m, s| {
-                        for (id, face) in &faces {
-                            let Some(brush) = m.brush(*id) else { continue };
-                            if let Ok(nb) = td_geom::csg::extrude_face(brush, *face, dist) {
-                                let parent = m.get(*id).and_then(|n| n.parent).unwrap_or(m.default_layer());
-                                let new_id = m.insert(parent, td_doc::NodeKind::Brush(nb));
-                                s.nodes.insert(new_id);
-                            }
-                        }
-                    });
-                    dist
                 } else {
-                    let mut tries = [dist, *last_ok].into_iter().filter(|d| d.abs() >= 1e-9);
-                    match tries.find_map(|d| moved_brushes(&state.doc.map, faces, *normal, d, opts.uv_lock).map(|b| (d, b))) {
-                        Some((applied, moved)) => {
-                            state.doc.edit("Resize", |m, _| {
-                                for (id, brush) in moved {
-                                    if let Some(slot) = m.brush_mut(id) {
-                                        *slot = brush;
+                    match mode {
+                        FaceDragMode::Extrude if dist > 0.0 => {
+                            let faces = faces.clone();
+                            state.doc.edit("Resize", |m, s| {
+                                for (id, face) in &faces {
+                                    let Some(brush) = m.brush(*id) else { continue };
+                                    if let Ok(nb) = td_geom::csg::extrude_face(brush, *face, dist) {
+                                        let parent = m.get(*id).and_then(|n| n.parent).unwrap_or(m.default_layer());
+                                        let new_id = m.insert(parent, td_doc::NodeKind::Brush(nb));
+                                        s.nodes.insert(new_id);
                                     }
                                 }
                             });
-                            applied
+                            dist
                         }
-                        None => 0.0,
+                        FaceDragMode::Extrude => 0.0,
+                        FaceDragMode::Cut => {
+                            let carve = state.carve_material;
+                            let cut = state.doc.edit("Resize", |m, s| cut_faces(m, s, faces, dist, carve));
+                            if cut { dist } else { 0.0 }
+                        }
+                        FaceDragMode::Push => {
+                            let mut tries = [dist, *last_ok].into_iter().filter(|d| d.abs() >= 1e-9);
+                            match tries.find_map(|d| moved_brushes(&state.doc.map, faces, *normal, d, opts.uv_lock).map(|b| (d, b))) {
+                                Some((applied, moved)) => {
+                                    state.doc.edit("Resize", |m, _| {
+                                        for (id, brush) in moved {
+                                            if let Some(slot) = m.brush_mut(id) {
+                                                *slot = brush;
+                                            }
+                                        }
+                                    });
+                                    applied
+                                }
+                                None => 0.0,
+                            }
+                        }
                     }
                 };
                 if let Some(Drag::FaceResize { last_ok, .. }) = &mut self.drag {
                     *last_ok = applied;
                 }
 
-                state.set_status(msg!("Resize {dist}", dist = format!("{applied:.3}")));
+                let dist = format!("{applied:.3}");
+                state.set_status(match mode {
+                    FaceDragMode::Push => msg!("Push {dist}, Tab switches to Extrude", dist),
+                    FaceDragMode::Extrude => msg!("Extrude {dist}, Tab switches to Cut", dist),
+                    FaceDragMode::Cut => msg!("Cut {dist}, Tab switches to Push", dist),
+                });
             }
             Drag::TerrainEdge { id, origin, normal } => {
                 let Some(cell) = state.doc.transaction_base().and_then(|m| m.terrain(*id)).map(|t| t.cell_size) else { return };
@@ -1740,6 +1764,33 @@ fn size_labels(painter: &egui::Painter, camera: &Camera, rect: Rect, b: Aabb, co
         painter.text(width_at.0, width_at.1, crate::gizmos::fmt_num(w), FontId::monospace(11.0), color);
         painter.text(height_at.0, height_at.1, crate::gizmos::fmt_num(h), FontId::monospace(11.0), color);
     }
+}
+
+fn face_drag_label(mode: FaceDragMode) -> &'static str {
+    match mode {
+        FaceDragMode::Push => en!("Resize Brushes"),
+        FaceDragMode::Extrude => en!("Extrude"),
+        FaceDragMode::Cut => en!("Face Cut"),
+    }
+}
+
+/// Carves the volume `faces` sweep over `dist` out of every editable brush it passes through, their own brushes
+/// included, and keeps the pieces of a selected brush selected. Returns whether anything was cut.
+fn cut_faces(map: &mut td_doc::Map, sel: &mut td_doc::Selection, faces: &[(NodeId, usize)], dist: f64, carve: td_geom::csg::CarveMaterial) -> bool {
+    let cutters: Vec<Brush> = faces.iter().filter_map(|(id, f)| map.brush(*id).and_then(|b| td_geom::csg::sweep_face(b, *f, dist).ok())).collect();
+    let mut replaced = td_doc::ops::Replaced::new();
+    if td_doc::ops::carve_out(map, &cutters, &[], carve, &mut replaced) == 0 {
+        return false;
+    }
+
+    sel.faces.retain(|(id, _)| !replaced.contains_key(id));
+    for (old, pieces) in replaced {
+        if sel.nodes.remove(&old) {
+            sel.nodes.extend(pieces);
+        }
+    }
+
+    true
 }
 
 fn coplanar_selected_faces(state: &EditorState, plane: &Plane) -> Vec<(NodeId, usize)> {
@@ -2565,6 +2616,34 @@ mod tests {
         assert!(moved_brushes(&state.doc.map, &both[..1], n, -32.0, false).is_some());
         assert!(moved_brushes(&state.doc.map, &both[..1], n, -64.0, false).is_none(), "W's corner is 57.2 inside");
         assert!(moved_brushes(&state.doc.map, &[], n, -64.0, false).is_some_and(|m| m.is_empty()));
+    }
+
+    #[test]
+    fn a_face_cut_carves_what_it_sweeps_and_keeps_the_pieces_selected() {
+        let mut map = td_doc::Map::default();
+        let layer = map.default_layer();
+        let boxed = |min: DVec3, max: DVec3| td_doc::NodeKind::Brush(Brush::from_aabb(&Aabb::new(min, max), "m").unwrap());
+        let floor = map.insert(layer, boxed(DVec3::splat(-128.0).with_y(0.0), DVec3::splat(128.0).with_y(64.0)));
+        let block = map.insert(layer, boxed(DVec3::new(-32.0, 64.0, -32.0), DVec3::new(32.0, 128.0, 32.0)));
+        let top = map.brush(block).unwrap().faces.iter().position(|f| f.plane.normal == DVec3::Y).unwrap();
+        let mut sel = td_doc::Selection::default();
+        sel.nodes.insert(block);
+
+        let mut m = map.clone();
+        assert!(!cut_faces(&mut m, &mut sel.clone(), &[(block, top)], 32.0, td_geom::csg::CarveMaterial::Target), "nothing above the block");
+        assert!(cut_faces(&mut m, &mut sel, &[(block, top)], -32.0, td_geom::csg::CarveMaterial::Target));
+        assert!(m.get(floor).is_some(), "a cut that stops inside the block leaves the floor alone");
+        assert_eq!(sel.nodes.len(), 1);
+        let piece = *sel.nodes.first().unwrap();
+        assert_eq!(m.brush(piece).unwrap().bounds(), Aabb::new(DVec3::new(-32.0, 64.0, -32.0), DVec3::new(32.0, 96.0, 32.0)));
+
+        let mut m = map.clone();
+        let mut sel = td_doc::Selection::default();
+        sel.nodes.insert(block);
+        assert!(cut_faces(&mut m, &mut sel, &[(block, top)], -96.0, td_geom::csg::CarveMaterial::Target));
+        assert!(m.get(block).is_none() && sel.nodes.is_empty(), "the block is swept away whole");
+        let floor_volume: f64 = m.brushes().map(|(_, b)| b.volume()).sum();
+        assert!((floor_volume - (256.0 * 256.0 * 64.0 - 64.0 * 64.0 * 32.0)).abs() < 1e-3, "a pit 32 deep, got {floor_volume}");
     }
 
     #[test]

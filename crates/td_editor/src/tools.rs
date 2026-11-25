@@ -125,6 +125,27 @@ pub const TERRAIN_TOOLS: &[&[ToolKind]] = &[&[ToolKind::Sculpt, ToolKind::Blend,
 /// The families in toolbar order, brush work first.
 pub const FAMILIES: [&[&[ToolKind]]; 2] = [BRUSH_TOOLS, TERRAIN_TOOLS];
 
+/// What a face drag does with the distance, switched with Tab while the drag runs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FaceDragMode {
+    /// Moves the faces, resizing their brushes.
+    Push,
+    /// Adds a brush on each face, as deep as the drag.
+    Extrude,
+    /// Carves the volume the faces sweep out of every brush it passes through.
+    Cut,
+}
+
+impl FaceDragMode {
+    pub fn next(self) -> Self {
+        match self {
+            Self::Push => Self::Extrude,
+            Self::Extrude => Self::Cut,
+            Self::Cut => Self::Push,
+        }
+    }
+}
+
 /// An in-progress mouse drag in a viewport.
 #[derive(Clone, Debug)]
 pub enum Drag {
@@ -152,6 +173,7 @@ pub enum Drag {
         normal: DVec3,
         /// The last distance every face could move, where the drag stays while the pointer asks for a collapse.
         last_ok: f64,
+        mode: FaceDragMode,
     },
     /// Dragging the side of terrain `id` facing `normal` in a 2D view, which adds or removes whole cells there.
     TerrainEdge {
