@@ -145,12 +145,12 @@ right-click menu of the view, or bind a key to either one on the **Keys** tab.
 | Key | Action |
 | --- | --- |
 | F or Ctrl+U | Frame the selection, or the whole map |
-| `[` and `]`, or `-` and `=` | Halve or double the grid |
+| `[` and `]`, or `-` and `=` or Plus | Halve or double the grid. Plus is the + key on keyboards where it has its own key, and on the number pad |
 | F4, F3 | Cycle shading (textured, flat, lit, wireframe), toggle Lit Preview |
 | Ctrl+Space or Shift+Space | Maximize the view under the pointer |
 | Alt+0 | Turn snapping to the grid on or off |
 | Ctrl+Shift+1 to 9, Ctrl+1 to 9 | Store, recall camera bookmarks |
-| Ctrl+=, Ctrl+-, Ctrl+0 | Interface scale up, down, reset |
+| Ctrl+= or Ctrl+Plus, Ctrl+-, Ctrl+0 | Interface scale up, down, reset |
 | F1 | Open the [manual](interface.md#help-and-the-manual) at the tool, panel tab, menu entry or Inspector section under the pointer, anywhere else the command palette |
 | Ctrl+click a tool in the toolbar, Cmd+click on macOS | Open its page in the manual |
 | Ctrl+Shift+P | Command palette |
