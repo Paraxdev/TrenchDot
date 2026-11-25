@@ -1651,8 +1651,8 @@ pub struct KeymapWindow {
 }
 
 /// The mouse gestures of `preset`, one grid per place they apply. Read only, the rows come from the click rules.
-fn mouse_tab(ui: &mut egui::Ui, preset: &str) {
-    let rows = crate::mouse_map::mouse_rows(preset);
+fn mouse_tab(ui: &mut egui::Ui, preset: &str, fly_choice: &str) {
+    let rows = crate::mouse_map::mouse_rows_flying(preset, fly_choice);
     let mut contexts: Vec<&str> = Vec::new();
     for row in &rows {
         if !contexts.contains(&row.context) {
@@ -1775,7 +1775,7 @@ impl KeymapWindow {
             if self.tab == KeymapTab::Mouse {
                 ui.horizontal(|ui| self.preset_combo(ui, state));
                 ui.separator();
-                mouse_tab(ui, &state.prefs.keymap_preset);
+                mouse_tab(ui, &state.prefs.keymap_preset, &state.prefs.fly_keys);
                 return;
             }
 

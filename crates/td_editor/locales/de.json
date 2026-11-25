@@ -2921,5 +2921,10 @@
   "Toggle Terrain Level of Detail": "Terrain-Detailstufen umschalten",
   "Draws far terrain with fewer triangles so big terrains stay fast. Off draws every cell": "Zeichnet fernes Terrain gröber, damit große Terrains schnell bleiben. Aus zeichnet jede Zelle",
   "Terrain level of detail on": "Terrain-Detailstufen an",
-  "Terrain level of detail off": "Terrain-Detailstufen aus"
+  "Terrain level of detail off": "Terrain-Detailstufen aus",
+  "Fly up and down": "Hoch und runter fliegen",
+  "E up, Q down": "E hoch, Q runter",
+  "Q up, X down": "Q hoch, X runter",
+  "As in the keymap preset": "Wie im Tastenbelegungs-Preset",
+  "The keys that fly the camera up and down while the right mouse button is held": "Die Tasten, mit denen die Kamera bei gehaltener rechter Maustaste hoch und runter fliegt"
 }

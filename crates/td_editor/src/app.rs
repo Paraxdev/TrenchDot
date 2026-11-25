@@ -3055,6 +3055,17 @@ impl App {
                 ui.label(tr("Invert look Y"));
                 ui.checkbox(&mut p.invert_y, "");
                 ui.end_row();
+                ui.label(tr("Fly up and down"));
+                egui::ComboBox::from_id_salt("fly_keys")
+                    .selected_text(tr(crate::mouse_map::fly_choice_label(&p.fly_keys)))
+                    .show_ui(ui, |ui| {
+                        for choice in crate::mouse_map::FLY_CHOICES {
+                            ui.selectable_value(&mut p.fly_keys, choice.to_string(), tr(crate::mouse_map::fly_choice_label(choice)));
+                        }
+                    })
+                    .response
+                    .on_hover_text(tr("The keys that fly the camera up and down while the right mouse button is held"));
+                ui.end_row();
                 ui.label(tr("Tips on an empty map"));
                 ui.checkbox(&mut p.start_hints, "");
                 ui.end_row();

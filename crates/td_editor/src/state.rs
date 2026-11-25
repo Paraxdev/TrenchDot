@@ -402,6 +402,8 @@ pub struct Prefs {
     pub hot_reload_port: u16,
     /// Base shortcut set: "trenchbroom", "hammer" or "blender".
     pub keymap_preset: String,
+    /// The fly up and down keys, "eq" or "qx", empty for the keymap preset's.
+    pub fly_keys: String,
     /// Binding id to shortcut text ("Ctrl+Shift+K"), an empty string unbinds.
     pub key_overrides: std::collections::BTreeMap<String, String>,
     pub scatter: ScatterSettings,
@@ -551,6 +553,7 @@ impl Default for Prefs {
             hot_reload: true,
             hot_reload_port: crate::live_link::DEFAULT_GAME_PORT,
             keymap_preset: "trenchbroom".into(),
+            fly_keys: String::new(),
             key_overrides: Default::default(),
             scatter: ScatterSettings::default(),
             model_import: ModelImportPrefs::default(),

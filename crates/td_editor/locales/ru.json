@@ -2921,5 +2921,10 @@
   "Toggle Terrain Level of Detail": "Вкл/выкл уровни детализации ландшафта",
   "Draws far terrain with fewer triangles so big terrains stay fast. Off draws every cell": "Упрощает дальний ландшафт, чтобы большие ландшафты не тормозили. Выключено: рисуется каждая ячейка",
   "Terrain level of detail on": "Уровни детализации ландшафта включены",
-  "Terrain level of detail off": "Уровни детализации ландшафта выключены"
+  "Terrain level of detail off": "Уровни детализации ландшафта выключены",
+  "Fly up and down": "Полёт вверх и вниз",
+  "E up, Q down": "E вверх, Q вниз",
+  "Q up, X down": "Q вверх, X вниз",
+  "As in the keymap preset": "Как в раскладке клавиш",
+  "The keys that fly the camera up and down while the right mouse button is held": "Клавиши, которыми камера летит вверх и вниз, пока зажата правая кнопка мыши"
 }

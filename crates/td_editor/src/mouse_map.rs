@@ -243,15 +243,38 @@ pub fn space_camera(preset: &str, in_2d: bool) -> Option<CameraDrag> {
     (preset == "hammer").then_some(if in_2d { CameraDrag::Pan } else { CameraDrag::Look })
 }
 
-/// The keys that fly the camera up and down while the right button is held. TrenchBroom uses Q and X, the others
-/// E and Q.
-pub fn fly_keys(preset: &str) -> (egui::Key, egui::Key) {
-    if preset == "trenchbroom" { (egui::Key::Q, egui::Key::X) } else { (egui::Key::E, egui::Key::Q) }
+/// The fly key choices of Preferences, the empty one keeps the preset's keys.
+pub const FLY_CHOICES: [&str; 3] = ["", "eq", "qx"];
+
+pub fn fly_choice_label(choice: &str) -> &'static str {
+    match choice {
+        "eq" => en!("E up, Q down"),
+        "qx" => en!("Q up, X down"),
+        _ => en!("As in the keymap preset"),
+    }
 }
 
-/// What the right drag look row says about flying, naming the preset's up and down keys.
-pub fn fly_text(preset: &str) -> &'static str {
-    if preset == "trenchbroom" { en!("Look around, WASD flies, Q and X go up and down") } else { en!("Look around, WASD flies, Q and E go down and up") }
+/// TrenchBroom flies up on Q and down on X, the other presets on E and Q, unless Preferences picks either pair.
+fn flies_on_q_and_x(preset: &str, choice: &str) -> bool {
+    match choice {
+        "qx" => true,
+        "eq" => false,
+        _ => preset == "trenchbroom",
+    }
+}
+
+/// The keys that fly the camera up and down while the right button is held.
+pub fn fly_keys(preset: &str, choice: &str) -> (egui::Key, egui::Key) {
+    if flies_on_q_and_x(preset, choice) { (egui::Key::Q, egui::Key::X) } else { (egui::Key::E, egui::Key::Q) }
+}
+
+/// What the right drag look row says about flying, naming the up and down keys.
+pub fn fly_text(preset: &str, choice: &str) -> &'static str {
+    if flies_on_q_and_x(preset, choice) {
+        en!("Look around, WASD flies, Q and X go up and down")
+    } else {
+        en!("Look around, WASD flies, Q and E go down and up")
+    }
 }
 
 /// Whether Shift changes what a click does. The Hammer preset keeps Shift for cloning, so a Shift+click there is a plain
@@ -362,6 +385,11 @@ const OUTLINER_DOUBLE_CLICK: &str = en!("Double click a row");
 /// The mouse gestures of `preset`, grouped by where they apply. The click rows come from [`chord_label`] and
 /// [`click_rule`], so they cannot drift from what a click does.
 pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
+    mouse_rows_flying(preset, "")
+}
+
+/// [`mouse_rows`] with the fly keys picked in Preferences.
+pub fn mouse_rows_flying(preset: &str, fly_choice: &str) -> Vec<MouseRow> {
     let mut rules = vec![ClickRule::ReplaceObject, ClickRule::ToggleObject];
     if preset != "hammer" {
         rules.extend([ClickRule::ReplaceFace, ClickRule::ToggleFace]);
@@ -440,7 +468,7 @@ pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
             drag("c", en!("Ctrl+drag the selection"), en!("Copy it and move the copy"), DragHit::Selected, SelectionDrag::Copy),
             drag("", en!("Drag a selection edge (2D)"), en!("Resize along it. Shift or Ctrl copies instead"), DragHit::Edge2d, SelectionDrag::Resize),
             space(en!("Space+drag (2D)"), en!("Pan"), true, CameraDrag::Pan),
-            space(en!("Space+drag (3D)"), fly_text(preset), false, CameraDrag::Look),
+            space(en!("Space+drag (3D)"), fly_text(preset, fly_choice), false, CameraDrag::Look),
             corner_box("", en!("Drag off the corners in the Vertex tool (2D)"), en!("Select the corners of the selected brushes inside the box")),
             corner_box("c", en!("Ctrl+drag off the corners in the Vertex tool (2D)"), en!("Add the corners inside the box to the selected corners")),
         ]);
@@ -455,7 +483,7 @@ pub fn mouse_rows(preset: &str) -> Vec<MouseRow> {
     }
 
     rows.extend([
-        fixed(VIEWS, en!("Right drag (3D)"), fly_text(preset)),
+        fixed(VIEWS, en!("Right drag (3D)"), fly_text(preset, fly_choice)),
         fixed(VIEWS, en!("Middle drag"), en!("Pan")),
         fixed(VIEWS, en!("Alt+right drag (3D)"), en!("Orbit")),
         fixed(VIEWS, en!("Alt+left drag (3D)"), en!("Orbit")),
@@ -794,11 +822,20 @@ mod tests {
 
     #[test]
     fn trenchbroom_flies_up_on_q_and_down_on_x() {
-        assert_eq!(fly_keys("trenchbroom"), (egui::Key::Q, egui::Key::X));
-        assert_eq!(fly_keys("hammer"), (egui::Key::E, egui::Key::Q));
+        assert_eq!(fly_keys("trenchbroom", ""), (egui::Key::Q, egui::Key::X));
+        assert_eq!(fly_keys("hammer", ""), (egui::Key::E, egui::Key::Q));
+        assert_eq!(fly_keys("trenchbroom", "eq"), (egui::Key::E, egui::Key::Q), "Preferences pick E and Q over the preset");
+        assert_eq!(fly_keys("blender", "qx"), (egui::Key::Q, egui::Key::X));
+        assert_eq!(fly_keys("trenchbroom", "zz"), (egui::Key::Q, egui::Key::X), "an unknown choice keeps the preset's keys");
         for preset in crate::commands::PRESETS {
-            assert!(mouse_rows(preset).iter().any(|r| r.what == fly_text(preset)), "{preset}");
+            assert!(mouse_rows(preset).iter().any(|r| r.what == fly_text(preset, "")), "{preset}");
+            for choice in FLY_CHOICES {
+                let rows = mouse_rows_flying(preset, choice);
+                assert!(rows.iter().any(|r| r.what == fly_text(preset, choice)), "{preset} {choice}");
+            }
         }
+
+        assert_ne!(fly_text("trenchbroom", "eq"), fly_text("trenchbroom", ""));
     }
 
     #[test]

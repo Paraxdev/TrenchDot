@@ -2921,5 +2921,10 @@
   "Toggle Terrain Level of Detail": "地形の詳細度を切替",
   "Draws far terrain with fewer triangles so big terrains stay fast. Off draws every cell": "遠くの地形を少ない三角形で描画し、大きな地形でも高速に保ちます。オフにするとすべてのセルを描画します",
   "Terrain level of detail on": "地形の詳細度をオン",
-  "Terrain level of detail off": "地形の詳細度をオフ"
+  "Terrain level of detail off": "地形の詳細度をオフ",
+  "Fly up and down": "飛行の上昇と下降",
+  "E up, Q down": "E で上昇、Q で下降",
+  "Q up, X down": "Q で上昇、X で下降",
+  "As in the keymap preset": "キー設定プリセットに従う",
+  "The keys that fly the camera up and down while the right mouse button is held": "右クリックを押したまま飛行するとき、カメラを上昇・下降させるキー"
 }

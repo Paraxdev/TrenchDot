@@ -310,7 +310,7 @@ impl Viewport {
 
                 // Like TrenchBroom, the fly keys only steer while the right mouse look is held, otherwise they are tool shortcuts.
                 if self.is_flying() && !ui.ctx().egui_wants_keyboard_input() && !modifiers.command {
-                    let (up, down) = crate::mouse_map::fly_keys(&cx.state.prefs.keymap_preset);
+                    let (up, down) = crate::mouse_map::fly_keys(&cx.state.prefs.keymap_preset, &cx.state.prefs.fly_keys);
                     let mut dir = DVec3::ZERO;
                     ui.input(|i| {
                         if i.key_down(Key::W) {
