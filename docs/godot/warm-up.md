@@ -7,7 +7,7 @@ If your game is just the map, you do not have to do anything. Every map warms it
 running game, and emits `warmed_up` when it is done.
 
 A map's own warm-up only covers the map, though. If your game adds its own content like a player, enemies or weapons,
-their first appearance still stutters. In that case untick **Warm Up Shaders** on the `FuncGodotMap` in Godot's
+their first appearance still stutters. In that case untick **Warm Up Shaders** on the `TrenchDotMap` in Godot's
 Inspector, and warm everything in one pass once it is all in:
 
 ```gdscript

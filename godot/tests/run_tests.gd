@@ -55,8 +55,8 @@ func collect(root: Node, predicate: Callable) -> Array[Node]:
 		stack.append_array(n.get_children())
 	return out
 
-func build_map() -> FuncGodotMap:
-	var map := FuncGodotMap.new()
+func build_map() -> TrenchDotMap:
+	var map := TrenchDotMap.new()
 	map.name = "TestMap"
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = MAP
@@ -183,15 +183,15 @@ func test_script_error_is_caught() -> void:
 
 func test_parser() -> void:
 	print("- parser")
-	var parse_data := FuncGodotData.ParseData.new()
+	var parse_data := TrenchDotData.ParseData.new()
 	var result := TrenchDotParser.parse_dict(TrenchDotTdmFile.load_map(MAP), load(SETTINGS), parse_data, MAP)
 	check(result != null, "parse returns data")
 	var newer := { "format": "trenchdot-map", "version": TrenchDotParser.FORMAT_VERSION + 1, "layers": [] }
-	check(TrenchDotParser.parse_dict(newer, load(SETTINGS), FuncGodotData.ParseData.new(), "newer.tdm") == null, "a newer map version is refused")
+	check(TrenchDotParser.parse_dict(newer, load(SETTINGS), TrenchDotData.ParseData.new(), "newer.tdm") == null, "a newer map version is refused")
 	var stray := { "format": "trenchdot-map", "version": 1, "layers": [{ "id": 5, "type": "entity", "classname": "light", "properties": {} }] }
-	var stray_data := TrenchDotParser.parse_dict(stray, load(SETTINGS), FuncGodotData.ParseData.new(), "stray.tdm")
+	var stray_data := TrenchDotParser.parse_dict(stray, load(SETTINGS), TrenchDotData.ParseData.new(), "stray.tdm")
 	check(stray_data != null and stray_data.entities.size() == 1, "top level nodes that are not layers are ignored like in the editor")
-	var world: FuncGodotData.EntityData = result.entities[0]
+	var world: TrenchDotData.EntityData = result.entities[0]
 	check(world.properties["classname"] == "worldspawn", "entity 0 is worldspawn")
 	# floor + 3 wall pieces + 2 props + prefab pillar. The omitted layer brush must not be there.
 	check(world.brushes.size() == 7, "world brush count is 7, got %d" % world.brushes.size())
@@ -213,10 +213,10 @@ func test_parser() -> void:
 	var keys := TrenchDotParser._fixup_keys(fix_ctx, "trigger_teleport")
 	check("destination" in keys and "call_target" in keys and "targetname" in keys, "teleport destinations and call targets get the fixup, got %s" % [keys])
 	# killtarget and parent are targets by their name, the way the game config exports them and Explode Instance fixes them.
-	var killer := FuncGodotFGDPointClass.new()
+	var killer := TrenchDotFGDPointClass.new()
 	killer.classname = "td_tests_killer"
 	killer.class_properties = { "killtarget": "", "parent": "", "label": "" }
-	var plain := FuncGodotFGDPointClass.new()
+	var plain := TrenchDotFGDPointClass.new()
 	plain.classname = "td_tests_plain_parent"
 	plain.class_properties = { "parent": "" }
 	plain.meta_properties = { "property_types": { "parent": "string" } }
@@ -230,7 +230,7 @@ func test_parser() -> void:
 	check(exported["type"] == "string" and exported["default"] == "idle", "a StringName default exports as a string, got %s" % [exported])
 
 	# Face planes must point out of their brush.
-	var floor_brush: FuncGodotData.BrushData = world.brushes[0]
+	var floor_brush: TrenchDotData.BrushData = world.brushes[0]
 	var center := Vector3.ZERO
 	var count := 0
 	for f in floor_brush.faces:
@@ -313,7 +313,7 @@ func test_build() -> void:
 
 func test_terrain() -> void:
 	print("- displacements and vertex paint")
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = "res://tests/maps/terrain.tdm"
 	root.add_child(map)
@@ -385,7 +385,7 @@ func test_terrain() -> void:
 
 func test_terrain_layer_texture() -> void:
 	print("- terrain layers take the albedo of their material")
-	var settings: FuncGodotMapSettings = load(SETTINGS).duplicate()
+	var settings: TrenchDotMapSettings = load(SETTINGS).duplicate()
 	settings.default_material_albedo_uniform = "albedo_texture"
 	var albedo := ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGB8))
 	var named := StandardMaterial3D.new()
@@ -397,12 +397,12 @@ func test_terrain_layer_texture() -> void:
 uniform sampler2D %s;" % settings.default_material_albedo_uniform
 	shader.set_shader_parameter(settings.default_material_albedo_uniform, albedo)
 	check(TrenchDotTerrain._layer_texture("no_such_image", shader, settings) == albedo, "a shader material paints its albedo uniform")
-	check(TrenchDotTerrain._layer_texture("no_such_image", StandardMaterial3D.new(), settings).resource_path == FuncGodotUtil.default_texture_path, "a material without albedo falls back to the texture lookup")
+	check(TrenchDotTerrain._layer_texture("no_such_image", StandardMaterial3D.new(), settings).resource_path == TrenchDotUtil.default_texture_path, "a material without albedo falls back to the texture lookup")
 
 func test_displacement_power() -> void:
 	print("- displacements outside the editor's powers stay flat")
-	var settings: FuncGodotMapSettings = load(SETTINGS)
-	var displaced := func(power: int, alphas: int) -> FuncGodotData.BrushData:
+	var settings: TrenchDotMapSettings = load(SETTINGS)
+	var displaced := func(power: int, alphas: int) -> TrenchDotData.BrushData:
 		var side := (1 << power) + 1
 		var heights := PackedFloat32Array()
 		heights.resize(side * side)
@@ -411,15 +411,15 @@ func test_displacement_power() -> void:
 		var node := box_node(1, Vector3(0, 0, 0), Vector3(64, 64, 64))
 		node["faces"][0]["disp"] = { "power": power, "heights": heights, "alphas": shades }
 		return TrenchDotParser._parse_brush(settings, Transform3D.IDENTITY, node)
-	var kept: FuncGodotData.BrushData = displaced.call(2, 0)
+	var kept: TrenchDotData.BrushData = displaced.call(2, 0)
 	check(kept != null and kept.has_disp and kept.faces[0].disp_vertices.size() == 25, "a power 2 displacement builds its 5 by 5 grid")
 	kept = displaced.call(2, 25)
 	check(kept != null and kept.has_disp and kept.faces[0].disp_alphas.size() == 25, "with one alpha per vertex")
 	# Zero heights compress to nearly nothing, a 3 KB map could ask for 16.8 million vertices at power 12.
 	for power in [0, 5, 12]:
-		var flat: FuncGodotData.BrushData = displaced.call(power, 0)
+		var flat: TrenchDotData.BrushData = displaced.call(power, 0)
 		check(flat != null and flat.faces.size() == 6 and not flat.has_disp and flat.faces[0].disp_vertices.is_empty(), "power %d leaves the face flat and the brush whole" % power)
-	var odd: FuncGodotData.BrushData = displaced.call(2, 3)
+	var odd: TrenchDotData.BrushData = displaced.call(2, 3)
 	check(odd != null and not odd.has_disp, "alphas that do not fit the grid leave the face flat")
 
 func test_decal_mesh() -> void:
@@ -434,7 +434,7 @@ func test_decal_mesh() -> void:
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	f.store_string(text)
 	f.close()
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = path
 	root.add_child(map)
@@ -553,16 +553,16 @@ func test_warm_up() -> void:
 
 func test_builtin_dev_textures() -> void:
 	print("- the editor's dev/ colours build as their colour without texture files")
-	var settings: FuncGodotMapSettings = load(SETTINGS)
-	var grey := FuncGodotUtil.load_texture("dev/grey", settings)
-	check(grey != null and grey.resource_path == FuncGodotUtil.builtin_texture_dir.path_join("dev/grey.png"), "dev/grey loads the addon's grey grid")
+	var settings: TrenchDotMapSettings = load(SETTINGS)
+	var grey := TrenchDotUtil.load_texture("dev/grey", settings)
+	check(grey != null and grey.resource_path == TrenchDotUtil.builtin_texture_dir.path_join("dev/grey.png"), "dev/grey loads the addon's grey grid")
 	check(grey != null and grey.get_size() == Vector2(128, 128), "at the editor's size, so the UVs match")
-	check(FuncGodotUtil.load_texture("dev/nope", settings).resource_path == FuncGodotUtil.default_texture_path, "an unknown dev/ name gets the checker")
-	check(FuncGodotUtil.load_texture("base/floor", settings).resource_path.begins_with(settings.base_texture_dir), "project textures still load")
+	check(TrenchDotUtil.load_texture("dev/nope", settings).resource_path == TrenchDotUtil.default_texture_path, "an unknown dev/ name gets the checker")
+	check(TrenchDotUtil.load_texture("base/floor", settings).resource_path.begins_with(settings.base_texture_dir), "project textures still load")
 
 func test_missing_map_settings() -> void:
 	print("- a map without settings builds with the project's default ones")
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = null
 	map.local_map_file = MAP
 	root.add_child(map)
@@ -575,7 +575,7 @@ func test_missing_map_settings() -> void:
 
 func test_meshes_terrain_props() -> void:
 	print("- meshes, heightmap terrain and model props")
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = "res://tests/maps/geometry.tdm"
 	root.add_child(map)
@@ -739,7 +739,7 @@ func has_albedo(material: Material) -> bool:
 
 func test_default_fgd() -> void:
 	print("- addon defaults include the entity library")
-	var settings: FuncGodotMapSettings = load("res://addons/func_godot/func_godot_default_map_settings.tres")
+	var settings: TrenchDotMapSettings = load("res://addons/func_godot/func_godot_default_map_settings.tres")
 	var defs := settings.entity_fgd.get_entity_definitions()
 	check(defs.has("func_door") and defs.has("logic_relay") and defs.has("worldspawn"), "default map settings know func_door, logic_relay and worldspawn")
 	check(defs["func_door"].script_class.resource_path.begins_with("res://trenchdot/entities/"), "the pack's entities run the project's copies")
@@ -759,13 +759,13 @@ func test_default_fgd() -> void:
 	# The editor names its tool textures special/..., so a fresh project has to agree or clip brushes draw.
 	var tools := { "clip": "special/clip", "skip": "special/skip", "origin": "special/origin", "sky": "special/sky" }
 	check(config.build_config()["tool_textures"] == tools, "default game config exports the editor's tool textures, got %s" % [config.build_config()["tool_textures"]])
-	for fresh: FuncGodotMapSettings in [settings, FuncGodotMapSettings.new()]:
+	for fresh: TrenchDotMapSettings in [settings, TrenchDotMapSettings.new()]:
 		check([fresh.clip_texture, fresh.skip_texture, fresh.origin_texture, fresh.sky_texture] == tools.values(), "default map settings use the editor's tool textures")
 	var path := OS.get_temp_dir().path_join("td_default_tools_test.tdm")
 	var map_json := { "format": "trenchdot-map", "properties": {}, "layers": [{ "type": "layer", "id": 1, "children": [
 		box_node(2, Vector3(0, 0, 0), Vector3(64, 64, 64), "special/clip"), box_node(3, Vector3(128, 0, 0), Vector3(192, 64, 64), "brick")] }] }
 	FileAccess.open(path, FileAccess.WRITE).store_string(JSON.stringify(map_json))
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = settings
 	map.global_map_file = path
 	root.add_child(map)
@@ -797,10 +797,10 @@ func test_entity_pack() -> void:
 	FileAccess.open(maps.path_join("old.tdm"), FileAccess.WRITE).store_string('{"classname": "func_door", "light": {"classname": "light"}}')
 	var core := TrenchDotFGDFile.new()
 	core.base_fgd_files = [load("res://addons/func_godot/fgd/func_godot_fgd.tres")]
-	core.entity_definitions = (load("res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres") as FuncGodotFGDFile).entity_definitions
+	core.entity_definitions = (load("res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres") as TrenchDotFGDFileBase).entity_definitions
 	core.pack_fgd_path = ""
 	check(TrenchDotEntityPack.missing(core.get_entity_definitions(), maps) == PackedStringArray(["func_door"]), "a map with a door needs the pack in a core only project")
-	check(TrenchDotEntityPack.missing((load("res://demo/demo_fgd.tres") as FuncGodotFGDFile).get_entity_definitions(), maps).is_empty(), "a project that defines func_door needs nothing")
+	check(TrenchDotEntityPack.missing((load("res://demo/demo_fgd.tres") as TrenchDotFGDFileBase).get_entity_definitions(), maps).is_empty(), "a project that defines func_door needs nothing")
 	DirAccess.remove_absolute(maps.path_join("old.tdm"))
 	DirAccess.copy_absolute(ProjectSettings.globalize_path(MAP), maps.path_join("saved.tdm"))
 	var used := TrenchDotEntityPack.missing(core.get_entity_definitions(), maps)
@@ -829,7 +829,7 @@ func test_demo_load_problem() -> void:
 
 func test_demo_start_is_the_player() -> void:
 	print("- the demo's info_player_start builds the player")
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = "res://demo/maps/showcase/lighthouse_forest.tdm"
 	root.add_child(map)
@@ -879,11 +879,11 @@ func test_resource_scripts_without_static_vars() -> void:
 
 func test_clashes() -> void:
 	print("- classnames defined twice are exported as clashes, the last one wins")
-	var door := FuncGodotFGDSolidClass.new()
+	var door := TrenchDotFGDSolidClass.new()
 	door.classname = "func_door"
 	door.description = "my door"
 	door.take_over_path("res://tests/my_func_door.tres")
-	var fgd := FuncGodotFGDFile.new()
+	var fgd := TrenchDotFGDFileBase.new()
 	fgd.base_fgd_files = [load("res://addons/func_godot/fgd/func_godot_fgd.tres"), load("res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres")]
 	fgd.entity_definitions = [door]
 	var config := TrenchDotGameConfig.new()
@@ -897,7 +897,7 @@ func test_clashes() -> void:
 	check(fgd.get_entity_definitions()["func_door"].description == "my door", "the later definition is the one maps get")
 	_check_intended_clashes()
 	door.node_groups = ["doors", ""]
-	config.map_settings = FuncGodotMapSettings.new()
+	config.map_settings = TrenchDotMapSettings.new()
 	config.map_settings.entity_node_groups = ["entities", "doors"]
 	var exported: Array = config.build_config()["entities"].filter(func(e): return e["classname"] == "func_door")
 	check(exported.size() == 1 and exported[0].get("node_groups") == ["entities", "doors"], "node groups are exported for @group targets, got %s" % [exported])
@@ -906,8 +906,8 @@ func test_clashes() -> void:
 	check(demo_clashes.size() == 1 and demo_clashes[0]["classname"] == "info_player_start" and demo_clashes[0].get("intended") == true, "the demo's only repeated classname is its marked player start override, got %s" % [demo_clashes])
 
 func _check_intended_clashes() -> void:
-	var override := func(classname: String, path: String, meta: Variant) -> FuncGodotFGDEntityClass:
-		var def: FuncGodotFGDEntityClass = FuncGodotFGDSolidClass.new() if classname.begins_with("func_") else FuncGodotFGDPointClass.new()
+	var override := func(classname: String, path: String, meta: Variant) -> TrenchDotFGDEntityClass:
+		var def: TrenchDotFGDEntityClass = TrenchDotFGDSolidClass.new() if classname.begins_with("func_") else TrenchDotFGDPointClass.new()
 		def.classname = classname
 		if meta != null:
 			def.set_meta("trenchdot_override", meta)
@@ -916,14 +916,14 @@ func _check_intended_clashes() -> void:
 		return def
 	var config := TrenchDotGameConfig.new()
 	config.csharp_source_dirs = []
-	var intended := func(fgd: FuncGodotFGDFile) -> Dictionary:
+	var intended := func(fgd: TrenchDotFGDFileBase) -> Dictionary:
 		config.fgd_file = fgd
 		var out := {}
 		for clash in config.build_config().get("clashes", []):
 			out[clash["classname"]] = clash.get("intended", false)
 		return out
 
-	var project := FuncGodotFGDFile.new()
+	var project := TrenchDotFGDFileBase.new()
 	project.base_fgd_files = [load("res://addons/func_godot/fgd/func_godot_fgd.tres"), load("res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres")]
 	project.entity_definitions = [
 		override.call("func_door", "res://tests/override/func_door.tres", true),
@@ -935,13 +935,13 @@ func _check_intended_clashes() -> void:
 	var got: Dictionary = intended.call(project)
 	check(got == { "func_door": true, "func_button": false, "light": false, "info_player_start": true }, "only definitions marked as overrides are intended, got %s" % [got])
 
-	var later := FuncGodotFGDFile.new()
+	var later := TrenchDotFGDFileBase.new()
 	later.base_fgd_files = [project]
 	later.entity_definitions = [override.call("func_door", "res://tests/override/later_func_door.tres", null)]
 	got = intended.call(later)
 	check(got.get("func_door") == false and got.get("info_player_start") == true, "the mark counts on the definition maps get, not on one it hides, got %s" % [got])
 
-	var inline := FuncGodotFGDFile.new()
+	var inline := TrenchDotFGDFileBase.new()
 	inline.base_fgd_files = project.base_fgd_files
 	inline.entity_definitions = [override.call("func_door", "", true)]
 	inline.take_over_path("res://tests/override/inline_fgd.tres")
@@ -950,13 +950,13 @@ func _check_intended_clashes() -> void:
 
 func test_nodraw_tool_textures() -> void:
 	print("- nodraw tool textures draw nothing, like the editor shows them")
-	var settings: FuncGodotMapSettings = load(SETTINGS).duplicate()
+	var settings: TrenchDotMapSettings = load(SETTINGS).duplicate()
 	settings.save_generated_materials = false
 	for t in ["special/nodraw", "Special/Trigger", "tools/toolsnodraw", "td/anything", "common/caulk", "special/occluder"]:
-		check(FuncGodotUtil.filter_face(t, settings), "%s builds no visual mesh" % t)
+		check(TrenchDotUtil.filter_face(t, settings), "%s builds no visual mesh" % t)
 	for t in ["showcase/cobble", "brick/clipper", "special_brick"]:
-		check(not FuncGodotUtil.filter_face(t, settings), "%s draws" % t)
-	check(FuncGodotUtil.is_skip("special/hint", settings) and not FuncGodotUtil.is_skip("special/playerclip", settings), "hint builds nothing, playerclip collides")
+		check(not TrenchDotUtil.filter_face(t, settings), "%s draws" % t)
+	check(TrenchDotUtil.is_skip("special/hint", settings) and not TrenchDotUtil.is_skip("special/playerclip", settings), "hint builds nothing, playerclip collides")
 
 	# One box per texture, far apart: each colliding box adds 12 triangles to the concave shape of func_geo.
 	var textures := ["showcase/cobble", "special/nodraw", "special/trigger", "special/playerclip", "special/hint", "special/occluder"]
@@ -967,7 +967,7 @@ func test_nodraw_tool_textures() -> void:
 	var path := OS.get_temp_dir().path_join("td_nodraw_test.tdm")
 	var map_json := { "format": "trenchdot-map", "properties": {}, "layers": [{ "type": "layer", "id": 1, "children": [geo] }] }
 	FileAccess.open(path, FileAccess.WRITE).store_string(JSON.stringify(map_json))
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = settings
 	map.global_map_file = path
 	root.add_child(map)
@@ -991,7 +991,7 @@ func test_nodraw_tool_textures() -> void:
 
 func test_build_report() -> void:
 	print("- the build report names what is missing, once each")
-	var settings: FuncGodotMapSettings = load(SETTINGS).duplicate()
+	var settings: TrenchDotMapSettings = load(SETTINGS).duplicate()
 	settings.clip_texture = "clip"
 	settings.save_generated_materials = false
 	var entity := func(id: int, classname: String, properties: Dictionary, outputs := []) -> Dictionary:
@@ -1013,10 +1013,10 @@ func test_build_report() -> void:
 	var path := OS.get_temp_dir().path_join("td_build_report_test.tdm")
 	var map_json := { "format": "trenchdot-map", "properties": {}, "layers": [{ "type": "layer", "id": 1, "children": children }] }
 	FileAccess.open(path, FileAccess.WRITE).store_string(JSON.stringify(map_json))
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = settings
 	map.global_map_file = path
-	map.build_flags = FuncGodotMap.BuildFlags.PRINT_REPORT
+	map.build_flags = TrenchDotMap.BuildFlags.PRINT_REPORT
 	root.add_child(map)
 	var report := map.build()
 	check(report == map.build_report and report["error"] == "", "build returns the report it keeps")
@@ -1040,7 +1040,7 @@ func test_build_report() -> void:
 
 func test_map_material_names() -> void:
 	print("- texture and material names in a map stay inside the project")
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	# A material beside the project whose script would mark that it ran, reached by a name that climbs out of the
 	# material folder.
 	var outside := ProjectSettings.globalize_path("res://").path_join("../td_outside_material.tres").simplify_path()
@@ -1057,7 +1057,7 @@ func test_map_material_names() -> void:
 	]
 	var path := OS.get_temp_dir().path_join("td_material_names_test.tdm")
 	FileAccess.open(path, FileAccess.WRITE).store_string(JSON.stringify({ "format": "trenchdot-map", "properties": {}, "layers": [{ "type": "layer", "id": 1, "children": children }] }))
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = settings
 	map.global_map_file = path
 	root.add_child(map)
@@ -1103,7 +1103,7 @@ func test_map_resource_paths() -> void:
 	]
 	var path := dir.path_join("td_paths_test.tdm")
 	FileAccess.open(path, FileAccess.WRITE).store_string(JSON.stringify({ "format": "trenchdot-map", "properties": { "sky_panorama": "user://outside_sky.hdr" }, "layers": [{ "type": "layer", "id": 1, "children": children }] }))
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = load(SETTINGS)
 	map.global_map_file = path
 	root.add_child(map)
@@ -1163,7 +1163,7 @@ func test_game_config() -> void:
 		var size: Array = by_name["info_player_start"]["size"]
 		check(size[0] == [-16.0, 0.0, -16.0] and size[1] == [16.0, 56.0, 16.0], "sizes converted to Y-up, got %s" % [size])
 	var build: Dictionary = data.get("build", {})
-	var settings: FuncGodotMapSettings = load(ProjectSettings.get_setting("func_godot/default_map_settings"))
+	var settings: TrenchDotMapSettings = load(ProjectSettings.get_setting("func_godot/default_map_settings"))
 	check(build.get("map_settings") == settings.resource_path and build.get("entity_fgd") == settings.entity_fgd.resource_path, "the build block names the project's map settings and their FGD, got %s %s" % [build.get("map_settings"), build.get("entity_fgd")])
 	var classes: Array = build.get("classes", [])
 	var sorted := classes.duplicate()
@@ -1225,29 +1225,29 @@ func test_game_config_io_types() -> void:
 
 func test_fgd_property_resources() -> void:
 	print("- typed FGD property resources and properties in metadata")
-	var mode := FuncGodotFGDPropertyChoices.new()
+	var mode := TrenchDotFGDPropertyChoices.new()
 	mode.choices = { 0: "Off", 2: "Fast" }
-	var style := FuncGodotFGDPropertyChoices.new()
+	var style := TrenchDotFGDPropertyChoices.new()
 	style.choices = { &"round": "Round", &"square": "Square" }
 	style.default_value = &"square"
-	var parent := FuncGodotFGDPropertyChoices.new()
+	var parent := TrenchDotFGDPropertyChoices.new()
 	parent.choices = { "base": "Base", "tower": "Tower" }
-	var flags := FuncGodotFGDPropertyFlags.new()
+	var flags := TrenchDotFGDPropertyFlags.new()
 	for f in [[0, "Start open", true], [3, "", true], [1, "Silent", false]]:
-		var flag := FuncGodotFGDPropertyFlagDescriptor.new()
+		var flag := TrenchDotFGDPropertyFlagDescriptor.new()
 		flag.index = f[0]
 		flag.name = f[1]
 		flag.enabled = f[2]
 		flags.flags.append(flag)
-	var tint := FuncGodotFGDPropertyColor.new()
+	var tint := TrenchDotFGDPropertyColor.new()
 	tint.default_value = Color8(255, 128, 0)
-	var glow := FuncGodotFGDPropertyColor.new()
-	glow.fgd_color_type = FuncGodotFGDPropertyColor.FGDColorType.COLOR1
+	var glow := TrenchDotFGDPropertyColor.new()
+	glow.fgd_color_type = TrenchDotFGDPropertyColor.FGDColorType.COLOR1
 	glow.default_value = Color.WHITE
-	var follow := FuncGodotFGDPropertyTarget.new()
-	follow.fgd_target_type = FuncGodotFGDPropertyTarget.FGDTargetType.TARGET_DESTINATION
+	var follow := TrenchDotFGDPropertyTarget.new()
+	follow.fgd_target_type = TrenchDotFGDPropertyTarget.FGDTargetType.TARGET_DESTINATION
 	follow.description = "Entity to follow"
-	var def := FuncGodotFGDPointClass.new()
+	var def := TrenchDotFGDPointClass.new()
 	def.classname = "td_tests_typed"
 	def.node_class = "Node3D"
 	def.class_properties = { "mode": mode, "style": style, "parent": parent, "spawnflags": flags, "tint": tint, "glow": glow, "follow": follow }
@@ -1271,20 +1271,20 @@ func test_fgd_property_resources() -> void:
 	var keys := TrenchDotParser._fixup_keys(fix_ctx, "td_tests_typed")
 	check("follow" in keys and not "parent" in keys, "target resources get the instance fixup and other resources skip name inference, got %s" % [keys])
 
-	var settings: FuncGodotMapSettings = load(SETTINGS).duplicate()
-	var fgd := FuncGodotFGDFile.new()
+	var settings: TrenchDotMapSettings = load(SETTINGS).duplicate()
+	var fgd := TrenchDotFGDFileBase.new()
 	fgd.base_fgd_files = [settings.entity_fgd]
 	fgd.entity_definitions = [def]
 	settings.entity_fgd = fgd
 	var props := { "mode": "2", "style": "round", "tint": "1.0 0.5 0.25", "follow": "door" }
 	var ent := { "id": 2, "type": "entity", "classname": "td_tests_typed", "origin": [0.0, 0.0, 0.0], "angles": [0.0, 0.0, 0.0], "properties": props }
 	var map_json := { "format": "trenchdot-map", "version": 1, "properties": {}, "layers": [{ "type": "layer", "id": 1, "children": [ent] }] }
-	var parsed := FuncGodotParser.new().parse_tdm(map_json, settings, "res://tests/td_tests_typed.tdm")
+	var parsed := TrenchDotMapParser.new().parse_tdm(map_json, settings, "res://tests/td_tests_typed.tdm")
 	var found := parsed.entities.filter(func(e): return e.properties.get("classname") == "td_tests_typed")
 	check(found.size() == 1, "the typed entity is parsed")
 	if found.size() != 1:
 		return
-	var entity: FuncGodotData.EntityData = found[0]
+	var entity: TrenchDotData.EntityData = found[0]
 	var p := entity.properties
 	check(typeof(p["mode"]) == TYPE_INT and p["mode"] == 2, "a choices value takes its option's type, got %s" % [p["mode"]])
 	check(typeof(p["style"]) == TYPE_STRING_NAME and p["style"] == &"round", "StringName choices stay names, got %s" % [p["style"]])
@@ -1292,7 +1292,7 @@ func test_fgd_property_resources() -> void:
 	check(p["follow"] == "door", "a target stays a string")
 	check(p["spawnflags"] == 9 and p["glow"] == Color.WHITE and p["parent"] == "base", "missing keys get the resource defaults, got %s %s %s" % [p["spawnflags"], p["glow"], p["parent"]])
 
-	var assembler := FuncGodotEntityAssembler.new(settings)
+	var assembler := TrenchDotEntityAssembler.new(settings)
 	var holder := Node3D.new()
 	var node := assembler.attach_entity(assembler.generate_entity_node(entity, 1), entity, holder, holder)
 	check(node != null and not node.has_meta("func_godot_properties"), "properties are not copied to metadata by default")
@@ -1310,8 +1310,8 @@ func test_fgd_property_resources() -> void:
 
 func test_game_config_lint() -> void:
 	print("- game config export lint")
-	var fgd := FuncGodotFGDFile.new()
-	var point := FuncGodotFGDPointClass.new()
+	var fgd := TrenchDotFGDFileBase.new()
+	var point := TrenchDotFGDPointClass.new()
 	point.classname = "test_lint_point"
 	point.meta_properties = { "inputs": [], "size": Vector3(1, 1, 1) }
 	fgd.entity_definitions = [point]
@@ -1329,7 +1329,7 @@ func test_game_config_lint() -> void:
 	point.meta_properties = { "size": AABB(Vector3.ZERO, Vector3.ZERO) }
 	check(config.lint().any(func(w): return w.begins_with("test_lint_point: meta_properties.size")), "a zero size AABB is flagged")
 
-	var build_fgd: FuncGodotFGDFile = load(ProjectSettings.get_setting("func_godot/default_map_settings")).entity_fgd
+	var build_fgd: TrenchDotFGDFileBase = load(ProjectSettings.get_setting("func_godot/default_map_settings")).entity_fgd
 	var mismatch := config.lint().filter(func(w: String) -> bool: return w.contains("the FGD maps build with, %s" % build_fgd.resource_path))
 	check(mismatch.size() == 2, "an fgd_file that defines other classes than the build's FGD warns both ways, got %s" % [mismatch])
 	check(mismatch.any(func(w: String) -> bool: return w.begins_with("fgd_file defines test_lint_point, which") and w.contains("build plain nodes")), "naming the class maps cannot build, got %s" % [mismatch])
@@ -1527,7 +1527,7 @@ func test_spawner() -> void:
 
 func test_scatter_and_blend() -> void:
 	print("- scatter sets and blend materials")
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	var data := {
 		"type": "scatter", "name": "trees", "kind": "props", "collision": "convex", "cast_shadows": true, "visibility_range": 3200, "chunk_size": 0,
 		"items": [{ "source": "res://demo/models/pine.bbmodel" }, { "source": "res://demo/models/missing.bbmodel" }],
@@ -1636,32 +1636,32 @@ func test_scatter_and_blend() -> void:
 func test_texture_size_override() -> void:
 	print("- material texture_size overrides the pixel size")
 	var bricks := load("res://demo/textures/showcase/red_bricks.tres") as BaseMaterial3D
-	check(FuncGodotUtil.material_texture_size(bricks) == Vector2(64, 64), "the material carries its world size, got %s" % FuncGodotUtil.material_texture_size(bricks))
+	check(TrenchDotUtil.material_texture_size(bricks) == Vector2(64, 64), "the material carries its world size, got %s" % TrenchDotUtil.material_texture_size(bricks))
 	check(bricks.albedo_texture.get_size().x > 64.0, "the photo has more pixels than its world size, so pixels would be the wrong scale")
 	var plain := StandardMaterial3D.new()
-	check(FuncGodotUtil.material_texture_size(plain) == Vector2.ZERO, "a material without the metadata keeps its pixel size")
+	check(TrenchDotUtil.material_texture_size(plain) == Vector2.ZERO, "a material without the metadata keeps its pixel size")
 	plain.set_meta("texture_size", Vector2i(96, 48))
-	check(FuncGodotUtil.material_texture_size(plain) == Vector2(96, 48), "integer vectors are read too")
+	check(TrenchDotUtil.material_texture_size(plain) == Vector2(96, 48), "integer vectors are read too")
 	plain.set_meta("texture_size", 128)
-	check(FuncGodotUtil.material_texture_size(plain) == Vector2(128, 128), "a single number is square")
+	check(TrenchDotUtil.material_texture_size(plain) == Vector2(128, 128), "a single number is square")
 	plain.set_meta("texture_size", Vector2(0, 64))
-	check(FuncGodotUtil.material_texture_size(plain) == Vector2.ZERO, "a zero size is ignored rather than dividing by zero")
+	check(TrenchDotUtil.material_texture_size(plain) == Vector2.ZERO, "a zero size is ignored rather than dividing by zero")
 
 	# The texture map feeds every face's UVs: a face on red_bricks repeats every 64 units, a decal of it too, and a
 	# texture without a material file still follows its pixels.
-	var settings := (load(SETTINGS) as FuncGodotMapSettings).duplicate() as FuncGodotMapSettings
+	var settings := (load(SETTINGS) as TrenchDotMapSettings).duplicate() as TrenchDotMapSettings
 	settings.save_generated_materials = false
 	var decal := "showcase/red_bricks" + TrenchDotDecalMesh.SUFFIX
-	var brush := FuncGodotData.BrushData.new()
+	var brush := TrenchDotData.BrushData.new()
 	for texture in ["showcase/red_bricks", decal, "special/trigger", "td_tests/no_such_texture"]:
-		var face := FuncGodotData.FaceData.new()
+		var face := TrenchDotData.FaceData.new()
 		face.texture = texture
 		brush.faces.append(face)
-	var entity := FuncGodotData.EntityData.new()
-	entity.definition = FuncGodotFGDSolidClass.new()
+	var entity := TrenchDotData.EntityData.new()
+	entity.definition = TrenchDotFGDSolidClass.new()
 	entity.brushes.append(brush)
-	var entities: Array[FuncGodotData.EntityData] = [entity]
-	var sizes: Dictionary = FuncGodotUtil.build_texture_map(entities, settings)[1]
+	var entities: Array[TrenchDotData.EntityData] = [entity]
+	var sizes: Dictionary = TrenchDotUtil.build_texture_map(entities, settings)[1]
 	check(sizes.get("showcase/red_bricks") == Vector2(64, 64), "faces use the world size, got %s" % sizes.get("showcase/red_bricks"))
 	check(sizes.get(decal) == Vector2(64, 64), "a decal repeats like its base material, got %s" % sizes.get(decal))
 	check(not sizes.has("special/trigger"), "a tool texture builds no material")
@@ -1673,14 +1673,14 @@ func test_texture_size_override() -> void:
 	var material_dir := "res://tests/td_no_albedo_%d" % OS.get_process_id()
 	DirAccess.make_dir_recursive_absolute(material_dir)
 	ResourceSaver.save(StandardMaterial3D.new(), material_dir.path_join("plain.tres"))
-	var bare := settings.duplicate() as FuncGodotMapSettings
+	var bare := settings.duplicate() as TrenchDotMapSettings
 	bare.base_material_dir = material_dir
 	brush.faces[0].texture = "plain"
-	check(FuncGodotUtil.build_texture_map(entities, bare)[1].get("plain") == Vector2(64, 64), "a material without albedo uses the fallback size")
+	check(TrenchDotUtil.build_texture_map(entities, bare)[1].get("plain") == Vector2(64, 64), "a material without albedo uses the fallback size")
 	brush.faces[0].texture = "showcase/red_bricks"
 	DirAccess.remove_absolute(material_dir.path_join("plain.tres"))
 	DirAccess.remove_absolute(material_dir)
-	var uv := FuncGodotUtil.get_valve_uv(Vector3(64, 0, 32), Vector3.RIGHT, Vector3.BACK, Transform2D.IDENTITY, sizes["showcase/red_bricks"])
+	var uv := TrenchDotUtil.get_valve_uv(Vector3(64, 0, 32), Vector3.RIGHT, Vector3.BACK, Transform2D.IDENTITY, sizes["showcase/red_bricks"])
 	check(uv.is_equal_approx(Vector2(1.0, 0.5)), "one world size along u is one repeat, got %s" % uv)
 
 	# A blend keeps the painted texture at its own world size: cobble repeats every 64 units, carpet every 32.
@@ -1727,15 +1727,15 @@ func test_face_cull() -> void:
 			{ "type": "mesh", "id": 3, "vertices": grid_vertices, "faces": grid_faces },
 		] }],
 	}
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	var path := OS.get_temp_dir().path_join("td_face_cull_test.tdm")
 	FileAccess.open(path, FileAccess.WRITE).store_string(JSON.stringify(map_json))
-	var data := FuncGodotParser.new().parse_map_data(path, settings)
+	var data := TrenchDotMapParser.new().parse_map_data(path, settings)
 	DirAccess.remove_absolute(path)
-	var generator := FuncGodotGeometryGenerator.new(settings)
+	var generator := TrenchDotGeometryGenerator.new(settings)
 	generator.build(0, data.entities)
-	var brush: FuncGodotData.BrushData = data.entities[0].brushes[0]
-	var sheet: FuncGodotData.BrushData = data.entities[0].brushes[1]
+	var brush: TrenchDotData.BrushData = data.entities[0].brushes[0]
+	var sheet: TrenchDotData.BrushData = data.entities[0].brushes[1]
 	var hidden := brush.faces.filter(func(f): return f.render_hidden)
 	check(not sheet.closed and brush.closed, "a grid mesh is an open sheet")
 	# Planes are in id space, up is +Z.
@@ -1746,7 +1746,7 @@ func test_face_cull() -> void:
 func test_large_plane_face_cull() -> void:
 	print("- coplanar face culling on planes of thousands of faces")
 	# The grid pairs up the same faces as testing every face against every other, big faces among small ones too.
-	var solids := [FuncGodotData.BrushData.new(), FuncGodotData.BrushData.new(), FuncGodotData.BrushData.new()]
+	var solids := [TrenchDotData.BrushData.new(), TrenchDotData.BrushData.new(), TrenchDotData.BrushData.new()]
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 7
 	var members := []
@@ -1794,19 +1794,19 @@ func test_large_plane_face_cull() -> void:
 		for i in 64:
 			var a := j * 65 + i
 			faces.append({ "indices": [a, a + 65, a + 66, a + 1], "material": "showcase/cobble", "props": { "blend_material": "showcase/grass" } })
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	var path := OS.get_temp_dir().path_join("td_large_plane_cull_test.tdm")
 	var map_json := { "format": "trenchdot-map", "properties": {}, "layers": [{ "type": "layer", "id": 1, "children": [
 		box_node(2, Vector3(0, -24, 0), Vector3(512, -2, 512)),
 		{ "type": "mesh", "id": 3, "vertices": vertices, "faces": faces },
 	] }] }
 	FileAccess.open(path, FileAccess.WRITE).store_string(JSON.stringify(map_json))
-	var data := FuncGodotParser.new().parse_map_data(path, settings)
+	var data := TrenchDotMapParser.new().parse_map_data(path, settings)
 	DirAccess.remove_absolute(path)
 	var started := Time.get_ticks_msec()
-	FuncGodotGeometryGenerator.new(settings).build(0, data.entities)
+	TrenchDotGeometryGenerator.new(settings).build(0, data.entities)
 	var took := Time.get_ticks_msec() - started
-	var brushes: Array[FuncGodotData.BrushData] = data.entities[0].brushes
+	var brushes: Array[TrenchDotData.BrushData] = data.entities[0].brushes
 	var hidden := brushes[0].faces.filter(func(f): return f.render_hidden)
 	check(hidden.size() == 1 and hidden[0].plane.normal.is_equal_approx(Vector3(0, 0, 1)), "the floor top under the big sheet is hidden, got %s" % [hidden.map(func(f): return f.plane.normal)])
 	check(brushes[1].faces.all(func(f): return not f.render_hidden), "every sheet face draws")
@@ -1851,9 +1851,9 @@ func test_texture_settings() -> void:
 		"textures": { "showcase/cobble": { "projection": "world", "size": [256, 128], "bake": false } },
 		"layers": [{ "type": "layer", "id": 9, "children": [node, other] }],
 	}
-	var settings := (load(SETTINGS) as FuncGodotMapSettings).duplicate() as FuncGodotMapSettings
+	var settings := (load(SETTINGS) as TrenchDotMapSettings).duplicate() as TrenchDotMapSettings
 	settings.save_generated_materials = false
-	var data := TrenchDotParser.parse_dict(json, settings, FuncGodotData.ParseData.new(), "textures.tdm")
+	var data := TrenchDotParser.parse_dict(json, settings, TrenchDotData.ParseData.new(), "textures.tdm")
 	check(data.texture_sizes == { "showcase/cobble": Vector2(256, 128) }, "the repeat size is read, got %s" % data.texture_sizes)
 	var brushes: Array = data.entities[0].brushes
 	check(brushes.size() == 2, "both brushes parsed, got %d" % brushes.size())
@@ -1866,7 +1866,7 @@ func test_texture_settings() -> void:
 		check(f.uv.origin == Vector2(13, 7), "other textures keep their alignment")
 
 	# Built, the 64 unit cobble box covers a quarter of a 256 by 128 repeat at most, from the world origin.
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = settings
 	map.local_map_file = MAP
 	root.add_child(map)
@@ -1891,14 +1891,14 @@ func box_node(id: int, min_c: Vector3, max_c: Vector3, material := "showcase/cob
 		faces.append({ "indices": indices, "material": material })
 	return { "type": "brush", "id": id, "vertices": vertices, "faces": faces }
 
-func cull_brushes(children: Array) -> Array[FuncGodotData.BrushData]:
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+func cull_brushes(children: Array) -> Array[TrenchDotData.BrushData]:
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	var path := OS.get_temp_dir().path_join("td_interior_cull_test.tdm")
 	var map_json := { "format": "trenchdot-map", "properties": {}, "layers": [{ "type": "layer", "id": 1, "children": children }] }
 	FileAccess.open(path, FileAccess.WRITE).store_string(JSON.stringify(map_json))
-	var data := FuncGodotParser.new().parse_map_data(path, settings)
+	var data := TrenchDotMapParser.new().parse_map_data(path, settings)
 	DirAccess.remove_absolute(path)
-	FuncGodotGeometryGenerator.new(settings).build(0, data.entities)
+	TrenchDotGeometryGenerator.new(settings).build(0, data.entities)
 	return data.entities[0].brushes
 
 func test_cut_pieces() -> void:
@@ -1911,7 +1911,7 @@ func test_cut_pieces() -> void:
 	var path := OS.get_temp_dir().path_join("td_cut_pieces_test.tdm")
 	var map_json := { "format": "trenchdot-map", "properties": {}, "layers": [{ "type": "layer", "id": 1, "children": [wall, swallowed, cutter] }] }
 	FileAccess.open(path, FileAccess.WRITE).store_string(JSON.stringify(map_json))
-	var data := FuncGodotParser.new().parse_map_data(path, load(SETTINGS))
+	var data := TrenchDotMapParser.new().parse_map_data(path, load(SETTINGS))
 	DirAccess.remove_absolute(path)
 	check(data.entities.all(func(e): return e.properties.get("classname", "") != "func_cutter"), "a cutter entity builds nothing")
 	var brushes: Array = data.entities[0].brushes
@@ -1926,7 +1926,7 @@ func test_interior_face_culling() -> void:
 
 	# Two boxes poking out of each other keep everything: no whole face is buried.
 	var overlapping := cull_brushes([box_node(2, Vector3(0, 0, 0), Vector3(64, 64, 64)), box_node(3, Vector3(32, 32, 32), Vector3(96, 96, 96))])
-	for b: FuncGodotData.BrushData in overlapping:
+	for b: TrenchDotData.BrushData in overlapping:
 		check(b.faces.all(func(f): return not f.render_hidden), "half overlapping solids keep their faces")
 
 ## A closed mesh box of [param cells] by [param cells] quads a side, from -[param half] to [param half].
@@ -1955,7 +1955,7 @@ func _lattice_box(id: int, cells: int, half: float) -> Dictionary:
 
 func test_dense_mesh_interior_face_cull() -> void:
 	print("- interior face culling inside a closed mesh of thousands of triangles")
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	var spent := TrenchDotMesh.ClipBudget.new()
 	spent.take(TrenchDotMesh.BUILD_CLIP_WORK)
 	var box := TrenchDotMesh.parse(_lattice_box(1, 32, 1024.0), Transform3D.IDENTITY, settings.scale_factor, "")
@@ -1996,11 +1996,11 @@ func test_dense_mesh_interior_face_cull() -> void:
 	var disc_entry := TrenchDotFaceCull._entry(disc.faces[0], disc, 0, inv_scale)
 	check(not TrenchDotFaceCull._buried_in(solid, disc_entry, null, TrenchDotFaceCull.Work.new(10)), "once the pass has used up its work a face is kept")
 
-	var entity := FuncGodotData.EntityData.new()
+	var entity := TrenchDotData.EntityData.new()
 	entity.properties["classname"] = "worldspawn"
 	entity.brushes.append(box)
 	entity.brushes.append(disc)
-	var entities: Array[FuncGodotData.EntityData] = [entity]
+	var entities: Array[TrenchDotData.EntityData] = [entity]
 	var started := Time.get_ticks_msec()
 	var hidden := TrenchDotFaceCull.apply(entities, settings, { "showcase/cobble": StandardMaterial3D.new() })
 	var took := Time.get_ticks_msec() - started
@@ -2012,15 +2012,15 @@ func test_mesh_faces_keep_their_corner_order() -> void:
 	# Sorting the corners of an L by their angle around its centre makes another polygon.
 	var corners := [[0, 0, 0], [64, 0, 0], [64, 0, 16], [16, 0, 16], [16, 0, 64], [0, 0, 64]]
 	var sheet := { "type": "mesh", "id": 3, "vertices": corners, "faces": [{ "indices": [0, 1, 2, 3, 4, 5], "material": "showcase/cobble" }] }
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	var path := OS.get_temp_dir().path_join("td_mesh_winding_test.tdm")
 	for cull_interior in [false, true]:
 		var properties := { "_cull_interior_faces": "1" } if cull_interior else {}
 		var map_json := { "format": "trenchdot-map", "properties": properties, "layers": [{ "type": "layer", "id": 1, "children": [box_node(2, Vector3(-64, -64, -64), Vector3(-32, -32, -32)), sheet] }] }
 		FileAccess.open(path, FileAccess.WRITE).store_string(JSON.stringify(map_json))
-		var data := FuncGodotParser.new().parse_map_data(path, settings)
-		FuncGodotGeometryGenerator.new(settings).build(0, data.entities)
-		var brushes: Array[FuncGodotData.BrushData] = data.entities[0].brushes
+		var data := TrenchDotMapParser.new().parse_map_data(path, settings)
+		TrenchDotGeometryGenerator.new(settings).build(0, data.entities)
+		var brushes: Array[TrenchDotData.BrushData] = data.entities[0].brushes
 		var face := brushes[1].faces[0]
 		check(brushes[0].faces.all(func(f): return f.indices.size() == 6), "brush faces are wound and fanned")
 		if cull_interior:
@@ -2047,7 +2047,7 @@ func test_nested_instances_are_bounded() -> void:
 		for k in 8:
 			children.append({ "id": 10 + k, "type": "instance", "path": path.get_file(), "origin": [0.0, 64.0 * k, 0.0], "angles": [0.0, 0.0, 0.0] })
 	var started := Time.get_ticks_msec()
-	var data := FuncGodotParser.new().parse_map_data(files[4], load(SETTINGS))
+	var data := TrenchDotMapParser.new().parse_map_data(files[4], load(SETTINGS))
 	var took := Time.get_ticks_msec() - started
 	var meshes: int = data.entities[0].brushes.size()
 	var leaf_size := TrenchDotParser._size(JSON.parse_string(FileAccess.get_file_as_string(files[0])))
@@ -2068,7 +2068,7 @@ func test_chunk_streamer() -> void:
 	}
 	var path := OS.get_temp_dir().path_join("td_streamer_test.tdm")
 	FileAccess.open(path, FileAccess.WRITE).store_string(JSON.stringify(map_json))
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = path
 	root.add_child(map)
@@ -2077,7 +2077,7 @@ func test_chunk_streamer() -> void:
 	var streamer := find_named(map, "streamer") as TrenchDotStreamer
 	check(streamer != null, "worldspawn chunk_streaming builds a streamer")
 	if streamer:
-		var scale: float = (load(SETTINGS) as FuncGodotMapSettings).scale_factor
+		var scale: float = (load(SETTINGS) as TrenchDotMapSettings).scale_factor
 		check(is_equal_approx(streamer.chunk_size, 512.0 * scale), "chunk size converted to meters, got %f" % streamer.chunk_size)
 		check(streamer.chunk_count() >= 2, "the two distant boxes land in different chunks, got %d" % streamer.chunk_count())
 		# Drive it from a camera next to the near box: the far box's chunk is culled, the near one stays.
@@ -2167,7 +2167,7 @@ func test_csharp_entities() -> void:
 		check(entries[1]["type"] == "solid" and entries[1]["inputs"][0]["name"] == "try_code", "unmarked public methods are inputs when none are marked")
 		check(entries[1]["inputs"][0]["type"] == "string", "a C# string argument is a string, got %s" % [entries[1]["inputs"][0]])
 	var defs := TrenchDotCSharp.definitions(PackedStringArray(["res://tests/csharp"]))
-	check(defs.has("npc_guard") and defs["npc_guard"] is FuncGodotFGDPointClass and defs["npc_guard"].node_class == "NpcGuard", "FuncGodot definitions from C#")
+	check(defs.has("npc_guard") and defs["npc_guard"] is TrenchDotFGDPointClass and defs["npc_guard"].node_class == "NpcGuard", "TrenchDot definitions from C#")
 	var config: TrenchDotGameConfig = load("res://demo/demo_game_config.tres")
 	config.csharp_source_dirs = PackedStringArray(["res://tests/csharp"])
 	config.output_path = "user://trenchdot_game_cs.json"
@@ -2183,7 +2183,7 @@ func test_csharp_entities() -> void:
 		check(door["properties"].any(func(p): return p["name"] == "hinge" and p["type"] == "vector3"), "property types exported from FGD meta")
 		check(not door["inputs"].any(func(i): return i["name"] == "angle_for"), "helper methods are not inputs")
 	check(by_name.has("trigger_spawn_area") and by_name.has("logic_debug") and by_name.has("info_spawner"), "addon entity library exported")
-func world_vertex_count(map: FuncGodotMap) -> int:
+func world_vertex_count(map: TrenchDotMap) -> int:
 	var world: Node = TrenchDotBuild.nodes_by_id(map).get(0)
 	var count := 0
 	if not world:
@@ -2196,7 +2196,7 @@ func world_vertex_count(map: FuncGodotMap) -> int:
 func test_live_session() -> void:
 	print("- live session")
 	var text := FileAccess.get_file_as_string(MAP_JSON)
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.name = "LiveMap"
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = MAP
@@ -2207,7 +2207,7 @@ func test_live_session() -> void:
 	check(by_id.has(0) and by_id.has(9) and by_id.has(15) and by_id.has(16), "generated nodes carry their map node ids, got %s" % [by_id.keys()])
 	check(TrenchDotBuild.groups_by_id(map).has(6), "group nodes carry their map node ids")
 	var world_before: Node = by_id[0]
-	var maps: Array[FuncGodotMap] = [map]
+	var maps: Array[TrenchDotMap] = [map]
 	var session := TrenchDotLiveSession.new(MAP, maps)
 	check(session.begin(text), "the session takes the map")
 	check(TrenchDotBuild.nodes_by_id(map)[0] == world_before, "a scene built from the same map is not rebuilt when the session starts")
@@ -2261,7 +2261,7 @@ func test_live_session() -> void:
 	session.process()
 	check(world_after.get_node_or_null("_td_live_brush_7") == null and world_after.get_children().any(func(n): return String(n.name).begins_with("chunk_")), "when the drag ends the brush goes back into a chunk")
 	check(near(top.call(world_after), 8.25, 0.01), "the chunks show the moved brush, top %s" % top.call(world_after))
-	var fresh := FuncGodotMap.new()
+	var fresh := TrenchDotMap.new()
 	fresh.map_settings = map.map_settings
 	fresh.local_map_file = MAP
 	root.add_child(fresh)
@@ -2299,11 +2299,11 @@ func test_terrain_node_names() -> void:
 func test_threaded_build_matches() -> void:
 	print("- threaded building matches single threaded")
 	var path := "res://demo/maps/showcase/lighthouse_forest.tdm"
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	var runs := []
 	for threaded in [false, true]:
 		ProjectSettings.set_setting(TrenchDotBuild.SETTING_THREADED, threaded)
-		var data := FuncGodotParser.new().parse_tdm(TrenchDotTdmFile.load_map(path), settings, path)
+		var data := TrenchDotMapParser.new().parse_tdm(TrenchDotTdmFile.load_map(path), settings, path)
 		var brushes := []
 		for e in data.entities:
 			for b in e.brushes:
@@ -2344,7 +2344,7 @@ func test_live_link_port() -> void:
 
 func test_capture() -> void:
 	print("- live link capture")
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = load(SETTINGS)
 	map.position = Vector3(10, 0, 0)
 	map.rotation_degrees = Vector3(0, 90, 0)
@@ -2650,7 +2650,7 @@ func test_more_entities() -> void:
 
 func test_scripted_scene_map() -> void:
 	print("- scripted scene demo map builds and wires")
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.name = "ScriptedSceneMap"
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = "res://demo/maps/scripted_scene.tdm"
@@ -2688,7 +2688,7 @@ func test_scripted_scene_map() -> void:
 ## Plays the hall built by examples/mcp/logic_playground.json: coin buttons, a lever, the vault door and the light lottery.
 func test_logic_playground() -> void:
 	print("- logic playground playthrough (logic_playground.tdm)")
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = "res://demo/maps/logic_playground.tdm"
 	root.add_child(map)
@@ -2823,7 +2823,7 @@ func find_targetname(root: Node, targetname: String) -> Node:
 ## Plays the lighthouse map built by examples/mcp/lighthouse_forest.json: the gate sensor relay and the beacon trigger_call.
 func test_showcase_playthrough() -> void:
 	print("- showcase playthrough (lighthouse_forest.tdm)")
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = "res://demo/maps/showcase/lighthouse_forest.tdm"
 	root.add_child(map)
@@ -2866,7 +2866,7 @@ func has_glowing_letters(mesh: MeshInstance3D, texture := "withered/letters") ->
 ## Plays the withered city built by examples/mcp/withered_city.json: the shutter button, the lift, the roof text and the flickering light.
 func test_withered_city_playthrough() -> void:
 	print("- showcase playthrough (withered_city.tdm)")
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = "res://demo/maps/showcase/withered_city.tdm"
 	root.add_child(map)
@@ -2915,19 +2915,19 @@ func test_withered_city_playthrough() -> void:
 
 func test_emission() -> void:
 	print("- emissive materials survive the build")
-	var settings := (load(SETTINGS) as FuncGodotMapSettings).duplicate() as FuncGodotMapSettings
+	var settings := (load(SETTINGS) as TrenchDotMapSettings).duplicate() as TrenchDotMapSettings
 	settings.save_generated_materials = false
 	var decal := "showcase/lamp" + TrenchDotDecalMesh.SUFFIX
-	var brush := FuncGodotData.BrushData.new()
+	var brush := TrenchDotData.BrushData.new()
 	for texture in ["showcase/lamp", decal, "showcase/cobble"]:
-		var face := FuncGodotData.FaceData.new()
+		var face := TrenchDotData.FaceData.new()
 		face.texture = texture
 		brush.faces.append(face)
-	var entity := FuncGodotData.EntityData.new()
-	entity.definition = FuncGodotFGDSolidClass.new()
+	var entity := TrenchDotData.EntityData.new()
+	entity.definition = TrenchDotFGDSolidClass.new()
 	entity.brushes.append(brush)
-	var entities: Array[FuncGodotData.EntityData] = [entity]
-	var materials: Dictionary = FuncGodotUtil.build_texture_map(entities, settings)[0]
+	var entities: Array[TrenchDotData.EntityData] = [entity]
+	var materials: Dictionary = TrenchDotUtil.build_texture_map(entities, settings)[0]
 	var lamp := materials.get("showcase/lamp") as BaseMaterial3D
 	check(lamp != null and lamp.emission_enabled and near(lamp.emission_energy_multiplier, 3.0), "a face keeps its material's emission")
 	var lamp_decal := materials.get(decal) as ShaderMaterial
@@ -2950,7 +2950,7 @@ func test_emission() -> void:
 	var night := "res://demo/maps/showcase/night_district.tdm"
 	if not ResourceLoader.exists(night) and not FileAccess.file_exists(night):
 		return
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = night
 	map.build()
@@ -3007,7 +3007,7 @@ func test_sky_faces() -> void:
 		"layers": [{ "type": "layer", "id": 1, "children": children }],
 	}
 	FileAccess.open(path, FileAccess.WRITE).store_string(JSON.stringify(map_json))
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = load(SETTINGS)
 	map.global_map_file = path
 	root.add_child(map)
@@ -3088,10 +3088,10 @@ func test_trigger_collision_mask() -> void:
 	var path := OS.get_temp_dir().path_join("td_trigger_mask_test.tdm")
 	var map_json := { "format": "trenchdot-map", "properties": {}, "layers": [{ "type": "layer", "id": 1, "children": [trigger, door] }] }
 	FileAccess.open(path, FileAccess.WRITE).store_string(JSON.stringify(map_json))
-	var settings: FuncGodotMapSettings = load(SETTINGS).duplicate()
+	var settings: TrenchDotMapSettings = load(SETTINGS).duplicate()
 	check(settings.trigger_collision_mask == 1, "triggers detect layer 1 by default")
 	settings.trigger_collision_mask = 0b110
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = settings
 	map.global_map_file = path
 	root.add_child(map)
@@ -3111,7 +3111,7 @@ func test_night_district() -> void:
 	var path := "res://demo/maps/showcase/night_district.tdm"
 	if not FileAccess.file_exists(path):
 		return
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = path
 	root.add_child(map)

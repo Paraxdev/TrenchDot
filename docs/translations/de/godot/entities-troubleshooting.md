@@ -26,7 +26,7 @@ Wenn Godot eine Entität ohne ihre Definition baut, ist die Entität nur eine H�
 
 3. Das Ausgabe-Panel von Godot
 
-    Drück in Godot am Node `FuncGodotMap` auf **Build Map**. Das Panel Output unten im Godot-Editor zeigt eine `[TrenchDot]`-Warnung für die Klassen ohne Definition und eine für jede Definition, die nicht passt. Hak am Node unter *Build Flags* *Print Build Report* an, um den ganzen [Build-Bericht](building.md#build-report) zu bekommen.
+    Drück in Godot am Node `TrenchDotMap` auf **Build Map**. Das Panel Output unten im Godot-Editor zeigt eine `[TrenchDot]`-Warnung für die Klassen ohne Definition und eine für jede Definition, die nicht passt. Hak am Node unter *Build Flags* *Print Build Report* an, um den ganzen [Build-Bericht](building.md#build-report) zu bekommen.
 
 ## Entitäten ohne Definition { #entities-without-a-definition }
 
@@ -34,7 +34,7 @@ Wenn Godot eine Entität ohne ihre Definition baut, ist die Entität nur eine H�
 | --- | --- | --- |
 | Installiere das Gameplay-Entitätenpaket | Türen, Knöpfe, Trigger, Props und Spawner kommen mit dem Paket, und das Projekt hat es nicht | Wähl in TrenchDot *Gameplay > Gameplay-Entitäten installieren*, siehe [Projekteinrichtung](project-setup.md#installing-and-updating-the-pack) |
 | Deinem FGD fehlt das Gameplay-Entitätenpaket, füge `trenchdot_default_fgd.tres` zu seinen Base Fgd Files hinzu | Dein FGD hat keine *Base Fgd Files* | Füg `res://addons/func_godot/fgd/trenchdot_default_fgd.tres` zu den *Base Fgd Files* des FGD hinzu, das die Karteneinstellungen in *Entity Fgd* nennen |
-| Das Paket ist installiert, aber das *Entity Fgd* ist ein FGD des Addons | Die Karteneinstellungen nutzen das eigene FGD von FuncGodot oder eine andere Datei des Addons, die ein Addon-Update ersetzt | Setz *Entity Fgd* dieser Karteneinstellungen auf das FGD, das deine Spielkonfiguration nutzt |
+| Das Paket ist installiert, aber das *Entity Fgd* ist ein FGD des Addons | Die Karteneinstellungen nutzen das eigene FGD von TrenchDot oder eine andere Datei des Addons, die ein Addon-Update ersetzt | Setz *Entity Fgd* dieser Karteneinstellungen auf das FGD, das deine Spielkonfiguration nutzt |
 | Eine eigene Klasse hat keine Definition | Sie steht im FGD deiner Spielkonfiguration, aber nicht im *Entity Fgd* der Karteneinstellungen, mit denen Godot baut | Setz *Entity Fgd* dieser Karteneinstellungen auf das FGD, das deine Spielkonfiguration nutzt, siehe [Deine eigenen Ressourcen](project-setup.md#your-own-resources) |
 | Der Karten-Node nutzt die Standard-Karteneinstellungen des Addons, nicht die aus den Projekteinstellungen | Der Node wurde mit einem älteren Addon hinzugefügt, das die Standard-Karteneinstellungen in der Szene gespeichert hat | Wähl den Karten-Node in Godot und leere *Map Settings* im Inspector |
 | Die Szene wurde mit anderen Entitätsdefinitionen gebaut | Sie wurde gebaut, bevor das Paket oder eine Definition da war, und seitdem nicht mehr | Drück **Build Map** und speichere die Szene. Im [Live-Modus](live.md#when-live-mode-rebuilds-the-whole-map) macht Godot das von selbst |
@@ -48,7 +48,7 @@ Diese kommen aus dem Ausgabe-Panel von Godot, und nach einem Speichern aus dem P
 | `func_crusher builds as a Marker3D, so its brushes have no collision` | Die Definition hat keine *Node Class*, und ihr Skript erweitert einen Node, der kein Physikkörper ist | Setz *Node Class* auf `StaticBody3D`, `AnimatableBody3D` oder `Area3D`, oder lass das Skript einen davon erweitern |
 | `func_crusher: Node Class AnimatedBody3D not found, building it as a Node3D` | Ein Tippfehler, oder eine `class_name`, die Godot noch nicht registriert hat | Korrigiere den Namen. Für C# siehe [C#-Entitäten](../gameplay/csharp.md) |
 | `alarm: res://entities/alarm.gd has no @tool` | Der Editor führt nur Tool-Skripte aus, die Keys aus der Karte erreichen den Node also nie | Füg `@tool` oben im Skript hinzu |
-| `light is a point entity, so its brushes are dropped` | Eine `FuncGodotFGDPointClass` wird für eine Brush-Entität genutzt | Mach die Definition zu einer `FuncGodotFGDSolidClass` |
+| `light is a point entity, so its brushes are dropped` | Eine `TrenchDotFGDPointClass` wird für eine Brush-Entität genutzt | Mach die Definition zu einer `TrenchDotFGDSolidClass` |
 | `func_door is a brush entity without brushes` | Eine Brush-Entität, aus der sich nichts bauen lässt | Gib ihr Brushes, oder mach die Definition zu einer Punktklasse |
 
 ## Entitäten, die gebaut werden, aber nicht reagieren { #entities-that-build-but-do-not-react }

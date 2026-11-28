@@ -64,7 +64,7 @@ A terrain layer setting from 0 to 1 that turns and shifts every repeat of the te
 A four sided brush face split into a grid of vertices that can each be raised or lowered, as in Hammer. It gives uneven ground inside a brush built level. Large outdoor areas are better built as a terrain.
 
 ## entity definition
-The description of one entity class in an FGD: its classname, keys, inputs and outputs, and what Godot builds for it, such as the node class and the script. In Godot it is a FuncGodotFGDPointClass or FuncGodotFGDSolidClass resource, listed under Entity Definitions of an FGD file.
+The description of one entity class in an FGD: its classname, keys, inputs and outputs, and what Godot builds for it, such as the node class and the script. In Godot it is a TrenchDotFGDPointClass or TrenchDotFGDSolidClass resource, listed under Entity Definitions of an FGD file.
 
 ## Extrude
 Pulling a face out along its direction to make new geometry. In the Blender preset, E extrudes the selected brush faces, each one grows a new brush and the old brush stays as it was. In the Mesh tool, E extrudes mesh faces instead.
@@ -76,19 +76,19 @@ The Blender preset's way of selecting single faces. In Face mode a click picks t
 How a paint brush, such as the Blend tool's, fades from its center to its edge. A smooth falloff gives soft borders, a constant one paints the whole disc at the same strength.
 
 ## FGD
-The definition of a game's entity classes, with their names, keys, inputs and outputs. The name comes from Hammer's Forge Game Data files. In Godot it is a FuncGodotFGDFile resource, and the game config passes it on to the editor.
+The definition of a game's entity classes, with their names, keys, inputs and outputs. The name comes from Hammer's Forge Game Data files. In Godot it is a TrenchDotFGDFileBase resource, and the game config passes it on to the editor.
 
 ## fixup
 A name prefix set on a prefab instance. With a fixup of p1, an entity named door inside it becomes p1-door, so several copies of one prefab keep their wiring separate.
 
 ## func_detail
-A FuncGodot brush entity for static geometry with collision, built as its own node apart from the world brushes. It adds no occluder, so it never hides the objects behind it from rendering.
+A brush entity for static geometry with collision, built as its own node apart from the world brushes. It adds no occluder, so it never hides the objects behind it from rendering.
 
 ## func_illusionary
-A FuncGodot brush entity that is visible but has no collision, so players pass through it. The sea island tutorial uses one for the water.
+A brush entity that is visible but has no collision, so players pass through it. The sea island tutorial uses one for the water.
 
 ## FuncGodot
-The Godot plugin for building levels from Quake style map files. The TrenchDot addon is a fork of it, which is why its node is called FuncGodotMap and its resources start with FuncGodot.
+The Godot plugin for building levels from Quake style map files. The TrenchDot addon started as a fork of it.
 
 ## game config
 The file trenchdot_game.json in the Godot project root, written by the addon. It tells the editor which entities, texture folders and unit scale your project uses, and the editor reloads it whenever the addon writes it again.
@@ -145,7 +145,7 @@ A rule that turns two true or false inputs into one answer, like and (both are t
 The scene Godot plays when you run the project, set under Project > Project Settings > Application > Run. Run Project in TrenchDot and the Play button in Godot both start it.
 
 ## map settings
-A FuncGodotMapSettings resource that says where textures, materials and entity definitions come from and how many map units make a meter. A FuncGodotMap can have its own, otherwise the project default is used.
+A TrenchDotMapSettings resource that says where textures, materials and entity definitions come from and how many map units make a meter. A TrenchDotMap can have its own, otherwise the project default is used.
 
 ## MCP
 Model Context Protocol, a standard way for AI agents and scripts to call a program's tools. The editor can run an MCP server so an agent can inspect and edit maps. You don't need it to build levels, and these docs hide the MCP parts until you turn on the MCP switch in the header.

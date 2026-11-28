@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="FuncGodotMapSettings" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="TrenchDotMapSettings" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://addons/func_godot/src/map/func_godot_map_settings.gd" id="1_settings"]
 [ext_resource type="Resource" path="res://demo/demo_fgd.tres" id="2_fgd"]

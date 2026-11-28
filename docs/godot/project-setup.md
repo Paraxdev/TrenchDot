@@ -108,7 +108,7 @@ The core FGD, `res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres`, reads 
 every FGD built on the addon's defaults gets the pack without listing it. When two definitions share a classname, the
 later one wins, in this order:
 
-1. FuncGodot's classes and the addon's core
+1. TrenchDot's classes and the addon's core
 2. The installed pack in `res://trenchdot/entities`
 3. The entities of your own FGD file
 
@@ -142,10 +142,10 @@ Another route is to copy `demo_fgd.tres`, `demo_map_settings.tres` and `demo_gam
 [`godot/demo`](https://github.com/Paraxdev/TrenchDot/tree/main/godot/demo) into your project and fix the paths. To
 make them yourself, do this in the Godot editor:
 
-1. Create a `FuncGodotFGDFile`. Set *Base Fgd Files* to `res://addons/func_godot/fgd/trenchdot_default_fgd.tres`, so
+1. Create a `TrenchDotFGDFileBase`. Set *Base Fgd Files* to `res://addons/func_godot/fgd/trenchdot_default_fgd.tres`, so
    you keep the core and the installed pack, then add your own entities under *Entity Definitions*. Without that base
    your FGD has none of them, and even worldspawn builds without collision.
-2. Create a `FuncGodotMapSettings`. Set *Entity Fgd* to the FGD from step 1 and *Base Texture Dir* to your texture
+2. Create a `TrenchDotMapSettings`. Set *Entity Fgd* to the FGD from step 1 and *Base Texture Dir* to your texture
    folder (default `res://textures`). A new map settings resource starts on `trenchdot_default_fgd.tres`, which has
    the core and the pack but not your own entities.
 3. Create a `TrenchDotGameConfig`. Set its *Fgd File* and *Map Settings* to the two resources above. (Optionally) set

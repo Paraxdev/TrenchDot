@@ -220,7 +220,7 @@ impl Materials {
 
         let files = lib.material_files(name);
         let info = files.info.clone().unwrap_or_else(|| GodotMaterial {
-            // What FuncGodot generates next to an emission map: a black color the texture is added to.
+            // What TrenchDot generates next to an emission map: a black color the texture is added to.
             emission: files.emission.is_some().then_some([0.0; 3]),
             ..Default::default()
         });

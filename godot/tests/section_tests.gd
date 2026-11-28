@@ -30,7 +30,7 @@ func run(runner: SceneTree) -> void:
 	t.root.add_child(streamer)
 	await t.process_frame
 	check(streamer.current_name == A and streamer.player != null, "starts in the first section with the player")
-	var scale: float = (load(SETTINGS) as FuncGodotMapSettings).scale_factor
+	var scale: float = (load(SETTINGS) as TrenchDotMapSettings).scale_factor
 	var start := streamer.player.global_position
 	check(start.distance_to(Vector3(-300, 0, -160) * scale) < 0.01, "the player spawns at the first section's info_player_start, got %s" % start)
 
@@ -45,7 +45,7 @@ func run(runner: SceneTree) -> void:
 	var here := streamer._landmark(streamer.current, "lm")
 	check(here != null and here.global_position.distance_to(Vector3.ZERO) < 0.001, "the new section's landmark lands where the old one was")
 	check(streamer.player.global_position == past, "the player never moves")
-	var maps := streamer.get_children().filter(func(c: Node) -> bool: return c is FuncGodotMap)
+	var maps := streamer.get_children().filter(func(c: Node) -> bool: return c is TrenchDotMap)
 	check(maps.size() == 1, "only one section is in the tree, got %d" % maps.size())
 	check(streamer.swaps == 1, "one swap, not back and forth while the player stands there")
 
@@ -93,8 +93,8 @@ func _save_section(path: String, at: Vector3, first_id: int) -> void:
 	var map_json := { "format": "trenchdot-map", "properties": {}, "layers": [{ "type": "layer", "id": 1, "children": children }] }
 	var tdm := OS.get_temp_dir().path_join("td_section_test.tdm")
 	FileAccess.open(tdm, FileAccess.WRITE).store_string(JSON.stringify(map_json))
-	var map := FuncGodotMap.new()
-	map.name = "FuncGodotMap"
+	var map := TrenchDotMap.new()
+	map.name = "TrenchDotMap"
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = tdm
 	t.root.add_child(map)

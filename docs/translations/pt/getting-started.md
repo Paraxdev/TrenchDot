@@ -67,7 +67,7 @@ Algumas entidades básicas sempre vêm incluídas, como um simples `info_player_
 
 1. Instale o addon
 
-    Clique no botão "Instalar o addon" no alto para baixar o fork do FuncGodot feito pelo TrenchDot para o seu projeto,
+    Clique no botão "Instalar o addon" no alto para baixar o fork do TrenchDot feito pelo TrenchDot para o seu projeto,
     isso é essencial para o TrenchDot.
     (Nota: isso baixa dos releases do GitHub. Se você não tem acesso à internet, baixe primeiro
     `func_godot-trenchdot-addon.zip` e extraia na raiz do projeto para instalar à mão.)
@@ -186,10 +186,10 @@ ou simplesmente começar a desenhar, ele some assim que o mapa tem algo dentro.
 
 No Godot, um nível é uma cena: uma árvore de nós, salva como arquivo `.tscn`, em que cada nó é uma coisa, como uma malha, uma
 luz ou uma câmera. O Godot escreve caminhos dentro do projeto com `res://`, então `res://maps/room.tdm` é o arquivo
-`maps/room.tdm` na pasta do seu projeto. O mapa é transformado em nós por um nó do addon, o `FuncGodotMap`.
+`maps/room.tdm` na pasta do seu projeto. O mapa é transformado em nós por um nó do addon, o `TrenchDotMap`.
 
 1. No editor do Godot, escolha *Scene > New Scene* e clique em **3D Scene** no painel Scene à esquerda.
-2. Pressione Ctrl+A (*Add Child Node*), procure `FuncGodotMap` e adicione.
+2. Pressione Ctrl+A (*Add Child Node*), procure `TrenchDotMap` e adicione.
 3. Com o novo nó selecionado, defina *Local Map File* como o seu `.tdm` no Inspetor do próprio Godot, o painel à direita do
    editor do Godot. Ele funciona como o Inspetor do TrenchDot, mas pertence ao Godot.
 4. Pressione **Build Map** no alto desse Inspetor e depois salve a cena com Ctrl+S.
@@ -203,7 +203,7 @@ ou quando você voltar a ela. Salve a cena no Godot para guardar o resultado. Se
 de status diz o motivo, veja [Reconstruir ao salvar](godot/live.md#rebuild-on-save).
 
 > [!WARNING]
-> Uma construção apaga primeiro os filhos do `FuncGodotMap`. Coloque seus próprios nós ao lado do nó do mapa, ou
+> Uma construção apaga primeiro os filhos do `TrenchDotMap`. Coloque seus próprios nós ao lado do nó do mapa, ou
 > em um [overlay](godot/overlays.md).
 
 ## Experimente o projeto de demonstração { #try-the-demo-project }

@@ -66,7 +66,7 @@ Posicionar nunca sobrescreve um arquivo. Posicione o mesmo modelo de novo e ele 
 Texturas contam como iguais pelos pixels, então uma que outro programa só salvou de novo ainda é reaproveitada. Pintou por cima de uma? As malhas posicionadas antes mantêm a sua versão, e o próximo posicionamento recebe cópias novas numa pasta numerada, com um material novo. Para dar suas alterações aos posicionamentos seguintes, aplique seu material a eles pela aba Materiais.
 
 > [!NOTE]
-> O FuncGodot só monta o material de uma face a partir do `default_material` do projeto quando não há um arquivo de material com o mesmo nome. As faces de um modelo posicionado que ganhou um arquivo de material são desenhadas com esse arquivo, então um shader próprio definido como `default_material` não chega a elas. Edite o arquivo no Godot para mudá-las. Um projeto cuja extensão de material não é `tres` não recebe arquivos de material, e o material padrão dele vale.
+> O TrenchDot só monta o material de uma face a partir do `default_material` do projeto quando não há um arquivo de material com o mesmo nome. As faces de um modelo posicionado que ganhou um arquivo de material são desenhadas com esse arquivo, então um shader próprio definido como `default_material` não chega a elas. Edite o arquivo no Godot para mudá-las. Um projeto cuja extensão de material não é `tres` não recebe arquivos de material, e o material padrão dele vale.
 
 ## Mais sobre uma miniatura { #more-on-a-thumbnail }
 

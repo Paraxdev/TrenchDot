@@ -3608,7 +3608,7 @@ mod tests {
         let ids = paste_text(&mut s, &text, layer, None, None).unwrap();
         assert_eq!(ids.len(), 1);
         let size = s.doc.map.bounds_of(ids.iter().copied()).size();
-        // The same axes as opening a .map, FuncGodot's: Quake x runs along z, Quake y along x, Quake z is up.
+        // The same axes as opening a .map, TrenchDot's: Quake x runs along z, Quake y along x, Quake z is up.
         assert!((size - DVec3::new(32.0, 16.0, 64.0)).length() < 1e-6, "{size}");
     }
 

@@ -65,7 +65,7 @@ Você vê por onde um agente anda direto no TrenchDot, sem rodar o jogo.
 
 1. Abra a cena no Godot
 
-    Salve o mapa dentro do projeto e abra o projeto no editor do Godot com uma cena cujo `FuncGodotMap` constrói esse mapa.
+    Salve o mapa dentro do projeto e abra o projeto no editor do Godot com uma cena cujo `TrenchDotMap` constrói esse mapa.
 
 2. Ligue a área caminhável
 

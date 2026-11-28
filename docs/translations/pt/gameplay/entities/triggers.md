@@ -29,7 +29,7 @@ do jogador. Deixe vazio para aceitar qualquer corpo.
 | `exited` | Na saída, mesmo com o trigger desativado, para desfazer algo quando o corpo sai |
 
 Os triggers detectam corpos na camada de física 1. Se o jogador está em outra camada, adicione-a a **Trigger Collision Mask** nas
-configurações do mapa (o recurso `FuncGodotMapSettings` no Godot), ou os triggers nunca disparam.
+configurações do mapa (o recurso `TrenchDotMapSettings` no Godot), ou os triggers nunca disparam.
 
 ## trigger_once { #trigger_once }
 

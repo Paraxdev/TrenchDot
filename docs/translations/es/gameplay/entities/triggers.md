@@ -26,7 +26,7 @@ Todos los triggers de abajo tienen esto además de lo suyo.
 | `triggered` | En una entrada aceptada, como mucho una vez por `cooldown` para cada cuerpo. La mayoría del cableado usa esta |
 | `exited` | Al salir, incluso con el trigger desactivado, para deshacer algo cuando el cuerpo se va |
 
-Los triggers detectan cuerpos en la capa de física 1. Si el jugador está en otra capa, añádela a **Trigger Collision Mask** en los ajustes del mapa (el recurso `FuncGodotMapSettings` en Godot), o los triggers nunca se dispararán.
+Los triggers detectan cuerpos en la capa de física 1. Si el jugador está en otra capa, añádela a **Trigger Collision Mask** en los ajustes del mapa (el recurso `TrenchDotMapSettings` en Godot), o los triggers nunca se dispararán.
 
 ## trigger_once { #trigger_once }
 

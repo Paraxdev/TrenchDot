@@ -87,7 +87,7 @@ votre version, et le placement suivant reçoit des copies neuves dans un dossier
 donner vos changements aux placements suivants, appliquez-leur votre matériau depuis l'onglet Matériaux.
 
 > [!NOTE]
-> FuncGodot ne construit le matériau d'une face à partir du `default_material` du projet que s'il n'existe pas de fichier
+> TrenchDot ne construit le matériau d'une face à partir du `default_material` du projet que s'il n'existe pas de fichier
 > de matériau du même nom. Les faces d'un modèle placé qui ont reçu un fichier de matériau se dessinent avec ce fichier,
 > donc un shader personnalisé défini comme `default_material` ne les atteint pas. Modifiez le fichier dans Godot pour les
 > changer. Un projet dont l'extension de matériau n'est pas `tres` ne reçoit pas de fichiers de matériau, et son matériau

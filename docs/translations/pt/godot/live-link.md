@@ -55,7 +55,7 @@ alcançar. A resposta chega depois de uns doze quadros, e as outras mensagens s�
 (`radius`, `height`, `max_climb`, `max_slope` em metros e graus) e a devolve nas unidades e eixos do mapa. Com `text`, o Godot
 constrói esse mapa antes, a menos que ele tenha sido construído pela última vez a partir do mesmo texto.
 
-Os caminhos são absolutos, com barras normais. Só participam os nós `FuncGodotMap` da cena editada, a aba de cena que o Godot
+Os caminhos são absolutos, com barras normais. Só participam os nós `TrenchDotMap` da cena editada, a aba de cena que o Godot
 mostra, com *Auto Rebuild On Save* ligado. `scene` é o caminho `res://` dela, ou vazio quando não há cena aberta.
 
 `waiting` lista as outras abas de cena abertas que usam o mapa. Depois de um `map_saved` elas constroem o arquivo quando a aba é
@@ -90,14 +90,14 @@ tenta a porta de novo a cada três segundos, então ele assume quando o outro ed
 | `translate` | `ids`, `offset` | Move nós, enviado durante o arrasto em vez da geometria |
 | `properties` | `properties` | Substitui as propriedades do worldspawn |
 
-O `epoch` de um mapa sobe sempre que ele é construído fora de uma sessão ao vivo ou os nós `FuncGodotMap` que o usam mudam. Quando
+O `epoch` de um mapa sobe sempre que ele é construído fora de uma sessão ao vivo ou os nós `TrenchDotMap` que o usam mudam. Quando
 o próximo `status` mostrar um epoch novo, recomece com `live_begin`.
 
 Os nós gerados levam o id de nó do mapa no metadado `_td_id`, e os nós de camada e de grupo em `_td_group`.
 
 ## Testando sem janela { #testing-without-a-window }
 
-O link também funciona com um editor do Godot headless, o que serve para testes automatizados. Abra uma cena com um `FuncGodotMap`
+O link também funciona com um editor do Godot headless, o que serve para testes automatizados. Abra uma cena com um `TrenchDotMap`
 nela e depois envie `inspect` para a porta 7842 para ver o que o Godot construiu:
 
 ```sh

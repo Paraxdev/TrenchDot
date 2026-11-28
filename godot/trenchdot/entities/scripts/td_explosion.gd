@@ -40,7 +40,7 @@ func explode(_activator: Node = null) -> void:
 	exploded.emit()
 
 ## The blast is spatial, so it reaches the whole scene rather than only the map that owns it. A player is usually
-## added next to the FuncGodotMap, not under it.
+## added next to the TrenchDotMap, not under it.
 func _blast_root() -> Node:
 	var tree := get_tree()
 	if tree.current_scene and tree.current_scene.is_ancestor_of(self):

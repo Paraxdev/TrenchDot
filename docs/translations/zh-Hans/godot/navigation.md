@@ -65,7 +65,7 @@ var region := await TrenchDotNav.bake_region(map, TrenchDotNav.profile(0.5, 1.2)
 
 1. 在 Godot 里打开场景
 
-    把地图保存在项目里面，然后用 Godot 编辑器打开这个项目，并打开一个其 `FuncGodotMap` 构建这张地图的场景。
+    把地图保存在项目里面，然后用 Godot 编辑器打开这个项目，并打开一个其 `TrenchDotMap` 构建这张地图的场景。
 
 2. 打开可行走区域
 

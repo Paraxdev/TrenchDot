@@ -44,11 +44,11 @@ static func _map_text(folders: Array, version := 2) -> String:
 		json["layers"][0]["children"].append({ "id": LINK_ID + i, "type": "terrain3d", "label": "Terrain3D", "data_directory": folders[i] })
 	return JSON.stringify(json)
 
-static func _level(t, text := "") -> FuncGodotMap:
+static func _level(t, text := "") -> TrenchDotMap:
 	var level := Node3D.new()
 	level.name = "Level"
 	t.root.add_child(level)
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.name = "Map"
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = MAP
@@ -69,8 +69,8 @@ static func _new_terrain(folder: String) -> Node3D:
 	terrain.set("data_directory", folder)
 	return terrain
 
-static func _parse(json: Variant) -> FuncGodotData.ParseData:
-	return TrenchDotParser.parse_dict(json, load(SETTINGS), FuncGodotData.ParseData.new(), "terrain3d.tdm")
+static func _parse(json: Variant) -> TrenchDotData.ParseData:
+	return TrenchDotParser.parse_dict(json, load(SETTINGS), TrenchDotData.ParseData.new(), "terrain3d.tdm")
 
 static func _test_parser(t) -> void:
 	t.check(TrenchDotParser.FORMAT_VERSION == 2, "the addon reads map version 2")
@@ -84,7 +84,7 @@ static func _test_parser(t) -> void:
 	t.check(two.terrain3d.map(func(l): return l["data"]["data_directory"]) == ["res://a", "res://b"], "every terrain3d node is collected in map order")
 	for ns in [0, 1]:
 		var ctx := TrenchDotParser.Context.new()
-		ctx.parse_data = FuncGodotData.ParseData.new()
+		ctx.parse_data = TrenchDotData.ParseData.new()
 		ctx.instance_ns = ns
 		TrenchDotParser._parse_node(ctx, { "id": 7, "type": "terrain3d", "data_directory": DATA }, null)
 		t.check(ctx.parse_data.terrain3d.size() == (1 if ns == 0 else 0), "a terrain3d node %s" % ("of the map is collected" if ns == 0 else "inside a prefab instance is left out"))
@@ -411,7 +411,7 @@ static func _test_live_session_and_hot_reload(t) -> void:
 	var slot := TrenchDotTerrain3D.find(map)
 	var terrain := slot.get_terrain()
 	await t.process_frame
-	var maps: Array[FuncGodotMap] = [map]
+	var maps: Array[TrenchDotMap] = [map]
 	var session := TrenchDotLiveSession.new(MAP, maps)
 	t.check(session.begin(text), "the live session takes a linked map")
 	var lamp_json: Dictionary = session._nodes[15].duplicate(true)
@@ -438,7 +438,7 @@ static func _test_live_session_and_hot_reload(t) -> void:
 	map.owner.free()
 
 static func _test_streamer_leaves_slot_alone(t) -> void:
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	var slot := TrenchDotTerrain3D.new()
 	map.add_child(slot)
 	var big := MeshInstance3D.new()
@@ -455,7 +455,7 @@ static func _test_streamer_leaves_slot_alone(t) -> void:
 static func _test_height_at(t) -> void:
 	var loose := TrenchDotTerrain3D.new()
 	t.root.add_child(loose)
-	t.check(Array(loose._get_configuration_warnings()).any(func(w): return w.contains("FuncGodotMap")), "a slot outside a map tells the Inspector")
+	t.check(Array(loose._get_configuration_warnings()).any(func(w): return w.contains("TrenchDotMap")), "a slot outside a map tells the Inspector")
 	loose.free()
 	var map := _level(t, _map_text([DATA]))
 	var slot := TrenchDotTerrain3D.find(map)

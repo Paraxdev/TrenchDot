@@ -57,7 +57,7 @@ messages reçoivent leur réponse entre-temps.
 `height`, `max_climb`, `max_slope` en mètres et en degrés) et le renvoie dans les unités et les axes de la carte. Avec
 `text`, Godot construit d'abord cette carte, sauf si elle a déjà été construite à partir du même texte.
 
-Les chemins sont absolus, avec des barres obliques. Seuls les nœuds `FuncGodotMap` de la scène éditée, l'onglet de scène
+Les chemins sont absolus, avec des barres obliques. Seuls les nœuds `TrenchDotMap` de la scène éditée, l'onglet de scène
 que Godot affiche, avec *Auto Rebuild On Save* activé, participent. `scene` est son chemin `res://`, ou vide quand aucune
 scène n'est ouverte.
 
@@ -95,7 +95,7 @@ panneau Output et retente le port toutes les trois secondes, il prend donc le re
 | `translate` | `ids`, `offset` | Déplace des nœuds, envoyé pendant un glisser à la place de la géométrie |
 | `properties` | `properties` | Remplace les propriétés du worldspawn |
 
-L'`epoch` d'une carte augmente chaque fois qu'elle est construite hors d'une session live ou que les nœuds `FuncGodotMap`
+L'`epoch` d'une carte augmente chaque fois qu'elle est construite hors d'une session live ou que les nœuds `TrenchDotMap`
 qui l'utilisent changent. Quand le `status` suivant montre une nouvelle epoch, recommencez avec `live_begin`.
 
 Les nœuds générés portent l'id de leur nœud de carte dans la métadonnée `_td_id`, et les nœuds de calque et de groupe
@@ -104,7 +104,7 @@ dans `_td_group`.
 ## Tester sans fenêtre { #testing-without-a-window }
 
 Le lien marche aussi avec un éditeur Godot sans fenêtre, ce qui convient aux tests automatisés. Ouvrez une scène qui
-contient un `FuncGodotMap`, puis envoyez `inspect` au port 7842 pour voir ce que Godot a construit :
+contient un `TrenchDotMap`, puis envoyez `inspect` au port 7842 pour voir ce que Godot a construit :
 
 ```sh
 godot --headless --editor --path godot res://path/scene.tscn

@@ -6,7 +6,7 @@ source: 15ac2f37b7d278fa849fb066b91734f671f35658
 
 ## Reconstruire à l'enregistrement { #rebuild-on-save }
 
-Gardez la scène avec votre `FuncGodotMap` ouverte dans l'éditeur Godot et enregistrez simplement dans TrenchDot avec
+Gardez la scène avec votre `TrenchDotMap` ouverte dans l'éditeur Godot et enregistrez simplement dans TrenchDot avec
 Ctrl+S. Godot reconstruit aussitôt cette scène, tant que son onglet est celui que Godot affiche et que le nœud de carte a
 *Auto Rebuild On Save* activé. Une scène dans un autre onglet qui utilise la carte se reconstruit quand vous passez à son
 onglet. Fermer puis rouvrir un onglet ou recharger une scène n'y change rien. Enregistrer un
@@ -24,7 +24,7 @@ Enregistrez la scène dans Godot pour garder le résultat. Si la barre d'état d
 | La barre d'état dit | Faites ceci |
 | --- | --- |
 | La scène n'est pas l'onglet de scène actuel dans Godot | Passez à cet onglet, elle se reconstruit alors |
-| L'onglet de scène actuel n'a pas de `FuncGodotMap` pour la carte | Ouvrez la scène qui construit la carte, ou activez *Auto Rebuild On Save* sur son nœud de carte |
+| L'onglet de scène actuel n'a pas de `TrenchDotMap` pour la carte | Ouvrez la scène qui construit la carte, ou activez *Auto Rebuild On Save* sur son nœud de carte |
 | Godot n'a aucune scène ouverte | Ouvrez dans Godot la scène avec la carte, et si elle est ouverte, lisez la suite |
 | Godot ne tourne pas avec l'addon TrenchDot | Ouvrez le projet dans l'éditeur Godot avec l'addon activé |
 | Godot a reconstruit la carte, mais les réglages de carte n'ont pas de définition pour certaines classes, qui sont donc construites comme des nœuds simples | Ajoutez les définitions, voir [Entités qui ne font rien](entities-troubleshooting.md) |
@@ -43,7 +43,7 @@ puissiez juger l'éclairage et l'échelle dans le vrai moteur de rendu.
 1. Ouvrez la scène dans Godot
 
     La carte doit avoir été enregistrée une fois dans le projet, et la scène ouverte dans Godot a besoin d'un
-    `FuncGodotMap` qui l'utilise.
+    `TrenchDotMap` qui l'utilise.
 
 2. Activez-le
 

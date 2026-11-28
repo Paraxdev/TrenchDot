@@ -67,7 +67,7 @@ Ein paar einfache Entitäten sind immer dabei, etwa ein schlichtes `info_player_
 
 1. Das Addon installieren
 
-    Klick oben auf „Addon installieren“, um TrenchDots Fork von FuncGodot in dein Projekt herunterzuladen, das
+    Klick oben auf „Addon installieren“, um TrenchDots Fork von TrenchDot in dein Projekt herunterzuladen, das
     ist für TrenchDot unverzichtbar.
     (Hinweis: Das lädt von GitHub-Releases. Hast du keinen Internetzugang, lade zuerst
     `func_godot-trenchdot-addon.zip` herunter und entpacke sie in den Projektordner, um es von Hand zu installieren.)
@@ -186,10 +186,10 @@ oder einfach loszeichnen, er verschwindet, sobald etwas in der Karte ist.
 
 In Godot ist ein Level eine Szene: ein Baum aus Nodes, gespeichert als `.tscn`-Datei, wobei jeder Node eine Sache ist, etwa ein Mesh, ein
 Licht oder eine Kamera. Godot schreibt Pfade im Projekt mit `res://`, also ist `res://maps/room.tdm` die Datei
-`maps/room.tdm` in deinem Projektordner. Die Karte wird von einem Node des Addons in Nodes verwandelt, `FuncGodotMap`.
+`maps/room.tdm` in deinem Projektordner. Die Karte wird von einem Node des Addons in Nodes verwandelt, `TrenchDotMap`.
 
 1. Wähl im Godot-Editor *Scene > New Scene* und klick im Scene-Panel links auf **3D Scene**.
-2. Drück Ctrl+A (*Add Child Node*), such nach `FuncGodotMap` und füge ihn hinzu.
+2. Drück Ctrl+A (*Add Child Node*), such nach `TrenchDotMap` und füge ihn hinzu.
 3. Setz bei gewähltem neuem Node *Local Map File* im Inspektor von Godot selbst auf deine `.tdm`, das ist das Panel rechts im
    Godot-Editor. Er funktioniert wie der Inspektor in TrenchDot, gehört aber zu Godot.
 4. Drück oben in diesem Inspektor auf **Build Map** und speichere die Szene dann mit Ctrl+S.
@@ -203,7 +203,7 @@ oder wenn du zu ihm zurückwechselst. Speichere die Szene in Godot, um das Ergeb
 die Statusleiste, warum, siehe [Neu bauen beim Speichern](godot/live.md#rebuild-on-save).
 
 > [!WARNING]
-> Ein Build löscht zuerst die Kinder der `FuncGodotMap`. Setz deine eigenen Nodes neben den Karten-Node oder in
+> Ein Build löscht zuerst die Kinder der `TrenchDotMap`. Setz deine eigenen Nodes neben den Karten-Node oder in
 > ein [Overlay](godot/overlays.md).
 
 ## Das Demo-Projekt ausprobieren { #try-the-demo-project }

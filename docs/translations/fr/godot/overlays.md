@@ -15,7 +15,7 @@ lampe avec un AnimationPlayer.
 
 1. Ajoutez le nœud overlay
 
-    Dans Godot, ajoutez un nœud `TrenchDotOverlay` comme enfant direct du `FuncGodotMap`.
+    Dans Godot, ajoutez un nœud `TrenchDotOverlay` comme enfant direct du `TrenchDotMap`.
 
 2. Placez vos nœuds dessous
 
@@ -36,7 +36,7 @@ partager l'overlay, quand une personne travaille sur la scène du niveau et une 
 génère la scène du niveau, comme dans la démo.
 
 1. Créez une scène dont la racine est un `TrenchDotOverlay`.
-2. Glissez le `.tscn` sur le nœud `FuncGodotMap`, pour qu'il soit instancié comme enfant direct de la carte.
+2. Glissez le `.tscn` sur le nœud `TrenchDotMap`, pour qu'il soit instancié comme enfant direct de la carte.
 
 Godot montre une scène instanciée comme un seul nœud sans flèche pour la déplier. Pour accéder à son contenu :
 

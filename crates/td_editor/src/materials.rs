@@ -49,7 +49,7 @@ const COMPANION_SUFFIXES: [&str; 24] = [
     "_e",
 ];
 
-/// Companion map that FuncGodot's generated materials use as the emission texture (`emission_map_pattern`).
+/// Companion map that TrenchDot's generated materials use as the emission texture (`emission_map_pattern`).
 pub const EMISSION_SUFFIX: &str = "_emission";
 
 /// The normal-map suffix a lowercased texture name ends with, if any.
@@ -119,7 +119,7 @@ pub struct MaterialFiles {
     pub metallic: Option<PathBuf>,
     pub ao: Option<PathBuf>,
     pub orm: Option<PathBuf>,
-    /// Settings of the material resource, None for a material FuncGodot generates from the images.
+    /// Settings of the material resource, None for a material TrenchDot generates from the images.
     pub info: Option<GodotMaterial>,
 }
 
@@ -342,7 +342,7 @@ impl MaterialLibrary {
             scan_dir(&root, &root, &self.image_exts, &mut found);
         }
 
-        // FuncGodot tries the extensions in order, so with wall.png and wall.jpg side by side the first extension is the material.
+        // TrenchDot tries the extensions in order, so with wall.png and wall.jpg side by side the first extension is the material.
         let rank = |e: &MaterialEntry| {
             let ext = e.path.as_ref().and_then(|p| p.extension()).map(|x| x.to_string_lossy().to_ascii_lowercase());
             ext.and_then(|x| self.image_exts.iter().position(|y| *y == x)).unwrap_or(usize::MAX)
@@ -573,7 +573,7 @@ impl MaterialLibrary {
     /// Albedo plus normal and emission maps and the Godot settings, for the preview renderer.
     pub fn load_material(&mut self, name: &str) -> Option<LoadedMaterial> {
         let open = |p: &Path| image::open(p).ok().map(|i| i.to_rgba8());
-        // Like FuncGodot, a material resource is used as is, companion maps only apply to generated materials.
+        // Like TrenchDot, a material resource is used as is, companion maps only apply to generated materials.
         if let Some(info) = self.info(name) {
             let res = |r: &Option<String>| r.as_deref().and_then(|r| self.resolve_res(r)).filter(|p| self.may_read(p)).and_then(|p| open(&p));
             // The renderer tints the albedo with albedo_color, so a material without a texture draws on white.
@@ -590,7 +590,7 @@ impl MaterialLibrary {
         let normal = self.normal_companion(name).and_then(|p| open(&p));
         let emission_path = self.companion(name, EMISSION_SUFFIX);
         let emission = emission_path.as_deref().and_then(open);
-        // What FuncGodot generates: the default black emission color plus the texture.
+        // What TrenchDot generates: the default black emission color plus the texture.
         let info = GodotMaterial {
             emission: emission.is_some().then_some([0.0; 3]),
             emission_texture: emission.as_ref().and(emission_path).map(|p| p.to_string_lossy().replace('\\', "/")),
@@ -764,7 +764,7 @@ fn pair_pbr_maps(entries: &mut Vec<MaterialEntry>) {
                     entries[ai].has_normal = true;
                 }
 
-                // FuncGodot only generates emission from this suffix, and a material file is used as it is.
+                // TrenchDot only generates emission from this suffix, and a material file is used as it is.
                 if lower.ends_with(EMISSION_SUFFIX) && entries[ai].material_file.is_none() {
                     entries[ai].is_emissive = true;
                 }
@@ -900,7 +900,7 @@ mod tests {
         let lib = MaterialLibrary::new(&game);
         let barks: Vec<_> = lib.entries.iter().filter(|e| e.name == "bark").collect();
         assert_eq!(barks.len(), 1, "one entry per material name");
-        assert_eq!(barks[0].path.as_ref().unwrap().extension().unwrap(), "png", "the first extension in the list wins, as in FuncGodot");
+        assert_eq!(barks[0].path.as_ref().unwrap().extension().unwrap(), "png", "the first extension in the list wins, as in TrenchDot");
         assert!(barks[0].is_pbr && barks[0].has_normal);
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -1145,7 +1145,7 @@ metadata/texture_size = Vector2(80, 48)
         let facade = lib.load_material("facade").unwrap();
         assert_eq!(facade.emission.as_ref().map(|e| e.dimensions()), Some((4, 4)));
         assert!(facade.info.is_emissive() && !facade.info.emission_multiply);
-        assert_eq!(facade.info.emission, Some([0.0; 3]), "like FuncGodot: black color, texture added");
+        assert_eq!(facade.info.emission, Some([0.0; 3]), "like TrenchDot: black color, texture added");
         let sign = lib.load_material("sign").unwrap();
         assert!(sign.emission.is_none() && sign.info.is_emissive());
         assert_eq!(sign.info.emission_energy, 4.0);

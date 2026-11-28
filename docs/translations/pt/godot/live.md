@@ -6,7 +6,7 @@ source: 15ac2f37b7d278fa849fb066b91734f671f35658
 
 ## Reconstruir ao salvar { #rebuild-on-save }
 
-Deixe a cena com o seu `FuncGodotMap` aberta no editor do Godot e é só salvar no TrenchDot com Ctrl+S. O Godot
+Deixe a cena com o seu `TrenchDotMap` aberta no editor do Godot e é só salvar no TrenchDot com Ctrl+S. O Godot
 reconstrói essa cena na hora, desde que a aba dela seja a que o Godot mostra e o nó do mapa tenha *Auto Rebuild On Save*
 ligado. Uma cena em outra aba que usa o mapa é reconstruída quando você muda para a aba dela. Fechar e reabrir uma aba ou
 recarregar uma cena não quebra isso. Salvar um [prefab](../editor/prefab-library.md) reconstrói os mapas dessa cena
@@ -23,7 +23,7 @@ Salve a cena no Godot para guardar o resultado. Se a barra de status disser outr
 | A barra de status diz | Faça isto |
 | --- | --- |
 | A cena não é a aba de cena atual no Godot | Mude para essa aba, ela é reconstruída então |
-| A aba de cena atual não tem um `FuncGodotMap` para o mapa | Abra a cena que constrói o mapa, ou ligue *Auto Rebuild On Save* no nó de mapa dela |
+| A aba de cena atual não tem um `TrenchDotMap` para o mapa | Abra a cena que constrói o mapa, ou ligue *Auto Rebuild On Save* no nó de mapa dela |
 | O Godot não tem cena aberta | Abra no Godot a cena com o mapa, e se ela já está aberta, continue lendo |
 | O Godot não está rodando com o addon do TrenchDot | Abra o projeto no editor do Godot com o addon ativado |
 | O Godot reconstruiu o mapa, mas as configurações do mapa não têm definição para algumas classes, então elas são construídas como nós simples | Adicione as definições, veja [Entidades que não fazem nada](entities-troubleshooting.md) |
@@ -41,7 +41,7 @@ no renderizador de verdade.
 
 1. Abra a cena no Godot
 
-    O mapa precisa ter sido salvo uma vez dentro do projeto, e a cena aberta no Godot precisa de um `FuncGodotMap` que o use.
+    O mapa precisa ter sido salvo uma vez dentro do projeto, e a cena aberta no Godot precisa de um `TrenchDotMap` que o use.
 
 2. Ligue
 

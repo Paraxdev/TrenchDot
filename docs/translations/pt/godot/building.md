@@ -4,13 +4,13 @@ source: 755d17f52aebf0b32513b6e22a04abb368badeab
 
 # Construindo mapas { #building-maps }
 
-O TrenchDot salva um arquivo `.tdm` e nunca escreve cenas do Godot por conta própria. No Godot, o nó `FuncGodotMap` do addon lê esse arquivo e gera as malhas, a colisão e os nós de entidade. O resultado é salvo junto com a sua cena como qualquer nó feito à mão, então nada é reconstruído em tempo de execução a menos que você peça.
+O TrenchDot salva um arquivo `.tdm` e nunca escreve cenas do Godot por conta própria. No Godot, o nó `TrenchDotMap` do addon lê esse arquivo e gera as malhas, a colisão e os nós de entidade. O resultado é salvo junto com a sua cena como qualquer nó feito à mão, então nada é reconstruído em tempo de execução a menos que você peça.
 
-## O nó FuncGodotMap { #the-funcgodotmap-node }
+## O nó TrenchDotMap { #the-trenchdotmap-node }
 
 1. Adicione o nó
 
-    No editor do Godot, aperte Ctrl+A na sua cena, procure `FuncGodotMap` e adicione.
+    No editor do Godot, aperte Ctrl+A na sua cena, procure `TrenchDotMap` e adicione.
 
 2. Aponte para o seu mapa
 
@@ -40,13 +40,13 @@ O addon só constrói arquivos `.tdm`. Para usar um `.map` do Quake ou um `.vmf`
 
 | Gatilho | O que é construído | Quando usar |
 | --- | --- | --- |
-| Salvar no TrenchDot | Todo `FuncGodotMap` que usa esse arquivo na cena aberta no editor do Godot | O ciclo do dia a dia, salvar e olhar o resultado no Godot |
+| Salvar no TrenchDot | Todo `TrenchDotMap` que usa esse arquivo na cena aberta no editor do Godot | O ciclo do dia a dia, salvar e olhar o resultado no Godot |
 | *Godot > Construir no Godot* | O mapa como ele está no TrenchDot agora, salvo ou não, sem escrever o arquivo | Para testar no Godot uma alteração não salva sem se comprometer com ela |
 | **Build Map** no Godot | O arquivo salvo | Quando o TrenchDot está fechado, ou para reconstruir uma cena que você acabou de abrir |
 
 Os dois primeiros precisam de um editor do Godot com este projeto aberto, e só mexem na cena aberta lá. Uma reconstrução marca essa cena como modificada, então salve-a no Godot para manter o resultado.
 
-Enquanto o Godot não tem o projeto aberto, *Construir no Godot* fica acinzentado. Ele também precisa que o mapa tenha sido salvo no projeto uma vez, para o Godot saber qual `FuncGodotMap` o usa.
+Enquanto o Godot não tem o projeto aberto, *Construir no Godot* fica acinzentado. Ele também precisa que o mapa tenha sido salvo no projeto uma vez, para o Godot saber qual `TrenchDotMap` o usa.
 
 ![O menu Godot com Construir no Godot sob o mouse](../assets/building/menu-build-in-godot.png)
 
@@ -55,7 +55,7 @@ Enquanto o Godot não tem o projeto aberto, *Construir no Godot* fica acinzentad
 Você também pode construir um mapa enquanto o jogo roda, por exemplo para carregar uma fase escolhida num menu:
 
 ```gdscript
-var map := FuncGodotMap.new()
+var map := TrenchDotMap.new()
 map.map_settings = load("res://demo/demo_map_settings.tres")
 map.local_map_file = "res://demo/maps/scripted_scene.tdm"
 add_child(map)
@@ -88,7 +88,7 @@ O `build()` retorna um Dictionary, também guardado em `build_report`. Ele diz q
 | `unknown_tool_textures` | Texturas de ferramenta como `special/clip` que as configurações do mapa nomeiam de outro jeito | As faces continuam sem desenhar nada, mas um brush de origin não define a origem da entidade dele |
 | `unresolved_targets` | Saídas e chaves de alvo cujo alvo não bate com nenhum targetname do mapa ou dos overlays | A saída dispara no vazio |
 
-Para imprimi-lo depois de cada construção, marque *Print Build Report* em *Build Flags* no nó, ou adicione `FuncGodotMap.BuildFlags.PRINT_REPORT` a `build_flags` no código. Um teste ou uma checagem de CI pode ler o Dictionary no lugar:
+Para imprimi-lo depois de cada construção, marque *Print Build Report* em *Build Flags* no nó, ou adicione `TrenchDotMap.BuildFlags.PRINT_REPORT` a `build_flags` no código. Um teste ou uma checagem de CI pode ler o Dictionary no lugar:
 
 ```gdscript
 var report := map.build()

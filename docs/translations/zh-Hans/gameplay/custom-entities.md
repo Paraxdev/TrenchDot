@@ -37,13 +37,13 @@ func disarm() -> void:
 
 | 你的实体 | 定义 | 要设置什么 |
 | --- | --- | --- |
-| 点实体，位于某一处，比如灯或拾取物 | `FuncGodotFGDPointClass` | 把 *Script Class* 设为你的脚本。想改为生成一个场景，就设置 *Scene File*，这时 *Script Class* 会替换场景根节点的脚本 |
-| 笔刷实体，由笔刷构成，比如门或触发器 | `FuncGodotFGDSolidClass` | 把 *Script Class* 设为你的脚本，把 *Node Class* 设为它继承的物体：`StaticBody3D`、`AnimatableBody3D` 或 `Area3D`。留空时，Godot 会构建脚本所继承的物体，如果脚本继承 `Node3D` 或没有脚本，则构建 `StaticBody3D`。见[碰撞](entities/collision.md) |
+| 点实体，位于某一处，比如灯或拾取物 | `TrenchDotFGDPointClass` | 把 *Script Class* 设为你的脚本。想改为生成一个场景，就设置 *Scene File*，这时 *Script Class* 会替换场景根节点的脚本 |
+| 笔刷实体，由笔刷构成，比如门或触发器 | `TrenchDotFGDSolidClass` | 把 *Script Class* 设为你的脚本，把 *Node Class* 设为它继承的物体：`StaticBody3D`、`AnimatableBody3D` 或 `Area3D`。留空时，Godot 会构建脚本所继承的物体，如果脚本继承 `Node3D` 或没有脚本，则构建 `StaticBody3D`。见[碰撞](entities/collision.md) |
 
 这是上面那个警报的定义，保存为 `res://entities/alarm.tres`，放在它的脚本 `alarm.gd` 旁边：
 
 ```
-[gd_resource type="Resource" script_class="FuncGodotFGDPointClass" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="TrenchDotFGDPointClass" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://addons/func_godot/src/fgd/func_godot_fgd_point_class.gd" id="1_class"]
 [ext_resource type="Script" path="res://entities/alarm.gd" id="2_script"]

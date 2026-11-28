@@ -67,7 +67,7 @@ Quelques entités de base sont toujours incluses, comme un simple `info_player_s
 
 1. Installer l'addon
 
-    Cliquez sur le bouton « Installer l'addon » tout en haut pour télécharger le fork de FuncGodot de TrenchDot dans
+    Cliquez sur le bouton « Installer l'addon » tout en haut pour télécharger le fork de TrenchDot de TrenchDot dans
     votre projet, c'est indispensable pour TrenchDot.
     (Remarque : il est téléchargé depuis les versions GitHub. Si vous n'avez pas d'accès à Internet, téléchargez
     d'abord `func_godot-trenchdot-addon.zip` et extrayez-le à la racine du projet pour l'installer à la main.)
@@ -196,10 +196,10 @@ astuces » ou simplement commencer à dessiner, il disparaît dès que la carte 
 Dans Godot, un niveau est une scène : un arbre de nœuds, enregistré dans un fichier `.tscn`, où chaque nœud est une chose
 comme un mesh, une lumière ou une caméra. Godot écrit les chemins à l'intérieur du projet avec `res://`, donc
 `res://maps/room.tdm` est le fichier `maps/room.tdm` dans le dossier de votre projet. La carte est transformée en nœuds
-par un nœud de l'addon, `FuncGodotMap`.
+par un nœud de l'addon, `TrenchDotMap`.
 
 1. Dans l'éditeur Godot, choisissez *Scene > New Scene* et cliquez sur **3D Scene** dans le panneau Scene à gauche.
-2. Appuyez sur Ctrl+A (*Add Child Node*), cherchez `FuncGodotMap` et ajoutez-le.
+2. Appuyez sur Ctrl+A (*Add Child Node*), cherchez `TrenchDotMap` et ajoutez-le.
 3. Avec le nouveau nœud sélectionné, réglez *Local Map File* sur votre `.tdm` dans l'Inspector propre à Godot, le panneau
    à droite de l'éditeur Godot. Il fonctionne comme l'Inspecteur de TrenchDot mais appartient à Godot.
 4. Appuyez sur **Build Map** en haut de cet Inspector, puis enregistrez la scène avec Ctrl+S.
@@ -215,7 +215,7 @@ enregistrement ne reconstruit pas, la barre d'état en donne la raison, voyez
 [Rebuild on save](godot/live.md#rebuild-on-save).
 
 > [!WARNING]
-> Une construction supprime d'abord les enfants du `FuncGodotMap`. Mettez vos propres nœuds à côté du nœud de la carte,
+> Une construction supprime d'abord les enfants du `TrenchDotMap`. Mettez vos propres nœuds à côté du nœud de la carte,
 > ou dans un [overlay](godot/overlays.md).
 
 ## Essayer le projet de démo { #try-the-demo-project }

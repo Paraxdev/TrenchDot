@@ -65,7 +65,7 @@ static func _scatter_node(map: Node, id: int) -> TrenchDotScatter:
 	return null
 
 static func _test_follows(t) -> void:
-	var settings: FuncGodotMapSettings = load(Link.SETTINGS)
+	var settings: TrenchDotMapSettings = load(Link.SETTINGS)
 	var scale := settings.scale_factor
 	var terrain := await _world(t)
 	var data: Object = terrain.get(&"data")
@@ -99,7 +99,7 @@ static func _test_follows(t) -> void:
 
 	var level := Node3D.new()
 	t.root.add_child(level)
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = settings
 	map.local_map_file = Link.MAP
 	level.add_child(map)
@@ -165,7 +165,7 @@ static func _test_follows(t) -> void:
 
 ## A map built for the first time creates its Terrain3D, which must be ready before the scatter step.
 static func _test_fresh_terrain(t) -> void:
-	var settings: FuncGodotMapSettings = load(Link.SETTINGS)
+	var settings: TrenchDotMapSettings = load(Link.SETTINGS)
 	var json: Dictionary = JSON.parse_string(Link._map_text([Link.DATA]))
 	var raw := [0, int(Link.VERTEX.x * settings.inverse_scale_factor), 40, int(Link.VERTEX.y * settings.inverse_scale_factor), 0, 0, 0, 1.0]
 	json["layers"][0]["children"].append(_scatter(101, [Link.LINK_ID], [raw]))

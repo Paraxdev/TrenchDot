@@ -128,7 +128,7 @@ fn wrap_deg(d: f64) -> f64 {
     if (r + 180.0).abs() < 1e-9 { 180.0 } else { r }
 }
 
-/// TrenchDot angles from Quake `angles` as FuncGodot reads them: pitch and roll negated, yaw turned by 180.
+/// TrenchDot angles from Quake `angles` as TrenchDot reads them: pitch and roll negated, yaw turned by 180.
 pub fn angles_from_quake(q: DVec3) -> DVec3 {
     DVec3::new(wrap_deg(-q.x), wrap_deg(q.y + 180.0), wrap_deg(-q.z))
 }

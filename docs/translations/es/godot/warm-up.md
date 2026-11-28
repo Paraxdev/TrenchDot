@@ -8,7 +8,7 @@ Godot compila los shaders la primera vez que dibuja algo, así que el primer fot
 
 Si tu juego es solo el mapa, no tienes que hacer nada. Cada mapa se precalienta solo después de construirse o cargarse en el juego en marcha, y emite `warmed_up` cuando termina.
 
-El precalentamiento de un mapa solo cubre el mapa, eso sí. Si tu juego añade contenido propio como un jugador, enemigos o armas, su primera aparición sigue atascándose. En ese caso desmarca **Warm Up Shaders** en el `FuncGodotMap`, en el Inspector de Godot, y precalienta todo de una vez cuando ya esté todo dentro:
+El precalentamiento de un mapa solo cubre el mapa, eso sí. Si tu juego añade contenido propio como un jugador, enemigos o armas, su primera aparición sigue atascándose. En ese caso desmarca **Warm Up Shaders** en el `TrenchDotMap`, en el Inspector de Godot, y precalienta todo de una vez cuando ya esté todo dentro:
 
 ```gdscript
 loading.show()

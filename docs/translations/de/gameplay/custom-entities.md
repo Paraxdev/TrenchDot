@@ -37,13 +37,13 @@ Der Editor und Godot lernen die Entitätsklassen aus dem FGD deines Projekts ken
 
 | Deine Entität | Definition | Was du setzt |
 | --- | --- | --- |
-| Eine Punkt-Entität, an einem Ort, wie eine Lampe oder ein Pickup | `FuncGodotFGDPointClass` | *Script Class* auf dein Skript. Um stattdessen eine Szene zu spawnen, setze *Scene File*, eine *Script Class* ersetzt dann das Skript des Wurzel-Nodes der Szene |
-| Eine Brush-Entität, aus Brushes gebaut, wie eine Tür oder ein Trigger | `FuncGodotFGDSolidClass` | *Script Class* auf dein Skript und *Node Class* auf den Body, den es erweitert: `StaticBody3D`, `AnimatableBody3D` oder `Area3D`. Bleibt es leer, baut Godot den Body, den das Skript erweitert, oder einen `StaticBody3D`, wenn das Skript `Node3D` erweitert oder es keins gibt. Siehe [Kollision](entities/collision.md) |
+| Eine Punkt-Entität, an einem Ort, wie eine Lampe oder ein Pickup | `TrenchDotFGDPointClass` | *Script Class* auf dein Skript. Um stattdessen eine Szene zu spawnen, setze *Scene File*, eine *Script Class* ersetzt dann das Skript des Wurzel-Nodes der Szene |
+| Eine Brush-Entität, aus Brushes gebaut, wie eine Tür oder ein Trigger | `TrenchDotFGDSolidClass` | *Script Class* auf dein Skript und *Node Class* auf den Body, den es erweitert: `StaticBody3D`, `AnimatableBody3D` oder `Area3D`. Bleibt es leer, baut Godot den Body, den das Skript erweitert, oder einen `StaticBody3D`, wenn das Skript `Node3D` erweitert oder es keins gibt. Siehe [Kollision](entities/collision.md) |
 
 Das ist die Definition des Alarms oben, gespeichert als `res://entities/alarm.tres` neben seinem Skript `alarm.gd`:
 
 ```
-[gd_resource type="Resource" script_class="FuncGodotFGDPointClass" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="TrenchDotFGDPointClass" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://addons/func_godot/src/fgd/func_godot_fgd_point_class.gd" id="1_class"]
 [ext_resource type="Script" path="res://entities/alarm.gd" id="2_script"]

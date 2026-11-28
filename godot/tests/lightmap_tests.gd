@@ -75,8 +75,8 @@ static func t_box(id: int, min_c: Vector3, max_c: Vector3) -> Dictionary:
 		faces.append({ "indices": indices, "material": "showcase/cobble" })
 	return { "type": "brush", "id": id, "vertices": vertices, "faces": faces }
 
-static func _build(t, path: String, use_baked := true) -> FuncGodotMap:
-	var map := FuncGodotMap.new()
+static func _build(t, path: String, use_baked := true) -> TrenchDotMap:
+	var map := TrenchDotMap.new()
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = path
 	map.use_baked_lighting = use_baked
@@ -167,11 +167,11 @@ static func _test_probe_tree(t) -> void:
 static func _test_live(t) -> void:
 	var path := OS.get_temp_dir().path_join("td_live_lightmap_test.tdm")
 	FileAccess.open(path, FileAccess.WRITE).store_string(JSON.stringify({ "format": "trenchdot-map", "version": 1, "layers": [] }))
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = load(SETTINGS)
 	map.global_map_file = path
 	t.root.add_child(map)
-	var maps: Array[FuncGodotMap] = [map]
+	var maps: Array[TrenchDotMap] = [map]
 	var session := TrenchDotLiveSession.new(path, maps)
 	# Brush 4 is baked too here, so the map keeps a bake once brush 2 moves.
 	var json := _map_json()

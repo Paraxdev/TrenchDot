@@ -26,7 +26,7 @@ source: 1b2a2ceda473607c8db087c552aff86851d08ef2
 
 3. Панель Output в Godot
 
-    Нажмите **Build Map** на узле `FuncGodotMap` в Godot. Панель Output внизу редактора Godot покажет предупреждение `[TrenchDot]` для классов без определения и по одному для каждого неподходящего определения. Отметьте *Print Build Report* в *Build Flags* на узле, чтобы получить весь [отчёт о сборке](building.md#build-report).
+    Нажмите **Build Map** на узле `TrenchDotMap` в Godot. Панель Output внизу редактора Godot покажет предупреждение `[TrenchDot]` для классов без определения и по одному для каждого неподходящего определения. Отметьте *Print Build Report* в *Build Flags* на узле, чтобы получить весь [отчёт о сборке](building.md#build-report).
 
 ## Сущности без определения { #entities-without-a-definition }
 
@@ -34,7 +34,7 @@ source: 1b2a2ceda473607c8db087c552aff86851d08ef2
 | --- | --- | --- |
 | Установите пакет сущностей геймплея | Двери, кнопки, триггеры, пропсы и спавнеры идут с пакетом, а в проекте его нет | Выберите *Геймплей > Установить сущности геймплея* в TrenchDot, см. [Настройку проекта](project-setup.md#installing-and-updating-the-pack) |
 | В вашем FGD нет пакета сущностей геймплея, добавьте `trenchdot_default_fgd.tres` в его Base Fgd Files | В вашем FGD нет *Base Fgd Files* | Добавьте `res://addons/func_godot/fgd/trenchdot_default_fgd.tres` в *Base Fgd Files* того FGD, который назван в настройках карты в *Entity Fgd* |
-| Пакет установлен, но *Entity Fgd* это FGD аддона | Настройки карты используют собственный FGD от FuncGodot или другой файл аддона, который заменяет обновление аддона | Задайте в *Entity Fgd* этих настроек карты тот FGD, который использует ваша конфигурация игры |
+| Пакет установлен, но *Entity Fgd* это FGD аддона | Настройки карты используют собственный FGD от TrenchDot или другой файл аддона, который заменяет обновление аддона | Задайте в *Entity Fgd* этих настроек карты тот FGD, который использует ваша конфигурация игры |
 | У вашего собственного класса нет определения | Он есть в FGD вашей конфигурации игры, но не в *Entity Fgd* тех настроек карты, с которыми собирает Godot | Задайте в *Entity Fgd* этих настроек карты тот FGD, который использует ваша конфигурация игры, см. [Свои ресурсы](project-setup.md#your-own-resources) |
 | Узел карты использует настройки карты по умолчанию от аддона, а не из Project Settings | Узел добавили старым аддоном, который хранил настройки карты по умолчанию в сцене | Выделите узел карты в Godot и очистите *Map Settings* в Инспекторе |
 | Сцена собрана с другими определениями сущностей | Она собрана до того, как появился пакет или определение, и с тех пор не пересобиралась | Нажмите **Build Map** и сохраните сцену. В [живом режиме](live.md#when-live-mode-rebuilds-the-whole-map) Godot делает это сам |
@@ -48,7 +48,7 @@ source: 1b2a2ceda473607c8db087c552aff86851d08ef2
 | `func_crusher builds as a Marker3D, so its brushes have no collision` | У определения нет *Node Class*, а его скрипт наследует узел, который не физическое тело | Задайте *Node Class* `StaticBody3D`, `AnimatableBody3D` или `Area3D` либо сделайте так, чтобы скрипт наследовал один из них |
 | `func_crusher: Node Class AnimatedBody3D not found, building it as a Node3D` | Опечатка или `class_name`, который Godot ещё не зарегистрировал | Исправьте имя. Для C# см. [Сущности на C#](../gameplay/csharp.md) |
 | `alarm: res://entities/alarm.gd has no @tool` | Редактор запускает только tool-скрипты, поэтому ключи из карты никогда не доходят до узла | Добавьте `@tool` в начало скрипта |
-| `light is a point entity, so its brushes are dropped` | `FuncGodotFGDPointClass` использован для браш-сущности | Сделайте определение `FuncGodotFGDSolidClass` |
+| `light is a point entity, so its brushes are dropped` | `TrenchDotFGDPointClass` использован для браш-сущности | Сделайте определение `TrenchDotFGDSolidClass` |
 | `func_door is a brush entity without brushes` | Браш-сущность, из которой нечего строить | Дайте ей браши или сделайте определение точечным классом |
 
 ## Сущности, которые строятся, но не реагируют { #entities-that-build-but-do-not-react }

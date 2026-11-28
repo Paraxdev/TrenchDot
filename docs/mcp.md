@@ -104,7 +104,7 @@ python tools/mcp_client.py call screenshot '{"source":"godot","position":[0,256,
 ```
 
 1. Save the map inside the project that is open in TrenchDot.
-2. Open that project in the Godot editor, with a scene whose `FuncGodotMap` builds the map.
+2. Open that project in the Godot editor, with a scene whose `TrenchDotMap` builds the map.
 3. Call `screenshot` with `"source": "godot"`. Without `position` and `look_at` it uses the 3D view's camera.
 
 Without [live mode](godot/live.md) Godot first builds the map as shown in TrenchDot, like *Build in Godot*.

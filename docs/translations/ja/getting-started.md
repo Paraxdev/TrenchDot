@@ -157,10 +157,10 @@ Godotを開き、左上の「Create」をクリックします。
 
 ## 5. Godotで見てみる { #5-see-it-in-godot }
 
-Godotではレベルはシーンです。シーンはノードのツリーで、`.tscn`ファイルとして保存され、各ノードがメッシュ、ライト、カメラなど一つのものを表します。Godotはプロジェクト内のパスを`res://`で書くので、`res://maps/room.tdm`はプロジェクトフォルダにある`maps/room.tdm`のことです。マップをノードに変換するのは、アドオンのノード`FuncGodotMap`です。
+Godotではレベルはシーンです。シーンはノードのツリーで、`.tscn`ファイルとして保存され、各ノードがメッシュ、ライト、カメラなど一つのものを表します。Godotはプロジェクト内のパスを`res://`で書くので、`res://maps/room.tdm`はプロジェクトフォルダにある`maps/room.tdm`のことです。マップをノードに変換するのは、アドオンのノード`TrenchDotMap`です。
 
 1. Godotエディターで*Scene > New Scene*を選び、左のSceneパネルにある**3D Scene**をクリックします。
-2. Ctrl+A（*Add Child Node*）を押して`FuncGodotMap`を検索し、追加します。
+2. Ctrl+A（*Add Child Node*）を押して`TrenchDotMap`を検索し、追加します。
 3. 追加したノードを選択した状態で、Godot自身のInspector（Godotエディターの右にあるパネル）で*Local Map File*にあなたの`.tdm`を設定します。TrenchDotのインスペクターと同じように使えますが、こちらはGodotのものです。
 4. そのInspectorの上にある**Build Map**を押して、Ctrl+Sでシーンを保存します。
 
@@ -169,7 +169,7 @@ Godotではレベルはシーンです。シーンはノードのツリーで、
 そのシーンをGodotで開いたままにしておくと、TrenchDotで保存するたびにシーンが再ビルドされます。そのシーンのタブが前面にあればすぐに、そうでなければそのタブに戻ったときに再ビルドされます。結果を残すには、Godotでシーンを保存してください。保存しても再ビルドされない場合は、ステータスバーに理由が出ます。[保存時の再ビルド](godot/live.md#rebuild-on-save)をご覧ください。
 
 > [!WARNING]
-> ビルドすると、まず`FuncGodotMap`の子ノードがすべて削除されます。自分のノードはマップノードの隣か、[オーバーレイ](godot/overlays.md)に置いてください。
+> ビルドすると、まず`TrenchDotMap`の子ノードがすべて削除されます。自分のノードはマップノードの隣か、[オーバーレイ](godot/overlays.md)に置いてください。
 
 ## デモプロジェクトを試す { #try-the-demo-project }
 

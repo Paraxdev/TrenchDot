@@ -36,7 +36,7 @@ somewhere else and the editor offers to copy it into `res://models` first.
 
 ## See it in Godot
 
-Save the map inside your Godot project and build it with a `FuncGodotMap`, see [Building maps](../godot/building.md).
+Save the map inside your Godot project and build it with a `TrenchDotMap`, see [Building maps](../godot/building.md).
 Each part of the map turns into a different kind of node:
 
 | Map part | What you get in Godot |

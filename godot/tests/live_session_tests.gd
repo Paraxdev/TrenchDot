@@ -33,8 +33,8 @@ func run(runner: SceneTree) -> void:
 	await test_live_rebuilds_are_saved()
 
 ## A map node in the tree, built from the test map's JSON.
-func _map() -> FuncGodotMap:
-	var map := FuncGodotMap.new()
+func _map() -> TrenchDotMap:
+	var map := TrenchDotMap.new()
 	map.name = "LiveDefinitionsMap"
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = MAP
@@ -52,8 +52,8 @@ func _without_pack(build: Callable) -> Variant:
 	core.pack_fgd_path = installed
 	return out
 
-func _session(map: FuncGodotMap) -> TrenchDotLiveSession:
-	var maps: Array[FuncGodotMap] = [map]
+func _session(map: TrenchDotMap) -> TrenchDotLiveSession:
+	var maps: Array[TrenchDotMap] = [map]
 	return TrenchDotLiveSession.new(MAP, maps)
 
 ## Runs the session's queued rebuilds as if edits had paused, until it is idle.
@@ -69,7 +69,7 @@ func _is_door(node: Node) -> bool:
 
 func test_stale_definitions_at_begin() -> void:
 	print("- a live session rebuilds a scene built with other entity definitions")
-	var map: FuncGodotMap = _without_pack(_map)
+	var map: TrenchDotMap = _without_pack(_map)
 	var stale: Node = TrenchDotBuild.nodes_by_id(map).get(DOOR)
 	check(stale != null and not stale is TDDoor, "without the pack the door builds as a plain node, got %s" % stale)
 	check(not TrenchDotBuild.built_with_current_definitions(map), "the scene no longer matches the definitions once the pack is back")
@@ -103,7 +103,7 @@ func test_csharp_definitions_count() -> void:
 	var dirs: Variant = ProjectSettings.get_setting(setting) if had else null
 	DirAccess.make_dir_recursive_absolute(CSHARP_DIR)
 	ProjectSettings.set_setting(setting, PackedStringArray([CSHARP_DIR]))
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	var before := TrenchDotBuild.definitions_id(settings)
 	var file := FileAccess.open(CSHARP_DIR.path_join("LiveGuard.cs"), FileAccess.WRITE)
 	file.store_string("[GlobalClass]\n[TrenchDotEntity(\"td_tests_live_guard\")]\npublic partial class LiveGuard : Node3D\n{\n}\n")
@@ -158,7 +158,7 @@ func test_definitions_change_during_session() -> void:
 		var s := _session(_map())
 		s.begin(text)
 		return s)
-	var map: FuncGodotMap = session.maps[0]
+	var map: TrenchDotMap = session.maps[0]
 	var lamp: Dictionary = session._nodes[15].duplicate(true)
 	lamp["properties"]["light_energy"] = "4"
 	session.apply([{ "op": "set", "id": 15, "parent": 1, "index": 8, "node": lamp }])
@@ -284,7 +284,7 @@ func test_saved_prefabs() -> void:
 	_write_map(NESTED_DIR.path_join("inner.tdm"), [])
 	# A map outside the project goes by its absolute path.
 	var outside := ProjectSettings.globalize_path(NESTED_DIR)
-	var nested := TrenchDotLiveSession.new(outside.path_join("outer.tdm"), [] as Array[FuncGodotMap])
+	var nested := TrenchDotLiveSession.new(outside.path_join("outer.tdm"), [] as Array[TrenchDotMap])
 	nested.begin(JSON.stringify({ "format": "trenchdot-map", "properties": {}, "layers": [{ "type": "layer", "id": 1, "children": [instance.call(2, "middle.tdm")] }, { "type": "layer", "id": 4, "omit_from_export": true, "children": [instance.call(5, "omitted.tdm")] }] }))
 	check(nested.prefabs() == PackedStringArray([outside.path_join("middle.tdm"), outside.path_join("inner.tdm")]), "prefabs inside prefabs count, ones in omitted layers do not, got %s" % [nested.prefabs()])
 	link._sessions["nested"] = nested
@@ -302,7 +302,7 @@ func test_live_rebuilds_are_saved() -> void:
 	var scene := Node3D.new()
 	scene.name = "Scene"
 	t.root.add_child(scene)
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = MAP
 	scene.add_child(map)

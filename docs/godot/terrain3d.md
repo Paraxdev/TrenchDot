@@ -91,10 +91,10 @@ A map has at most one Terrain3D node. It stays where it is: you cannot move, rot
 in a prefab. Deleting it unlinks the folder and never deletes region files.
 
 > [!NOTE]
-> Godot builds a map only from a scene with a `FuncGodotMap` node set to that map. A project that holds just
+> Godot builds a map only from a scene with a `TrenchDotMap` node set to that map. A project that holds just
 > `maps/hills.tdm` builds nothing, so no ground and no `TrenchDotTerrain3D` node appear, and the **Terrain3D** dock in
 > Godot has nothing to show. Add the map node as in [See it in Godot](../getting-started.md#6-see-it-in-godot), see
-> also [The FuncGodotMap node](building.md#the-funcgodotmap-node), then save the map again. Your edits reach the
+> also [The TrenchDotMap node](building.md#the-trenchdotmap-node), then save the map again. Your edits reach the
 > region files without any scene when TrenchDot finds the Godot executable, from the `GODOT` environment variable or
 > *File > Preferences… > Godot executable*, since it then applies them with a headless Godot.
 
@@ -107,7 +107,7 @@ and not like its average color:
 
 1. Select the Terrain3D node
 
-    Open the scene with the `FuncGodotMap` of this map in Godot, add one first if no scene has it, see the note under
+    Open the scene with the `TrenchDotMap` of this map in Godot, add one first if no scene has it, see the note under
     [Linking a data folder](#linking-a-data-folder). Save the map in TrenchDot once so Godot builds it, then select the
     `Terrain3D` node under `TrenchDotTerrain3D`.
 
@@ -132,10 +132,10 @@ and not like its average color:
 
 ## What Godot builds
 
-The next build of the map, from a save in TrenchDot or from *Build* on the `FuncGodotMap`, creates this:
+The next build of the map, from a save in TrenchDot or from *Build* on the `TrenchDotMap`, creates this:
 
 ```
-FuncGodotMap
+TrenchDotMap
     TrenchDotTerrain3D
         Terrain3D
 ```

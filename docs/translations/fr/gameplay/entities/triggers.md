@@ -29,7 +29,7 @@ déclenchent pas un déclencheur de joueur. Laissez-le vide pour accepter n'impo
 | `exited` | À la sortie, même quand le déclencheur est désactivé, pour défaire quelque chose quand le corps part |
 
 Les déclencheurs détectent les corps sur la couche physique 1. Si le joueur est sur une autre couche, ajoutez-la à
-**Trigger Collision Mask** dans les réglages de carte (la ressource `FuncGodotMapSettings` dans Godot), sinon les
+**Trigger Collision Mask** dans les réglages de carte (la ressource `TrenchDotMapSettings` dans Godot), sinon les
 déclencheurs ne se lancent jamais.
 
 ## trigger_once { #trigger_once }

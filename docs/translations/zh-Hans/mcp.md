@@ -83,7 +83,7 @@ python tools/mcp_client.py call screenshot '{"source":"godot","position":[0,256,
 ```
 
 1. 把地图保存在 TrenchDot 里打开的那个项目里面。
-2. 在 Godot 编辑器里打开那个项目，用一个其 `FuncGodotMap` 会构建这张地图的场景。
+2. 在 Godot 编辑器里打开那个项目，用一个其 `TrenchDotMap` 会构建这张地图的场景。
 3. 用 `"source": "godot"` 调用 `screenshot`。不带 `position` 和 `look_at` 时，它会使用 3D 视图的摄像机。
 
 没有[实时模式](godot/live.md)时，Godot 会先按 TrenchDot 里显示的样子构建地图，就像 *在 Godot 中构建* 一样。`"build": false` 会按 Godot 现有的样子捕获场景。`width` 和 `height` 默认是 1280 x 720，`fov` 默认取 3D 视图的值。

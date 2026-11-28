@@ -4,13 +4,13 @@ source: 755d17f52aebf0b32513b6e22a04abb368badeab
 
 # Karten bauen { #building-maps }
 
-TrenchDot speichert eine `.tdm`-Datei und schreibt nie selbst Godot-Szenen. In Godot liest der Node `FuncGodotMap` des Addons diese Datei und erzeugt die Meshes, die Kollision und die Entitäts-Nodes. Das Ergebnis wird mit deiner Szene gespeichert wie jeder von Hand gemachte Node, deshalb wird zur Laufzeit nichts neu gebaut, außer du verlangst es.
+TrenchDot speichert eine `.tdm`-Datei und schreibt nie selbst Godot-Szenen. In Godot liest der Node `TrenchDotMap` des Addons diese Datei und erzeugt die Meshes, die Kollision und die Entitäts-Nodes. Das Ergebnis wird mit deiner Szene gespeichert wie jeder von Hand gemachte Node, deshalb wird zur Laufzeit nichts neu gebaut, außer du verlangst es.
 
-## Der Node FuncGodotMap { #the-funcgodotmap-node }
+## Der Node TrenchDotMap { #the-trenchdotmap-node }
 
 1. Den Node hinzufügen
 
-    Drück im Godot-Editor in deiner Szene Ctrl+A, such nach `FuncGodotMap` und füg ihn hinzu.
+    Drück im Godot-Editor in deiner Szene Ctrl+A, such nach `TrenchDotMap` und füg ihn hinzu.
 
 2. Auf deine Karte zeigen
 
@@ -40,13 +40,13 @@ Das Addon baut nur `.tdm`-Dateien. Um eine Quake-`.map` oder eine Hammer-`.vmf` 
 
 | Auslöser | Was gebaut wird | Wann du ihn nimmst |
 | --- | --- | --- |
-| In TrenchDot speichern | Jeder `FuncGodotMap`, der diese Datei nutzt, in der Szene, die im Godot-Editor offen ist | Die tägliche Schleife, in TrenchDot speichern und das Ergebnis in Godot ansehen |
+| In TrenchDot speichern | Jeder `TrenchDotMap`, der diese Datei nutzt, in der Szene, die im Godot-Editor offen ist | Die tägliche Schleife, in TrenchDot speichern und das Ergebnis in Godot ansehen |
 | *Godot > In Godot bauen* | Die Karte, wie sie gerade in TrenchDot ist, gespeichert oder nicht, ohne die Datei zu schreiben | Um eine ungespeicherte Änderung in Godot auszuprobieren, ohne dich festzulegen |
 | **Build Map** in Godot | Die gespeicherte Datei | Wenn TrenchDot geschlossen ist, oder um eine Szene neu zu bauen, die du gerade geöffnet hast |
 
 Die ersten beiden brauchen einen Godot-Editor mit diesem Projekt offen, und sie berühren nur die Szene, die dort offen ist. Ein Neubau markiert diese Szene als geändert, speichere sie also in Godot, um das Ergebnis zu behalten.
 
-Solange Godot das Projekt nicht offen hat, bleibt *In Godot bauen* ausgegraut. Es braucht außerdem, dass die Karte einmal im Projekt gespeichert wurde, damit Godot weiß, welcher `FuncGodotMap` sie nutzt.
+Solange Godot das Projekt nicht offen hat, bleibt *In Godot bauen* ausgegraut. Es braucht außerdem, dass die Karte einmal im Projekt gespeichert wurde, damit Godot weiß, welcher `TrenchDotMap` sie nutzt.
 
 ![Das Menü Godot mit In Godot bauen unter dem Mauszeiger](../assets/building/menu-build-in-godot.png)
 
@@ -55,7 +55,7 @@ Solange Godot das Projekt nicht offen hat, bleibt *In Godot bauen* ausgegraut. E
 Du kannst eine Karte auch bauen, während das Spiel läuft, zum Beispiel um einen Level zu laden, der in einem Menü gewählt wurde:
 
 ```gdscript
-var map := FuncGodotMap.new()
+var map := TrenchDotMap.new()
 map.map_settings = load("res://demo/demo_map_settings.tres")
 map.local_map_file = "res://demo/maps/scripted_scene.tdm"
 add_child(map)
@@ -88,7 +88,7 @@ Hat die Szene schon eine eigene `WorldEnvironment` oder `DirectionalLight3D`, be
 | `unknown_tool_textures` | Werkzeugtexturen wie `special/clip`, die die Karteneinstellungen anders nennen | Die Flächen zeichnen weiterhin nichts, aber ein Origin-Brush setzt den Ursprung seiner Entität nicht |
 | `unresolved_targets` | Outputs und Target-Keys, deren Ziel zu keinem targetname in der Karte oder ihren Overlays passt | Der Output feuert ins Leere |
 
-Um ihn nach jedem Build auszugeben, hak am Node unter *Build Flags* *Print Build Report* an, oder füg im Code `FuncGodotMap.BuildFlags.PRINT_REPORT` zu `build_flags` hinzu. Ein Test oder eine CI-Prüfung kann stattdessen das Dictionary lesen:
+Um ihn nach jedem Build auszugeben, hak am Node unter *Build Flags* *Print Build Report* an, oder füg im Code `TrenchDotMap.BuildFlags.PRINT_REPORT` zu `build_flags` hinzu. Ein Test oder eine CI-Prüfung kann stattdessen das Dictionary lesen:
 
 ```gdscript
 var report := map.build()

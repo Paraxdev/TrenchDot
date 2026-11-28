@@ -4,15 +4,15 @@ source: 755d17f52aebf0b32513b6e22a04abb368badeab
 
 # Construire des cartes { #building-maps }
 
-TrenchDot enregistre un fichier `.tdm` et n'écrit jamais de scènes Godot lui-même. Dans Godot, le nœud `FuncGodotMap` de
+TrenchDot enregistre un fichier `.tdm` et n'écrit jamais de scènes Godot lui-même. Dans Godot, le nœud `TrenchDotMap` de
 l'addon lit ce fichier et génère les maillages, les collisions et les nœuds d'entité. Le résultat est enregistré avec votre
 scène comme n'importe quel nœud fait à la main, donc rien ne se reconstruit à l'exécution sauf si vous le demandez.
 
-## Le nœud FuncGodotMap { #the-funcgodotmap-node }
+## Le nœud TrenchDotMap { #the-trenchdotmap-node }
 
 1. Ajoutez le nœud
 
-    Dans l'éditeur Godot, appuyez sur Ctrl+A dans votre scène, cherchez `FuncGodotMap` et ajoutez-le.
+    Dans l'éditeur Godot, appuyez sur Ctrl+A dans votre scène, cherchez `TrenchDotMap` et ajoutez-le.
 
 2. Pointez-le vers votre carte
 
@@ -46,7 +46,7 @@ Importer* dans TrenchDot et enregistrez-le d'abord en `.tdm`.
 
 | Déclencheur | Ce qui est construit | Quand l'utiliser |
 | --- | --- | --- |
-| Enregistrer dans TrenchDot | Chaque `FuncGodotMap` qui utilise ce fichier dans la scène ouverte dans l'éditeur Godot | La boucle de tous les jours, enregistrer et regarder le résultat dans Godot |
+| Enregistrer dans TrenchDot | Chaque `TrenchDotMap` qui utilise ce fichier dans la scène ouverte dans l'éditeur Godot | La boucle de tous les jours, enregistrer et regarder le résultat dans Godot |
 | *Godot > Construire dans Godot* | La carte telle qu'elle est dans TrenchDot en ce moment, enregistrée ou non, sans écrire le fichier | Pour essayer une modification non enregistrée dans Godot sans s'y engager |
 | **Build Map** dans Godot | Le fichier enregistré | Quand TrenchDot est fermé, ou pour reconstruire une scène que vous venez d'ouvrir |
 
@@ -54,7 +54,7 @@ Les deux premières demandent un éditeur Godot avec ce projet ouvert, et elles 
 Une reconstruction marque cette scène comme modifiée, donc enregistrez-la dans Godot pour garder le résultat.
 
 Tant que Godot n'a pas le projet ouvert, *Construire dans Godot* reste grisé. Il faut aussi que la carte ait été enregistrée
-une fois dans le projet, pour que Godot sache quel `FuncGodotMap` l'utilise.
+une fois dans le projet, pour que Godot sache quel `TrenchDotMap` l'utilise.
 
 ![Le menu Godot avec Construire dans Godot survolé](../assets/building/menu-build-in-godot.png)
 
@@ -63,7 +63,7 @@ une fois dans le projet, pour que Godot sache quel `FuncGodotMap` l'utilise.
 Vous pouvez aussi construire une carte pendant que le jeu tourne, par exemple pour charger un niveau choisi dans un menu :
 
 ```gdscript
-var map := FuncGodotMap.new()
+var map := TrenchDotMap.new()
 map.map_settings = load("res://demo/demo_map_settings.tres")
 map.local_map_file = "res://demo/maps/scripted_scene.tdm"
 add_child(map)
@@ -106,7 +106,7 @@ commité :
 | `unresolved_targets` | Des sorties et des clés cibles dont la cible ne correspond à aucun targetname dans la carte ou ses overlays | La sortie tire dans le vide |
 
 Pour l'afficher après chaque construction, cochez *Print Build Report* sous *Build Flags* sur le nœud, ou ajoutez
-`FuncGodotMap.BuildFlags.PRINT_REPORT` à `build_flags` dans le code. Un test ou une vérification de CI peut lire le
+`TrenchDotMap.BuildFlags.PRINT_REPORT` à `build_flags` dans le code. Un test ou une vérification de CI peut lire le
 Dictionary à la place :
 
 ```gdscript

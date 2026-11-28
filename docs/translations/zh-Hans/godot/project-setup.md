@@ -83,7 +83,7 @@ source: 0b6155b82bf9e0fff2345e05627d7c675a868912
 
 核心 FGD `res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres` 会自己读取已安装的包，所以每个基于插件默认值建立的 FGD，不用列出它就能得到这个包。当两个定义用了同一个类名时，后面的生效，顺序如下：
 
-1. FuncGodot 的类和插件的核心
+1. TrenchDot 的类和插件的核心
 2. `res://trenchdot/entities` 里已安装的包
 3. 你自己的 FGD 文件里的实体
 
@@ -95,8 +95,8 @@ source: 0b6155b82bf9e0fff2345e05627d7c675a868912
 
 最快的办法是把 `demo_fgd.tres`、`demo_map_settings.tres` 和 `demo_game_config.tres` 从 [`godot/demo`](https://github.com/Paraxdev/TrenchDot/tree/main/godot/demo) 复制到你的项目里，再改好路径。想自己做的话，在 Godot 编辑器里这样做：
 
-1. 创建一个 `FuncGodotFGDFile`。把 *Base Fgd Files* 设为 `res://addons/func_godot/fgd/trenchdot_default_fgd.tres`，这样你就保留了核心和已安装的包，然后在 *Entity Definitions* 下添加你自己的实体。没有这个基础的话，你的 FGD 里一个都没有，连 worldspawn 构建出来也没有碰撞。
-2. 创建一个 `FuncGodotMapSettings`。把 *Entity Fgd* 设为第 1 步的 FGD，把 *Base Texture Dir* 设为你的纹理文件夹（默认是 `res://textures`）。新的地图设置资源一开始用的是 `trenchdot_default_fgd.tres`，它有核心和包，但没有你自己的实体。
+1. 创建一个 `TrenchDotFGDFileBase`。把 *Base Fgd Files* 设为 `res://addons/func_godot/fgd/trenchdot_default_fgd.tres`，这样你就保留了核心和已安装的包，然后在 *Entity Definitions* 下添加你自己的实体。没有这个基础的话，你的 FGD 里一个都没有，连 worldspawn 构建出来也没有碰撞。
+2. 创建一个 `TrenchDotMapSettings`。把 *Entity Fgd* 设为第 1 步的 FGD，把 *Base Texture Dir* 设为你的纹理文件夹（默认是 `res://textures`）。新的地图设置资源一开始用的是 `trenchdot_default_fgd.tres`，它有核心和包，但没有你自己的实体。
 3. 创建一个 `TrenchDotGameConfig`。把它的 *Fgd File* 和 *Map Settings* 设为上面那两个资源。（可选）设置 *Game Name*，编辑器会把它显示在工具栏右上角、项目文件夹的旁边。
 4. 在 *Project > Project Settings* 里，把 `func_godot/default_map_settings` 指向你的地图设置，把 `trenchdot/game_config` 指向你的游戏配置。每个 *Map Settings* 字段为空的地图节点都会跟随它。用旧版插件添加的节点，会在那个字段里存着插件的默认值，所以请在那里把它清空。
 

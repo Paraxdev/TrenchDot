@@ -4,7 +4,7 @@
 
 1. Keep the scene open in Godot
 
-    Open the scene with your `FuncGodotMap` in the Godot editor. The map node needs *Auto Rebuild On Save* on, which it
+    Open the scene with your `TrenchDotMap` in the Godot editor. The map node needs *Auto Rebuild On Save* on, which it
     is by default.
 
 2. Save in TrenchDot
@@ -28,7 +28,7 @@ Save the scene in Godot to keep the result. If the status bar says something els
 | The status bar says | Do this |
 | --- | --- |
 | The scene is not the current scene tab in Godot | Switch to that tab, it rebuilds then |
-| The current scene tab has no `FuncGodotMap` for the map | Open the scene that builds the map, or turn on *Auto Rebuild On Save* on its map node |
+| The current scene tab has no `TrenchDotMap` for the map | Open the scene that builds the map, or turn on *Auto Rebuild On Save* on its map node |
 | Godot has no scene open | Open the scene with the map in Godot. If it is open, see [Two Godot editors](#two-godot-editors) |
 | Godot is not running with the TrenchDot addon | Open the project in the Godot editor with the addon enabled |
 | Godot rebuilt the map, but the map settings have no definition for some classes, so they build as plain nodes | Add the definitions, see [Entities that do nothing](entities-troubleshooting.md) |
@@ -49,7 +49,7 @@ in the real renderer.
 
 1. Open the scene in Godot
 
-    The map has to be saved inside the project once, and the scene open in Godot needs a `FuncGodotMap` that uses it.
+    The map has to be saved inside the project once, and the scene open in Godot needs a `TrenchDotMap` that uses it.
 
 2. Turn it on
 

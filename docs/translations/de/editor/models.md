@@ -66,7 +66,7 @@ Das Platzieren überschreibt nie eine Datei. Platzierst du dasselbe Modell noch 
 Texturen gelten anhand ihrer Pixel als gleich, eine, die ein anderes Programm nur neu gespeichert hat, wird also trotzdem wiederverwendet. Hast du eine übermalt? Zuvor platzierte Meshes behalten deine Version, und die nächste Platzierung bekommt frische Kopien in einem nummerierten Ordner, mit einem neuen Material. Damit spätere Platzierungen deine Änderungen bekommen, wende dein Material im Tab Materialien auf sie an.
 
 > [!NOTE]
-> FuncGodot baut das Material einer Fläche nur dann aus dem `default_material` des Projekts, wenn es keine Materialdatei gleichen Namens gibt. Flächen eines platzierten Modells, die eine Materialdatei bekommen haben, werden mit dieser Datei gezeichnet, ein eigener Shader als `default_material` erreicht sie also nicht. Bearbeite die Datei in Godot, um sie zu ändern. Ein Projekt, dessen Materialendung nicht `tres` ist, bekommt keine Materialdateien, und sein Standardmaterial gilt.
+> TrenchDot baut das Material einer Fläche nur dann aus dem `default_material` des Projekts, wenn es keine Materialdatei gleichen Namens gibt. Flächen eines platzierten Modells, die eine Materialdatei bekommen haben, werden mit dieser Datei gezeichnet, ein eigener Shader als `default_material` erreicht sie also nicht. Bearbeite die Datei in Godot, um sie zu ändern. Ein Projekt, dessen Materialendung nicht `tres` ist, bekommt keine Materialdateien, und sein Standardmaterial gilt.
 
 ## Mehr zu einem Vorschaubild { #more-on-a-thumbnail }
 

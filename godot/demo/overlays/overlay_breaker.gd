@@ -22,7 +22,7 @@ func _overlay() -> TrenchDotOverlay:
 	return n as TrenchDotOverlay
 
 # A rebuilt map starts with its lamps off, so a breaker left on switches them on again.
-func _on_map_rebuilt(_map: FuncGodotMap) -> void:
+func _on_map_rebuilt(_map: TrenchDotMap) -> void:
 	if on:
 		flipped_on.emit(null)
 

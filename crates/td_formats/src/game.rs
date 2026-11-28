@@ -20,7 +20,7 @@ pub struct GameConfig {
     pub version: u32,
     #[serde(default = "default_name")]
     pub name: String,
-    /// Map units per Godot meter (FuncGodot's inverse scale factor).
+    /// Map units per Godot meter (TrenchDot's inverse scale factor).
     #[serde(default = "default_scale")]
     pub units_per_meter: f64,
     #[serde(default)]
@@ -87,7 +87,7 @@ impl Default for TextureConfig {
     }
 }
 
-/// Folders whose textures all build no visual mesh, like the project's tool textures. FuncGodotUtil in the Godot addon
+/// Folders whose textures all build no visual mesh, like the project's tool textures. TrenchDotUtil in the Godot addon
 /// keeps the same list, `nodraw_lists_match_the_addon` compares them.
 pub const NODRAW_FOLDERS: [&str; 3] = ["special/", "tools/", "td/"];
 
@@ -551,7 +551,7 @@ impl EntityDef {
     }
 }
 
-/// The core entities of the Godot addon, mirrored by `addons/func_godot/fgd/trenchdot/` and FuncGodot's own FGD.
+/// The core entities of the Godot addon, mirrored by `addons/func_godot/fgd/trenchdot/` and TrenchDot's own FGD.
 pub const BUILTIN_ENTITIES: &str = include_str!("builtin_entities.json");
 /// The Gameplay entities pack, mirrored by the pack template in `addons/func_godot/gameplay_pack/`.
 pub const GAMEPLAY_ENTITIES: &str = include_str!("gameplay_entities.json");
@@ -1024,7 +1024,7 @@ mod tests {
         }
     }
 
-    /// The Godot addon hides the same faces, see FuncGodotUtil.filter_face.
+    /// The Godot addon hides the same faces, see TrenchDotUtil.filter_face.
     #[test]
     fn nodraw_lists_match_the_addon() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../godot/addons/func_godot/src/util/func_godot_util.gd");

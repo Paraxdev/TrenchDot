@@ -37,13 +37,13 @@ func disarm() -> void:
 
 | あなたのエンティティ | 定義 | 設定すること |
 | --- | --- | --- |
-| ポイントエンティティ。ランプやピックアップのように、一点にあるもの | `FuncGodotFGDPointClass` | *Script Class*に自分のスクリプトを設定する。代わりにシーンをスポーンするなら*Scene File*を設定する。その場合、*Script Class*はシーンのルートのスクリプトを置き換える |
-| ブラシエンティティ。ドアやトリガーのように、ブラシから作られるもの | `FuncGodotFGDSolidClass` | *Script Class*に自分のスクリプトを、*Node Class*にそれが継承するボディ(`StaticBody3D`、`AnimatableBody3D`、`Area3D`)を設定する。空のままだと、Godotはスクリプトが継承するボディをビルドし、スクリプトが`Node3D`を継承しているか、継承がなければ`StaticBody3D`をビルドする。[衝突](entities/collision.md)を参照 |
+| ポイントエンティティ。ランプやピックアップのように、一点にあるもの | `TrenchDotFGDPointClass` | *Script Class*に自分のスクリプトを設定する。代わりにシーンをスポーンするなら*Scene File*を設定する。その場合、*Script Class*はシーンのルートのスクリプトを置き換える |
+| ブラシエンティティ。ドアやトリガーのように、ブラシから作られるもの | `TrenchDotFGDSolidClass` | *Script Class*に自分のスクリプトを、*Node Class*にそれが継承するボディ(`StaticBody3D`、`AnimatableBody3D`、`Area3D`)を設定する。空のままだと、Godotはスクリプトが継承するボディをビルドし、スクリプトが`Node3D`を継承しているか、継承がなければ`StaticBody3D`をビルドする。[衝突](entities/collision.md)を参照 |
 
 上のアラームの定義は、次のとおりです。スクリプト`alarm.gd`の隣に、`res://entities/alarm.tres`として保存します。
 
 ```
-[gd_resource type="Resource" script_class="FuncGodotFGDPointClass" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="TrenchDotFGDPointClass" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://addons/func_godot/src/fgd/func_godot_fgd_point_class.gd" id="1_class"]
 [ext_resource type="Script" path="res://entities/alarm.gd" id="2_script"]

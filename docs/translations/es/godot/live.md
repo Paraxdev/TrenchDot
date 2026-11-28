@@ -6,7 +6,7 @@ source: 15ac2f37b7d278fa849fb066b91734f671f35658
 
 ## Reconstruir al guardar { #rebuild-on-save }
 
-Deja abierta en el editor de Godot la escena con tu `FuncGodotMap` y guarda en TrenchDot con Ctrl+S. Godot reconstruye esa escena enseguida, siempre que su pestaña sea la que Godot muestra y el nodo del mapa tenga *Auto Rebuild On Save* activado. Una escena en otra pestaña que use el mapa se reconstruye cuando cambias a su pestaña. Cerrar y reabrir una pestaña o recargar una escena no lo rompe. Guardar un [prefab](../editor/prefab-library.md) reconstruye los mapas de esa escena que lo usan, directamente o a través de otro prefab.
+Deja abierta en el editor de Godot la escena con tu `TrenchDotMap` y guarda en TrenchDot con Ctrl+S. Godot reconstruye esa escena enseguida, siempre que su pestaña sea la que Godot muestra y el nodo del mapa tenga *Auto Rebuild On Save* activado. Una escena en otra pestaña que use el mapa se reconstruye cuando cambias a su pestaña. Cerrar y reabrir una pestaña o recargar una escena no lo rompe. Guardar un [prefab](../editor/prefab-library.md) reconstruye los mapas de esa escena que lo usan, directamente o a través de otro prefab.
 
 La barra de estado de abajo a la izquierda te dice qué hizo Godot. Cuando funcionó, debería decir:
 
@@ -19,7 +19,7 @@ Guarda la escena en Godot para conservar el resultado. Si la barra de estado dic
 | La barra de estado dice | Haz esto |
 | --- | --- |
 | La escena no es la pestaña de escena actual en Godot | Cambia a esa pestaña, se reconstruye entonces |
-| La pestaña de escena actual no tiene un `FuncGodotMap` para el mapa | Abre la escena que construye el mapa, o activa *Auto Rebuild On Save* en su nodo de mapa |
+| La pestaña de escena actual no tiene un `TrenchDotMap` para el mapa | Abre la escena que construye el mapa, o activa *Auto Rebuild On Save* en su nodo de mapa |
 | Godot no tiene ninguna escena abierta | Abre en Godot la escena con el mapa, y si ya está abierta, sigue leyendo |
 | Godot no se está ejecutando con el addon de TrenchDot | Abre el proyecto en el editor de Godot con el addon activado |
 | Godot reconstruyó el mapa, pero los ajustes del mapa no tienen definición para algunas clases, así que se construyen como nodos simples | Añade las definiciones, mira [Entidades que no hacen nada](entities-troubleshooting.md) |
@@ -33,7 +33,7 @@ El modo en vivo envía tus ediciones a la escena abierta en el editor de Godot a
 
 1. Abre la escena en Godot
 
-    El mapa tiene que estar guardado una vez dentro del proyecto, y la escena abierta en Godot necesita un `FuncGodotMap` que lo use.
+    El mapa tiene que estar guardado una vez dentro del proyecto, y la escena abierta en Godot necesita un `TrenchDotMap` que lo use.
 
 2. Actívalo
 

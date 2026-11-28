@@ -25,7 +25,7 @@ trigger. Leave it empty to accept any body.
 | `exited` | On exit, even while the trigger is disabled, for undoing something when the body leaves |
 
 Triggers detect bodies on physics layer 1. If the player is on another layer, add it to **Trigger Collision Mask** in
-the map settings (the `FuncGodotMapSettings` resource in Godot), or the triggers never fire.
+the map settings (the `TrenchDotMapSettings` resource in Godot), or the triggers never fire.
 
 ## trigger_once
 

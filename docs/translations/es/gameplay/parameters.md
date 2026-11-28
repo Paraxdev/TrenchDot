@@ -20,7 +20,7 @@ El destino de una conexión, y de claves como `call_target`, decide qué nodos r
 | `!self` | La entidad dueña de la salida | Una entidad que actúa sobre sí misma, como un botón que se desactiva |
 | `/root/Game` | Una ruta de nodo absoluta, tiene que empezar por `/` | Autoloads y otro código del juego fuera del mapa |
 
-Los targetnames se buscan dentro del `FuncGodotMap` más cercano, así que dos mapas en una escena no pueden alcanzar los nombres del otro. Los grupos, las rutas de nodo y `!player` funcionan en todo el árbol, úsalos cuando un mapa tiene que hablar con otro.
+Los targetnames se buscan dentro del `TrenchDotMap` más cercano, así que dos mapas en una escena no pueden alcanzar los nombres del otro. Los grupos, las rutas de nodo y `!player` funcionan en todo el árbol, úsalos cuando un mapa tiene que hablar con otro.
 
 > [!NOTE]
 > En Source, `!caller` es la entidad que activó la salida. Aquí significa lo mismo que `!activator`, usa `!self` para la propia entidad.

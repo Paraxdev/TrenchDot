@@ -18,8 +18,8 @@ static func run(t) -> void:
 	_test_budgets(t)
 	_test_scatter_instances(t)
 
-static func _build(t, path: String) -> FuncGodotMap:
-	var map := FuncGodotMap.new()
+static func _build(t, path: String) -> TrenchDotMap:
+	var map := TrenchDotMap.new()
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = path
 	t.root.add_child(map)
@@ -102,7 +102,7 @@ static func _test_damaged_chunk(t) -> void:
 	var kept := _node_count(map) - (1 if map["layers"].back()["name"] == TrenchDotTdmFile.RECOVERED_LAYER else 0)
 	t.check(kept < total and kept > total / 2, "a damaged chunk loses only its nodes, kept %d of %d" % [kept, total])
 	t.check(problems.contains("nodes stored in it are lost") and problems.contains("of %d nodes could not be read" % total), "the damage is reported, got %s" % problems)
-	var data := FuncGodotParser.new().parse_tdm(map, load(SETTINGS), DAMAGED)
+	var data := TrenchDotMapParser.new().parse_tdm(map, load(SETTINGS), DAMAGED)
 	t.check(data.entities.size() > 1, "the rest of the map still builds")
 
 	broken = bytes.duplicate()

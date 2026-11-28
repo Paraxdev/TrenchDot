@@ -31,7 +31,7 @@ physics body. TrenchDot and Godot both tell you when this happens, and this page
 
 3. Godot's Output panel
 
-    Press **Build Map** on the `FuncGodotMap` node in Godot. The Output panel at the bottom of the Godot editor shows a
+    Press **Build Map** on the `TrenchDotMap` node in Godot. The Output panel at the bottom of the Godot editor shows a
     `[TrenchDot]` warning for the classes without a definition and one for each definition that does not fit. Tick
     *Print Build Report* under *Build Flags* on the node for the whole [build report](building.md#build-report).
 
@@ -41,7 +41,7 @@ physics body. TrenchDot and Godot both tell you when this happens, and this page
 | --- | --- | --- |
 | Install the Gameplay entities pack | Doors, buttons, triggers, props and spawners come with the pack, and the project does not have it | Choose *Gameplay > Install Gameplay Entities* in TrenchDot, see [Project setup](project-setup.md#installing-and-updating-the-pack) |
 | Your FGD lacks the Gameplay entities pack, add `trenchdot_default_fgd.tres` to its Base Fgd Files | Your FGD has no *Base Fgd Files* | Add `res://addons/func_godot/fgd/trenchdot_default_fgd.tres` to *Base Fgd Files* of the FGD that the map settings name in *Entity Fgd* |
-| The pack is installed, but the *Entity Fgd* is an FGD of the addon | The map settings use FuncGodot's own FGD or another file of the addon, which an addon update replaces | Set *Entity Fgd* of those map settings to the FGD your game config uses |
+| The pack is installed, but the *Entity Fgd* is an FGD of the addon | The map settings use TrenchDot's own FGD or another file of the addon, which an addon update replaces | Set *Entity Fgd* of those map settings to the FGD your game config uses |
 | A class of your own has no definition | It is in the FGD of your game config, but not in the *Entity Fgd* of the map settings Godot builds with | Set *Entity Fgd* of those map settings to the FGD your game config uses, see [Your own resources](project-setup.md#your-own-resources) |
 | The map node uses the addon's default map settings, not the ones from Project Settings | The node was added with an older addon, which stored the default map settings in the scene | Select the map node in Godot and clear *Map Settings* in the Inspector |
 | The scene was built with other entity definitions | It was built before the pack or a definition was there, and not since | Press **Build Map** and save the scene. In [live mode](live.md#when-live-mode-rebuilds-the-whole-map) Godot does this by itself |
@@ -56,7 +56,7 @@ flags the last two before you save.
 | `func_crusher builds as a Marker3D, so its brushes have no collision` | The definition has no *Node Class*, and its script extends a node that is no physics body | Set *Node Class* to `StaticBody3D`, `AnimatableBody3D` or `Area3D`, or have the script extend one of them |
 | `func_crusher: Node Class AnimatedBody3D not found, building it as a Node3D` | A typo, or a `class_name` Godot has not registered yet | Fix the name. For C#, see [C# entities](../gameplay/csharp.md) |
 | `alarm: res://entities/alarm.gd has no @tool` | The editor only runs tool scripts, so the keys from the map never reach the node | Add `@tool` at the top of the script |
-| `light is a point entity, so its brushes are dropped` | A `FuncGodotFGDPointClass` is used for a brush entity | Make the definition a `FuncGodotFGDSolidClass` |
+| `light is a point entity, so its brushes are dropped` | A `TrenchDotFGDPointClass` is used for a brush entity | Make the definition a `TrenchDotFGDSolidClass` |
 | `func_door is a brush entity without brushes` | A brush entity with nothing to build from | Give it brushes, or make the definition a point class |
 
 ## Entities that build but do not react

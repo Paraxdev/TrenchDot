@@ -72,7 +72,7 @@ You can see where an agent walks right in TrenchDot, without running the game.
 
 1. Open the scene in Godot
 
-    Save the map inside the project, and open the project in the Godot editor with a scene whose `FuncGodotMap` builds
+    Save the map inside the project, and open the project in the Godot editor with a scene whose `TrenchDotMap` builds
     that map.
 
 2. Turn on the walkable area

@@ -18,26 +18,26 @@ func _initialize() -> void:
 		elif arg.begins_with("threaded="):
 			ProjectSettings.set_setting(TrenchDotBuild.SETTING_THREADED, arg.trim_prefix("threaded=") == "1")
 	print("threaded build: %s" % TrenchDotBuild.threaded())
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	for map_name in MAPS:
 		var totals := {}
 		var order: Array[String] = []
 		var whole: Array[float] = []
 		for run in runs:
-			var map := FuncGodotMap.new()
+			var map := TrenchDotMap.new()
 			map.map_settings = settings
 			map.local_map_file = "res://demo/maps/showcase/%s.tdm" % map_name
 			root.add_child(map)
 			_marks.clear()
 			var started := Time.get_ticks_usec()
 			_mark("parse")
-			var parser := FuncGodotParser.new()
+			var parser := TrenchDotMapParser.new()
 			parser.declare_step.connect(func(step: String) -> void: _mark("parse: " + step.split(" ")[0] + " " + step.split(" ")[1] if step.split(" ").size() > 1 else step))
 			var parse_data := parser.parse_map_data(map.local_map_file, settings)
-			var generator := FuncGodotGeometryGenerator.new(settings, map.hyperplane_size)
+			var generator := TrenchDotGeometryGenerator.new(settings, map.hyperplane_size)
 			generator.declare_step.connect(_mark)
 			generator.build(map.build_flags, parse_data.entities)
-			var assembler := FuncGodotEntityAssembler.new(settings)
+			var assembler := TrenchDotEntityAssembler.new(settings)
 			_mark("assemble entities")
 			assembler.build(map, parse_data.entities, parse_data.groups)
 			_mark("terrains")

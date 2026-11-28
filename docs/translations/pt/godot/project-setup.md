@@ -112,7 +112,7 @@ O FGD do núcleo, `res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres`, l�
 todo FGD construído sobre os padrões do addon recebe o pacote sem listá-lo. Quando duas definições têm o mesmo classname, a
 última vence, nesta ordem:
 
-1. As classes do FuncGodot e o núcleo do addon
+1. As classes do TrenchDot e o núcleo do addon
 2. O pacote instalado em `res://trenchdot/entities`
 3. As entidades do seu próprio arquivo FGD
 
@@ -131,10 +131,10 @@ O caminho mais rápido é copiar `demo_fgd.tres`, `demo_map_settings.tres` e `de
 [`godot/demo`](https://github.com/Paraxdev/TrenchDot/tree/main/godot/demo) para o seu projeto e corrigir os caminhos. Para
 fazê-los você mesmo, faça isto no editor do Godot:
 
-1. Crie um `FuncGodotFGDFile`. Defina *Base Fgd Files* como `res://addons/func_godot/fgd/trenchdot_default_fgd.tres`, para
+1. Crie um `TrenchDotFGDFileBase`. Defina *Base Fgd Files* como `res://addons/func_godot/fgd/trenchdot_default_fgd.tres`, para
    manter o núcleo e o pacote instalado, depois adicione suas entidades em *Entity Definitions*. Sem essa base
    o seu FGD não tem nenhuma delas, e nem o worldspawn constrói com colisão.
-2. Crie um `FuncGodotMapSettings`. Defina *Entity Fgd* como o FGD do passo 1 e *Base Texture Dir* como a sua pasta de
+2. Crie um `TrenchDotMapSettings`. Defina *Entity Fgd* como o FGD do passo 1 e *Base Texture Dir* como a sua pasta de
    texturas (padrão `res://textures`). Um recurso novo de configurações do mapa começa em `trenchdot_default_fgd.tres`, que tem
    o núcleo e o pacote, mas não as suas entidades.
 3. Crie um `TrenchDotGameConfig`. Defina *Fgd File* e *Map Settings* como os dois recursos acima. (Opcionalmente) defina

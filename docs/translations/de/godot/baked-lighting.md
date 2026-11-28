@@ -10,7 +10,7 @@ Wenn du [eine Karte im Editor backst](../editor/light-baking.md), wird die Light
 
 | Teil | Was es bekommt |
 | --- | --- |
-| Eine `LightmapGI` namens `baked_lighting` | Ein Kind der `FuncGodotMap`, das die Lightmap, die Sonnenschattenmaske und die Lichtsonden hält |
+| Eine `LightmapGI` namens `baked_lighting` | Ein Kind der `TrenchDotMap`, das die Lightmap, die Sonnenschattenmaske und die Lichtsonden hält |
 | Gebackene Meshes | Ihre Lightmap-Koordinaten als UV2 und ein statischer GI-Modus, gestreamte Chunks eingeschlossen |
 | Lichter und die Sonne | Godots Backmodus aus ihrem `bake_mode` oder `sun_bake_mode`, siehe [Licht-Schlüssel](../editor/light-baking.md#light-keys) |
 
@@ -42,4 +42,4 @@ Ein `env_voxel_gi` wird bei jedem Bauen der Karte im Godot-Editor gebacken. Setz
 
 ## Einen anderen Lightmapper nutzen { #using-another-lightmapper }
 
-Du willst lieber mit Godots eigener `LightmapGI` backen? Entferne bei der `FuncGodotMap` das Häkchen bei **Use Baked Lighting**, um das gespeicherte Backergebnis wegzulassen. Der Build fügt dann keinen Node `baked_lighting` hinzu und lässt die Backmodi der Lichter in Ruhe. Hak *Unwrap UV2* in den *Build Flags* an, damit die Meshes das UV2 bekommen, das ein Godot-Backen braucht.
+Du willst lieber mit Godots eigener `LightmapGI` backen? Entferne bei der `TrenchDotMap` das Häkchen bei **Use Baked Lighting**, um das gespeicherte Backergebnis wegzulassen. Der Build fügt dann keinen Node `baked_lighting` hinzu und lässt die Backmodi der Lichter in Ruhe. Hak *Unwrap UV2* in den *Build Flags* an, damit die Meshes das UV2 bekommen, das ein Godot-Backen braucht.

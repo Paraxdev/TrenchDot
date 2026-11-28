@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="FuncGodotFGDSolidClass" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="TrenchDotFGDSolidClass" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://addons/func_godot/src/fgd/func_godot_fgd_solid_class.gd" id="1_class"]
 [ext_resource type="Script" path="res://trenchdot/entities/scripts/td_push.gd" id="2_script"]

@@ -59,7 +59,7 @@ static func _write(name: String, json: Dictionary) -> String:
 ## Finding 1: two occurrences of one prefab must not share group, entity, terrain or brush ids.
 static func _test_instance_id_namespacing(t) -> void:
 	print("- instance id namespacing")
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	var prefab := {
 		"format": "trenchdot-map", "version": 1, "properties": {},
 		"layers": [{ "id": 1, "type": "layer", "name": "Default", "children": [
@@ -78,7 +78,7 @@ static func _test_instance_id_namespacing(t) -> void:
 		] }],
 	}
 	var main_path := _write("td_ns_main.tdm", main_map)
-	var data := FuncGodotParser.new().parse_map_data(main_path, settings)
+	var data := TrenchDotMapParser.new().parse_map_data(main_path, settings)
 
 	var group_ids: Array = data.groups.map(func(g): return g.id)
 	t.check(group_ids.size() == group_ids.duplicate().reduce(func(acc, x): return acc if x in acc else acc + [x], []).size(), "two instances of one prefab keep every group id unique, got %s" % [group_ids])
@@ -95,9 +95,9 @@ static func _test_instance_id_namespacing(t) -> void:
 	if world_brushes.size() == 2:
 		t.check(world_brushes[0].node_id != world_brushes[1].node_id, "the two instances' brushes keep distinct ids, got %s" % [world_brushes.map(func(b): return b.node_id)])
 
-	# Building the scene must not hit FuncGodot's "already has a parent" collision: each instance's group
+	# Building the scene must not hit TrenchDot's "already has a parent" collision: each instance's group
 	# node is real and the entities end up under their own instance's group, not the other one's.
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = settings
 	map.local_map_file = main_path
 	t.root.add_child(map)
@@ -203,7 +203,7 @@ static func _test_terrain_collision_holes_and_diagonal(t) -> void:
 		"holes": Marshalls.raw_to_base64(holes),
 		"layers": [],
 	}
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	var terrain := TrenchDotTerrain.create(data, Vector3.ZERO, settings)
 	t.check(terrain != null, "terrain built")
 	if terrain:
@@ -227,7 +227,7 @@ static func _test_rotated_instance_terrain_position(t) -> void:
 	heights.resize(9)
 	var data := { "resolution": [3, 3], "cell_size": 2.0, "origin": [0.0, 0.0, 0.0], "layers": [],
 		"heights": Marshalls.raw_to_base64(heights.to_byte_array()) }
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	var xform := Transform3D(Basis(Vector3.UP, deg_to_rad(90.0)), Vector3(10.0, 0.0, 0.0))
 	var terrain := TrenchDotTerrain.create(data, xform, settings)
 	t.check(terrain != null, "rotated terrain built")
@@ -266,7 +266,7 @@ static func _test_concave_mesh_containment(t) -> void:
 		var solid := TrenchDotFaceCull._solid(brush, 1.0)
 		t.check(solid != null, "a closed mesh builds a containment solid")
 		if solid:
-			# TrenchDotMesh stores vertices rotated into FuncGodot's id space (id = (z, x, y)), so probe points
+			# TrenchDotMesh stores vertices rotated into TrenchDot's id space (id = (z, x, y)), so probe points
 			# go through the same TrenchDotParser.to_id conversion as the mesh's own vertices did.
 			var work := TrenchDotFaceCull.Work.new(TrenchDotFaceCull.INTERIOR_WORK)
 			t.check(solid.contains(TrenchDotParser.to_id(Vector3(2.0, 1.0, 1.0)), work), "a point genuinely inside the dart is inside")
@@ -275,16 +275,16 @@ static func _test_concave_mesh_containment(t) -> void:
 ## Finding 7: only opaque, non-tool containers may bury the faces of what they enclose.
 static func _test_tool_and_transparent_containers_do_not_bury(t) -> void:
 	print("- tool and transparent containers do not bury detail")
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	for case in [["showcase/cobble", true], ["special/clip", false], ["showcase/water", false]]:
 		var outer_material: String = case[0]
 		var should_bury: bool = case[1]
 		var children := [_box(2, Vector3(-256, -256, -256), Vector3(256, 256, 256), outer_material), _box(3, Vector3(-32, -32, -32), Vector3(32, 32, 32), "showcase/cobble")]
 		var map_json := { "format": "trenchdot-map", "properties": {}, "layers": [{ "type": "layer", "id": 1, "children": children }] }
 		var path := _write("td_container_rule_test.tdm", map_json)
-		var data := FuncGodotParser.new().parse_map_data(path, settings)
-		FuncGodotGeometryGenerator.new(settings).build(0, data.entities)
-		var inner: FuncGodotData.BrushData = data.entities[0].brushes[1]
+		var data := TrenchDotMapParser.new().parse_map_data(path, settings)
+		TrenchDotGeometryGenerator.new(settings).build(0, data.entities)
+		var inner: TrenchDotData.BrushData = data.entities[0].brushes[1]
 		if should_bury:
 			t.check(inner.faces.all(func(f): return f.render_hidden), "an opaque non-tool container (%s) still buries what is inside it" % outer_material)
 		else:
@@ -309,16 +309,16 @@ static func _tunnel_mesh(id: int) -> Dictionary:
 ## different paths there.
 static func _test_face_over_a_mesh_tunnel_stays(t) -> void:
 	print("- a face over a tunnel through a closed mesh stays")
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	for type in ["brush", "mesh"]:
 		var plate := _box(2, Vector3(8, 8, 24), Vector3(88, 88, 40), "showcase/cobble")
 		var buried := _box(3, Vector3(48, 48, 8), Vector3(80, 80, 16), "showcase/cobble")
 		plate["type"] = type
 		buried["type"] = type
 		var map_json := { "format": "trenchdot-map", "properties": {}, "layers": [{ "type": "layer", "id": 1, "children": [_tunnel_mesh(1), plate, buried] }] }
-		var data := FuncGodotParser.new().parse_map_data(_write("td_tunnel_cull_test.tdm", map_json), settings)
-		FuncGodotGeometryGenerator.new(settings).build(0, data.entities)
-		var brushes: Array[FuncGodotData.BrushData] = data.entities[0].brushes
+		var data := TrenchDotMapParser.new().parse_map_data(_write("td_tunnel_cull_test.tdm", map_json), settings)
+		TrenchDotGeometryGenerator.new(settings).build(0, data.entities)
+		var brushes: Array[TrenchDotData.BrushData] = data.entities[0].brushes
 		var shown := brushes[1].faces.filter(func(f): return not f.render_hidden).map(func(f): return f.plane.normal.round())
 		# Planes are in id space, map z is id x.
 		t.check(shown == [Vector3(1, 0, 0), Vector3(-1, 0, 0)] or shown == [Vector3(-1, 0, 0), Vector3(1, 0, 0)], "a %s plate keeps only its faces over the tunnel, got %s" % [type, shown])
@@ -329,7 +329,7 @@ static func _test_face_over_a_mesh_tunnel_stays(t) -> void:
 ## clipped once more by the face cull, and again for every prefab instance of it.
 static func _test_buried_faces_keep_their_triangles(t) -> void:
 	print("- buried faces keep the triangles they were built with")
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	var container := _box(1, Vector3(-8192, -8192, -8192), Vector3(8192, 8192, 8192), "showcase/cobble")
 	container["type"] = "mesh"
 	var vertices := []
@@ -342,13 +342,13 @@ static func _test_buried_faces_keep_their_triangles(t) -> void:
 	# With the build's budget spent the sheet is fanned right away, the face cull is all that could clip it.
 	var spent := TrenchDotMesh.ClipBudget.new()
 	spent.take(TrenchDotMesh.BUILD_CLIP_WORK)
-	var entity := FuncGodotData.EntityData.new()
+	var entity := TrenchDotData.EntityData.new()
 	entity.properties["classname"] = "worldspawn"
 	entity.brushes.append(TrenchDotMesh.parse(container, Transform3D.IDENTITY, settings.scale_factor, ""))
 	for k in 4:
 		entity.brushes.append(TrenchDotMesh.parse(sheet, Transform3D(Basis.IDENTITY, Vector3(0, 64 * k, 0)), settings.scale_factor, "", spent))
 	t.check(entity.brushes.all(func(b): return b.closed), "the container and the two sided sheets are closed meshes")
-	var entities: Array[FuncGodotData.EntityData] = [entity]
+	var entities: Array[TrenchDotData.EntityData] = [entity]
 	var started := Time.get_ticks_msec()
 	var hidden := TrenchDotFaceCull.apply(entities, settings, { "showcase/cobble": StandardMaterial3D.new() })
 	var took := Time.get_ticks_msec() - started
@@ -360,7 +360,7 @@ static func _test_buried_faces_keep_their_triangles(t) -> void:
 ## brush faces made to block their ears and buried in a closed mesh cannot stall it either.
 static func _test_buried_brush_faces_clip_from_the_cull_budget(t) -> void:
 	print("- buried brush faces clip from the face cull's budget")
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	var container := _box(1, Vector3(-8192, -8192, -8192), Vector3(8192, 8192, 8192), "showcase/cobble")
 	container["type"] = "mesh"
 	var solid := TrenchDotFaceCull._solid(TrenchDotMesh.parse(container, Transform3D.IDENTITY, settings.scale_factor, ""), 1.0 / settings.scale_factor)
@@ -370,8 +370,8 @@ static func _test_buried_brush_faces_clip_from_the_cull_budget(t) -> void:
 	entry.bounds = AABB(entry.points[0], Vector3.ZERO)
 	for p in entry.points:
 		entry.bounds = entry.bounds.expand(p)
-	entry.brush = FuncGodotData.BrushData.new()
-	entry.face = FuncGodotData.FaceData.new()
+	entry.brush = TrenchDotData.BrushData.new()
+	entry.face = TrenchDotData.FaceData.new()
 	var budget := TrenchDotMesh.ClipBudget.new()
 	budget.take(TrenchDotMesh.BUILD_CLIP_WORK - 1000)
 	var work := TrenchDotFaceCull.Work.new(TrenchDotFaceCull.INTERIOR_WORK)
@@ -397,7 +397,7 @@ static func _cone(sides: int) -> Dictionary:
 ## smoothing_a_vertex_shared_by_thousands_of_faces_shades_flat.
 static func _test_smoothing_a_vertex_of_thousands_of_faces_shades_flat(t) -> void:
 	print("- smoothing a vertex of thousands of faces shades flat")
-	var flat := func(brush: FuncGodotData.BrushData) -> bool:
+	var flat := func(brush: TrenchDotData.BrushData) -> bool:
 		return brush.faces.all(func(f): return Array(f.disp_normals).all(func(n): return n.distance_to(f.plane.normal) < 1e-5))
 	t.check(not flat.call(TrenchDotMesh.parse(_cone(650), Transform3D.IDENTITY, 1.0, "")), "a 650 sided cone is smoothed")
 	t.check(flat.call(TrenchDotMesh.parse(_cone(651), Transform3D.IDENTITY, 1.0, "")), "a 651 sided cone compares one face too many and is shaded flat")
@@ -608,7 +608,7 @@ static func _check_heights(t, terrain: TrenchDotTerrain, origin_y: float, scale:
 ## A resize can leave a terrain one cell wide, which no create dialog made before.
 static func _test_one_cell_terrain_matches_editor(t) -> void:
 	print("- one cell terrain matches the editor")
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	var scale := settings.scale_factor
 	var data := _terrain_data([13.0, -4.5, -7.25], Vector2i(2, 2), 40.0, [2.0, -6.0, 10.0, 30.0], 64)
 	var terrain := TrenchDotTerrain.create(data, Vector3.ZERO, settings)
@@ -635,7 +635,7 @@ static func _test_one_cell_terrain_matches_editor(t) -> void:
 ## larger than the terrain and one exactly its width.
 static func _test_non_square_terrain_matches_editor(t) -> void:
 	print("- non square terrain matches the editor")
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	var scale := settings.scale_factor
 	var origin := [-37.5, 12.25, -101.75]
 	var heights := [0.0, 8.0, 20.0, 4.0, -6.0, 30.0, 3.0, 14.0, 40.0, -10.0, 2.0, 18.0, 7.0, -5.0, 25.0, 11.0, 9.0, 50.0]
@@ -712,7 +712,7 @@ static func _test_non_square_terrain_matches_editor(t) -> void:
 ## Terrain::check_data refuses a terrain without a single cell, so the addon must too.
 static func _test_terrain_without_cells_is_refused(t) -> void:
 	print("- a terrain without cells is refused")
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	for res in [Vector2i(1, 3), Vector2i(3, 1)]:
 		var terrain := TrenchDotTerrain.create(_terrain_data([0.0, 0.0, 0.0], res, 24.0, [0.0, 0.0, 0.0], 64), Vector3.ZERO, settings)
 		t.check(terrain == null, "resolution %s builds nothing" % res)
@@ -728,10 +728,10 @@ static func _test_brush_bad_index_is_skipped(t) -> void:
 		"vertices": [[0.0, 0.0, 0.0], [16.0, 0.0, 0.0], [16.0, 16.0, 0.0], [0.0, 16.0, 0.0]],
 		"faces": [{ "indices": [0, 1, 2, 99], "material": "showcase/cobble" }, { "indices": [0, 1, 2, 3], "material": "showcase/cobble" },
 			{ "indices": [0, 1, 2, 3], "material": "showcase/cobble" }, { "indices": [0, 1, 2, 3], "material": "showcase/cobble" }] }
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	var map_json := { "format": "trenchdot-map", "properties": {}, "layers": [{ "type": "layer", "id": 1, "children": [good, bad] }] }
 	var path := _write("td_bad_index_test.tdm", map_json)
-	var data := FuncGodotParser.new().parse_map_data(path, settings)
+	var data := TrenchDotMapParser.new().parse_map_data(path, settings)
 	t.check(data != null, "the map still parses")
 	if data:
 		t.check(data.entities[0].brushes.size() == 1, "the malformed brush is dropped, the valid one is kept, got %d brushes" % data.entities[0].brushes.size())
@@ -749,7 +749,7 @@ static func _test_property_values_read_like_the_editor(t) -> void:
 				"properties": { "light_color": "1.0 0.8 0.5", "start_on": "false", "shadows": "True" } },
 		] }],
 	}
-	var data := FuncGodotParser.new().parse_tdm(map, load(SETTINGS), "props.tdm")
+	var data := TrenchDotMapParser.new().parse_tdm(map, load(SETTINGS), "props.tdm")
 	var lights := data.entities.filter(func(e): return str(e.properties.get("classname", "")) == "light")
 	t.check(lights.size() == 1, "the light parsed")
 	if lights.size() == 1:
@@ -778,9 +778,9 @@ static func _test_environment_sun_keys(t) -> void:
 ## A projected decal's size follows its map's units per meter, not the project default.
 static func _test_decal_uses_the_map_scale(t) -> void:
 	print("- decal size uses the map scale")
-	var settings := (load(SETTINGS) as FuncGodotMapSettings).duplicate() as FuncGodotMapSettings
+	var settings := (load(SETTINGS) as TrenchDotMapSettings).duplicate() as TrenchDotMapSettings
 	settings.inverse_scale_factor = 64.0
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = settings
 	var decal := TrenchDotDecal.new()
 	decal._func_godot_apply_properties({ "size": Vector3(64, 32, 128) })
@@ -791,7 +791,7 @@ static func _test_decal_uses_the_map_scale(t) -> void:
 ## Origin brushes match their texture in any case, and a zero UV scale counts as 1 like FaceUv::texel.
 static func _test_origin_texture_and_zero_uv_scale(t) -> void:
 	print("- origin texture case and zero uv scale")
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	var origin := TrenchDotParser._parse_brush(settings, Transform3D.IDENTITY, _box(1, Vector3(-8, -8, -8), Vector3(8, 8, 8), settings.origin_texture.to_upper()))
 	t.check(origin != null and origin.origin, "an origin brush in upper case is still an origin brush")
 	var box := _box(2, Vector3(-8, -8, -8), Vector3(8, 8, 8), "showcase/cobble")
@@ -799,5 +799,5 @@ static func _test_origin_texture_and_zero_uv_scale(t) -> void:
 		f["uv"] = { "u_axis": [1.0, 0.0, 0.0], "v_axis": [0.0, 0.0, 1.0], "offset": [0.0, 0.0], "scale": [0.0, 0.0] }
 	var brush := TrenchDotParser._parse_brush(settings, Transform3D.IDENTITY, box)
 	t.check(brush != null and t.near(brush.faces[0].uv.x.x, settings.scale_factor) and t.near(brush.faces[0].uv.y.y, settings.scale_factor), "a zero uv scale counts as 1")
-	var uv := FuncGodotUtil.get_valve_uv(Vector3(4, 0, 2), Vector3.RIGHT, Vector3.BACK, Transform2D(Vector2.ZERO, Vector2.ZERO, Vector2.ZERO))
+	var uv := TrenchDotUtil.get_valve_uv(Vector3(4, 0, 2), Vector3.RIGHT, Vector3.BACK, Transform2D(Vector2.ZERO, Vector2.ZERO, Vector2.ZERO))
 	t.check(uv.is_finite() and t.near(uv.x, 4.0) and t.near(uv.y, 2.0), "get_valve_uv treats a zero scale as 1, got %s" % uv)

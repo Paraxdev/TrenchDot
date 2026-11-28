@@ -107,7 +107,7 @@ class Runner extends Node:
 
 		await show_scene(SELF)
 		check(shown_maps().is_empty(), "a background tab's map is not reported, got %s" % [shown_maps()])
-		var background: FuncGodotMap
+		var background: TrenchDotMap
 		for root in EditorInterface.get_open_scene_roots():
 			if root.scene_file_path == MAP_SCENE:
 				background = TrenchDotEditorIntegration.maps_under(root)[0]
@@ -141,16 +141,16 @@ class Runner extends Node:
 		get_tree().quit(1 if failures > 0 else 0)
 
 	func _check_tool_scripts() -> void:
-		var def := FuncGodotFGDPointClass.new()
+		var def := TrenchDotFGDPointClass.new()
 		def.classname = "td_tests_not_tool"
 		def.node_class = "Node3D"
 		def.script_class = load(NOT_TOOL)
-		var fgd := FuncGodotFGDFile.new()
+		var fgd := TrenchDotFGDFileBase.new()
 		fgd.base_fgd_files = [load("res://demo/demo_fgd.tres")]
 		fgd.entity_definitions = [def]
-		var settings: FuncGodotMapSettings = load("res://demo/demo_map_settings.tres").duplicate()
+		var settings: TrenchDotMapSettings = load("res://demo/demo_map_settings.tres").duplicate()
 		settings.entity_fgd = fgd
-		var map := FuncGodotMap.new()
+		var map := TrenchDotMap.new()
 		map.map_settings = settings
 		map.local_map_file = MAP_FILE
 		var entity := { "id": 2, "type": "entity", "classname": "td_tests_not_tool", "origin": [0.0, 0.0, 0.0], "angles": [0.0, 0.0, 0.0], "properties": {} }
@@ -164,7 +164,7 @@ class Runner extends Node:
 	## The getting started page binds a script without @tool to info_player_start, which the editor runs as a placeholder.
 	func _check_first_room_player() -> void:
 		var first_room: Script = load(FIRST_ROOM)
-		var map := FuncGodotMap.new()
+		var map := TrenchDotMap.new()
 		map.map_settings = first_room.map_settings()
 		map.local_map_file = MAP_FILE
 		var start := { "id": 2, "type": "entity", "classname": "info_player_start", "origin": [-40.0, 0.0, -64.0], "angles": [0.0, 90.0, 0.0], "properties": {} }
@@ -218,12 +218,12 @@ class Runner extends Node:
 	func _check_scan() -> void:
 		var auto_export: Variant = ProjectSettings.get_setting(TrenchDotEditorIntegration.SETTING_AUTO_EXPORT)
 		ProjectSettings.set_setting(TrenchDotEditorIntegration.SETTING_AUTO_EXPORT, false)
-		var map: FuncGodotMap = link.maps_for(MAP_FILE)[0]
+		var map: TrenchDotMap = link.maps_for(MAP_FILE)[0]
 		var settings_before := map.map_settings
 		var fgd := TrenchDotFGDFile.new()
 		fgd.base_fgd_files = [load("res://demo/demo_fgd.tres")]
 		fgd.pack_fgd_path = NEW_DEFS.path_join("fgd.tres")
-		var settings: FuncGodotMapSettings = load("res://demo/demo_map_settings.tres").duplicate()
+		var settings: TrenchDotMapSettings = load("res://demo/demo_map_settings.tres").duplicate()
 		settings.entity_fgd = fgd
 		map.map_settings = settings
 		var entity := { "id": 2, "type": "entity", "classname": "td_tests_new_entity", "origin": [0.0, 0.0, 0.0], "angles": [0.0, 0.0, 0.0], "properties": {} }
@@ -235,10 +235,10 @@ class Runner extends Node:
 		var script := FileAccess.open(NEW_DEFS.path_join("new_entity.gd"), FileAccess.WRITE)
 		script.store_string("@tool\nclass_name %s extends StaticBody3D\n" % NEW_CLASS)
 		script.close()
-		var def := FuncGodotFGDPointClass.new()
+		var def := TrenchDotFGDPointClass.new()
 		def.classname = "td_tests_new_entity"
 		def.node_class = NEW_CLASS
-		var pack := FuncGodotFGDFile.new()
+		var pack := TrenchDotFGDFileBase.new()
 		pack.entity_definitions = [def]
 		ResourceSaver.save(pack, fgd.pack_fgd_path)
 		reply = await live("scan")
@@ -282,7 +282,7 @@ class Runner extends Node:
 
 	func _check_prefab_save() -> void:
 		var save_prefab := { "event": "map_saved", "path": ProjectSettings.globalize_path("res://tests/maps/prefab.tdm") }
-		var map: FuncGodotMap = link.maps_for(MAP_FILE)[0]
+		var map: TrenchDotMap = link.maps_for(MAP_FILE)[0]
 		map.build()
 		var plight := map.find_child("entity_p1-plight", true, false)
 		var reply := await link.handle_message(JSON.stringify(save_prefab))
@@ -300,7 +300,7 @@ class Runner extends Node:
 	func _check_stale_warning() -> void:
 		var fs := EditorInterface.get_resource_filesystem()
 		await until(func() -> bool: return not fs.is_scanning(), 1200)
-		var map: FuncGodotMap = link.maps_for(MAP_FILE)[0]
+		var map: TrenchDotMap = link.maps_for(MAP_FILE)[0]
 		var core: TrenchDotFGDFile = load(CORE_FGD)
 		var installed := core.pack_fgd_path
 		core.pack_fgd_path = "res://tests/td_tests_no_such_pack.tres"
@@ -355,7 +355,7 @@ class Runner extends Node:
 
 	## A pack FGD with a point class td_tests_late_<name> for each script <name>.gd of [param scripts].
 	func _late_fgd(scripts: Array) -> String:
-		var text := "[gd_resource type=\"Resource\" script_class=\"FuncGodotFGDFile\" format=3]\n\n"
+		var text := "[gd_resource type=\"Resource\" script_class=\"TrenchDotFGDFileBase\" format=3]\n\n"
 		text += "[ext_resource type=\"Script\" path=\"res://addons/func_godot/src/fgd/func_godot_fgd_file.gd\" id=\"fgd\"]\n"
 		text += "[ext_resource type=\"Script\" path=\"res://addons/func_godot/src/fgd/func_godot_fgd_point_class.gd\" id=\"point\"]\n"
 		for name: String in scripts:
@@ -447,7 +447,7 @@ dest_files=[\"%s\"]
 		fgd.pack_fgd_path = LATE_PACK.path_join("fgd.tres")
 		check(not fgd.get_entity_definitions().has("td_tests_late_entity"), "a pack Godot does not list yet is not read")
 		check(fgd.waiting_for_scan, "and its FGD says so")
-		var settings := FuncGodotMapSettings.new()
+		var settings := TrenchDotMapSettings.new()
 		settings.entity_fgd = fgd
 		var report := TrenchDotBuildReport.new(MAP_FILE)
 		report.use_settings(settings)

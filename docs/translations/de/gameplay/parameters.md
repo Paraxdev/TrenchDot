@@ -20,7 +20,7 @@ Das Ziel einer Verbindung, und von Schlüsseln wie `call_target`, entscheidet, w
 | `!self` | Die Entität, der der Output gehört | Eine Entität, die auf sich selbst wirkt, etwa ein Knopf, der sich selbst deaktiviert |
 | `/root/Game` | Ein absoluter Node-Pfad, er muss mit `/` beginnen | Autoloads und anderer Spielcode außerhalb der Karte |
 
-Targetnames werden innerhalb der nächsten `FuncGodotMap` nachgeschlagen, zwei Karten in einer Szene können die Namen der jeweils anderen also nicht erreichen. Gruppen, Node-Pfade und `!player` funktionieren im ganzen Baum, nutze sie, wenn eine Karte mit einer anderen reden muss.
+Targetnames werden innerhalb der nächsten `TrenchDotMap` nachgeschlagen, zwei Karten in einer Szene können die Namen der jeweils anderen also nicht erreichen. Gruppen, Node-Pfade und `!player` funktionieren im ganzen Baum, nutze sie, wenn eine Karte mit einer anderen reden muss.
 
 > [!NOTE]
 > In Source ist `!caller` die Entität, die den Output ausgelöst hat. Hier bedeutet es dasselbe wie `!activator`, für die Entität selbst nimmst du `!self`.

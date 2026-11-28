@@ -65,7 +65,7 @@ Puedes ver por dónde camina un agente directamente en TrenchDot, sin ejecutar e
 
 1. Abre la escena en Godot
 
-    Guarda el mapa dentro del proyecto y abre el proyecto en el editor de Godot con una escena cuyo `FuncGodotMap` construya ese mapa.
+    Guarda el mapa dentro del proyecto y abre el proyecto en el editor de Godot con una escena cuyo `TrenchDotMap` construya ese mapa.
 
 2. Activa el área transitable
 

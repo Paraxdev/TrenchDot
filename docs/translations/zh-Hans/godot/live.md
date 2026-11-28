@@ -6,7 +6,7 @@ source: 15ac2f37b7d278fa849fb066b91734f671f35658
 
 ## 保存时重建 { #rebuild-on-save }
 
-让带有你的 `FuncGodotMap` 的场景在 Godot 编辑器里保持打开，然后在 TrenchDot 里直接按 Ctrl+S 保存就行。只要它的标签页是 Godot 当前显示的那一个，并且地图节点打开了 *Auto Rebuild On Save*，Godot 就会立刻重新构建这个场景。另一个标签页里使用这张地图的场景，会在你切换到它的标签页时重新构建。关闭再重新打开标签页，或者重新加载场景，都不会破坏这一点。保存一个[预制体](../editor/prefab-library.md)，会重新构建那个场景里直接或通过另一个预制体用到它的地图。
+让带有你的 `TrenchDotMap` 的场景在 Godot 编辑器里保持打开，然后在 TrenchDot 里直接按 Ctrl+S 保存就行。只要它的标签页是 Godot 当前显示的那一个，并且地图节点打开了 *Auto Rebuild On Save*，Godot 就会立刻重新构建这个场景。另一个标签页里使用这张地图的场景，会在你切换到它的标签页时重新构建。关闭再重新打开标签页，或者重新加载场景，都不会破坏这一点。保存一个[预制体](../editor/prefab-library.md)，会重新构建那个场景里直接或通过另一个预制体用到它的地图。
 
 左下角的状态栏会告诉你 Godot 做了什么。成功时，它应该写着：
 
@@ -19,7 +19,7 @@ source: 15ac2f37b7d278fa849fb066b91734f671f35658
 | 状态栏显示 | 怎么做 |
 | --- | --- |
 | 场景不是 Godot 当前的场景标签页 | 切换到那个标签页，它随即重新构建 |
-| 当前场景标签页里没有这张地图的 `FuncGodotMap` | 打开构建这张地图的场景，或者在它的地图节点上打开 *Auto Rebuild On Save* |
+| 当前场景标签页里没有这张地图的 `TrenchDotMap` | 打开构建这张地图的场景，或者在它的地图节点上打开 *Auto Rebuild On Save* |
 | Godot 没有打开任何场景 | 在 Godot 里打开带有这张地图的场景，如果已经打开了，请接着往下读 |
 | Godot 没有带着 TrenchDot 插件运行 | 在启用了插件的情况下，用 Godot 编辑器打开项目 |
 | Godot 重新构建了地图，但地图设置里缺少某些类的定义，所以它们被构建成普通节点 | 添加这些定义，参见[什么都不做的实体](entities-troubleshooting.md) |
@@ -33,7 +33,7 @@ source: 15ac2f37b7d278fa849fb066b91734f671f35658
 
 1. 在 Godot 里打开场景
 
-    地图必须先保存到项目里一次，而且 Godot 里打开的场景需要有一个用到它的 `FuncGodotMap`。
+    地图必须先保存到项目里一次，而且 Godot 里打开的场景需要有一个用到它的 `TrenchDotMap`。
 
 2. 打开它
 

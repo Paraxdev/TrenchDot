@@ -11,7 +11,7 @@ Se o seu jogo é só o mapa, você não precisa fazer nada. Todo mapa se aquece 
 jogo em execução e emite `warmed_up` quando termina.
 
 O aquecimento próprio de um mapa cobre só o mapa, porém. Se o seu jogo adiciona conteúdo próprio, como jogador, inimigos ou armas,
-a primeira aparição deles ainda engasga. Nesse caso, desmarque **Warm Up Shaders** no `FuncGodotMap`, no Inspetor do Godot,
+a primeira aparição deles ainda engasga. Nesse caso, desmarque **Warm Up Shaders** no `TrenchDotMap`, no Inspetor do Godot,
 e aqueça tudo de uma vez quando tudo estiver dentro:
 
 ```gdscript

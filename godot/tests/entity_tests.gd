@@ -475,7 +475,7 @@ func test_hot_reload_uid() -> void:
 	print("- hot reload resolves uid:// map paths")
 	var path := "res://tests/maps/basic.tdm"
 	var id := ResourceLoader.get_resource_uid(path)
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.local_map_file = ResourceUID.id_to_text(id) if id != ResourceUID.INVALID_ID else path
 	check(map.local_map_file.begins_with("uid://"), "test map has a uid")
 	var expected := ProjectSettings.globalize_path(path).replace("\\", "/").to_lower()
@@ -553,12 +553,12 @@ func test_pack_scripts_by_path() -> void:
 func test_definitions() -> void:
 	print("- trigger definitions and the demo lights")
 	for classname in ["trigger_hurt", "trigger_teleport", "trigger_push", "trigger_call", "trigger_spawn_area"]:
-		var def: FuncGodotFGDEntityClass = load("res://trenchdot/entities/definitions/%s.tres" % classname)
+		var def: TrenchDotFGDEntityClass = load("res://trenchdot/entities/definitions/%s.tres" % classname)
 		check(def.class_properties.has("start_disabled"), "%s exposes start_disabled" % classname)
 	for classname in ["trigger_teleport", "trigger_spawn_area", "trigger_call", "trigger_multiple"]:
-		var def: FuncGodotFGDEntityClass = load("res://trenchdot/entities/definitions/%s.tres" % classname)
+		var def: TrenchDotFGDEntityClass = load("res://trenchdot/entities/definitions/%s.tres" % classname)
 		check(def.class_properties.has("cooldown"), "%s exposes cooldown" % classname)
-	var demo: FuncGodotFGDFile = load("res://demo/demo_fgd.tres")
+	var demo: TrenchDotFGDFileBase = load("res://demo/demo_fgd.tres")
 	var defs := demo.get_entity_definitions()
 	check(defs.has("light") and defs["light"].script_class == TDLight, "the demo uses the library light")
 	check(defs.has("light_spot") and defs["light_spot"].script_class == TDSpotLight, "the demo uses the library spot light")

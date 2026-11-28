@@ -10,7 +10,7 @@ source: 5d04cb3d9a7e005f4a371160c23d337e8ee707a7
 
 | 部品 | 追加されるもの |
 | --- | --- |
-| `baked_lighting`という名前の`LightmapGI` | `FuncGodotMap`の子で、ライトマップ、太陽のシャドウマスク、ライトプローブを持ちます |
+| `baked_lighting`という名前の`LightmapGI` | `TrenchDotMap`の子で、ライトマップ、太陽のシャドウマスク、ライトプローブを持ちます |
 | ベイクしたメッシュ | ライトマップ座標がUV2として設定され、GIモードはstaticになります。ストリーミングされるチャンクも含みます |
 | ライトと太陽 | `bake_mode`または`sun_bake_mode`に応じたGodotのベイクモード。[ライトのキー](../editor/light-baking.md#light-keys)を参照してください |
 
@@ -42,4 +42,4 @@ source: 5d04cb3d9a7e005f4a371160c23d337e8ee707a7
 
 ## 別のライトマッパーを使う { #using-another-lightmapper }
 
-代わりにGodot自身の`LightmapGI`でベイクしたいですか。`FuncGodotMap`の**Use Baked Lighting**のチェックを外すと、保存されたベイクを使わなくなります。するとビルドは`baked_lighting`ノードを追加せず、ライトのベイクモードにも触れません。Godotでベイクするのに必要なUV2がメッシュに付くように、*Build Flags*の*Unwrap UV2*にチェックを付けてください。
+代わりにGodot自身の`LightmapGI`でベイクしたいですか。`TrenchDotMap`の**Use Baked Lighting**のチェックを外すと、保存されたベイクを使わなくなります。するとビルドは`baked_lighting`ノードを追加せず、ライトのベイクモードにも触れません。Godotでベイクするのに必要なUV2がメッシュに付くように、*Build Flags*の*Unwrap UV2*にチェックを付けてください。

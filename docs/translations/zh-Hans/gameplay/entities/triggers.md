@@ -25,7 +25,7 @@ source: c7fdbd8dcaa1ac8625c1d6e7014b686194c50f36
 | `triggered` | 被接受的进入，对每个物体来说每 `cooldown` 最多一次。大多数接线用的是这个 |
 | `exited` | 离开时，即使触发器已被禁用也会触发，用于物体离开时撤销某件事 |
 
-触发器检测物理层 1 上的物体。如果玩家在别的层上，就要把那一层加进地图设置里的 **Trigger Collision Mask**（在 Godot 里是 `FuncGodotMapSettings` 资源），否则触发器永远不会触发。
+触发器检测物理层 1 上的物体。如果玩家在别的层上，就要把那一层加进地图设置里的 **Trigger Collision Mask**（在 Godot 里是 `TrenchDotMapSettings` 资源），否则触发器永远不会触发。
 
 ## trigger_once { #trigger_once }
 

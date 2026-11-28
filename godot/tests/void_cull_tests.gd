@@ -68,28 +68,28 @@ static func _map(children: Array, properties := {}, keyed := true) -> Dictionary
 	return { "format": "trenchdot-map", "properties": properties, "layers": [{ "type": "layer", "id": 1, "children": children }] }
 
 ## Builds [param map_json] like a map build does, up to the face cull.
-static func _build(map_json: Dictionary, settings: FuncGodotMapSettings = null) -> Array:
+static func _build(map_json: Dictionary, settings: TrenchDotMapSettings = null) -> Array:
 	if not settings:
 		settings = load(SETTINGS)
 	var path := OS.get_temp_dir().path_join("td_void_cull_test.tdm")
-	var data := FuncGodotParser.new().parse_map_data(Parity._write("td_void_cull_test.tdm", map_json), settings)
+	var data := TrenchDotMapParser.new().parse_map_data(Parity._write("td_void_cull_test.tdm", map_json), settings)
 	DirAccess.remove_absolute(path)
-	var generator := FuncGodotGeometryGenerator.new(settings)
+	var generator := TrenchDotGeometryGenerator.new(settings)
 	generator.map_path = "void_test"
 	generator.build(0, data.entities)
 	return [data, generator]
 
-static func _shown(brush: FuncGodotData.BrushData) -> int:
+static func _shown(brush: TrenchDotData.BrushData) -> int:
 	return brush.faces.filter(func(f): return not f.render_hidden).size()
 
-static func _shown_all(entity: FuncGodotData.EntityData) -> int:
+static func _shown_all(entity: TrenchDotData.EntityData) -> int:
 	var n := 0
 	for brush in entity.brushes:
 		n += _shown(brush)
 	return n
 
 ## Whether the face of [param brush] looking along [param dir] (map space, y up) draws.
-static func _draws(brush: FuncGodotData.BrushData, dir: Vector3) -> bool:
+static func _draws(brush: TrenchDotData.BrushData, dir: Vector3) -> bool:
 	var id_dir := Vector3(dir.z, dir.x, dir.y)
 	for f in brush.faces:
 		if f.plane.normal.is_equal_approx(id_dir):
@@ -104,7 +104,7 @@ static func _room(extra := [], skip := [], properties := {}, type := "brush", st
 
 static func _test_sealed_room_drops_outer_faces(t) -> void:
 	print("- a sealed room drops the faces of its walls that face the void")
-	var data: FuncGodotData.ParseData = _room()[0]
+	var data: TrenchDotData.ParseData = _room()[0]
 	var brushes := data.entities[0].brushes
 	# Slabs in the order of _shell: floor, ceiling, west, east, north, south. Their inner faces look into the room.
 	var inner := [Vector3.UP, Vector3.DOWN, Vector3.RIGHT, Vector3.LEFT, Vector3.BACK, Vector3.FORWARD]
@@ -119,9 +119,9 @@ static func _test_sealed_room_drops_outer_faces(t) -> void:
 
 static func _test_seed_outside_the_walls_leaks(t) -> void:
 	print("- an entity beyond every wall leaks and keeps every face")
-	var off: FuncGodotData.ParseData = _room([], [], { "_cull_void_faces": "0" })[0]
+	var off: TrenchDotData.ParseData = _room([], [], { "_cull_void_faces": "0" })[0]
 	# The start inside floods first, the one beyond the walls must still turn the map into a leak.
-	var data: FuncGodotData.ParseData = _room([_start(51, Vector3(128, 64, 900))])[0]
+	var data: TrenchDotData.ParseData = _room([_start(51, Vector3(128, 64, 900))])[0]
 	t.check(_shown_all(data.entities[0]) == _shown_all(off.entities[0]), "every face draws, %d of %d" % [_shown_all(data.entities[0]), _shown_all(off.entities[0])])
 
 static func _test_leaking_room_keeps_everything(t) -> void:
@@ -134,14 +134,14 @@ static func _test_leaking_room_keeps_everything(t) -> void:
 	var leaky: Array = _room([], ["-z"])
 	OS.remove_logger(log)
 	t.check(clean, "a sealed room does not warn")
-	var data: FuncGodotData.ParseData = leaky[0]
+	var data: TrenchDotData.ParseData = leaky[0]
 	var covered := data.entities[0].brushes.size() * 6
 	t.check(_shown_all(data.entities[0]) >= covered - 12, "a leaking map keeps nearly every face (%d of %d)" % [_shown_all(data.entities[0]), covered])
 	var warned := log.warnings.filter(func(w): return w.contains("leaks") and w.contains("info_player_start") and w.contains("void faces are kept"))
 	t.check(warned.size() == 1, "a leak names the entity once, got %s" % [log.warnings])
 	t.check(kept_sealed == 6, "the same room sealed draws only its six inner faces")
 	# The leak keeps the outer faces of the walls the hole does not touch.
-	var floor_brush: FuncGodotData.BrushData = data.entities[0].brushes[0]
+	var floor_brush: TrenchDotData.BrushData = data.entities[0].brushes[0]
 	t.check(_draws(floor_brush, Vector3.DOWN), "the outer face of the floor draws in a leaking map")
 
 static func _test_switches(t) -> void:
@@ -157,8 +157,8 @@ static func _test_switches(t) -> void:
 		var east := _node(30, Vector3(256, 0, -16), Vector3(272, 128, 272))
 		shell.append(_entity(40, "func_detail", props, [east]))
 		shell.append(_start(50, Vector3(128, 64, 128)))
-		var data: FuncGodotData.ParseData = _build(_map(shell))[0]
-		var wall: FuncGodotData.BrushData = data.entities[1].brushes[0]
+		var data: TrenchDotData.ParseData = _build(_map(shell))[0]
+		var wall: TrenchDotData.BrushData = data.entities[1].brushes[0]
 		var outer_draws := _draws(wall, Vector3.RIGHT)
 		t.check(_draws(wall, Vector3.LEFT), "the inner face of a detail wall draws")
 		t.check(outer_draws == (override == "0"), "a detail wall with the switch %s %s its outer face" % [override, "keeps" if outer_draws else "drops"])
@@ -168,7 +168,7 @@ static func _test_switches(t) -> void:
 	var shell := _shell(AABB(Vector3.ZERO, Vector3(256, 128, 256)), 10, ["+x"])
 	shell.append(_entity(40, "func_detail", { "_cull_void_faces": "1" }, [_node(30, Vector3(256, 0, -16), Vector3(272, 128, 272))]))
 	shell.append(_start(50, Vector3(128, 64, 128)))
-	var data: FuncGodotData.ParseData = _build(_map(shell, { "_cull_void_faces": "0" }))[0]
+	var data: TrenchDotData.ParseData = _build(_map(shell, { "_cull_void_faces": "0" }))[0]
 	t.check(_draws(data.entities[1].brushes[0], Vector3.RIGHT) and _draws(data.entities[0].brushes[0], Vector3.DOWN), "an entity switch on does nothing while worldspawn is off")
 
 static func _test_seam_does_not_leak(t) -> void:
@@ -176,7 +176,7 @@ static func _test_seam_does_not_leak(t) -> void:
 	for seam in [128.0, 100.5, 96.0]:
 		var north_a := _node(31, Vector3(0, 0, -16), Vector3(seam, 128, 0))
 		var north_b := _node(32, Vector3(seam, 0, -16), Vector3(256, 128, 0))
-		var data: FuncGodotData.ParseData = _room([north_a, north_b], ["-z"])[0]
+		var data: TrenchDotData.ParseData = _room([north_a, north_b], ["-z"])[0]
 		var brushes := data.entities[0].brushes
 		var west_wall := brushes[2]
 		t.check(not _draws(brushes[0], Vector3.DOWN) and not _draws(west_wall, Vector3.LEFT), "the room with a seam at %s stays sealed, outer faces hide" % seam)
@@ -184,23 +184,23 @@ static func _test_seam_does_not_leak(t) -> void:
 
 static func _test_mesh_walls_seal(t) -> void:
 	print("- closed mesh walls seal")
-	var data: FuncGodotData.ParseData = _room([], [], {}, "mesh")[0]
+	var data: TrenchDotData.ParseData = _room([], [], {}, "mesh")[0]
 	var brushes := data.entities[0].brushes
 	t.check(brushes.all(func(b): return b.is_mesh and b.closed), "the slabs are closed meshes")
 	t.check(_draws(brushes[0], Vector3.UP) and not _draws(brushes[0], Vector3.DOWN) and not _draws(brushes[3], Vector3.RIGHT), "a room of mesh walls drops its outer faces")
 	var mixed := _shell(AABB(Vector3.ZERO, Vector3(256, 128, 256)), 10, ["-z"])
 	mixed.append(_node(20, Vector3(0, 0, -16), Vector3(256, 128, 0), "mesh"))
 	mixed.append(_start(50, Vector3(128, 64, 128)))
-	var mixed_data: FuncGodotData.ParseData = _build(_map(mixed))[0]
+	var mixed_data: TrenchDotData.ParseData = _build(_map(mixed))[0]
 	t.check(not _draws(mixed_data.entities[0].brushes[0], Vector3.DOWN), "one mesh wall among brush walls seals the room")
 
 static func _test_sky_walls_seal(t) -> void:
 	print("- sky brushes seal like walls")
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	var children := _shell(AABB(Vector3.ZERO, Vector3(256, 128, 256)), 10, ["+y"])
 	children.append(_node(20, Vector3(-16, 128, -16), Vector3(272, 144, 272), "brush", settings.sky_texture))
 	children.append(_start(50, Vector3(128, 64, 128)))
-	var data: FuncGodotData.ParseData = _build(_map(children))[0]
+	var data: TrenchDotData.ParseData = _build(_map(children))[0]
 	t.check(not _draws(data.entities[0].brushes[0], Vector3.DOWN) and not _draws(data.entities[0].brushes[1], Vector3.LEFT), "a room closed by a sky brush is sealed")
 
 static func _test_moving_entities_do_not_seal(t) -> void:
@@ -210,9 +210,9 @@ static func _test_moving_entities_do_not_seal(t) -> void:
 	shell.append(_start(50, Vector3(128, 64, 128)))
 	var log := WarningLog.new()
 	OS.add_logger(log)
-	var data: FuncGodotData.ParseData = _build(_map(shell))[0]
+	var data: TrenchDotData.ParseData = _build(_map(shell))[0]
 	OS.remove_logger(log)
-	t.check(data.entities[1].definition is FuncGodotFGDSolidClass and data.entities[1].definition.node_class == "AnimatableBody3D", "func_rotating is a moving class")
+	t.check(data.entities[1].definition is TrenchDotFGDSolidClass and data.entities[1].definition.node_class == "AnimatableBody3D", "func_rotating is a moving class")
 	t.check(_draws(data.entities[0].brushes[0], Vector3.DOWN), "a door in the wall leaves the room open, the floor keeps its outer face")
 	t.check(not log.warnings.filter(func(w): return w.contains("leaks")).is_empty(), "the open room warns")
 
@@ -223,7 +223,7 @@ static func _test_gap_keeps_faces_beyond(t) -> void:
 		children.append(_node(31, Vector3(120, 0, 0), Vector3(136, 128, 256)) if gap.y == 0 else _node(31, Vector3(120, 0, 0), Vector3(136, 128, gap.x)))
 		if gap.y > 0:
 			children.append(_node(32, Vector3(120, 0, gap.y), Vector3(136, 128, 256)))
-		var data: FuncGodotData.ParseData = _room(children, [], {}, "brush", Vector3(60, 64, 128))[0]
+		var data: TrenchDotData.ParseData = _room(children, [], {}, "brush", Vector3(60, 64, 128))[0]
 		var brushes := data.entities[0].brushes
 		# Slab 3 is the east wall, its inner face looks west into the far half of the room.
 		var far_face := _draws(brushes[3], Vector3.LEFT)
@@ -272,7 +272,7 @@ static func _rooms(cols: int, rows: int) -> Dictionary:
 	children.append(_start(9000, Vector3(128, 64, 128)))
 	return _map(children)
 
-static func _triangles(data: FuncGodotData.ParseData) -> int:
+static func _triangles(data: TrenchDotData.ParseData) -> int:
 	var n := 0
 	for entity in data.entities:
 		for brush in entity.brushes:
@@ -283,11 +283,11 @@ static func _triangles(data: FuncGodotData.ParseData) -> int:
 
 static func _test_size_of_the_gain(t) -> void:
 	print("- the gain on a sealed multi room map")
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	var off := _rooms(5, 4)
 	off["properties"] = { "_cull_void_faces": "0" }
 	var built := _build(off)
-	var data: FuncGodotData.ParseData = built[0]
+	var data: TrenchDotData.ParseData = built[0]
 	var before := _triangles(data)
 	var started := Time.get_ticks_usec()
 	var hidden := TrenchDotVoidCull.apply(data.entities, settings, built[1].texture_materials, "rooms")
@@ -306,10 +306,10 @@ static func _test_default_is_off(t) -> void:
 	print("- a map without the key culls nothing")
 	var children := _shell(AABB(Vector3.ZERO, Vector3(256, 128, 256)), 10)
 	children.append(_start(50, Vector3(128, 64, 128)))
-	var data: FuncGodotData.ParseData = _build(_map(children, {}, false))[0]
+	var data: TrenchDotData.ParseData = _build(_map(children, {}, false))[0]
 	var brushes = data.entities[0].brushes
 	t.check(_draws(brushes[0], Vector3.DOWN) and _draws(brushes[2], Vector3.LEFT), "the outer faces draw without the key")
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	t.check(TrenchDotVoidCull.apply(data.entities, settings, {}, "default") == 0, "the pass hides nothing without the key")
 
 static func _test_empty_solid_entity_is_no_seed(t) -> void:
@@ -319,7 +319,7 @@ static func _test_empty_solid_entity_is_no_seed(t) -> void:
 	var empty := _entity(40, "func_detail", {}, [])
 	empty["origin"] = [2000.0, 0.0, 0.0]
 	children.append(empty)
-	var data: FuncGodotData.ParseData = _build(_map(children))[0]
+	var data: TrenchDotData.ParseData = _build(_map(children))[0]
 	t.check(not _draws(data.entities[0].brushes[0], Vector3.DOWN), "the sealed room still drops its void faces")
 
 static func _test_see_through_faces_are_not_candidates(t) -> void:
@@ -329,11 +329,11 @@ static func _test_see_through_faces_are_not_candidates(t) -> void:
 	children.append(_node(30, Vector3(400, 0, 0), Vector3(432, 32, 32), "brush", "showcase/glass"))
 	children.append(_node(31, Vector3(500, 0, 0), Vector3(532, 32, 32)))
 	var built := _build(_map(children, { "_cull_void_faces": "0" }))
-	var data: FuncGodotData.ParseData = built[0]
+	var data: TrenchDotData.ParseData = built[0]
 	var materials: Dictionary = built[1].texture_materials.duplicate()
 	materials.erase("showcase/glass")
 	data.entities[0].properties["_cull_void_faces"] = "1"
-	var settings: FuncGodotMapSettings = load(SETTINGS)
+	var settings: TrenchDotMapSettings = load(SETTINGS)
 	TrenchDotVoidCull.apply(data.entities, settings, materials, "glass")
 	var glass := data.entities[0].brushes[6]
 	var plain := data.entities[0].brushes[7]

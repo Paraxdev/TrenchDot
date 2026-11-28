@@ -30,7 +30,7 @@ fn vec_str(v: DVec3) -> String {
     format!("{} {} {}", num(v.x), num(v.y), num(v.z))
 }
 
-/// TrenchDot angles (Godot rotation degrees) to Quake "angles" as FuncGodot interprets them.
+/// TrenchDot angles (Godot rotation degrees) to Quake "angles" as TrenchDot interprets them.
 pub fn angles_to_quake(a: DVec3) -> DVec3 {
     DVec3::new(-a.x, a.y - 180.0, -a.z)
 }
@@ -92,7 +92,7 @@ fn exportable(map: &Map, id: NodeId) -> Option<Brush> {
     }
 }
 
-/// Exports a map as a Valve 220 `.map` readable by TrenchBroom and FuncGodot.
+/// Exports a map as a Valve 220 `.map` readable by TrenchBroom and TrenchDot.
 pub fn export(map: &Map) -> String {
     export_with(map, ExportOptions::default())
 }
@@ -202,7 +202,7 @@ pub fn export_with(map: &Map, options: ExportOptions) -> String {
                 let mut props = vec![("classname".to_string(), e.classname.clone())];
                 if node.children.is_empty() {
                     props.push(("origin".into(), vec_str(to_id(e.origin))));
-                    // FuncGodot prefers an explicit angles/mangle/angle property over the node's own
+                    // TrenchDot prefers an explicit angles/mangle/angle property over the node's own
                     // angles (tdm_parser.gd does the same), so don't emit a competing "angles" here.
                     let has_angle_prop = e.properties.contains_key("angles") || e.properties.contains_key("angle") || e.properties.contains_key("mangle");
                     if !has_angle_prop {

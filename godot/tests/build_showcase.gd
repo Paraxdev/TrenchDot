@@ -41,7 +41,7 @@ func _build_all() -> void:
 		var root := Node3D.new()
 		root.name = name.to_pascal_case()
 
-		var map := FuncGodotMap.new()
+		var map := TrenchDotMap.new()
 		map.name = "Map"
 		map.map_settings = load(SETTINGS)
 		map.local_map_file = map_file

@@ -33,15 +33,15 @@ func run(runner: SceneTree) -> void:
 	await test_collision_controls()
 
 ## The demo's map settings with [param fgd] as their Entity Fgd.
-func _settings(fgd: FuncGodotFGDFile) -> FuncGodotMapSettings:
-	var settings: FuncGodotMapSettings = load(SETTINGS).duplicate()
+func _settings(fgd: TrenchDotFGDFileBase) -> TrenchDotMapSettings:
+	var settings: TrenchDotMapSettings = load(SETTINGS).duplicate()
 	settings.save_generated_materials = false
 	settings.entity_fgd = fgd
 	return settings
 
 ## An FGD with the demo's definitions and [param defs] on top.
-func _fgd(defs: Array) -> FuncGodotFGDFile:
-	var fgd := FuncGodotFGDFile.new()
+func _fgd(defs: Array) -> TrenchDotFGDFileBase:
+	var fgd := TrenchDotFGDFileBase.new()
 	fgd.base_fgd_files = [load(SETTINGS).entity_fgd]
 	fgd.entity_definitions.assign(defs)
 	return fgd
@@ -53,9 +53,9 @@ func _box(id: int, x := 0.0) -> Dictionary:
 	return t.box_node(id, Vector3(x, 0, 0), Vector3(x + 64, 64, 64))
 
 ## A map node under a scene root, built from [param children] with [param settings].
-func _build(settings: FuncGodotMapSettings, children: Array) -> FuncGodotMap:
+func _build(settings: TrenchDotMapSettings, children: Array) -> TrenchDotMap:
 	var scene := Node3D.new()
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = settings
 	map.local_map_file = MAP
 	scene.add_child(map)
@@ -64,7 +64,7 @@ func _build(settings: FuncGodotMapSettings, children: Array) -> FuncGodotMap:
 	map.build_from_text(text)
 	return map
 
-func _free(map: FuncGodotMap) -> void:
+func _free(map: TrenchDotMap) -> void:
 	(map.owner if map.owner else map).free()
 
 func _child_named(map: Node, part: String) -> Node:
@@ -86,7 +86,7 @@ func test_missing_class_warning() -> void:
 	for part in ["3 entity classes", NO_PACK_SETTINGS, "Entity Fgd " + UPSTREAM_FGD, "td_tests_unknown_point", "td_tests_unknown_brush", "func_door", "without script or collision"]:
 		check(line.contains(part), "the warning names %s, got %s" % [part, line])
 	check(line.contains("%s is an FGD of the addon" % UPSTREAM_FGD) and line.contains("Set the Entity Fgd of %s to the FGD your game config uses" % NO_PACK_SETTINGS), "with the pack installed and an FGD of the addon it points to the game config's FGD, got %s" % line)
-	var own := FuncGodotFGDFile.new()
+	var own := TrenchDotFGDFileBase.new()
 	own.take_over_path("res://tests/td_tests_own_fgd.tres")
 	var own_map := _build(_settings(own), [_entity(5, "func_door", [_box(6, 128)])])
 	var own_lines := Array(own_map.build_report["warnings"]).filter(func(w: String) -> bool: return w.contains("no definition"))
@@ -114,7 +114,7 @@ func test_missing_class_warning() -> void:
 
 func test_new_resources_use_the_gameplay_fgd() -> void:
 	print("- new map settings and game configs start on the TrenchDot FGD")
-	var settings := FuncGodotMapSettings.new()
+	var settings := TrenchDotMapSettings.new()
 	check(settings.entity_fgd.resource_path == TRENCHDOT_FGD, "new map settings use %s, got %s" % [TRENCHDOT_FGD, settings.entity_fgd.resource_path])
 	check(TrenchDotGameConfig.new().fgd_file.resource_path == TRENCHDOT_FGD, "and so does a new game config")
 	var map := _build(settings, [_entity(2, "func_door", [_box(3)]), _entity(4, "light")])
@@ -126,7 +126,7 @@ func test_new_resources_use_the_gameplay_fgd() -> void:
 	_free(map)
 
 ## The scene a built map is part of, packed and instanced again without entering the tree, so nothing runs _ready.
-func _saved(map: FuncGodotMap) -> Node:
+func _saved(map: TrenchDotMap) -> Node:
 	var packed := PackedScene.new()
 	packed.pack(map.owner)
 	return packed.instantiate()
@@ -136,7 +136,7 @@ func _generated(prop: Node) -> Array:
 
 func test_added_nodes_are_saved() -> void:
 	print("- nodes an entity adds while its properties are applied are saved with the scene")
-	var adder := FuncGodotFGDPointClass.new()
+	var adder := TrenchDotFGDPointClass.new()
 	adder.classname = "td_tests_child_adder"
 	adder.node_class = "Node3D"
 	adder.script_class = load(CHILD_ADDER)
@@ -145,7 +145,7 @@ func test_added_nodes_are_saved() -> void:
 	var scene := PackedScene.new()
 	scene.pack(root)
 	root.free()
-	var instanced := FuncGodotFGDPointClass.new()
+	var instanced := TrenchDotFGDPointClass.new()
 	instanced.classname = "td_tests_scene_adder"
 	instanced.scene_file = scene
 	instanced.script_class = load(CHILD_ADDER)
@@ -183,7 +183,7 @@ func test_added_nodes_are_saved() -> void:
 func test_map_node_follows_the_project_setting() -> void:
 	print("- a map node without map settings follows the project setting")
 	var holder := Node3D.new()
-	var fresh := FuncGodotMap.new()
+	var fresh := TrenchDotMap.new()
 	holder.add_child(fresh)
 	fresh.owner = holder
 	var packed := PackedScene.new()
@@ -195,50 +195,50 @@ func test_map_node_follows_the_project_setting() -> void:
 		stored.append(state.get_node_property_name(1, i))
 	check(not &"map_settings" in stored, "a new map node saves no map settings, got %s" % [stored])
 
-	var only := FuncGodotFGDPointClass.new()
+	var only := TrenchDotFGDPointClass.new()
 	only.classname = "td_tests_project_only"
 	only.node_class = "Path3D"
 	var settings := _settings(_fgd([only]))
 	settings.inverse_scale_factor = 64.0
 	settings.take_over_path(PROJECT_SETTINGS)
-	var before: Variant = ProjectSettings.get_setting(FuncGodotMap.SETTING_DEFAULT_MAP_SETTINGS)
-	ProjectSettings.set_setting(FuncGodotMap.SETTING_DEFAULT_MAP_SETTINGS, PROJECT_SETTINGS)
+	var before: Variant = ProjectSettings.get_setting(TrenchDotMap.SETTING_DEFAULT_MAP_SETTINGS)
+	ProjectSettings.set_setting(TrenchDotMap.SETTING_DEFAULT_MAP_SETTINGS, PROJECT_SETTINGS)
 	var map := _build(null, [_entity(2, "td_tests_project_only")])
 	check(_child_named(map, "td_tests_project_only") is Path3D and map.build_report["map_settings"] == PROJECT_SETTINGS, "it builds with the settings the project names, got %s" % _child_named(map, "td_tests_project_only"))
 	check(not Array(map.build_report["warnings"]).any(func(w: String) -> bool: return w.contains("default map settings")), "and does not warn about them")
 	var built := _child_named(map, "td_tests_project_only")
-	ProjectSettings.set_setting(FuncGodotMap.SETTING_DEFAULT_MAP_SETTINGS, "res://tests/td_tests_no_such_settings.tres")
+	ProjectSettings.set_setting(TrenchDotMap.SETTING_DEFAULT_MAP_SETTINGS, "res://tests/td_tests_no_such_settings.tres")
 	check(TrenchDotIO.units_per_meter(built) == 64.0, "and keeps their scale for a game exported without them, got %s" % TrenchDotIO.units_per_meter(built))
-	ProjectSettings.set_setting(FuncGodotMap.SETTING_DEFAULT_MAP_SETTINGS, PROJECT_SETTINGS)
+	ProjectSettings.set_setting(TrenchDotMap.SETTING_DEFAULT_MAP_SETTINGS, PROJECT_SETTINGS)
 	_free(map)
 
-	map = _build(load(FuncGodotMap.ADDON_MAP_SETTINGS), [_entity(2, "light")])
+	map = _build(load(TrenchDotMap.ADDON_MAP_SETTINGS), [_entity(2, "light")])
 	var lines := Array(map.build_report["warnings"]).filter(func(w: String) -> bool: return w.contains("uses the addon's default map settings, not %s from Project Settings" % PROJECT_SETTINGS))
 	check(lines.size() == 1, "a map node that stored the addon's settings is told to clear them, got %s" % [map.build_report["warnings"]])
-	check(not map.has_meta(FuncGodotMap.UNITS_META), "a map node with its own settings keeps no scale of its own")
+	check(not map.has_meta(TrenchDotMap.UNITS_META), "a map node with its own settings keeps no scale of its own")
 	_free(map)
-	ProjectSettings.set_setting(FuncGodotMap.SETTING_DEFAULT_MAP_SETTINGS, FuncGodotMap.ADDON_MAP_SETTINGS)
-	map = _build(load(FuncGodotMap.ADDON_MAP_SETTINGS), [_entity(2, "light")])
+	ProjectSettings.set_setting(TrenchDotMap.SETTING_DEFAULT_MAP_SETTINGS, TrenchDotMap.ADDON_MAP_SETTINGS)
+	map = _build(load(TrenchDotMap.ADDON_MAP_SETTINGS), [_entity(2, "light")])
 	check(not Array(map.build_report["warnings"]).any(func(w: String) -> bool: return w.contains("default map settings")), "not when the project uses them too")
 	_free(map)
-	ProjectSettings.set_setting(FuncGodotMap.SETTING_DEFAULT_MAP_SETTINGS, before)
+	ProjectSettings.set_setting(TrenchDotMap.SETTING_DEFAULT_MAP_SETTINGS, before)
 
-func _solid(classname: String, node_class := "", script: Script = null) -> FuncGodotFGDSolidClass:
-	var def := FuncGodotFGDSolidClass.new()
+func _solid(classname: String, node_class := "", script: Script = null) -> TrenchDotFGDSolidClass:
+	var def := TrenchDotFGDSolidClass.new()
 	def.classname = classname
 	def.node_class = node_class
 	def.script_class = script
 	return def
 
-func _point(classname: String, node_class := "", script: Script = null) -> FuncGodotFGDPointClass:
-	var def := FuncGodotFGDPointClass.new()
+func _point(classname: String, node_class := "", script: Script = null) -> TrenchDotFGDPointClass:
+	var def := TrenchDotFGDPointClass.new()
 	def.classname = classname
 	def.node_class = node_class
 	def.script_class = script
 	return def
 
 ## The definition problems of [param map]'s last build for [param classname].
-func _problems(map: FuncGodotMap, classname: String) -> Array:
+func _problems(map: TrenchDotMap, classname: String) -> Array:
 	return map.build_report["definition_problems"].filter(func(p: Dictionary) -> bool: return p["classname"] == classname)
 
 func test_unknown_node_class() -> void:
@@ -334,7 +334,7 @@ func test_brushes_and_definition_type() -> void:
 	var settings := _settings(_fgd([_point("td_tests_point_with_brush", "Node3D"), _solid("td_tests_empty_solid", "StaticBody3D")]))
 	var map := _build(settings, [_entity(2, "td_tests_point_with_brush", [_box(3)]), _entity(4, "td_tests_empty_solid"), _entity(5, "func_door", [_box(6, 128)])])
 	var problems := _problems(map, "td_tests_point_with_brush")
-	check(problems.size() == 1 and problems[0]["problem"] == "td_tests_point_with_brush is a point entity, so its brushes are dropped. Make its definition a FuncGodotFGDSolidClass", "a point entity names its dropped brushes, got %s" % [problems])
+	check(problems.size() == 1 and problems[0]["problem"] == "td_tests_point_with_brush is a point entity, so its brushes are dropped. Make its definition a TrenchDotFGDSolidClass", "a point entity names its dropped brushes, got %s" % [problems])
 	problems = _problems(map, "td_tests_empty_solid")
 	check(problems.size() == 1 and problems[0]["problem"].begins_with("td_tests_empty_solid is a brush entity without brushes"), "a brush entity without brushes says so, got %s" % [problems])
 	check(_problems(map, "func_door").is_empty() and _problems(map, "worldspawn").is_empty(), "entities that match their definition do not")

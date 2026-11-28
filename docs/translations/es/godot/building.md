@@ -4,13 +4,13 @@ source: 755d17f52aebf0b32513b6e22a04abb368badeab
 
 # Construir mapas { #building-maps }
 
-TrenchDot guarda un archivo `.tdm` y nunca escribe escenas de Godot por sí mismo. En Godot, el nodo `FuncGodotMap` del addon lee ese archivo y genera las mallas, la colisión y los nodos de entidad. El resultado se guarda con tu escena como cualquier nodo hecho a mano, así que nada se reconstruye en tiempo de ejecución a menos que lo pidas.
+TrenchDot guarda un archivo `.tdm` y nunca escribe escenas de Godot por sí mismo. En Godot, el nodo `TrenchDotMap` del addon lee ese archivo y genera las mallas, la colisión y los nodos de entidad. El resultado se guarda con tu escena como cualquier nodo hecho a mano, así que nada se reconstruye en tiempo de ejecución a menos que lo pidas.
 
-## El nodo FuncGodotMap { #the-funcgodotmap-node }
+## El nodo TrenchDotMap { #the-trenchdotmap-node }
 
 1. Añade el nodo
 
-    En el editor de Godot, pulsa Ctrl+A en tu escena, busca `FuncGodotMap` y añádelo.
+    En el editor de Godot, pulsa Ctrl+A en tu escena, busca `TrenchDotMap` y añádelo.
 
 2. Apúntalo a tu mapa
 
@@ -40,13 +40,13 @@ El addon solo construye archivos `.tdm`. Para usar un `.map` de Quake o un `.vmf
 
 | Disparador | Qué se construye | Cuándo usarlo |
 | --- | --- | --- |
-| Guardar en TrenchDot | Cada `FuncGodotMap` que use ese archivo en la escena abierta en el editor de Godot | El bucle de cada día, guardar y mirar el resultado en Godot |
+| Guardar en TrenchDot | Cada `TrenchDotMap` que use ese archivo en la escena abierta en el editor de Godot | El bucle de cada día, guardar y mirar el resultado en Godot |
 | *Godot > Construir en Godot* | El mapa tal como está ahora en TrenchDot, guardado o no, sin escribir el archivo | Para probar en Godot un cambio sin guardar sin comprometerte con él |
 | **Build Map** en Godot | El archivo guardado | Cuando TrenchDot está cerrado, o para reconstruir una escena que acabas de abrir |
 
 Las dos primeras necesitan un editor de Godot con este proyecto abierto, y solo tocan la escena abierta allí. Una reconstrucción marca esa escena como modificada, así que guárdala en Godot para conservar el resultado.
 
-Hasta que Godot tenga el proyecto abierto, *Construir en Godot* sigue en gris. También necesita que el mapa se haya guardado una vez dentro del proyecto, para que Godot sepa qué `FuncGodotMap` lo usa.
+Hasta que Godot tenga el proyecto abierto, *Construir en Godot* sigue en gris. También necesita que el mapa se haya guardado una vez dentro del proyecto, para que Godot sepa qué `TrenchDotMap` lo usa.
 
 ![El menú Godot con Construir en Godot resaltado](../assets/building/menu-build-in-godot.png)
 
@@ -55,7 +55,7 @@ Hasta que Godot tenga el proyecto abierto, *Construir en Godot* sigue en gris. T
 También puedes construir un mapa mientras el juego se ejecuta, por ejemplo para cargar un nivel elegido desde un menú:
 
 ```gdscript
-var map := FuncGodotMap.new()
+var map := TrenchDotMap.new()
 map.map_settings = load("res://demo/demo_map_settings.tres")
 map.local_map_file = "res://demo/maps/scripted_scene.tdm"
 add_child(map)
@@ -88,7 +88,7 @@ Si la escena ya tiene un `WorldEnvironment` o un `DirectionalLight3D` propios, e
 | `unknown_tool_textures` | Texturas de herramienta como `special/clip` que los ajustes del mapa nombran de otra forma | Las caras siguen sin dibujar nada, pero un brush de origen no fija el origen de su entidad |
 | `unresolved_targets` | Outputs y claves target cuyo destino no coincide con ningún targetname del mapa ni de sus overlays | El output se dispara contra nada |
 
-Para imprimirlo tras cada construcción, marca *Print Build Report* bajo *Build Flags* en el nodo, o añade `FuncGodotMap.BuildFlags.PRINT_REPORT` a `build_flags` en código. Un test o una comprobación de CI puede leer el Dictionary en su lugar:
+Para imprimirlo tras cada construcción, marca *Print Build Report* bajo *Build Flags* en el nodo, o añade `TrenchDotMap.BuildFlags.PRINT_REPORT` a `build_flags` en código. Un test o una comprobación de CI puede leer el Dictionary en su lugar:
 
 ```gdscript
 var report := map.build()

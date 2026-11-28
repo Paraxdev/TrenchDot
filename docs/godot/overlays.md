@@ -10,7 +10,7 @@ with its own script, a particle effect tuned in Godot, a lamp with an AnimationP
 
 1. Add the overlay node
 
-    In Godot, add a `TrenchDotOverlay` node as a direct child of the `FuncGodotMap`.
+    In Godot, add a `TrenchDotOverlay` node as a direct child of the `TrenchDotMap`.
 
 2. Put your nodes under it
 
@@ -31,7 +31,7 @@ overlay, when one person works on the level scene and another on the overlay, or
 scene, as in the demo.
 
 1. Make a scene whose root is a `TrenchDotOverlay`.
-2. Drag the `.tscn` onto the `FuncGodotMap` node, so it is instanced as a direct child of the map.
+2. Drag the `.tscn` onto the `TrenchDotMap` node, so it is instanced as a direct child of the map.
 
 Godot shows an instanced scene as a single node with no arrow to expand it. To get at its content:
 

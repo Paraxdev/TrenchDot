@@ -26,7 +26,7 @@ Godotが定義のないエンティティをビルドすると、そのエンテ
 
 3. GodotのOutputパネル
 
-    Godotで`FuncGodotMap`ノードの**Build Map**を押します。Godotエディターの下にあるOutputパネルに、定義のないクラスについて1件と、合っていない定義ごとに1件の`[TrenchDot]`の警告が出ます。[ビルドレポート](building.md#build-report)の全体を見るには、ノードの*Build Flags*の下にある*Print Build Report*にチェックを付けてください。
+    Godotで`TrenchDotMap`ノードの**Build Map**を押します。Godotエディターの下にあるOutputパネルに、定義のないクラスについて1件と、合っていない定義ごとに1件の`[TrenchDot]`の警告が出ます。[ビルドレポート](building.md#build-report)の全体を見るには、ノードの*Build Flags*の下にある*Print Build Report*にチェックを付けてください。
 
 ## 定義のないエンティティ { #entities-without-a-definition }
 
@@ -34,7 +34,7 @@ Godotが定義のないエンティティをビルドすると、そのエンテ
 | --- | --- | --- |
 | ゲームプレイエンティティパックをインストールする | ドア、ボタン、トリガー、プロップ、スポナーはパックに含まれていて、プロジェクトにそれがありません | TrenchDotで*ゲームプレイ > ゲームプレイエンティティをインストール*を選びます。[プロジェクトのセットアップ](project-setup.md#installing-and-updating-the-pack)を参照してください |
 | FGDにゲームプレイエンティティパックがありません。`trenchdot_default_fgd.tres`をそのBase Fgd Filesに追加してください | FGDにBase Fgd Filesがありません | マップ設定がEntity Fgdに指定しているFGDのBase Fgd Filesに、`res://addons/func_godot/fgd/trenchdot_default_fgd.tres`を追加します |
-| パックはインストール済みですが、Entity Fgdがアドオンに含まれるFGDです | マップ設定が、FuncGodot自身のFGDか、アドオンの別のファイルを使っていて、アドオンを更新するとそれが置き換えられます | そのマップ設定のEntity Fgdを、ゲーム設定が使うFGDにします |
+| パックはインストール済みですが、Entity Fgdがアドオンに含まれるFGDです | マップ設定が、アドオン自身のFGDか、アドオンの別のファイルを使っていて、アドオンを更新するとそれが置き換えられます | そのマップ設定のEntity Fgdを、ゲーム設定が使うFGDにします |
 | 自作のクラスに定義がありません | ゲーム設定のFGDにはあるが、Godotがビルドに使うマップ設定のEntity Fgdにはありません | そのマップ設定のEntity Fgdを、ゲーム設定が使うFGDにします。[自分のリソース](project-setup.md#your-own-resources)を参照してください |
 | マップノードが、プロジェクト設定のものではなく、アドオンのデフォルトのマップ設定を使っています | ノードが古いアドオンで追加され、そのアドオンがデフォルトのマップ設定をシーンに保存していました | Godotでマップノードを選び、インスペクターのMap Settingsを空にします |
 | シーンが別のエンティティ定義でビルドされています | パックや定義が追加される前にビルドされ、それ以降はビルドされていません | **Build Map**を押して、シーンを保存します。[ライブモード](live.md#when-live-mode-rebuilds-the-whole-map)では、Godotが自動で行います |
@@ -48,7 +48,7 @@ Godotが定義のないエンティティをビルドすると、そのエンテ
 | `func_crusher builds as a Marker3D, so its brushes have no collision` | 定義にNode Classがなく、そのスクリプトが物理ボディではないノードを継承しています | Node Classを`StaticBody3D`、`AnimatableBody3D`、`Area3D`のいずれかにするか、スクリプトにそのどれかを継承させます |
 | `func_crusher: Node Class AnimatedBody3D not found, building it as a Node3D` | タイプミスか、Godotがまだ登録していない`class_name`です | 名前を直します。C#については[C#エンティティ](../gameplay/csharp.md)を参照してください |
 | `alarm: res://entities/alarm.gd has no @tool` | エディターはtoolスクリプトしか実行しないので、マップのキーがノードに届きません | スクリプトの先頭に`@tool`を追加します |
-| `light is a point entity, so its brushes are dropped` | ブラシエンティティに`FuncGodotFGDPointClass`が使われています | 定義を`FuncGodotFGDSolidClass`にします |
+| `light is a point entity, so its brushes are dropped` | ブラシエンティティに`TrenchDotFGDPointClass`が使われています | 定義を`TrenchDotFGDSolidClass`にします |
 | `func_door is a brush entity without brushes` | ビルドの元になるものがないブラシエンティティです | ブラシを与えるか、定義をポイントクラスにします |
 
 ## ビルドはされるが反応しないエンティティ { #entities-that-build-but-do-not-react }

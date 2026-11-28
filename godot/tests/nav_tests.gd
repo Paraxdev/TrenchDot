@@ -13,7 +13,7 @@ static func run(t) -> void:
 	FileAccess.open(path, FileAccess.WRITE).store_string(JSON.stringify(_map_json(t)))
 	var level := Node3D.new()
 	t.root.add_child(level)
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = load(SETTINGS)
 	map.global_map_file = path
 	map.position = Vector3(100, 0, 0)
@@ -42,7 +42,7 @@ static func _map_json(t) -> Dictionary:
 	var trigger := { "type": "entity", "id": 30, "classname": "trigger_once", "properties": {}, "children": [t.box_node(31, Vector3(-200, 0, -100), Vector3(-100, 64, 100))] }
 	return { "format": "trenchdot-map", "properties": {}, "layers": [{ "type": "layer", "id": 1, "children": world + [door, clip, trigger] }] }
 
-static func _test_bake(t, map: FuncGodotMap) -> void:
+static func _test_bake(t, map: TrenchDotMap) -> void:
 	var own := NavigationMesh.new()
 	own.agent_radius = 0.42
 	TrenchDotNav.bake(map, own)
@@ -69,7 +69,7 @@ static func _test_bake(t, map: FuncGodotMap) -> void:
 	t.check(_same_island(TrenchDotNav.bake(map), room_b, past_clip), "a body in the ignore group is left out")
 	clip.remove_from_group(TrenchDotNav.IGNORE_GROUP)
 
-static func _test_region(t, map: FuncGodotMap) -> void:
+static func _test_region(t, map: TrenchDotMap) -> void:
 	var agent := TrenchDotNav.profile(0.4)
 	var first := await TrenchDotNav.bake_async(map, agent)
 	var cached := Time.get_ticks_usec()
@@ -90,7 +90,7 @@ static func _test_region(t, map: FuncGodotMap) -> void:
 	t.check(blocked.size() == 0 or blocked[blocked.size() - 1].x < map.to_global(Vector3(5, 0, 0)).x, "no path crosses the clip wall")
 	t.check(await TrenchDotNav.bake_region(map, agent) == region, "a second bake reuses the region")
 
-static func _test_walkable(t, level: Node3D, map: FuncGodotMap) -> void:
+static func _test_walkable(t, level: Node3D, map: TrenchDotMap) -> void:
 	var report := TrenchDotWalkable.report(level, map, { "radius": 0.25, "height": 1.8 })
 	t.check(report["ok"] and report["units_per_meter"] == 32.0, "the walkable report bakes the level, got %s" % report.get("error", ""))
 	if not report["ok"]:

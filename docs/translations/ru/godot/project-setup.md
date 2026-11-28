@@ -83,7 +83,7 @@ source: 0b6155b82bf9e0fff2345e05627d7c675a868912
 
 Базовый FGD, `res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres`, сам читает установленный пакет, так что каждый FGD, построенный на значениях аддона по умолчанию, получает пакет, не перечисляя его. Когда два определения делят имя класса, побеждает более позднее, в таком порядке:
 
-1. Классы FuncGodot и ядро аддона
+1. Классы TrenchDot и ядро аддона
 2. Установленный пакет в `res://trenchdot/entities`
 3. Сущности вашего собственного файла FGD
 
@@ -95,8 +95,8 @@ source: 0b6155b82bf9e0fff2345e05627d7c675a868912
 
 Быстрее всего скопировать `demo_fgd.tres`, `demo_map_settings.tres` и `demo_game_config.tres` из [`godot/demo`](https://github.com/Paraxdev/TrenchDot/tree/main/godot/demo) в свой проект и поправить пути. Чтобы сделать их самому, действуйте в редакторе Godot:
 
-1. Создайте `FuncGodotFGDFile`. Задайте *Base Fgd Files* равным `res://addons/func_godot/fgd/trenchdot_default_fgd.tres`, чтобы сохранить ядро и установленный пакет, затем добавьте свои сущности в *Entity Definitions*. Без этой основы в вашем FGD их нет, и даже worldspawn собирается без коллизии.
-2. Создайте `FuncGodotMapSettings`. Задайте *Entity Fgd* равным FGD из шага 1, а *Base Texture Dir* равным вашей папке с текстурами (по умолчанию `res://textures`). Новый ресурс настроек карты начинается с `trenchdot_default_fgd.tres`, в котором есть ядро и пакет, но нет ваших собственных сущностей.
+1. Создайте `TrenchDotFGDFileBase`. Задайте *Base Fgd Files* равным `res://addons/func_godot/fgd/trenchdot_default_fgd.tres`, чтобы сохранить ядро и установленный пакет, затем добавьте свои сущности в *Entity Definitions*. Без этой основы в вашем FGD их нет, и даже worldspawn собирается без коллизии.
+2. Создайте `TrenchDotMapSettings`. Задайте *Entity Fgd* равным FGD из шага 1, а *Base Texture Dir* равным вашей папке с текстурами (по умолчанию `res://textures`). Новый ресурс настроек карты начинается с `trenchdot_default_fgd.tres`, в котором есть ядро и пакет, но нет ваших собственных сущностей.
 3. Создайте `TrenchDotGameConfig`. Задайте его *Fgd File* и *Map Settings* равными двум ресурсам выше. (По желанию) задайте *Game Name*, редактор показывает его вверху справа на панели инструментов рядом с папкой проекта.
 4. В *Project > Project Settings* направьте `func_godot/default_map_settings` на ваши настройки карты, а `trenchdot/game_config` на вашу конфигурацию игры. Ей следует каждый узел карты с пустым полем *Map Settings*. Узел, добавленный старым аддоном, хранил в этом поле значения аддона по умолчанию, так что очистите его там.
 

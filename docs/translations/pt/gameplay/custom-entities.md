@@ -43,13 +43,13 @@ O editor e o Godot aprendem sobre as classes de entidade pelo FGD do seu projeto
 
 | Sua entidade | Definição | O que definir |
 | --- | --- | --- |
-| Uma entidade ponto, em um lugar só, como uma lâmpada ou um item | `FuncGodotFGDPointClass` | *Script Class* para o seu script. Para gerar uma cena em vez disso, defina *Scene File*, e um *Script Class* então substitui o script da raiz da cena |
-| Uma entidade brush, construída a partir de brushes, como uma porta ou um gatilho | `FuncGodotFGDSolidClass` | *Script Class* para o seu script, e *Node Class* para o corpo que ele estende: `StaticBody3D`, `AnimatableBody3D` ou `Area3D`. Se ficar vazio, o Godot constrói o corpo que o script estende, ou um `StaticBody3D` quando o script estende `Node3D` ou não há nenhum. Veja [Colisão](entities/collision.md) |
+| Uma entidade ponto, em um lugar só, como uma lâmpada ou um item | `TrenchDotFGDPointClass` | *Script Class* para o seu script. Para gerar uma cena em vez disso, defina *Scene File*, e um *Script Class* então substitui o script da raiz da cena |
+| Uma entidade brush, construída a partir de brushes, como uma porta ou um gatilho | `TrenchDotFGDSolidClass` | *Script Class* para o seu script, e *Node Class* para o corpo que ele estende: `StaticBody3D`, `AnimatableBody3D` ou `Area3D`. Se ficar vazio, o Godot constrói o corpo que o script estende, ou um `StaticBody3D` quando o script estende `Node3D` ou não há nenhum. Veja [Colisão](entities/collision.md) |
 
 Esta é a definição do alarme acima, salva como `res://entities/alarm.tres` ao lado do seu script `alarm.gd`:
 
 ```
-[gd_resource type="Resource" script_class="FuncGodotFGDPointClass" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="TrenchDotFGDPointClass" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://addons/func_godot/src/fgd/func_godot_fgd_point_class.gd" id="1_class"]
 [ext_resource type="Script" path="res://entities/alarm.gd" id="2_script"]

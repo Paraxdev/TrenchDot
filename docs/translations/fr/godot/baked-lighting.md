@@ -12,7 +12,7 @@ propre à Godot.
 
 | Élément | Ce qu'il reçoit |
 | --- | --- |
-| Un `LightmapGI` nommé `baked_lighting` | Un enfant du `FuncGodotMap`, qui contient la lightmap, le masque d'ombre du soleil et les sondes de lumière |
+| Un `LightmapGI` nommé `baked_lighting` | Un enfant du `TrenchDotMap`, qui contient la lightmap, le masque d'ombre du soleil et les sondes de lumière |
 | Les maillages précalculés | Leurs coordonnées de lightmap comme UV2 et un mode GI statique, chunks streamés compris |
 | Les lumières et le soleil | Le mode de précalcul de Godot tiré de leur `bake_mode` ou `sun_bake_mode`, voir [Clés de lumière](../editor/light-baking.md#light-keys) |
 
@@ -54,7 +54,7 @@ construites pendant l'exécution du jeu sautent ce précalcul.
 
 ## Utiliser un autre lightmapper { #using-another-lightmapper }
 
-Vous voulez précalculer avec le `LightmapGI` propre à Godot ? Décochez **Use Baked Lighting** sur le `FuncGodotMap` pour
+Vous voulez précalculer avec le `LightmapGI` propre à Godot ? Décochez **Use Baked Lighting** sur le `TrenchDotMap` pour
 laisser de côté le précalcul enregistré. La construction n'ajoute alors pas de nœud `baked_lighting` et laisse tranquilles
 les modes de précalcul des lumières. Cochez *Unwrap UV2* dans *Build Flags* pour que les maillages reçoivent l'UV2 dont a
 besoin un précalcul Godot.

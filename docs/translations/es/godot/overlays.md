@@ -12,7 +12,7 @@ Cada construcción reemplaza lo que generó el mapa, así que todo lo que añada
 
 1. Añade el nodo overlay
 
-    En Godot, añade un nodo `TrenchDotOverlay` como hijo directo del `FuncGodotMap`.
+    En Godot, añade un nodo `TrenchDotOverlay` como hijo directo del `TrenchDotMap`.
 
 2. Pon tus nodos debajo
 
@@ -27,7 +27,7 @@ El contenido del overlay usa el espacio local del mapa en metros. A 32 unidades 
 Un overlay también puede ser una escena propia. Compensa cuando varias escenas usan el mismo mapa y deben compartir el overlay, cuando una persona trabaja en la escena del nivel y otra en el overlay, o cuando un script genera la escena del nivel, como en la demo.
 
 1. Haz una escena cuya raíz sea un `TrenchDotOverlay`.
-2. Arrastra el `.tscn` al nodo `FuncGodotMap`, para que se instancie como hijo directo del mapa.
+2. Arrastra el `.tscn` al nodo `TrenchDotMap`, para que se instancie como hijo directo del mapa.
 
 Godot muestra una escena instanciada como un solo nodo, sin flecha para expandirlo. Para llegar a su contenido:
 

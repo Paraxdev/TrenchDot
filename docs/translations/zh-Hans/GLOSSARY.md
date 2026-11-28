@@ -68,7 +68,7 @@ Terrain3D 为每个区域保存的一张图像，每个顶点一种颜色。这�
 一个四边笔刷面，被分成由顶点组成的网格，每个顶点都可以抬高或降低，和 Hammer 里一样。它能在笔刷搭建的关卡中做出起伏不平的地面。大片的室外区域更适合用地形来建。
 
 ## 实体定义 { #entity-definition }
-FGD 中对一个实体类的描述：它的 classname、键、输入和输出，以及 Godot 为它构建什么，比如节点类和脚本。在 Godot 中它是一个 FuncGodotFGDPointClass 或 FuncGodotFGDSolidClass 资源，列在 FGD 文件的 Entity Definitions 之下。
+FGD 中对一个实体类的描述：它的 classname、键、输入和输出，以及 Godot 为它构建什么，比如节点类和脚本。在 Godot 中它是一个 TrenchDotFGDPointClass 或 TrenchDotFGDSolidClass 资源，列在 FGD 文件的 Entity Definitions 之下。
 
 ## 挤出 { #extrude }
 沿着面的方向把它拉出去，生成新的几何体。在 Blender 预设中，E 会挤出选中的笔刷面，每个面长出一个新笔刷，原来的笔刷保持不变。在 Mesh 工具中，E 挤出的是网格面。
@@ -77,19 +77,19 @@ FGD 中对一个实体类的描述：它的 classname、键、输入和输出，
 绘制用的画笔，比如混合工具的画笔，从中心到边缘如何渐隐。平滑的衰减会得到柔和的边界，恒定的衰减则让整个圆盘以同样的强度绘制。
 
 ## FGD { #fgd }
-游戏实体类的定义，包含它们的名称、键、输入和输出。这个名字来自 Hammer 的 Forge Game Data 文件。在 Godot 中它是一个 FuncGodotFGDFile 资源，游戏配置会把它转交给编辑器。
+游戏实体类的定义，包含它们的名称、键、输入和输出。这个名字来自 Hammer 的 Forge Game Data 文件。在 Godot 中它是一个 TrenchDotFGDFileBase 资源，游戏配置会把它转交给编辑器。
 
 ## fixup { #fixup }
 设在预制体实例上的名称前缀。fixup 为 p1 时，里面名为 door 的实体会变成 p1-door，这样同一个预制体的多份副本就能各自保持连线互不干扰。
 
 ## func_detail { #func_detail }
-FuncGodot 的一种笔刷实体，用于带碰撞的静态几何体，作为独立的节点构建，和世界笔刷分开。它不添加遮挡体，所以永远不会让它身后的物体停止渲染。
+一种笔刷实体，用于带碰撞的静态几何体，作为独立的节点构建，和世界笔刷分开。它不添加遮挡体，所以永远不会让它身后的物体停止渲染。
 
 ## func_illusionary { #func_illusionary }
-FuncGodot 的一种笔刷实体，看得见但没有碰撞，玩家可以穿过去。海岛教程用它来做水面。
+一种笔刷实体，看得见但没有碰撞，玩家可以穿过去。海岛教程用它来做水面。
 
 ## FuncGodot { #funcgodot }
-用 Quake 风格的地图文件构建关卡的 Godot 插件。TrenchDot 插件是它的一个分支，所以它的节点叫 FuncGodotMap，它的资源都以 FuncGodot 开头。
+用 Quake 风格的地图文件构建关卡的 Godot 插件。TrenchDot 插件最初是它的一个分支。
 
 ## 游戏配置 { #game-config }
 Godot 项目根目录中的文件 trenchdot_game.json，由插件写入。它告诉编辑器你的项目使用哪些实体、纹理文件夹和单位比例，插件每次重新写入时，编辑器都会重新加载它。
@@ -140,7 +140,7 @@ TrenchDot 和 Godot 编辑器之间的连接，是插件在 7842 端口运行的
 运行项目时 Godot 播放的场景，在 Project > Project Settings > Application > Run 下设置。在 TrenchDot 中点“运行项目”，或在 Godot 中点播放按钮，都会启动它。
 
 ## 地图设置 { #map-settings }
-一个 FuncGodotMapSettings 资源，说明纹理、材质和实体定义从哪里来，以及多少个地图单位算一米。FuncGodotMap 可以有自己的设置，否则使用项目默认值。
+一个 TrenchDotMapSettings 资源，说明纹理、材质和实体定义从哪里来，以及多少个地图单位算一米。TrenchDotMap 可以有自己的设置，否则使用项目默认值。
 
 ## MCP { #mcp }
 Model Context Protocol，AI 代理和脚本调用程序工具的一种标准方式。编辑器可以运行一个 MCP 服务器，让代理检查和编辑地图。构建关卡并不需要它，这份文档在你打开页眉里的 MCP 开关之前会隐藏 MCP 部分。

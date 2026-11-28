@@ -7,13 +7,13 @@ const Link := preload("res://tests/terrain3d_tests.gd")
 const Scatter := preload("res://tests/terrain3d_scatter_tests.gd")
 
 func _initialize() -> void:
-	var settings: FuncGodotMapSettings = load(Link.SETTINGS)
+	var settings: TrenchDotMapSettings = load(Link.SETTINGS)
 	var json: Dictionary = JSON.parse_string(Link._map_text([Link.DATA]))
 	var raw := [0, int(Link.VERTEX.x * settings.inverse_scale_factor), 40, int(Link.VERTEX.y * settings.inverse_scale_factor), 0, 0, 0, 1.0]
 	json["layers"][0]["children"].append(Scatter._scatter(101, [Link.LINK_ID], [raw]))
 	var level := Node3D.new()
 	root.add_child(level)
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.name = "Map"
 	map.map_settings = settings
 	map.local_map_file = Link.MAP

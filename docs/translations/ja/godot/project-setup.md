@@ -83,7 +83,7 @@ TrenchDotは、プロジェクトを開くたびに、そのアドオンを確�
 
 コアのFGDである`res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres`は、インストールされたパックを自分で読み込みます。そのため、アドオンのデフォルトをもとにしたFGDなら、どれも、一覧に書かなくてもパックを受け取ります。2つの定義が同じクラス名を持つときは、次の順で、あとのものが優先されます。
 
-1. FuncGodotのクラスとアドオンのコア
+1. TrenchDotのクラスとアドオンのコア
 2. `res://trenchdot/entities`にインストールされたパック
 3. 自分のFGDファイルのエンティティ
 
@@ -95,8 +95,8 @@ TrenchDotは、プロジェクトを開くたびに、そのアドオンを確�
 
 いちばん手早いのは、[`godot/demo`](https://github.com/Paraxdev/TrenchDot/tree/main/godot/demo)から`demo_fgd.tres`、`demo_map_settings.tres`、`demo_game_config.tres`をプロジェクトにコピーして、パスを直す方法です。自分で作るときは、Godotエディターで次のようにします。
 
-1. `FuncGodotFGDFile`を作ります。*Base Fgd Files*を`res://addons/func_godot/fgd/trenchdot_default_fgd.tres`に設定して、コアとインストールしたパックを残し、*Entity Definitions*に自分のエンティティを追加します。このベースがないと、FGDにはそれらがひとつもなく、worldspawnですらコリジョンなしでビルドされます。
-2. `FuncGodotMapSettings`を作ります。*Entity Fgd*を手順1のFGDに、*Base Texture Dir*をテクスチャのフォルダ(デフォルトは`res://textures`)に設定します。新しいマップ設定リソースは、`trenchdot_default_fgd.tres`から始まります。これにはコアとパックはありますが、自分のエンティティはありません。
+1. `TrenchDotFGDFileBase`を作ります。*Base Fgd Files*を`res://addons/func_godot/fgd/trenchdot_default_fgd.tres`に設定して、コアとインストールしたパックを残し、*Entity Definitions*に自分のエンティティを追加します。このベースがないと、FGDにはそれらがひとつもなく、worldspawnですらコリジョンなしでビルドされます。
+2. `TrenchDotMapSettings`を作ります。*Entity Fgd*を手順1のFGDに、*Base Texture Dir*をテクスチャのフォルダ(デフォルトは`res://textures`)に設定します。新しいマップ設定リソースは、`trenchdot_default_fgd.tres`から始まります。これにはコアとパックはありますが、自分のエンティティはありません。
 3. `TrenchDotGameConfig`を作ります。*Fgd File*と*Map Settings*を、上の2つのリソースに設定します。(任意で)*Game Name*を設定すると、エディターがツールバーの右上、プロジェクトフォルダの隣に表示します。
 4. *Project > Project Settings*で、`func_godot/default_map_settings`を自分のマップ設定に、`trenchdot/game_config`を自分のゲーム設定に向けます。*Map Settings*欄が空のマップノードは、すべてこれに従います。古いアドオンで追加したノードは、その欄にアドオンのデフォルトを保存しているので、そこを空にしてください。
 

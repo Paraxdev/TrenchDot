@@ -4,13 +4,13 @@ source: 755d17f52aebf0b32513b6e22a04abb368badeab
 
 # マップをビルドする { #building-maps }
 
-TrenchDotは`.tdm`ファイルを保存するだけで、Godotのシーンは自分では書きません。Godotでは、アドオンの`FuncGodotMap`ノードがそのファイルを読み、メッシュ、コリジョン、エンティティのノードを生成します。結果は、手で作ったノードと同じようにシーンと一緒に保存されるので、求めない限り、実行時に何かが再ビルドされることはありません。
+TrenchDotは`.tdm`ファイルを保存するだけで、Godotのシーンは自分では書きません。Godotでは、アドオンの`TrenchDotMap`ノードがそのファイルを読み、メッシュ、コリジョン、エンティティのノードを生成します。結果は、手で作ったノードと同じようにシーンと一緒に保存されるので、求めない限り、実行時に何かが再ビルドされることはありません。
 
-## FuncGodotMapノード { #the-funcgodotmap-node }
+## TrenchDotMapノード { #the-trenchdotmap-node }
 
 1. ノードを追加する
 
-    Godotエディターでシーンを開いてCtrl+Aを押し、`FuncGodotMap`を検索して追加します。
+    Godotエディターでシーンを開いてCtrl+Aを押し、`TrenchDotMap`を検索して追加します。
 
 2. マップを指定する
 
@@ -40,13 +40,13 @@ TrenchDotは`.tdm`ファイルを保存するだけで、Godotのシーンは自
 
 | きっかけ | ビルドされるもの | 使いどころ |
 | --- | --- | --- |
-| TrenchDotで保存 | Godotエディターで開いているシーンのうち、そのファイルを使うすべての`FuncGodotMap` | 日常の流れで、保存してGodotで結果を見ます |
+| TrenchDotで保存 | Godotエディターで開いているシーンのうち、そのファイルを使うすべての`TrenchDotMap` | 日常の流れで、保存してGodotで結果を見ます |
 | *Godot > Godotでビルド* | 今TrenchDotにあるままのマップ。保存済みでなくても、ファイルは書き込まれません | 確定させずに、未保存の変更をGodotで試すとき |
 | Godotの**Build Map** | 保存済みのファイル | TrenchDotを閉じているときや、開いたばかりのシーンを再ビルドするとき |
 
 最初の2つは、このプロジェクトを開いたGodotエディターが必要で、そこで開いているシーンにしか作用しません。再ビルドするとそのシーンが変更済みの扱いになるので、結果を残すにはGodotで保存してください。
 
-Godotがプロジェクトを開くまで、*Godotでビルド*はグレーのままです。また、Godotがどの`FuncGodotMap`がそれを使うかを分かるように、マップを一度プロジェクトに保存しておく必要もあります。
+Godotがプロジェクトを開くまで、*Godotでビルド*はグレーのままです。また、Godotがどの`TrenchDotMap`がそれを使うかを分かるように、マップを一度プロジェクトに保存しておく必要もあります。
 
 ![Godotでビルドにカーソルを合わせたGodotメニュー](../assets/building/menu-build-in-godot.png)
 
@@ -55,7 +55,7 @@ Godotがプロジェクトを開くまで、*Godotでビルド*はグレーの�
 ゲームの実行中にマップをビルドすることもできます。たとえば、メニューで選んだレベルを読み込むときです。
 
 ```gdscript
-var map := FuncGodotMap.new()
+var map := TrenchDotMap.new()
 map.map_settings = load("res://demo/demo_map_settings.tres")
 map.local_map_file = "res://demo/maps/scripted_scene.tdm"
 add_child(map)
@@ -88,7 +88,7 @@ worldspawnのスカイ、フォグ、太陽のキーから、`WorldEnvironment`�
 | `unknown_tool_textures` | `special/clip`のようなツールテクスチャで、マップ設定では別の名前になっているもの | 面は引き続き何も描画しませんが、オリジンのブラシはエンティティのオリジンを設定しません |
 | `unresolved_targets` | ターゲットが、マップやそのオーバーレイのどのtargetnameにも一致しない、アウトプットとtargetのキー | アウトプットは何にも届かずに発火します |
 
-ビルドのたびに表示するには、ノードの*Build Flags*の下にある*Print Build Report*にチェックを付けるか、コードで`build_flags`に`FuncGodotMap.BuildFlags.PRINT_REPORT`を加えます。テストやCIのチェックでは、代わりにDictionaryを読めます。
+ビルドのたびに表示するには、ノードの*Build Flags*の下にある*Print Build Report*にチェックを付けるか、コードで`build_flags`に`TrenchDotMap.BuildFlags.PRINT_REPORT`を加えます。テストやCIのチェックでは、代わりにDictionaryを読めます。
 
 ```gdscript
 var report := map.build()

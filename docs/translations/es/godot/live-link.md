@@ -42,7 +42,7 @@ Un cliente envía estos eventos. La columna Respuesta lista los campos con los q
 
 `walkable` precalcula la malla de navegación de toda la escena editada con `TrenchDotNav` para `agent` (`radius`, `height`, `max_climb`, `max_slope` en metros y grados) y la devuelve en las unidades y ejes del mapa. Con `text`, Godot construye antes ese mapa, salvo que ya se hubiera construido por última vez a partir del mismo texto.
 
-Las rutas son absolutas y con barras normales. Solo participan los nodos `FuncGodotMap` de la escena editada, la pestaña de escena que Godot muestra, que tengan *Auto Rebuild On Save* activado. `scene` es su ruta `res://`, o vacía si no hay ninguna escena abierta.
+Las rutas son absolutas y con barras normales. Solo participan los nodos `TrenchDotMap` de la escena editada, la pestaña de escena que Godot muestra, que tengan *Auto Rebuild On Save* activado. `scene` es su ruta `res://`, o vacía si no hay ninguna escena abierta.
 
 `waiting` lista las otras pestañas de escena abiertas que usan el mapa. Tras un `map_saved` construyen el archivo cuando se muestra su pestaña, tras un `build` no. Un `map_saved` de un prefab también reconstruye los mapas de la escena editada que lo instancian, directamente o a través de otros prefabs, y los cuenta en `rebuilt`.
 
@@ -65,13 +65,13 @@ Cuando el puerto está ocupado, normalmente por un segundo editor de Godot con e
 | `translate` | `ids`, `offset` | Mueve nodos, se envía mientras arrastras en lugar de la geometría |
 | `properties` | `properties` | Reemplaza las propiedades del worldspawn |
 
-El `epoch` de un mapa sube cada vez que se construye fuera de una sesión en vivo o cambian los nodos `FuncGodotMap` que lo usan. Cuando el siguiente `status` muestre un epoch nuevo, empieza de nuevo con `live_begin`.
+El `epoch` de un mapa sube cada vez que se construye fuera de una sesión en vivo o cambian los nodos `TrenchDotMap` que lo usan. Cuando el siguiente `status` muestre un epoch nuevo, empieza de nuevo con `live_begin`.
 
 Los nodos generados llevan su id de nodo de mapa en el metadato `_td_id`, y los nodos de capa y de grupo en `_td_group`.
 
 ## Probar sin ventana { #testing-without-a-window }
 
-El enlace también funciona con un editor de Godot sin cabeza (headless), lo que viene bien para pruebas automáticas. Abre una escena que tenga un `FuncGodotMap`, y envía `inspect` al puerto 7842 para ver lo que construyó Godot:
+El enlace también funciona con un editor de Godot sin cabeza (headless), lo que viene bien para pruebas automáticas. Abre una escena que tenga un `TrenchDotMap`, y envía `inspect` al puerto 7842 para ver lo que construyó Godot:
 
 ```sh
 godot --headless --editor --path godot res://path/scene.tscn

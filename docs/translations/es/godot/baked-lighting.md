@@ -10,7 +10,7 @@ Cuando [precalculas un mapa en el editor](../editor/light-baking.md), el lightma
 
 | Parte | Qué recibe |
 | --- | --- |
-| Un `LightmapGI` llamado `baked_lighting` | Hijo del `FuncGodotMap`, que guarda el lightmap, la máscara de sombras del sol y las sondas de luz |
+| Un `LightmapGI` llamado `baked_lighting` | Hijo del `TrenchDotMap`, que guarda el lightmap, la máscara de sombras del sol y las sondas de luz |
 | Mallas precalculadas | Sus coordenadas de lightmap como UV2 y un modo de GI estático, chunks en streaming incluidos |
 | Luces y el sol | El modo de precálculo de Godot a partir de su `bake_mode` o `sun_bake_mode`, mira [Claves de luz](../editor/light-baking.md#light-keys) |
 
@@ -40,4 +40,4 @@ Un `env_voxel_gi` se precalcula en el editor de Godot cada vez que se construye 
 
 ## Usar otro lightmapper { #using-another-lightmapper }
 
-¿Quieres precalcular con el `LightmapGI` propio de Godot? Desmarca **Use Baked Lighting** en el `FuncGodotMap` para dejar fuera el precálculo guardado. La construcción no añade entonces ningún nodo `baked_lighting` y deja en paz los modos de precálculo de las luces. Marca *Unwrap UV2* en *Build Flags* para que las mallas reciban el UV2 que necesita un precálculo de Godot.
+¿Quieres precalcular con el `LightmapGI` propio de Godot? Desmarca **Use Baked Lighting** en el `TrenchDotMap` para dejar fuera el precálculo guardado. La construcción no añade entonces ningún nodo `baked_lighting` y deja en paz los modos de precálculo de las luces. Marca *Unwrap UV2* en *Build Flags* para que las mallas reciban el UV2 que necesita un precálculo de Godot.

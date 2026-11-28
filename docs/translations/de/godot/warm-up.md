@@ -8,7 +8,7 @@ Godot kompiliert Shader erst, wenn es zum ersten Mal etwas zeichnet, deshalb ruc
 
 Besteht dein Spiel nur aus der Karte, musst du nichts tun. Jede Karte wärmt sich selbst auf, nachdem sie im laufenden Spiel gebaut oder geladen wurde, und sendet `warmed_up`, wenn sie fertig ist.
 
-Das Warm-up einer Karte deckt aber nur die Karte ab. Fügt dein Spiel eigene Inhalte wie einen Spieler, Gegner oder Waffen hinzu, ruckelt es bei deren erstem Auftritt trotzdem. Entferne in diesem Fall im Inspector von Godot das Häkchen bei **Warm Up Shaders** am `FuncGodotMap` und wärme alles in einem Durchgang auf, sobald alles drin ist:
+Das Warm-up einer Karte deckt aber nur die Karte ab. Fügt dein Spiel eigene Inhalte wie einen Spieler, Gegner oder Waffen hinzu, ruckelt es bei deren erstem Auftritt trotzdem. Entferne in diesem Fall im Inspector von Godot das Häkchen bei **Warm Up Shaders** am `TrenchDotMap` und wärme alles in einem Durchgang auf, sobald alles drin ist:
 
 ```gdscript
 loading.show()

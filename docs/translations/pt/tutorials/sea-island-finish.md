@@ -40,7 +40,7 @@ outro lugar e o editor oferece copiá-lo antes para `res://models`.
 
 ## Veja no Godot { #see-it-in-godot }
 
-Salve o mapa dentro do seu projeto Godot e construa-o com um `FuncGodotMap`, veja [Construindo mapas](../godot/building.md).
+Salve o mapa dentro do seu projeto Godot e construa-o com um `TrenchDotMap`, veja [Construindo mapas](../godot/building.md).
 Cada parte do mapa vira um tipo diferente de nó:
 
 | Parte do mapa | O que você recebe no Godot |

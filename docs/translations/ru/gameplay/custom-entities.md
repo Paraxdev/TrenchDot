@@ -37,13 +37,13 @@ func disarm() -> void:
 
 | Ваша сущность | Определение | Что задать |
 | --- | --- | --- |
-| Точечная сущность, в одном месте, например лампа или подбираемый предмет | `FuncGodotFGDPointClass` | *Script Class* на ваш скрипт. Чтобы вместо этого создавать сцену, задайте *Scene File*, тогда *Script Class* заменит скрипт корня сцены |
-| Браш-сущность, собранная из брашей, например дверь или триггер | `FuncGodotFGDSolidClass` | *Script Class* на ваш скрипт и *Node Class* на тело, которое он расширяет: `StaticBody3D`, `AnimatableBody3D` или `Area3D`. Если оставить пустым, Godot построит тело, которое расширяет скрипт, или `StaticBody3D`, если скрипт расширяет `Node3D` или его нет. См. [Коллизию](entities/collision.md) |
+| Точечная сущность, в одном месте, например лампа или подбираемый предмет | `TrenchDotFGDPointClass` | *Script Class* на ваш скрипт. Чтобы вместо этого создавать сцену, задайте *Scene File*, тогда *Script Class* заменит скрипт корня сцены |
+| Браш-сущность, собранная из брашей, например дверь или триггер | `TrenchDotFGDSolidClass` | *Script Class* на ваш скрипт и *Node Class* на тело, которое он расширяет: `StaticBody3D`, `AnimatableBody3D` или `Area3D`. Если оставить пустым, Godot построит тело, которое расширяет скрипт, или `StaticBody3D`, если скрипт расширяет `Node3D` или его нет. См. [Коллизию](entities/collision.md) |
 
 Это определение сигнализации выше, сохранённое как `res://entities/alarm.tres` рядом с её скриптом `alarm.gd`:
 
 ```
-[gd_resource type="Resource" script_class="FuncGodotFGDPointClass" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="TrenchDotFGDPointClass" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://addons/func_godot/src/fgd/func_godot_fgd_point_class.gd" id="1_class"]
 [ext_resource type="Script" path="res://entities/alarm.gd" id="2_script"]

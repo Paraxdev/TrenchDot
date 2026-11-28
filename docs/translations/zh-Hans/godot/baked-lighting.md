@@ -10,7 +10,7 @@ source: 5d04cb3d9a7e005f4a371160c23d337e8ee707a7
 
 | 部分 | 它得到什么 |
 | --- | --- |
-| 一个名为 `baked_lighting` 的 `LightmapGI` | `FuncGodotMap` 的子节点，里面装着光照贴图、太阳阴影遮罩和光照探针 |
+| 一个名为 `baked_lighting` 的 `LightmapGI` | `TrenchDotMap` 的子节点，里面装着光照贴图、太阳阴影遮罩和光照探针 |
 | 烘焙过的网格 | 它们的光照贴图坐标作为 UV2，以及静态 GI 模式，流式加载的区块也包括在内 |
 | 灯和太阳 | 取自它们的 `bake_mode` 或 `sun_bake_mode` 的 Godot 烘焙模式，参见[光照键](../editor/light-baking.md#light-keys) |
 
@@ -42,4 +42,4 @@ source: 5d04cb3d9a7e005f4a371160c23d337e8ee707a7
 
 ## 使用别的光照贴图工具 { #using-another-lightmapper }
 
-想改用 Godot 自己的 `LightmapGI` 来烘焙？取消勾选 `FuncGodotMap` 上的 **Use Baked Lighting**，就能把存好的烘焙结果排除在外。这样构建就不会添加 `baked_lighting` 节点，也不会动灯的烘焙模式。在 *Build Flags* 里勾选 *Unwrap UV2*，让网格拿到 Godot 烘焙所需的 UV2。
+想改用 Godot 自己的 `LightmapGI` 来烘焙？取消勾选 `TrenchDotMap` 上的 **Use Baked Lighting**，就能把存好的烘焙结果排除在外。这样构建就不会添加 `baked_lighting` 节点，也不会动灯的烘焙模式。在 *Build Flags* 里勾选 *Unwrap UV2*，让网格拿到 Godot 烘焙所需的 UV2。

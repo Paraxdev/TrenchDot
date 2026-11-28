@@ -46,32 +46,32 @@ func _write(path: String, text: String) -> void:
 	file.store_string(text)
 	file.close()
 
-func _definition(classname: String, node_class: String) -> FuncGodotFGDPointClass:
-	var def := FuncGodotFGDPointClass.new()
+func _definition(classname: String, node_class: String) -> TrenchDotFGDPointClass:
+	var def := TrenchDotFGDPointClass.new()
 	def.classname = classname
 	def.node_class = node_class
 	return def
 
-func _settings(fgd: FuncGodotFGDFile) -> FuncGodotMapSettings:
-	var settings: FuncGodotMapSettings = load(SETTINGS).duplicate()
+func _settings(fgd: TrenchDotFGDFileBase) -> TrenchDotMapSettings:
+	var settings: TrenchDotMapSettings = load(SETTINGS).duplicate()
 	settings.save_generated_materials = false
 	settings.entity_fgd = fgd
 	return settings
 
-func _fgd(defs: Array) -> FuncGodotFGDFile:
-	var fgd := FuncGodotFGDFile.new()
+func _fgd(defs: Array) -> TrenchDotFGDFileBase:
+	var fgd := TrenchDotFGDFileBase.new()
 	fgd.base_fgd_files = [load(SETTINGS).entity_fgd]
 	fgd.entity_definitions.assign(defs)
 	return fgd
 
-func _map(settings: FuncGodotMapSettings, file: String) -> FuncGodotMap:
-	var map := FuncGodotMap.new()
+func _map(settings: TrenchDotMapSettings, file: String) -> TrenchDotMap:
+	var map := TrenchDotMap.new()
 	map.map_settings = settings
 	map.local_map_file = file
 	t.root.add_child(map)
 	return map
 
-func _entity_nodes(map: FuncGodotMap, part: String) -> Array[Node]:
+func _entity_nodes(map: TrenchDotMap, part: String) -> Array[Node]:
 	return t.collect(map, func(n: Node) -> bool: return n != map and String(n.name).contains(part))
 
 func test_classname_alias() -> void:
@@ -85,9 +85,9 @@ func test_classname_alias() -> void:
 
 func test_old_map_format() -> void:
 	print("- maps saved as godottrench-map parse")
-	var parsed := FuncGodotParser.new().parse_tdm(_old_text([_entity(2, "light")]), load(SETTINGS), MAP)
+	var parsed := TrenchDotMapParser.new().parse_tdm(_old_text([_entity(2, "light")]), load(SETTINGS), MAP)
 	check(parsed.entities.size() == 2, "a map with the old format name has its entities, got %d" % parsed.entities.size())
-	var other := FuncGodotParser.new().parse_tdm(_old_text([_entity(2, "light")], "something-else"), load(SETTINGS), MAP)
+	var other := TrenchDotMapParser.new().parse_tdm(_old_text([_entity(2, "light")], "something-else"), load(SETTINGS), MAP)
 	check(other.entities.is_empty(), "and another format name is still refused")
 	check(TrenchDotParser.is_map_format("trenchdot-map") and TrenchDotParser.is_map_format(TrenchDotLegacy.MAP_FORMAT) and not TrenchDotParser.is_map_format(null), "the check takes both names")
 	check(TrenchDotBuild.MAP_FILES == PackedStringArray(["tdm", TrenchDotLegacy.MAP_EXTENSION]), "prefab paths take both extensions")
@@ -112,7 +112,7 @@ func test_old_maps_build() -> void:
 	check(both.size() == 1 and not both[0] is Marker3D, "a gt_ name that has a definition of its own keeps it, got %s" % [both])
 	map.free()
 
-	var parsed := FuncGodotParser.new().parse_map_data(OLD_MAP, settings)
+	var parsed := TrenchDotMapParser.new().parse_map_data(OLD_MAP, settings)
 	check(parsed.entities.size() > 1, "parse_map_data reads the .gtm file")
 
 	DirAccess.copy_absolute(ProjectSettings.globalize_path(MAP), ProjectSettings.globalize_path(OLD_BINARY))
@@ -135,7 +135,7 @@ func test_live_session() -> void:
 	print("- live sessions take the old format name")
 	var map := _map(load(SETTINGS), MAP)
 	map.build_from_text(FileAccess.get_file_as_string(MAP_JSON))
-	var maps: Array[FuncGodotMap] = [map]
+	var maps: Array[TrenchDotMap] = [map]
 	var session := TrenchDotLiveSession.new(MAP, maps)
 	check(session.begin(FileAccess.get_file_as_string(MAP_JSON).replace("trenchdot-map", TrenchDotLegacy.MAP_FORMAT)), "a session begins with a map of the old format name")
 	check(not session.begin(FileAccess.get_file_as_string(MAP_JSON).replace("trenchdot-map", "other")), "and refuses any other")
@@ -207,14 +207,14 @@ func test_saved_scene_metadata() -> void:
 		check(str(old) != str(key) and (str(old).begins_with("_gt_") or str(old).begins_with("gt_") or str(old).begins_with("godottrench_")), "%s is an old name" % old)
 	var constants := {
 		&"_gt_id": TrenchDotBuild.ID_META, &"_gt_group": TrenchDotBuild.GROUP_META, &"_gt_source_hash": TrenchDotBuild.SOURCE_HASH_META,
-		&"_gt_definitions": TrenchDotBuild.DEFINITIONS_META, &"_gt_units_per_meter": FuncGodotMap.UNITS_META,
+		&"_gt_definitions": TrenchDotBuild.DEFINITIONS_META, &"_gt_units_per_meter": TrenchDotMap.UNITS_META,
 		&"gt_targetname": TrenchDotIO.TARGETNAME_META, &"gt_transforms": TrenchDotScatter.BUFFER_META, &"godottrench_baked": TrenchDotLightmap.BAKED_META,
 	}
 	for old in constants:
 		check(TrenchDotLegacy.METAS.get(old) == constants[old], "%s becomes %s" % [old, constants[old]])
 	check(TrenchDotLegacy.METAS.get(&"gt_prop_generated") == &"td_prop_generated", "gt_prop_generated becomes the key a prop's generated nodes carry")
 
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.set_meta(&"_gt_units_per_meter", 16.0)
 	var door := Node3D.new()
 	door.name = "door"
@@ -229,7 +229,7 @@ func test_saved_scene_metadata() -> void:
 	generated.name = "generated"
 	map.add_child(generated)
 	t.root.add_child(map)
-	check(map.get_meta(FuncGodotMap.UNITS_META, 0.0) == 16.0 and not map.has_meta(&"_gt_units_per_meter"), "a map node that enters the tree renames its own metadata")
+	check(map.get_meta(TrenchDotMap.UNITS_META, 0.0) == 16.0 and not map.has_meta(&"_gt_units_per_meter"), "a map node that enters the tree renames its own metadata")
 	check(door.get_meta(TrenchDotIO.TARGETNAME_META, "") == "front" and door.get_meta(TrenchDotBuild.ID_META, -1) == 7 and door.get_meta_list().size() == 2, "and that of the nodes below it")
 	check(t.find_targetname(map, "front") == door, "so entities are found by their saved targetnames")
 	check(TrenchDotIO.units_per_meter(door) == 16.0, "and the units per meter stay")
@@ -252,10 +252,10 @@ func _write_old_pack() -> void:
 	var thing := _definition("legacy_thing", "Node3D")
 	thing.script_class = load(OLD_PACK.path_join("gt_thing.gd"))
 	thing.class_properties = { "on": false }
-	var door := FuncGodotFGDSolidClass.new()
+	var door := TrenchDotFGDSolidClass.new()
 	door.classname = "func_door"
 	door.description = "old door"
-	var fgd := FuncGodotFGDFile.new()
+	var fgd := TrenchDotFGDFileBase.new()
 	fgd.entity_definitions.assign([thing, door])
 	ResourceSaver.save(fgd, OLD_PACK.path_join("gameplay_fgd.tres"))
 
@@ -276,7 +276,7 @@ func test_old_pack() -> void:
 	check(defs.has("legacy_thing"), "definitions of the old pack are found")
 	check(defs.has("func_door") and defs["func_door"].description != "old door", "the new pack's definition wins where both define a classname")
 	check(TrenchDotGameConfig.definition_sources(fgd).get("func_door", []).size() == 2, "and the game config lists both as a clash")
-	var thing: FuncGodotFGDEntityClass = defs.get("legacy_thing")
+	var thing: TrenchDotFGDEntityClass = defs.get("legacy_thing")
 	check(thing != null and thing.script_class != null and thing.script_class.can_instantiate(), "an old pack script compiles, the old class names it calls still exist")
 	var settings := _settings(fgd)
 	var map := _map(settings, MAP)
@@ -297,7 +297,7 @@ func test_old_addon_paths() -> void:
 	var old_script := ADDON + "src/godottrench/godottrench_game_config.gd"
 	for path in [old_fgd, old_core, old_config, old_script]:
 		check(ResourceLoader.exists(path), "%s exists" % path)
-	_write(OLD_PROJECT.path_join("game_fgd.tres"), "[gd_resource type=\"Resource\" script_class=\"FuncGodotFGDFile\" load_steps=4 format=3]
+	_write(OLD_PROJECT.path_join("game_fgd.tres"), "[gd_resource type=\"Resource\" script_class=\"TrenchDotFGDFileBase\" load_steps=4 format=3]
 
 [ext_resource type=\"Script\" path=\"%s\" id=\"1\"]
 [ext_resource type=\"Resource\" path=\"%s\" id=\"2\"]
@@ -318,8 +318,8 @@ fgd_file = ExtResource(\"2\")
 csharp_source_dirs = PackedStringArray()
 output_path = \"user://td_tests_old_project_game.json\"
 " % [old_script, old_fgd])
-	var fgd := ResourceLoader.load(OLD_PROJECT.path_join("game_fgd.tres"), "", ResourceLoader.CACHE_MODE_IGNORE) as FuncGodotFGDFile
-	var current := load(ADDON + "fgd/trenchdot/trenchdot_fgd.tres") as FuncGodotFGDFile
+	var fgd := ResourceLoader.load(OLD_PROJECT.path_join("game_fgd.tres"), "", ResourceLoader.CACHE_MODE_IGNORE) as TrenchDotFGDFileBase
+	var current := load(ADDON + "fgd/trenchdot/trenchdot_fgd.tres") as TrenchDotFGDFileBase
 	var names := fgd.get_entity_definitions().keys() if fgd else []
 	names.sort()
 	var expected := current.get_entity_definitions().keys()
@@ -328,7 +328,7 @@ output_path = \"user://td_tests_old_project_game.json\"
 	var config := ResourceLoader.load(OLD_PROJECT.path_join("game_config.tres"), "", ResourceLoader.CACHE_MODE_IGNORE) as TrenchDotGameConfig
 	check(config != null and config.get_script() == load(old_script) and config is GodotTrenchGameConfig and config.game_name == "Old", "a game config of the old script loads as a TrenchDotGameConfig")
 	if config:
-		var all := load(ADDON + "fgd/trenchdot_default_fgd.tres") as FuncGodotFGDFile
+		var all := load(ADDON + "fgd/trenchdot_default_fgd.tres") as TrenchDotFGDFileBase
 		var all_names := config.fgd_file.get_entity_definitions().keys()
 		all_names.sort()
 		var all_expected := all.get_entity_definitions().keys()
@@ -359,6 +359,8 @@ func test_old_names_stay_in_one_place() -> void:
 		if String(c["path"]).begins_with("res://addons/func_godot/") and (class_name_text.begins_with("GodotTrench") or class_name_text.begins_with("GT")):
 			found.append(class_name_text)
 			check(c["base"] == class_name_text.replace("GodotTrench", "TrenchDot"), "%s extends the class that replaced it" % class_name_text)
+		if String(c["path"]).begins_with("res://addons/func_godot/"):
+			check(not class_name_text.begins_with("FuncGodot"), "%s does not take a name of the original FuncGodot addon" % class_name_text)
 	found.sort()
 	check(found == stand_ins, "the only old class names are the stand ins for entity scripts of an old pack, got %s" % [found])
 	var old := RegEx.create_from_string("(?i:godottrench)|\\bgt_|\\bGT[A-Z][a-z]|\\bgtm\\b")

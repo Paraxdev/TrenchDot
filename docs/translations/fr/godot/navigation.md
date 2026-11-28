@@ -82,7 +82,7 @@ Vous pouvez voir où un agent marche directement dans TrenchDot, sans lancer le 
 
 1. Ouvrez la scène dans Godot
 
-    Enregistrez la carte dans le projet, et ouvrez le projet dans l'éditeur Godot avec une scène dont le `FuncGodotMap`
+    Enregistrez la carte dans le projet, et ouvrez le projet dans l'éditeur Godot avec une scène dont le `TrenchDotMap`
     construit cette carte.
 
 2. Activez la zone praticable

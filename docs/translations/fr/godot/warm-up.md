@@ -12,7 +12,7 @@ ou son chargement dans le jeu en cours d'exécution, et émet `warmed_up` quand 
 
 Le préchauffage d'une carte ne couvre pourtant que la carte. Si votre jeu ajoute son propre contenu, comme un joueur, des
 ennemis ou des armes, leur première apparition saccade encore. Dans ce cas, décochez **Warm Up Shaders** sur le
-`FuncGodotMap` dans l'Inspecteur de Godot, et préchauffez tout en une seule passe une fois que tout est en place :
+`TrenchDotMap` dans l'Inspecteur de Godot, et préchauffez tout en une seule passe une fois que tout est en place :
 
 ```gdscript
 loading.show()

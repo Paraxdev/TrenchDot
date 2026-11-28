@@ -87,8 +87,8 @@ impl Report {
     }
 }
 
-/// The name FuncGodot looks the files of a face material up by. `*` marks Quake liquids and cannot be in a file name,
-/// FuncGodot drops it when it looks for the material file. Converted files take this name made safe to write.
+/// The name TrenchDot looks the files of a face material up by. `*` marks Quake liquids and cannot be in a file name,
+/// TrenchDot drops it when it looks for the material file. Converted files take this name made safe to write.
 pub fn file_stem(material: &str) -> String {
     material.to_ascii_lowercase().replace('*', "")
 }
@@ -718,7 +718,7 @@ fn convert_paletted(t: &Paletted, target: &Target, png: &Path) -> Result<Materia
         out.color = Some([1.0, 1.0, 1.0, a]);
     }
 
-    // A `*liquid` name has no file of its own name, FuncGodot only finds it through the material file.
+    // A `*liquid` name has no file of its own name, TrenchDot only finds it through the material file.
     if t.name.contains('*') && !out.needs_file() {
         out.color = Some([1.0; 4]);
     }

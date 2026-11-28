@@ -113,7 +113,7 @@ python tools/mcp_client.py call screenshot '{"source":"godot","position":[0,256,
 ```
 
 1. Сохраните карту внутри проекта, который открыт в TrenchDot.
-2. Откройте этот проект в редакторе Godot, со сценой, где `FuncGodotMap` собирает карту.
+2. Откройте этот проект в редакторе Godot, со сценой, где `TrenchDotMap` собирает карту.
 3. Вызовите `screenshot` с `"source": "godot"`. Без `position` и `look_at` берётся камера 3D-вида.
 
 Без [живого режима](godot/live.md) Godot сначала собирает карту такой, как она показана в TrenchDot, как *Собрать в

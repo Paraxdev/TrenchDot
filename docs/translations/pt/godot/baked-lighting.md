@@ -11,7 +11,7 @@ não pré-calcula nada por conta própria, cada construção só transforma o ba
 
 | Parte | O que ela recebe |
 | --- | --- |
-| Um `LightmapGI` chamado `baked_lighting` | Um filho do `FuncGodotMap`, que guarda o lightmap, a máscara de sombra do sol e as sondas de luz |
+| Um `LightmapGI` chamado `baked_lighting` | Um filho do `TrenchDotMap`, que guarda o lightmap, a máscara de sombra do sol e as sondas de luz |
 | Malhas pré-calculadas | As coordenadas de lightmap delas como UV2 e um modo de GI estático, chunks de streaming incluídos |
 | Luzes e o sol | O modo de bake do Godot vindo de `bake_mode` ou `sun_bake_mode`, veja [Keys de luz](../editor/light-baking.md#light-keys) |
 
@@ -50,6 +50,6 @@ pré-calcule à mão com o botão **Pré-calcular** do nó `VoxelGI`. Mapas cons
 
 ## Usando outro lightmapper { #using-another-lightmapper }
 
-Quer pré-calcular com o próprio `LightmapGI` do Godot? Desmarque **Use Baked Lighting** no `FuncGodotMap` para deixar o
+Quer pré-calcular com o próprio `LightmapGI` do Godot? Desmarque **Use Baked Lighting** no `TrenchDotMap` para deixar o
 bake guardado de fora. A construção então não adiciona o nó `baked_lighting` e deixa os modos de bake das luzes em paz. Marque *Unwrap
 UV2* em *Build Flags* para que as malhas recebam o UV2 de que um bake do Godot precisa.

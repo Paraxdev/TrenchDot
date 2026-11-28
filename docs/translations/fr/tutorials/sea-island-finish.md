@@ -41,7 +41,7 @@ Choisissez-en un ailleurs et l'éditeur propose d'abord de le copier dans `res:/
 
 ## La voir dans Godot { #see-it-in-godot }
 
-Enregistrez la carte dans votre projet Godot et construisez-la avec un `FuncGodotMap`, voir
+Enregistrez la carte dans votre projet Godot et construisez-la avec un `TrenchDotMap`, voir
 [Construire des cartes](../godot/building.md). Chaque partie de la carte devient un autre genre de nœud :
 
 | Partie de la carte | Ce que vous obtenez dans Godot |

@@ -18,9 +18,9 @@ pub const DIR: &str = "trenchdot/entities";
 pub const RES_DIR: &str = "res://trenchdot/entities";
 /// Describes the pack, and in a project also what was installed.
 pub const MANIFEST: &str = "pack.json";
-/// The pack's FuncGodotFGDFile, which the addon's core FGD reads when it is there.
+/// The pack's TrenchDotFGDFileBase, which the addon's core FGD reads when it is there.
 pub const FGD: &str = "gameplay_fgd.tres";
-/// The addon's FGD with FuncGodot's entities, the core entities and the pack, for an FGD's Base Fgd Files.
+/// The addon's FGD with TrenchDot's entities, the core entities and the pack, for an FGD's Base Fgd Files.
 pub const DEFAULT_FGD: &str = "res://addons/func_godot/fgd/trenchdot_default_fgd.tres";
 pub const FORMAT: &str = "trenchdot-entity-pack";
 pub const NAME: &str = en!("Gameplay entities");

@@ -65,7 +65,7 @@ Du kannst direkt in TrenchDot sehen, wo ein Agent läuft, ohne das Spiel zu star
 
 1. Die Szene in Godot öffnen
 
-    Speichere die Karte im Projekt und öffne das Projekt im Godot-Editor mit einer Szene, deren `FuncGodotMap` diese Karte baut.
+    Speichere die Karte im Projekt und öffne das Projekt im Godot-Editor mit einer Szene, deren `TrenchDotMap` diese Karte baut.
 
 2. Den begehbaren Bereich einschalten
 

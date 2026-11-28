@@ -4,13 +4,13 @@ source: 755d17f52aebf0b32513b6e22a04abb368badeab
 
 # 构建地图 { #building-maps }
 
-TrenchDot 保存的是 `.tdm` 文件，它自己从不写 Godot 场景。在 Godot 里，插件的 `FuncGodotMap` 节点读取这个文件，生成网格、碰撞和实体节点。结果会像手工做的节点一样随你的场景一起保存，所以除非你要求，运行时不会重新构建任何东西。
+TrenchDot 保存的是 `.tdm` 文件，它自己从不写 Godot 场景。在 Godot 里，插件的 `TrenchDotMap` 节点读取这个文件，生成网格、碰撞和实体节点。结果会像手工做的节点一样随你的场景一起保存，所以除非你要求，运行时不会重新构建任何东西。
 
-## FuncGodotMap 节点 { #the-funcgodotmap-node }
+## TrenchDotMap 节点 { #the-trenchdotmap-node }
 
 1. 添加节点
 
-    在 Godot 编辑器里，在你的场景中按 Ctrl+A，搜索 `FuncGodotMap` 并添加它。
+    在 Godot 编辑器里，在你的场景中按 Ctrl+A，搜索 `TrenchDotMap` 并添加它。
 
 2. 让它指向你的地图
 
@@ -40,13 +40,13 @@ TrenchDot 保存的是 `.tdm` 文件，它自己从不写 Godot 场景。在 God
 
 | 触发方式 | 构建什么 | 什么时候用 |
 | --- | --- | --- |
-| 在 TrenchDot 里保存 | Godot 编辑器里打开的场景中，每个使用该文件的 `FuncGodotMap` | 日常的循环，保存之后去 Godot 里看结果 |
+| 在 TrenchDot 里保存 | Godot 编辑器里打开的场景中，每个使用该文件的 `TrenchDotMap` | 日常的循环，保存之后去 Godot 里看结果 |
 | *Godot > 在 Godot 中构建* | 地图此刻在 TrenchDot 里的样子，不管保存没保存，也不写文件 | 想在 Godot 里试一个未保存的改动，又不想就此定下来 |
 | Godot 里的 **Build Map** | 已保存的文件 | TrenchDot 关着的时候，或者重建一个刚打开的场景 |
 
 前两种需要一个已经打开这个项目的 Godot 编辑器，并且它们只会动那里打开的场景。重建会把那个场景标记为已修改，所以要在 Godot 里保存才能留住结果。
 
-在 Godot 打开这个项目之前，*在 Godot 中构建*一直是灰的。它还要求地图至少保存进项目一次，这样 Godot 才知道是哪个 `FuncGodotMap` 在用它。
+在 Godot 打开这个项目之前，*在 Godot 中构建*一直是灰的。它还要求地图至少保存进项目一次，这样 Godot 才知道是哪个 `TrenchDotMap` 在用它。
 
 ![Godot 菜单，鼠标停在在 Godot 中构建上](../assets/building/menu-build-in-godot.png)
 
@@ -55,7 +55,7 @@ TrenchDot 保存的是 `.tdm` 文件，它自己从不写 Godot 场景。在 God
 你也可以在游戏运行时构建地图，比如加载从菜单里选出的关卡：
 
 ```gdscript
-var map := FuncGodotMap.new()
+var map := TrenchDotMap.new()
 map.map_settings = load("res://demo/demo_map_settings.tres")
 map.local_map_file = "res://demo/maps/scripted_scene.tdm"
 add_child(map)
@@ -88,7 +88,7 @@ worldspawn 上的天空、雾和太阳这些键，会在地图里构建出一个
 | `unknown_tool_textures` | 地图设置里命名不同的 `special/clip` 之类的工具纹理 | 这些面仍然什么都不画，但原点笔刷不会设置它实体的原点 |
 | `unresolved_targets` | 目标在地图或它的叠加层里匹配不到任何 targetname 的输出和目标键 | 这个输出触发在空处 |
 
-想在每次构建之后打印它，请在节点的 *Build Flags* 下勾选 *Print Build Report*，或者在代码里把 `FuncGodotMap.BuildFlags.PRINT_REPORT` 加进 `build_flags`。测试或 CI 检查则可以直接读这个 Dictionary：
+想在每次构建之后打印它，请在节点的 *Build Flags* 下勾选 *Print Build Report*，或者在代码里把 `TrenchDotMap.BuildFlags.PRINT_REPORT` 加进 `build_flags`。测试或 CI 检查则可以直接读这个 Dictionary：
 
 ```gdscript
 var report := map.build()

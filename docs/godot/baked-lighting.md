@@ -7,7 +7,7 @@ not bake anything itself, each build just turns the stored bake into Godot's own
 
 | Part | What it gets |
 | --- | --- |
-| A `LightmapGI` named `baked_lighting` | A child of the `FuncGodotMap`, holding the light map, the sun shadow mask and the light probes |
+| A `LightmapGI` named `baked_lighting` | A child of the `TrenchDotMap`, holding the light map, the sun shadow mask and the light probes |
 | Baked meshes | Their light map coordinates as UV2 and a static GI mode, streamed chunks included |
 | Lights and the sun | Godot's bake mode from their `bake_mode` or `sun_bake_mode`, see [Light keys](../editor/light-baking.md#light-keys) |
 
@@ -46,6 +46,6 @@ bake it by hand with the **Bake** button of the `VoxelGI` node instead. Maps bui
 
 ## Using another lightmapper
 
-Want to bake with Godot's own `LightmapGI` instead? Untick **Use Baked Lighting** on the `FuncGodotMap` to leave the
+Want to bake with Godot's own `LightmapGI` instead? Untick **Use Baked Lighting** on the `TrenchDotMap` to leave the
 stored bake out. The build then adds no `baked_lighting` node and leaves the lights' bake modes alone. Tick *Unwrap
 UV2* in *Build Flags* so the meshes get the UV2 a Godot bake needs.

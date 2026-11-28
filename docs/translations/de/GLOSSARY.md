@@ -68,7 +68,7 @@ Eine Einstellung einer Terrainebene von 0 bis 1, die jede Wiederholung der Textu
 Eine vierseitige Brush-Fläche, die in ein Raster aus Vertices zerlegt ist, die sich einzeln heben und senken lassen, wie in Hammer. Sie liefert unebenen Boden in einem Level aus Brushes. Große Außenbereiche baust du besser als Terrain.
 
 ## Entitätsdefinition { #entity-definition data-forms="Entitätsdefinitionen" }
-Die Beschreibung einer Entitätsklasse in einer FGD: ihr Classname, ihre Keys, Inputs und Outputs und was Godot dafür baut, etwa die Node-Klasse und das Skript. In Godot ist es eine Ressource vom Typ FuncGodotFGDPointClass oder FuncGodotFGDSolidClass, aufgelistet unter Entity Definitions einer FGD-Datei.
+Die Beschreibung einer Entitätsklasse in einer FGD: ihr Classname, ihre Keys, Inputs und Outputs und was Godot dafür baut, etwa die Node-Klasse und das Skript. In Godot ist es eine Ressource vom Typ TrenchDotFGDPointClass oder TrenchDotFGDSolidClass, aufgelistet unter Entity Definitions einer FGD-Datei.
 
 ## Extrudieren { #extrude }
 Eine Fläche entlang ihrer Richtung herausziehen, sodass neue Geometrie entsteht. Im Blender-Preset extrudiert E die ausgewählten Brush-Flächen, aus jeder wächst ein neuer Brush, und der alte bleibt, wie er war. Im Mesh-Werkzeug extrudiert E stattdessen Mesh-Flächen.
@@ -77,19 +77,19 @@ Eine Fläche entlang ihrer Richtung herausziehen, sodass neue Geometrie entsteht
 Wie ein Malpinsel, etwa der des Werkzeugs Mischen, von der Mitte zum Rand ausblendet. Ein weicher Abfall gibt weiche Ränder, ein konstanter malt die ganze Scheibe mit gleicher Stärke.
 
 ## FGD { #fgd }
-Die Definition der Entitätsklassen eines Spiels mit ihren Namen, Keys, Inputs und Outputs. Der Name kommt von Hammers Forge-Game-Data-Dateien. In Godot ist es eine Ressource vom Typ FuncGodotFGDFile, und die Spielkonfiguration reicht sie an den Editor weiter.
+Die Definition der Entitätsklassen eines Spiels mit ihren Namen, Keys, Inputs und Outputs. Der Name kommt von Hammers Forge-Game-Data-Dateien. In Godot ist es eine Ressource vom Typ TrenchDotFGDFileBase, und die Spielkonfiguration reicht sie an den Editor weiter.
 
 ## Fixup { #fixup data-forms="Fixups" }
 Ein Namenspräfix, das an einer Prefab-Instanz gesetzt wird. Mit dem Fixup p1 heißt eine Entität namens door darin p1-door, sodass mehrere Kopien eines Prefabs ihre Verdrahtung getrennt halten.
 
 ## func_detail { #func_detail }
-Eine FuncGodot-Brush-Entität für statische Geometrie mit Kollision, die als eigener Node getrennt von den Welt-Brushes gebaut wird. Sie fügt keinen Occluder hinzu und verdeckt deshalb nie die Objekte dahinter vor dem Rendering.
+Eine Brush-Entität für statische Geometrie mit Kollision, die als eigener Node getrennt von den Welt-Brushes gebaut wird. Sie fügt keinen Occluder hinzu und verdeckt deshalb nie die Objekte dahinter vor dem Rendering.
 
 ## func_illusionary { #func_illusionary }
-Eine FuncGodot-Brush-Entität, die sichtbar ist, aber keine Kollision hat, sodass Spieler hindurchgehen. Das Tutorial zur Seeinsel nutzt eine für das Wasser.
+Eine Brush-Entität, die sichtbar ist, aber keine Kollision hat, sodass Spieler hindurchgehen. Das Tutorial zur Seeinsel nutzt eine für das Wasser.
 
 ## FuncGodot { #funcgodot }
-Das Godot-Plugin, das Level aus Karten-Dateien im Quake-Stil baut. Das TrenchDot-Addon ist ein Fork davon, deshalb heißt sein Node FuncGodotMap und seine Ressourcen beginnen mit FuncGodot.
+Das Godot-Plugin, das Level aus Karten-Dateien im Quake-Stil baut. Das TrenchDot-Addon begann als Fork davon.
 
 ## Spielkonfiguration { #game-config data-forms="Spielkonfigurationen" }
 Die Datei trenchdot_game.json im Wurzelordner des Godot-Projekts, vom Addon geschrieben. Sie sagt dem Editor, welche Entitäten, Texturordner und Einheitenskala dein Projekt nutzt, und der Editor lädt sie neu, sobald das Addon sie erneut schreibt.
@@ -140,7 +140,7 @@ Eine Regel, die zwei Wahr-oder-falsch-Eingaben in eine Antwort verwandelt, etwa 
 Die Szene, die Godot abspielt, wenn du das Projekt startest, eingestellt unter Project > Project Settings > Application > Run. Projekt ausführen in TrenchDot und die Play-Schaltfläche in Godot starten beide diese Szene.
 
 ## Karteneinstellungen { #map-settings }
-Eine FuncGodotMapSettings-Ressource, die festlegt, woher Texturen, Materialien und Entitätsdefinitionen kommen und wie viele Karteneinheiten einen Meter ergeben. Eine FuncGodotMap kann eigene haben, sonst gilt der Projektstandard.
+Eine TrenchDotMapSettings-Ressource, die festlegt, woher Texturen, Materialien und Entitätsdefinitionen kommen und wie viele Karteneinheiten einen Meter ergeben. Eine TrenchDotMap kann eigene haben, sonst gilt der Projektstandard.
 
 ## MCP { #mcp }
 Model Context Protocol, ein Standardweg für KI-Agenten und Skripte, die Werkzeuge eines Programms aufzurufen. Der Editor kann einen MCP-Server betreiben, damit ein Agent Karten untersuchen und bearbeiten kann. Du brauchst ihn nicht, um Level zu bauen, und diese Doku blendet die MCP-Teile aus, bis du den MCP-Schalter in der Kopfzeile einschaltest.

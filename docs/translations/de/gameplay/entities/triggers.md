@@ -26,7 +26,7 @@ Jeder Trigger unten hat diese zusätzlich zu seinen eigenen.
 | `triggered` | Bei einem akzeptierten Eintritt, höchstens einmal pro `cooldown` für jeden Körper. Die meiste Verdrahtung nutzt diesen |
 | `exited` | Beim Austritt, auch wenn der Trigger deaktiviert ist, um etwas rückgängig zu machen, wenn der Körper geht |
 
-Trigger erkennen Körper auf Physikebene 1. Liegt der Spieler auf einer anderen Ebene, füge sie in den Karteneinstellungen (die Ressource `FuncGodotMapSettings` in Godot) zu **Trigger Collision Mask** hinzu, sonst lösen die Trigger nie aus.
+Trigger erkennen Körper auf Physikebene 1. Liegt der Spieler auf einer anderen Ebene, füge sie in den Karteneinstellungen (die Ressource `TrenchDotMapSettings` in Godot) zu **Trigger Collision Mask** hinzu, sonst lösen die Trigger nie aus.
 
 ## trigger_once { #trigger_once }
 

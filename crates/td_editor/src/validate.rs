@@ -155,7 +155,7 @@ fn definition_issues(map: &Map, game: &GameConfig, context: &Context) -> Vec<Iss
         match (def.kind, brushes) {
             (td_formats::EntityKind::Point, true) => list.push(issue(
                 "point_class_brushes",
-                en!("{class} is a point entity in its definition, so Godot drops its brushes. Make it a FuncGodotFGDSolidClass"),
+                en!("{class} is a point entity in its definition, so Godot drops its brushes. Make it a TrenchDotFGDSolidClass"),
                 &[("class", class)],
             )),
             (td_formats::EntityKind::Solid, false) => list.push(issue(
@@ -631,7 +631,7 @@ mod tests {
         assert_eq!(
             shape,
             [
-                (Some(lamp), "point_class_brushes", "light is a point entity in its definition, so Godot drops its brushes. Make it a FuncGodotFGDSolidClass"),
+                (Some(lamp), "point_class_brushes", "light is a point entity in its definition, so Godot drops its brushes. Make it a TrenchDotFGDSolidClass"),
                 (Some(door), "brush_entity_empty", "func_door is a brush entity without brushes, so Godot builds it with no mesh or collision"),
             ]
         );

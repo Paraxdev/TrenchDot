@@ -84,7 +84,7 @@ static func _test_hot_reload_lines(t) -> void:
 	var hot := TrenchDotHotReload.new()
 	hot.port = port
 	t.root.add_child(hot)
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = load("res://demo/demo_map_settings.tres")
 	map.local_map_file = "res://tests/maps/basic.tdm"
 	t.root.add_child(map)

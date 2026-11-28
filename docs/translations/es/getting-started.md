@@ -66,7 +66,7 @@ Algunas entidades básicas se incluyen siempre, como un sencillo `info_player_st
 
 1. Instala el addon
 
-    Haz clic en el botón "Instalar el addon" de arriba para descargar el fork de FuncGodot de TrenchDot en tu proyecto,
+    Haz clic en el botón "Instalar el addon" de arriba para descargar el fork de TrenchDot de TrenchDot en tu proyecto,
     algo imprescindible para TrenchDot.
     (Nota: esto descarga de las versiones de GitHub. Si no tienes acceso a internet, descarga antes
     `func_godot-trenchdot-addon.zip` y extráelo en la raíz del proyecto para instalarlo a mano.)
@@ -193,10 +193,10 @@ simplemente empezar a dibujar, desaparece en cuanto el mapa tiene algo dentro.
 En Godot, un nivel es una escena: un árbol de nodos, guardado como archivo `.tscn`, donde cada nodo es una cosa como una
 malla, una luz o una cámara. Godot escribe las rutas dentro del proyecto con `res://`, así que `res://maps/room.tdm` es
 el archivo `maps/room.tdm` de la carpeta de tu proyecto. El mapa se convierte en nodos mediante un nodo del addon,
-`FuncGodotMap`.
+`TrenchDotMap`.
 
 1. En el editor de Godot, elige *Scene > New Scene* y haz clic en **3D Scene** en el panel Scene de la izquierda.
-2. Pulsa Ctrl+A (*Add Child Node*), busca `FuncGodotMap` y añádelo.
+2. Pulsa Ctrl+A (*Add Child Node*), busca `TrenchDotMap` y añádelo.
 3. Con el nuevo nodo seleccionado, pon *Local Map File* en tu `.tdm` en el Inspector propio de Godot, el panel de la
    derecha del editor de Godot. Funciona como el Inspector de TrenchDot, pero es de Godot.
 4. Pulsa **Build Map** arriba de ese Inspector y guarda la escena con Ctrl+S.
@@ -210,7 +210,7 @@ o cuando vuelves a ella. Guarda la escena en Godot para conservar el resultado. 
 de estado dice por qué, mira [Reconstruir al guardar](godot/live.md#rebuild-on-save).
 
 > [!WARNING]
-> Una construcción borra primero los hijos del `FuncGodotMap`. Pon tus propios nodos junto al nodo del mapa, o en
+> Una construcción borra primero los hijos del `TrenchDotMap`. Pon tus propios nodos junto al nodo del mapa, o en
 > un [overlay](godot/overlays.md).
 
 ## Prueba el proyecto de demostración { #try-the-demo-project }

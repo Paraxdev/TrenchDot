@@ -235,13 +235,13 @@ fn nothing_built(reply: &Value, path: &str, saved: bool) -> String {
     }
 
     match reply["scene"].as_str() {
-        Some("") => trf!("Godot has no scene open. Open the scene with the FuncGodotMap for {map}, or close a second Godot editor of this project", map),
+        Some("") => trf!("Godot has no scene open. Open the scene with the TrenchDotMap for {map}, or close a second Godot editor of this project", map),
         Some(scene) => trf!(
-            "{scene} is the current scene tab in Godot but has no FuncGodotMap for {map} with Auto Rebuild On Save on, open the scene that builds it",
+            "{scene} is the current scene tab in Godot but has no TrenchDotMap for {map} with Auto Rebuild On Save on, open the scene that builds it",
             scene = file(scene),
             map
         ),
-        None => trf!("Godot has no open scene using {map}, open the scene with its FuncGodotMap in Godot", map),
+        None => trf!("Godot has no open scene using {map}, open the scene with its TrenchDotMap in Godot", map),
     }
 }
 
@@ -313,7 +313,7 @@ pub struct LinkState {
     pub project: Option<String>,
     pub godot: String,
     pub pid: Option<u32>,
-    /// `path_key` of each map used by a FuncGodotMap in the edited scene, with its build epoch.
+    /// `path_key` of each map used by a TrenchDotMap in the edited scene, with its build epoch.
     pub maps: BTreeMap<String, u64>,
     /// A long request (rebuild) is running.
     pub busy: bool,
@@ -1084,7 +1084,7 @@ mod tests {
         let waiting = status(json!({ "ok": true, "rebuilt": 0, "scene": "res://menu.tscn", "waiting": ["res://levels/shop.tscn"] }));
         assert!(waiting.contains("shop.tscn uses shop.tdm") && waiting.contains("rebuilds when you switch to it"), "{waiting}");
         let other = status(json!({ "ok": true, "rebuilt": 0, "scene": "res://menu.tscn" }));
-        assert!(other.contains("menu.tscn is the current scene tab") && other.contains("FuncGodotMap for shop.tdm"), "{other}");
+        assert!(other.contains("menu.tscn is the current scene tab") && other.contains("TrenchDotMap for shop.tdm"), "{other}");
         let none = status(json!({ "ok": true, "rebuilt": 0, "scene": "" }));
         assert!(none.contains("no scene open") && none.contains("second Godot editor"), "{none}");
         let old_addon = status(json!({ "ok": true, "rebuilt": 0 }));
@@ -1743,7 +1743,7 @@ mod tests {
         );
         assert_eq!(
             nothing_built(&json!({ "scene": "res://menu/start.tscn" }), path, true),
-            "start.tscn is the current scene tab in Godot but has no FuncGodotMap for shop.tdm with Auto Rebuild On Save on, open the scene that builds it"
+            "start.tscn is the current scene tab in Godot but has no TrenchDotMap for shop.tdm with Auto Rebuild On Save on, open the scene that builds it"
         );
     }
 

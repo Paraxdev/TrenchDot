@@ -83,7 +83,7 @@ python tools/mcp_client.py call screenshot '{"source":"godot","position":[0,256,
 ```
 
 1. TrenchDotで開いているプロジェクトの中に、マップを保存します。
-2. そのプロジェクトをGodotエディターで開き、`FuncGodotMap`でマップをビルドするシーンを用意します。
+2. そのプロジェクトをGodotエディターで開き、`TrenchDotMap`でマップをビルドするシーンを用意します。
 3. `"source": "godot"`を付けて`screenshot`を呼びます。`position`と`look_at`を省くと、3Dビューのカメラを使います。
 
 [ライブモード](godot/live.md)がないときは、Godotはまず、TrenchDotで見えているとおりにマップをビルドします。*Godotでビルド*と同じです。`"build": false`にすると、Godotが持っているままのシーンを撮ります。`width`と`height`の既定値は1280 x 720、`fov`は3Dビューのものです。

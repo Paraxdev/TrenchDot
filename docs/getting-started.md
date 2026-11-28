@@ -255,10 +255,10 @@ a plain shape. [Placing and wiring](gameplay/placing.md) has the other ways to p
 
 In Godot, a level is a scene: a tree of nodes, saved as a `.tscn` file, where each node is one thing such as a mesh, a
 light or a camera. Godot writes paths inside the project with `res://`, so `res://maps/room.tdm` is the file
-`maps/room.tdm` in your project folder. The map is turned into nodes by one node from the addon, `FuncGodotMap`.
+`maps/room.tdm` in your project folder. The map is turned into nodes by one node from the addon, `TrenchDotMap`.
 
 1. In the Godot editor, choose *Scene > New Scene* and click **3D Scene** in the Scene panel on the left.
-2. Press Ctrl+A (*Add Child Node*), search for `FuncGodotMap` and add it.
+2. Press Ctrl+A (*Add Child Node*), search for `TrenchDotMap` and add it.
 3. With the new node selected, set *Local Map File* to your `.tdm` in Godot's own Inspector, the panel on the right of
    the Godot editor. It works like the Inspector in TrenchDot but belongs to Godot.
 4. Press **Build Map** at the top of that Inspector, then save the scene with Ctrl+S.
@@ -272,7 +272,7 @@ one, or when you switch back to it. Save the scene in Godot to keep the result. 
 bar says why, see [Rebuild on save](godot/live.md#rebuild-on-save).
 
 > [!WARNING]
-> A build deletes the children of the `FuncGodotMap` first. Put your own nodes next to the map node, or in
+> A build deletes the children of the `TrenchDotMap` first. Put your own nodes next to the map node, or in
 > an [overlay](godot/overlays.md).
 
 ## 7. Play it

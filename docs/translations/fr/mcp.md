@@ -114,7 +114,7 @@ python tools/mcp_client.py call screenshot '{"source":"godot","position":[0,256,
 ```
 
 1. Enregistrez la carte dans le projet ouvert dans TrenchDot.
-2. Ouvrez ce projet dans l'éditeur Godot, avec une scène dont le `FuncGodotMap` construit la carte.
+2. Ouvrez ce projet dans l'éditeur Godot, avec une scène dont le `TrenchDotMap` construit la carte.
 3. Appelez `screenshot` avec `"source": "godot"`. Sans `position` ni `look_at`, il utilise la caméra de la vue 3D.
 
 Sans [mode live](godot/live.md), Godot construit d'abord la carte telle qu'elle est montrée dans TrenchDot, comme

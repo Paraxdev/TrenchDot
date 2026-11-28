@@ -34,7 +34,7 @@ Ein Prop verweist über einen `res://`-Pfad auf sein Modell, die Datei muss also
 
 ## In Godot ansehen { #see-it-in-godot }
 
-Speichere die Karte in deinem Godot-Projekt und baue sie mit einer `FuncGodotMap`, siehe [Karten bauen](../godot/building.md). Jeder Teil der Karte wird zu einer anderen Art von Node:
+Speichere die Karte in deinem Godot-Projekt und baue sie mit einer `TrenchDotMap`, siehe [Karten bauen](../godot/building.md). Jeder Teil der Karte wird zu einer anderen Art von Node:
 
 | Kartenteil | Was du in Godot bekommst |
 | --- | --- |

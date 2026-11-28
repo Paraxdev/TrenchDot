@@ -12,7 +12,7 @@ source: 5a39bcf2beab2f567018f04963913fd06af5df16
 
 1. 添加叠加层节点
 
-    在 Godot 里，添加一个 `TrenchDotOverlay` 节点，作为 `FuncGodotMap` 的直接子节点。
+    在 Godot 里，添加一个 `TrenchDotOverlay` 节点，作为 `TrenchDotMap` 的直接子节点。
 
 2. 把你的节点放在它下面
 
@@ -27,7 +27,7 @@ source: 5a39bcf2beab2f567018f04963913fd06af5df16
 叠加层也可以是一个独立的场景。当几个场景用同一张地图、应该共用同一个叠加层时，当一个人做关卡场景、另一个人做叠加层时，或者当关卡场景由脚本生成时（比如演示里），这样做就很划算。
 
 1. 做一个根节点是 `TrenchDotOverlay` 的场景。
-2. 把 `.tscn` 拖到 `FuncGodotMap` 节点上，让它作为地图的直接子节点被实例化。
+2. 把 `.tscn` 拖到 `TrenchDotMap` 节点上，让它作为地图的直接子节点被实例化。
 
 Godot 把实例化的场景显示成单个节点，没有展开它的箭头。要进到它的内容里：
 

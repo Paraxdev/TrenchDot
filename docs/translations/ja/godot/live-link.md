@@ -42,7 +42,7 @@ Live Linkは、TrenchDotとGodotエディターが話すための通信路です
 
 `walkable`は、編集中のシーン全体のナビゲーションメッシュを、`agent`(`radius`、`height`、`max_climb`、`max_slope`。メートルと度)について`TrenchDotNav`でベイクして、マップの単位と軸で返します。`text`があれば、最後に同じテキストからビルドしたのでないかぎり、Godotはまずそのマップをビルドします。
 
-パスは絶対パスで、区切りにはスラッシュを使います。対象になるのは、編集中のシーン(Godotが表示しているシーンタブ)にある`FuncGodotMap`ノードのうち、*Auto Rebuild On Save*がオンのものだけです。`scene`はそのシーンの`res://`パスで、シーンが開いていなければ空です。
+パスは絶対パスで、区切りにはスラッシュを使います。対象になるのは、編集中のシーン(Godotが表示しているシーンタブ)にある`TrenchDotMap`ノードのうち、*Auto Rebuild On Save*がオンのものだけです。`scene`はそのシーンの`res://`パスで、シーンが開いていなければ空です。
 
 `waiting`は、そのマップを使っているほかの開いているシーンタブの一覧です。`map_saved`のあとは、タブが表示されたときにファイルをビルドしますが、`build`のあとはビルドしません。プレハブへの`map_saved`は、それを直接、または別のプレハブ経由でインスタンス化している、編集中のシーンのマップも再ビルドし、`rebuilt`に数えます。
 
@@ -65,13 +65,13 @@ Live Linkは、TrenchDotとGodotエディターが話すための通信路です
 | `translate` | `ids`、`offset` | ノードを動かす。ドラッグ中に、ジオメトリの代わりに送られる |
 | `properties` | `properties` | worldspawnのプロパティを置き換える |
 
-マップの`epoch`は、ライブセッションの外でビルドされたとき、またはそれを使う`FuncGodotMap`ノードが変わったときに上がります。次の`status`で新しいepochが見えたら、`live_begin`からやり直してください。
+マップの`epoch`は、ライブセッションの外でビルドされたとき、またはそれを使う`TrenchDotMap`ノードが変わったときに上がります。次の`status`で新しいepochが見えたら、`live_begin`からやり直してください。
 
 生成されたノードには、マップのノードidが`_td_id`メタに入り、レイヤーとグループのノードには`_td_group`に入ります。
 
 ## ウィンドウなしでテストする { #testing-without-a-window }
 
-リンクは、ヘッドレスのGodotエディターでも動くので、自動テストに向いています。`FuncGodotMap`のあるシーンを開いて、ポート7842に`inspect`を送ると、Godotが何をビルドしたかが分かります。
+リンクは、ヘッドレスのGodotエディターでも動くので、自動テストに向いています。`TrenchDotMap`のあるシーンを開いて、ポート7842に`inspect`を送ると、Godotが何をビルドしたかが分かります。
 
 ```sh
 godot --headless --editor --path godot res://path/scene.tscn

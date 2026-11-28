@@ -6,7 +6,7 @@ source: 15ac2f37b7d278fa849fb066b91734f671f35658
 
 ## Neu bauen beim Speichern { #rebuild-on-save }
 
-Lass die Szene mit deiner `FuncGodotMap` im Godot-Editor offen und speichere in TrenchDot einfach mit Ctrl+S. Godot baut diese Szene sofort neu, solange ihr Tab der ist, den Godot zeigt, und der Karten-Node *Auto Rebuild On Save* an hat. Eine Szene in einem anderen Tab, die die Karte nutzt, wird neu gebaut, wenn du zu ihrem Tab wechselst. Einen Tab zu schließen und wieder zu öffnen oder eine Szene neu zu laden, stört das nicht. Wenn du ein [Prefab](../editor/prefab-library.md) speicherst, werden die Karten dieser Szene neu gebaut, die es nutzen, direkt oder über ein anderes Prefab.
+Lass die Szene mit deiner `TrenchDotMap` im Godot-Editor offen und speichere in TrenchDot einfach mit Ctrl+S. Godot baut diese Szene sofort neu, solange ihr Tab der ist, den Godot zeigt, und der Karten-Node *Auto Rebuild On Save* an hat. Eine Szene in einem anderen Tab, die die Karte nutzt, wird neu gebaut, wenn du zu ihrem Tab wechselst. Einen Tab zu schließen und wieder zu öffnen oder eine Szene neu zu laden, stört das nicht. Wenn du ein [Prefab](../editor/prefab-library.md) speicherst, werden die Karten dieser Szene neu gebaut, die es nutzen, direkt oder über ein anderes Prefab.
 
 Die Statusleiste unten links sagt dir, was Godot getan hat. Hat es geklappt, sollte dort stehen:
 
@@ -19,7 +19,7 @@ Speichere die Szene in Godot, um das Ergebnis zu behalten. Steht in der Statusle
 | Die Statusleiste sagt | Tu das |
 | --- | --- |
 | Die Szene ist nicht der aktuelle Szenen-Tab in Godot | Wechsle zu diesem Tab, dann wird sie neu gebaut |
-| Der aktuelle Szenen-Tab hat keine `FuncGodotMap` für die Karte | Öffne die Szene, die die Karte baut, oder schalte *Auto Rebuild On Save* an ihrem Karten-Node ein |
+| Der aktuelle Szenen-Tab hat keine `TrenchDotMap` für die Karte | Öffne die Szene, die die Karte baut, oder schalte *Auto Rebuild On Save* an ihrem Karten-Node ein |
 | Godot hat keine Szene offen | Öffne die Szene mit der Karte in Godot, und ist sie offen, lies weiter |
 | Godot läuft nicht mit dem TrenchDot-Addon | Öffne das Projekt im Godot-Editor mit aktiviertem Addon |
 | Godot hat die Karte neu gebaut, aber die Karteneinstellungen haben für manche Klassen keine Definition, sie werden also als einfache Nodes gebaut | Füg die Definitionen hinzu, siehe [Entitäten, die nichts tun](entities-troubleshooting.md) |
@@ -33,7 +33,7 @@ Der Live-Modus schiebt deine Änderungen in die im Godot-Editor offene Szene, be
 
 1. Die Szene in Godot öffnen
 
-    Die Karte muss einmal im Projekt gespeichert sein, und die in Godot offene Szene braucht eine `FuncGodotMap`, die sie nutzt.
+    Die Karte muss einmal im Projekt gespeichert sein, und die in Godot offene Szene braucht eine `TrenchDotMap`, die sie nutzt.
 
 2. Einschalten
 

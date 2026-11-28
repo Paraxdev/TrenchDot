@@ -82,7 +82,7 @@ over one, meshes placed before keep your version, and the next placement gets fr
 new material. To give later placements your changes, apply your material to them from the Materials tab.
 
 > [!NOTE]
-> FuncGodot only builds a face's material from the project's `default_material` when there is no material
+> TrenchDot only builds a face's material from the project's `default_material` when there is no material
 > file of the same name. Faces of a placed model that got a material file draw with that file, so a custom shader set as
 > `default_material` does not reach them. Edit the file in Godot to change them. A project whose material extension is
 > not `tres` gets no material files, and its default material applies.

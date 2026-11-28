@@ -48,13 +48,13 @@ Chaque définition est une ressource à part, et le type que vous choisissez dé
 
 | Votre entité | Définition | Quoi régler |
 | --- | --- | --- |
-| Une entité point, à un seul endroit, comme une lampe ou un objet à ramasser | `FuncGodotFGDPointClass` | *Script Class* sur votre script. Pour faire apparaître une scène à la place, réglez *Scene File*, un *Script Class* remplace alors le script de la racine de la scène |
-| Une entité brush, construite à partir de brushes, comme une porte ou un trigger | `FuncGodotFGDSolidClass` | *Script Class* sur votre script, et *Node Class* sur le corps qu'il étend : `StaticBody3D`, `AnimatableBody3D` ou `Area3D`. Laissé vide, Godot construit le corps que le script étend, ou un `StaticBody3D` quand le script étend `Node3D` ou qu'il n'y en a pas. Voir [Collision](entities/collision.md) |
+| Une entité point, à un seul endroit, comme une lampe ou un objet à ramasser | `TrenchDotFGDPointClass` | *Script Class* sur votre script. Pour faire apparaître une scène à la place, réglez *Scene File*, un *Script Class* remplace alors le script de la racine de la scène |
+| Une entité brush, construite à partir de brushes, comme une porte ou un trigger | `TrenchDotFGDSolidClass` | *Script Class* sur votre script, et *Node Class* sur le corps qu'il étend : `StaticBody3D`, `AnimatableBody3D` ou `Area3D`. Laissé vide, Godot construit le corps que le script étend, ou un `StaticBody3D` quand le script étend `Node3D` ou qu'il n'y en a pas. Voir [Collision](entities/collision.md) |
 
 Voici la définition de l'alarme ci-dessus, enregistrée sous `res://entities/alarm.tres` à côté de son script `alarm.gd` :
 
 ```
-[gd_resource type="Resource" script_class="FuncGodotFGDPointClass" load_steps=3 format=3]
+[gd_resource type="Resource" script_class="TrenchDotFGDPointClass" load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://addons/func_godot/src/fgd/func_godot_fgd_point_class.gd" id="1_class"]
 [ext_resource type="Script" path="res://entities/alarm.gd" id="2_script"]

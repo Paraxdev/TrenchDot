@@ -12,7 +12,7 @@ Jeder Build ersetzt, was die Karte erzeugt hat, alles, was du von Hand unter dem
 
 1. Den Overlay-Node hinzufügen
 
-    Füg in Godot einen `TrenchDotOverlay`-Node als direktes Kind der `FuncGodotMap` hinzu.
+    Füg in Godot einen `TrenchDotOverlay`-Node als direktes Kind der `TrenchDotMap` hinzu.
 
 2. Deine Nodes darunter legen
 
@@ -27,7 +27,7 @@ Overlay-Inhalte nutzen den lokalen Raum der Karte in Metern. Bei 32 Einheiten pr
 Ein Overlay kann auch eine eigene Szene sein. Das lohnt sich, wenn mehrere Szenen dieselbe Karte nutzen und sich das Overlay teilen sollen, wenn eine Person an der Levelszene arbeitet und eine andere am Overlay oder wenn ein Skript die Levelszene erzeugt, wie in der Demo.
 
 1. Leg eine Szene an, deren Wurzel ein `TrenchDotOverlay` ist.
-2. Zieh die `.tscn` auf den `FuncGodotMap`-Node, damit sie als direktes Kind der Karte instanziiert wird.
+2. Zieh die `.tscn` auf den `TrenchDotMap`-Node, damit sie als direktes Kind der Karte instanziiert wird.
 
 Godot zeigt eine instanziierte Szene als einzelnen Node ohne Pfeil zum Aufklappen. So kommst du an ihren Inhalt:
 

@@ -39,7 +39,7 @@ page explique chaque message.
 
 3. Le panneau Output de Godot
 
-    Appuyez sur **Build Map** sur le nœud `FuncGodotMap` dans Godot. Le panneau Output en bas de l'éditeur Godot montre un
+    Appuyez sur **Build Map** sur le nœud `TrenchDotMap` dans Godot. Le panneau Output en bas de l'éditeur Godot montre un
     avertissement `[TrenchDot]` pour les classes sans définition et un pour chaque définition qui ne convient pas. Cochez
     *Print Build Report* sous *Build Flags* sur le nœud pour obtenir tout le [rapport de construction](building.md#build-report).
 
@@ -49,7 +49,7 @@ page explique chaque message.
 | --- | --- | --- |
 | Installez le pack d'entités Gameplay | Les portes, boutons, triggers, accessoires et spawners viennent avec le pack, et le projet ne l'a pas | Choisissez *Gameplay > Installer les entités Gameplay* dans TrenchDot, voir [Configuration du projet](project-setup.md#installing-and-updating-the-pack) |
 | Votre FGD n'a pas le pack d'entités Gameplay, ajoutez `trenchdot_default_fgd.tres` à ses Base Fgd Files | Votre FGD n'a pas de *Base Fgd Files* | Ajoutez `res://addons/func_godot/fgd/trenchdot_default_fgd.tres` aux *Base Fgd Files* du FGD que les réglages de carte nomment dans *Entity Fgd* |
-| Le pack est installé, mais l'*Entity Fgd* est un FGD de l'addon | Les réglages de carte utilisent le FGD propre de FuncGodot ou un autre fichier de l'addon, qu'une mise à jour de l'addon remplace | Réglez *Entity Fgd* de ces réglages de carte sur le FGD que votre config de jeu utilise |
+| Le pack est installé, mais l'*Entity Fgd* est un FGD de l'addon | Les réglages de carte utilisent le FGD propre de TrenchDot ou un autre fichier de l'addon, qu'une mise à jour de l'addon remplace | Réglez *Entity Fgd* de ces réglages de carte sur le FGD que votre config de jeu utilise |
 | Une classe à vous n'a pas de définition | Elle est dans le FGD de votre config de jeu, mais pas dans l'*Entity Fgd* des réglages de carte avec lesquels Godot construit | Réglez *Entity Fgd* de ces réglages de carte sur le FGD que votre config de jeu utilise, voir [Vos propres ressources](project-setup.md#your-own-resources) |
 | Le nœud de carte utilise les réglages de carte par défaut de l'addon, pas ceux des Project Settings | Le nœud a été ajouté avec un ancien addon, qui stockait les réglages de carte par défaut dans la scène | Sélectionnez le nœud de carte dans Godot et videz *Map Settings* dans l'Inspecteur |
 | La scène a été construite avec d'autres définitions d'entités | Elle a été construite avant que le pack ou une définition soit là, et pas depuis | Appuyez sur **Build Map** et enregistrez la scène. En [mode live](live.md#when-live-mode-rebuilds-the-whole-map), Godot le fait tout seul |
@@ -64,7 +64,7 @@ Ces messages viennent du panneau Output de Godot, et après un enregistrement du
 | `func_crusher builds as a Marker3D, so its brushes have no collision` | La définition n'a pas de *Node Class*, et son script étend un nœud qui n'est pas un corps physique | Réglez *Node Class* sur `StaticBody3D`, `AnimatableBody3D` ou `Area3D`, ou faites étendre l'un d'eux au script |
 | `func_crusher: Node Class AnimatedBody3D not found, building it as a Node3D` | Une faute de frappe, ou un `class_name` que Godot n'a pas encore enregistré | Corrigez le nom. Pour C#, voir [Entités C#](../gameplay/csharp.md) |
 | `alarm: res://entities/alarm.gd has no @tool` | L'éditeur n'exécute que des scripts tool, donc les clés de la carte n'atteignent jamais le nœud | Ajoutez `@tool` en haut du script |
-| `light is a point entity, so its brushes are dropped` | Une `FuncGodotFGDPointClass` est utilisée pour une entité brush | Faites de la définition une `FuncGodotFGDSolidClass` |
+| `light is a point entity, so its brushes are dropped` | Une `TrenchDotFGDPointClass` est utilisée pour une entité brush | Faites de la définition une `TrenchDotFGDSolidClass` |
 | `func_door is a brush entity without brushes` | Une entité brush sans rien à partir de quoi construire | Donnez-lui des brushes, ou faites de la définition une classe point |
 
 ## Entités qui se construisent mais ne réagissent pas { #entities-that-build-but-do-not-react }

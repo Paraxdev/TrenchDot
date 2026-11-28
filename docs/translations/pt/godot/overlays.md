@@ -14,7 +14,7 @@ com script próprio, um efeito de partículas ajustado no Godot, uma lâmpada co
 
 1. Adicione o nó de overlay
 
-    No Godot, adicione um nó `TrenchDotOverlay` como filho direto do `FuncGodotMap`.
+    No Godot, adicione um nó `TrenchDotOverlay` como filho direto do `TrenchDotMap`.
 
 2. Ponha seus nós embaixo dele
 
@@ -35,7 +35,7 @@ overlay, quando uma pessoa trabalha na cena do nível e outra no overlay, ou qua
 nível, como na demo.
 
 1. Faça uma cena cuja raiz é um `TrenchDotOverlay`.
-2. Arraste o `.tscn` para o nó `FuncGodotMap`, para que seja instanciado como filho direto do mapa.
+2. Arraste o `.tscn` para o nó `TrenchDotMap`, para que seja instanciado como filho direto do mapa.
 
 O Godot mostra uma cena instanciada como um nó só, sem seta para expandi-lo. Para chegar ao conteúdo dela:
 

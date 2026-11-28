@@ -23,7 +23,7 @@ des nœuds hors de la carte.
 | `!self` | L'entité qui possède la sortie | Une entité qui agit sur elle-même, comme un bouton qui se désactive |
 | `/root/Game` | Un chemin de nœud absolu, il doit commencer par `/` | Les autoloads et le reste du code du jeu hors de la carte |
 
-Les targetnames sont cherchés dans le `FuncGodotMap` le plus proche, donc deux cartes dans une même scène ne peuvent pas
+Les targetnames sont cherchés dans le `TrenchDotMap` le plus proche, donc deux cartes dans une même scène ne peuvent pas
 atteindre les noms l'une de l'autre. Les groupes, les chemins de nœud et `!player` marchent dans tout l'arbre, servez-vous
 en quand une carte doit parler à une autre.
 

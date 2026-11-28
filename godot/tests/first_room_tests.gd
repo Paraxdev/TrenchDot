@@ -29,8 +29,8 @@ static func _room(t, extra: Array, settings := SETTINGS) -> Node3D:
 	FileAccess.open(path, FileAccess.WRITE).store_string(JSON.stringify(map_json))
 	var level := Node3D.new()
 	t.root.add_child(level)
-	var map := FuncGodotMap.new()
-	var map_settings: FuncGodotMapSettings = load(settings).duplicate()
+	var map := TrenchDotMap.new()
+	var map_settings: TrenchDotMapSettings = load(settings).duplicate()
 	map_settings.base_texture_dir = "res://demo/textures"
 	map.map_settings = map_settings
 	map.global_map_file = path

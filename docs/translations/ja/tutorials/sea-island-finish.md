@@ -34,7 +34,7 @@ source: 5d131fe08a12db6615a97a4cbd455746685c5f02
 
 ## Godotで見る { #see-it-in-godot }
 
-マップをGodotプロジェクトの中に保存し、`FuncGodotMap`でビルドします。[マップのビルド](../godot/building.md)を参照してください。マップの各部分は、それぞれ違う種類のノードになります。
+マップをGodotプロジェクトの中に保存し、`TrenchDotMap`でビルドします。[マップのビルド](../godot/building.md)を参照してください。マップの各部分は、それぞれ違う種類のノードになります。
 
 | マップの部分 | Godotで得られるもの |
 | --- | --- |

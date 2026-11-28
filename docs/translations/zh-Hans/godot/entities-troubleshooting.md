@@ -26,7 +26,7 @@ source: 1b2a2ceda473607c8db087c552aff86851d08ef2
 
 3. Godot 的输出面板
 
-    在 Godot 里对 `FuncGodotMap` 节点按 **Build Map**。Godot 编辑器底部的输出面板会针对没有定义的类给出一条 `[TrenchDot]` 警告，每个对不上的定义也各给一条。在节点的 *Build Flags* 下勾选 *Print Build Report*，可以看到完整的[构建报告](building.md#build-report)。
+    在 Godot 里对 `TrenchDotMap` 节点按 **Build Map**。Godot 编辑器底部的输出面板会针对没有定义的类给出一条 `[TrenchDot]` 警告，每个对不上的定义也各给一条。在节点的 *Build Flags* 下勾选 *Print Build Report*，可以看到完整的[构建报告](building.md#build-report)。
 
 ## 没有定义的实体 { #entities-without-a-definition }
 
@@ -34,7 +34,7 @@ source: 1b2a2ceda473607c8db087c552aff86851d08ef2
 | --- | --- | --- |
 | Install the Gameplay entities pack | 门、按钮、触发器、道具和生成器都随这个包提供，而项目里没有它 | 在 TrenchDot 里选择*玩法 > 安装玩法实体*，参见[项目设置](project-setup.md#installing-and-updating-the-pack) |
 | Your FGD lacks the Gameplay entities pack, add `trenchdot_default_fgd.tres` to its Base Fgd Files | 你的 FGD 没有 *Base Fgd Files* | 把 `res://addons/func_godot/fgd/trenchdot_default_fgd.tres` 加进地图设置在 *Entity Fgd* 里指定的那个 FGD 的 *Base Fgd Files* |
-| The pack is installed, but the *Entity Fgd* is an FGD of the addon | 地图设置用的是 FuncGodot 自己的 FGD，或者插件里的另一个文件，插件更新时会把它替换掉 | 把那些地图设置的 *Entity Fgd* 设为你的游戏配置用的 FGD |
+| The pack is installed, but the *Entity Fgd* is an FGD of the addon | 地图设置用的是 TrenchDot 自己的 FGD，或者插件里的另一个文件，插件更新时会把它替换掉 | 把那些地图设置的 *Entity Fgd* 设为你的游戏配置用的 FGD |
 | A class of your own has no definition | 它在你的游戏配置的 FGD 里，却不在 Godot 构建所用地图设置的 *Entity Fgd* 里 | 把那些地图设置的 *Entity Fgd* 设为你的游戏配置用的 FGD，参见[你自己的资源](project-setup.md#your-own-resources) |
 | The map node uses the addon's default map settings, not the ones from Project Settings | 这个节点是用旧版插件添加的，它把默认的地图设置存进了场景里 | 在 Godot 里选中这个地图节点，在检查器里清空 *Map Settings* |
 | The scene was built with other entity definitions | 它是在这个包或某个定义还不存在时构建的，之后没再构建过 | 按 **Build Map** 并保存场景。在[实时模式](live.md#when-live-mode-rebuilds-the-whole-map)下，Godot 会自己做这件事 |
@@ -48,7 +48,7 @@ source: 1b2a2ceda473607c8db087c552aff86851d08ef2
 | `func_crusher builds as a Marker3D, so its brushes have no collision` | 定义没有 *Node Class*，它的脚本继承的节点又不是物理体 | 把 *Node Class* 设为 `StaticBody3D`、`AnimatableBody3D` 或 `Area3D`，或者让脚本继承其中之一 |
 | `func_crusher: Node Class AnimatedBody3D not found, building it as a Node3D` | 拼写错误，或者是 Godot 还没注册的 `class_name` | 改正名字。C# 的情况参见 [C# 实体](../gameplay/csharp.md) |
 | `alarm: res://entities/alarm.gd has no @tool` | 编辑器只运行 tool 脚本，所以地图里的键永远到不了这个节点 | 在脚本顶部加上 `@tool` |
-| `light is a point entity, so its brushes are dropped` | 一个笔刷实体用了 `FuncGodotFGDPointClass` | 把定义改成 `FuncGodotFGDSolidClass` |
+| `light is a point entity, so its brushes are dropped` | 一个笔刷实体用了 `TrenchDotFGDPointClass` | 把定义改成 `TrenchDotFGDSolidClass` |
 | `func_door is a brush entity without brushes` | 一个没有东西可以构建的笔刷实体 | 给它笔刷，或者把定义改成点类 |
 
 ## 构建出来却没有反应的实体 { #entities-that-build-but-do-not-react }

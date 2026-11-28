@@ -59,7 +59,7 @@ meanwhile.
 `max_climb`, `max_slope` in meters and degrees) and returns it in the map's units and axes. With `text` Godot builds
 that map first unless it was last built from the same text.
 
-Paths are absolute with forward slashes. Only `FuncGodotMap` nodes in the edited scene, the scene tab Godot shows, with
+Paths are absolute with forward slashes. Only `TrenchDotMap` nodes in the edited scene, the scene tab Godot shows, with
 *Auto Rebuild On Save* on take part. `scene` is its `res://` path, or empty with no scene open.
 
 `waiting` lists the other open scene tabs that use the map. After a `map_saved` they build the file when their tab is
@@ -94,14 +94,14 @@ panel and tries the port again every three seconds, so it takes over when the ot
 | `translate` | `ids`, `offset` | Move nodes, sent while dragging instead of geometry |
 | `properties` | `properties` | Replace the worldspawn properties |
 
-A map's `epoch` goes up whenever it is built outside a live session or the `FuncGodotMap` nodes using it change. When
+A map's `epoch` goes up whenever it is built outside a live session or the `TrenchDotMap` nodes using it change. When
 the next `status` shows a new epoch, start over with `live_begin`.
 
 Generated nodes carry their map node id in the `_td_id` metadata, and layer and group nodes in `_td_group`.
 
 ## Testing without a window
 
-The link also works with a headless Godot editor, which suits automated tests. Open a scene with a `FuncGodotMap` in
+The link also works with a headless Godot editor, which suits automated tests. Open a scene with a `TrenchDotMap` in
 it, then send `inspect` to port 7842 to see what Godot built:
 
 ```sh

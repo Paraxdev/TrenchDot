@@ -26,7 +26,7 @@ source: c7fdbd8dcaa1ac8625c1d6e7014b686194c50f36
 | `triggered` | 受け付けた進入のとき。ボディごとに`cooldown`あたり最大一度です。配線にはたいていこちらを使います |
 | `exited` | 退出のとき。トリガーが無効でも起動します。ボディが出ていったときに何かを元に戻すためのものです |
 
-トリガーは、物理レイヤー1のボディを検出します。プレイヤーが別のレイヤーにいるときは、マップ設定(Godotでは`FuncGodotMapSettings`リソース)の**Trigger Collision Mask**にそのレイヤーを加えてください。そうしないと、トリガーは起動しません。
+トリガーは、物理レイヤー1のボディを検出します。プレイヤーが別のレイヤーにいるときは、マップ設定(Godotでは`TrenchDotMapSettings`リソース)の**Trigger Collision Mask**にそのレイヤーを加えてください。そうしないと、トリガーは起動しません。
 
 ## trigger_once { #trigger_once }
 

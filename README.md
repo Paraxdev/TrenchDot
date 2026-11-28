@@ -46,7 +46,7 @@ grab the [rolling beta](https://github.com/Paraxdev/TrenchDot/releases/tag/beta)
 it into your Godot project, or unzip it there yourself) and a demo project. [itch.io](https://paraxdev.itch.io/trenchdot) has the same files. or build it yourself: clone with
 `git clone --recursive` so the addon submodule comes along, then `cargo run -p td_editor --release`.
 
-to use a map in Godot, add a `FuncGodotMap` node, point it at a `.tdm` file and press *Build Map*.
+to use a map in Godot, add a `TrenchDotMap` node, point it at a `.tdm` file and press *Build Map*.
 
 ## Features
 

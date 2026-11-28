@@ -1,14 +1,14 @@
 # Building maps
 
-TrenchDot saves a `.tdm` file and never writes Godot scenes itself. In Godot, the addon's `FuncGodotMap` node reads
+TrenchDot saves a `.tdm` file and never writes Godot scenes itself. In Godot, the addon's `TrenchDotMap` node reads
 that file and generates the meshes, collision and entity nodes. The result is saved with your scene like any hand made
 node, so nothing rebuilds at runtime unless you ask for it.
 
-## The FuncGodotMap node
+## The TrenchDotMap node
 
 1. Add the node
 
-    In the Godot editor, press Ctrl+A in your scene, search for `FuncGodotMap` and add it.
+    In the Godot editor, press Ctrl+A in your scene, search for `TrenchDotMap` and add it.
 
 2. Point it at your map
 
@@ -41,7 +41,7 @@ and save it as `.tdm` first.
 
 | Trigger | What gets built | When to use it |
 | --- | --- | --- |
-| Save in TrenchDot | Every `FuncGodotMap` using that file in the scene open in the Godot editor | The everyday loop, save and look at the result in Godot |
+| Save in TrenchDot | Every `TrenchDotMap` using that file in the scene open in the Godot editor | The everyday loop, save and look at the result in Godot |
 | *Godot > Build in Godot* | The map as it is in TrenchDot right now, saved or not, without writing the file | To try an unsaved change in Godot without committing to it |
 | **Build Map** in Godot | The saved file | When TrenchDot is closed, or to rebuild a scene you just opened |
 
@@ -49,7 +49,7 @@ The first two need a Godot editor with this project open, and they only touch th
 that scene as modified, so save it in Godot to keep the result.
 
 Until Godot has the project open, *Build in Godot* stays greyed out. It also needs the map saved into the project once,
-so Godot knows which `FuncGodotMap` uses it.
+so Godot knows which `TrenchDotMap` uses it.
 
 ![The Godot menu with Build in Godot hovered](../assets/building/menu-build-in-godot.png)
 
@@ -58,7 +58,7 @@ so Godot knows which `FuncGodotMap` uses it.
 You can also build a map while the game runs, for example to load a level picked from a menu:
 
 ```gdscript
-var map := FuncGodotMap.new()
+var map := TrenchDotMap.new()
 map.map_settings = load("res://demo/demo_map_settings.tres")
 map.local_map_file = "res://demo/maps/scripted_scene.tdm"
 add_child(map)
@@ -150,7 +150,7 @@ which is usually a typo or a file that was renamed or never committed:
 | `unresolved_targets` | Outputs and target keys whose target matches no targetname in the map or its overlays | The output fires at nothing |
 
 To print it after every build, tick *Print Build Report* under *Build Flags* on the node, or add
-`FuncGodotMap.BuildFlags.PRINT_REPORT` to `build_flags` in code. A test or CI check can read the Dictionary instead:
+`TrenchDotMap.BuildFlags.PRINT_REPORT` to `build_flags` in code. A test or CI check can read the Dictionary instead:
 
 ```gdscript
 var report := map.build()

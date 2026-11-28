@@ -22,7 +22,7 @@ você deu a outra entidade. As outras formas alcançam grupos de coisas e nós f
 | `!self` | A entidade dona da saída | Uma entidade agindo sobre si mesma, como um botão que se desativa |
 | `/root/Game` | Um caminho de nó absoluto, precisa começar com `/` | Autoloads e outro código do jogo fora do mapa |
 
-Os targetnames são procurados dentro do `FuncGodotMap` mais próximo, então dois mapas na mesma cena não alcançam os nomes um do
+Os targetnames são procurados dentro do `TrenchDotMap` mais próximo, então dois mapas na mesma cena não alcançam os nomes um do
 outro. Grupos, caminhos de nó e `!player` funcionam na árvore inteira, use-os quando um mapa precisa falar com outro.
 
 > [!NOTE]

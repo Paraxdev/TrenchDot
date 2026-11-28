@@ -253,7 +253,7 @@ pub fn new_fgd(classname: &str) -> String {
 /// [`new_fgd`] for a project folder other than `res://entities`.
 pub fn new_fgd_in(res_dir: &str, classname: &str) -> String {
     format!(
-        "[gd_resource type=\"Resource\" script_class=\"FuncGodotFGDFile\" load_steps=4 format=3]\n\n\
+        "[gd_resource type=\"Resource\" script_class=\"TrenchDotFGDFileBase\" load_steps=4 format=3]\n\n\
          [ext_resource type=\"Script\" path=\"{FGD_FILE_SCRIPT}\" id=\"1_fgd\"]\n\
          [ext_resource type=\"Resource\" path=\"{}\" id=\"2_base\"]\n\
          [ext_resource type=\"Resource\" path=\"{}\" id=\"{}\"]\n\n\
@@ -271,7 +271,7 @@ pub fn new_fgd_in(res_dir: &str, classname: &str) -> String {
 /// Map settings that build with the FGD at `fgd`, everything else as the addon's default settings.
 pub fn new_map_settings(fgd: &str) -> String {
     format!(
-        "[gd_resource type=\"Resource\" script_class=\"FuncGodotMapSettings\" load_steps=3 format=3]\n\n\
+        "[gd_resource type=\"Resource\" script_class=\"TrenchDotMapSettings\" load_steps=3 format=3]\n\n\
          [ext_resource type=\"Script\" path=\"{MAP_SETTINGS_SCRIPT}\" id=\"1_ms\"]\n\
          [ext_resource type=\"Resource\" path=\"{fgd}\" id=\"2_fgd\"]\n\n\
          [resource]\n\
@@ -400,7 +400,7 @@ const LEGACY_GAME_CONFIG_KEY: (&str, &str) = ("godottrench", "game_config");
 /// What the addon builds with while a setting is unset.
 const ADDON_MAP_SETTINGS: &str = "res://addons/func_godot/func_godot_default_map_settings.tres";
 const ADDON_GAME_CONFIG: &str = "res://addons/func_godot/game_config/trenchdot/trenchdot_game_config.tres";
-/// Definitions FuncGodot ships itself, next to the TrenchDot ones in the addon's `fgd` folder.
+/// Definitions TrenchDot ships itself, next to the TrenchDot ones in the addon's `fgd` folder.
 const FUNC_GODOT_ENTITIES: [&str; 5] = ["worldspawn", "func_geo", "func_detail", "func_detail_illusionary", "func_illusionary"];
 
 /// The text of `path` with LF line ends, `shown` is how a refusal names it.
@@ -417,7 +417,7 @@ fn project_path(root: &Path, res: &str) -> Result<PathBuf, Msg> {
     Ok(root.join(rel))
 }
 
-/// The definition `classname` is copied from: the installed pack's, then the addon's own, then FuncGodot's.
+/// The definition `classname` is copied from: the installed pack's, then the addon's own, then TrenchDot's.
 pub fn source(root: &Path, classname: &str) -> Result<(PathBuf, String), Msg> {
     let pack = format!("{}/definitions/{classname}.tres", entity_pack::DIR);
     let found = if entity_pack::in_pack(classname) && root.join(&pack).is_file() {
@@ -440,7 +440,7 @@ pub fn source(root: &Path, classname: &str) -> Result<(PathBuf, String), Msg> {
         None if entity_pack::in_pack(classname) => {
             Err(msg!("{classname} comes with the Gameplay entities pack. Install it with Gameplay > Install Gameplay Entities, then override it", classname))
         }
-        None => Err(msg!("Override in project has no definition to copy for {classname}, it copies core, FuncGodot and Gameplay entities", classname)),
+        None => Err(msg!("Override in project has no definition to copy for {classname}, it copies core, TrenchDot and Gameplay entities", classname)),
     }
 }
 
@@ -913,7 +913,7 @@ mod tests {
     fn the_header_uid_goes_and_the_uids_of_the_resources_stay() {
         let copy = definition_copy(DETAIL, "func_detail", Script::Extend).unwrap();
         assert!(DETAIL.lines().next().unwrap().contains("uid=\"uid://cxy7jnh6d7msn\""));
-        assert_eq!(lines(&copy)[0], "[gd_resource type=\"Resource\" script_class=\"FuncGodotFGDSolidClass\" load_steps=6 format=3]");
+        assert_eq!(lines(&copy)[0], "[gd_resource type=\"Resource\" script_class=\"TrenchDotFGDSolidClass\" load_steps=6 format=3]");
         for uid in ["uid://5cow84q03m6a", "uid://nayxb8n7see2", "uid://doo4ly322b4jc", "uid://bcdsueg5pysfq"] {
             assert!(copy.contains(uid), "{uid}");
         }
@@ -925,7 +925,7 @@ mod tests {
     fn a_definition_without_a_script_gets_one_appended_and_the_header_counts_it() {
         let copy = definition_copy(DETAIL, "func_detail", Script::Extend).unwrap();
         let want = [
-            "[gd_resource type=\"Resource\" script_class=\"FuncGodotFGDSolidClass\" load_steps=6 format=3]",
+            "[gd_resource type=\"Resource\" script_class=\"TrenchDotFGDSolidClass\" load_steps=6 format=3]",
             "",
             "[ext_resource type=\"Script\" uid=\"uid://5cow84q03m6a\" path=\"res://addons/func_godot/src/fgd/func_godot_fgd_solid_class.gd\" id=\"1_0fsmp\"]",
             "[ext_resource type=\"Resource\" uid=\"uid://nayxb8n7see2\" path=\"res://addons/func_godot/fgd/phong_base.tres\" id=\"1_c3bns\"]",
@@ -974,7 +974,7 @@ mod tests {
     fn a_player_start_copy_is_whole() {
         let copy = definition_copy(START, "info_player_start", Script::Player).unwrap();
         let want = "\
-[gd_resource type=\"Resource\" script_class=\"FuncGodotFGDPointClass\" load_steps=3 format=3]
+[gd_resource type=\"Resource\" script_class=\"TrenchDotFGDPointClass\" load_steps=3 format=3]
 
 [ext_resource type=\"Script\" path=\"res://addons/func_godot/src/fgd/func_godot_fgd_point_class.gd\" id=\"1_class\"]
 [ext_resource type=\"Script\" path=\"res://entities/info_player_start.gd\" id=\"td_override\"]
@@ -1034,8 +1034,8 @@ metadata/trenchdot_override = true
         assert_eq!(node_class(BUTTON), "AnimatableBody3D");
         assert_eq!(node_class(START), "Marker3D");
         assert_eq!(node_class(DETAIL), "StaticBody3D");
-        assert_eq!(node_class("[gd_resource script_class=\"FuncGodotFGDSolidClass\"]\n[resource]\n"), "StaticBody3D");
-        assert_eq!(node_class("[gd_resource script_class=\"FuncGodotFGDPointClass\"]\n[resource]\nnode_class = \"\"\n"), "Node3D");
+        assert_eq!(node_class("[gd_resource script_class=\"TrenchDotFGDSolidClass\"]\n[resource]\n"), "StaticBody3D");
+        assert_eq!(node_class("[gd_resource script_class=\"TrenchDotFGDPointClass\"]\n[resource]\nnode_class = \"\"\n"), "Node3D");
     }
 
     #[test]
@@ -1079,7 +1079,7 @@ metadata/trenchdot_override = true
     #[test]
     fn a_new_fgd_builds_on_the_addon_fgd_and_lists_the_override() {
         let want = "\
-[gd_resource type=\"Resource\" script_class=\"FuncGodotFGDFile\" load_steps=4 format=3]
+[gd_resource type=\"Resource\" script_class=\"TrenchDotFGDFileBase\" load_steps=4 format=3]
 
 [ext_resource type=\"Script\" path=\"res://addons/func_godot/src/fgd/func_godot_fgd_file.gd\" id=\"1_fgd\"]
 [ext_resource type=\"Resource\" path=\"res://addons/func_godot/fgd/trenchdot_default_fgd.tres\" id=\"2_base\"]
@@ -1099,7 +1099,7 @@ entity_definitions = Array[Resource]([ExtResource(\"td_func_door\")])
     fn new_settings_and_config_read_like_the_addon_defaults_with_the_project_fgd() {
         let settings = new_map_settings("res://entities/project_fgd.tres");
         let want = "\
-[gd_resource type=\"Resource\" script_class=\"FuncGodotMapSettings\" load_steps=3 format=3]
+[gd_resource type=\"Resource\" script_class=\"TrenchDotMapSettings\" load_steps=3 format=3]
 
 [ext_resource type=\"Script\" path=\"res://addons/func_godot/src/map/func_godot_map_settings.gd\" id=\"1_ms\"]
 [ext_resource type=\"Resource\" path=\"res://entities/project_fgd.tres\" id=\"2_fgd\"]
@@ -1137,7 +1137,7 @@ map_settings = ExtResource(\"3_ms\")
         let one = add_to_fgd(&empty, "func_door").unwrap();
         assert!(one.contains("entity_definitions = Array[Resource]([ExtResource(\"td_func_door\")])\n"), "{one}");
         assert!(one.contains("[ext_resource type=\"Resource\" path=\"res://entities/func_door.tres\" id=\"td_func_door\"]\n\n[resource]"), "{one}");
-        assert_eq!(lines(&one)[0], "[gd_resource type=\"Resource\" script_class=\"FuncGodotFGDFile\" load_steps=5 format=3]");
+        assert_eq!(lines(&one)[0], "[gd_resource type=\"Resource\" script_class=\"TrenchDotFGDFileBase\" load_steps=5 format=3]");
 
         let two = add_to_fgd(&new_fgd("func_door"), "light").unwrap();
         assert!(two.contains("entity_definitions = Array[Resource]([ExtResource(\"td_func_door\"), ExtResource(\"td_light\")])\n"), "{two}");
@@ -1146,7 +1146,7 @@ map_settings = ExtResource(\"3_ms\")
         let three = add_to_fgd(&two, "func_button").unwrap();
         assert!(three.contains("([ExtResource(\"td_func_door\"), ExtResource(\"td_light\"), ExtResource(\"td_func_button\")])\n"), "{three}");
         assert_eq!(three.matches("[ext_resource").count(), 5);
-        assert_eq!(lines(&three)[0], "[gd_resource type=\"Resource\" script_class=\"FuncGodotFGDFile\" load_steps=6 format=3]");
+        assert_eq!(lines(&three)[0], "[gd_resource type=\"Resource\" script_class=\"TrenchDotFGDFileBase\" load_steps=6 format=3]");
         let tail: Vec<&str> = lines(&three).into_iter().rev().take(3).collect();
         assert_eq!(tail[1], "base_fgd_files = Array[Resource]([ExtResource(\"2_base\")])", "{three}");
     }
@@ -1168,16 +1168,16 @@ map_settings = ExtResource(\"3_ms\")
 
         let pack = add_to_fgd(PACK_FGD, "light").unwrap();
         assert_eq!(pack.matches("[ext_resource").count(), 46);
-        assert!(pack.starts_with("[gd_resource type=\"Resource\" script_class=\"FuncGodotFGDFile\" load_steps=47 format=3]"));
+        assert!(pack.starts_with("[gd_resource type=\"Resource\" script_class=\"TrenchDotFGDFileBase\" load_steps=47 format=3]"));
     }
 
     #[test]
     fn a_missing_entity_definitions_line_is_added_and_an_id_clash_gets_a_number() {
-        let bare = "[gd_resource type=\"Resource\" script_class=\"FuncGodotFGDFile\" load_steps=2 format=3]\n\n[ext_resource type=\"Script\" path=\"res://f.gd\" id=\"td_light\"]\n\n[resource]\nscript = ExtResource(\"td_light\")\n";
+        let bare = "[gd_resource type=\"Resource\" script_class=\"TrenchDotFGDFileBase\" load_steps=2 format=3]\n\n[ext_resource type=\"Script\" path=\"res://f.gd\" id=\"td_light\"]\n\n[resource]\nscript = ExtResource(\"td_light\")\n";
         let out = add_to_fgd(bare, "light").unwrap();
         assert_eq!(
             out,
-            "[gd_resource type=\"Resource\" script_class=\"FuncGodotFGDFile\" load_steps=3 format=3]\n\n[ext_resource type=\"Script\" path=\"res://f.gd\" id=\"td_light\"]\n[ext_resource type=\"Resource\" path=\"res://entities/light.tres\" id=\"td_light_2\"]\n\n[resource]\nscript = ExtResource(\"td_light\")\nentity_definitions = Array[Resource]([ExtResource(\"td_light_2\")])\n"
+            "[gd_resource type=\"Resource\" script_class=\"TrenchDotFGDFileBase\" load_steps=3 format=3]\n\n[ext_resource type=\"Script\" path=\"res://f.gd\" id=\"td_light\"]\n[ext_resource type=\"Resource\" path=\"res://entities/light.tres\" id=\"td_light_2\"]\n\n[resource]\nscript = ExtResource(\"td_light\")\nentity_definitions = Array[Resource]([ExtResource(\"td_light_2\")])\n"
         );
         let twice = add_to_fgd(&out.replace("res://entities/light.tres", "res://entities/other.tres"), "light").unwrap();
         assert!(twice.contains("id=\"td_light_3\"") && twice.contains("ExtResource(\"td_light_2\"), ExtResource(\"td_light_3\")"), "{twice}");

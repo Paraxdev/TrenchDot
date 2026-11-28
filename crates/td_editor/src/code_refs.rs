@@ -1,5 +1,5 @@
 //! Code references for entity definitions: GDScript and C# classes that implement an entity, snippets for driving its
-//! inputs and outputs from game code, and the FuncGodot `.tres` resource that defines it.
+//! inputs and outputs from game code, and the TrenchDot `.tres` resource that defines it.
 
 use crate::i18n::en;
 use td_formats::{EntityDef, EntityKind, PropertyDef, PropertyType};
@@ -135,7 +135,7 @@ pub fn gdscript_class(def: &EntityDef) -> String {
         out += &format!("@export var {}: {ty} = {default}\n", p.name);
     }
 
-    out += "\n## FuncGodot passes the entity's map properties here when the map is built.\nfunc _func_godot_apply_properties(props: Dictionary) -> void:\n";
+    out += "\n## TrenchDot passes the entity's map properties here when the map is built.\nfunc _func_godot_apply_properties(props: Dictionary) -> void:\n";
     if props.is_empty() {
         out += "\tpass\n";
     }
@@ -192,7 +192,7 @@ pub fn csharp_class(def: &EntityDef) -> String {
         out += &format!("    [Export] public {ty} {} {{ get; set; }} = {default};\n", pascal(&p.name));
     }
 
-    out += "\n    // FuncGodot calls this by name when the map is built, so it keeps the snake_case spelling.\n";
+    out += "\n    // TrenchDot calls this by name when the map is built, so it keeps the snake_case spelling.\n";
     out += "    public void _func_godot_apply_properties(Dictionary props)\n    {\n";
     for p in &props {
         let getter = match p.ty {
@@ -279,7 +279,7 @@ fn gd_float(v: f64) -> String {
     if s.contains('.') || s.contains('e') { s } else { format!("{s}.0") }
 }
 
-/// A choice value as the Godot int or string FuncGodot compares against.
+/// A choice value as the Godot int or string TrenchDot compares against.
 fn choice_value(v: &str) -> String {
     v.parse::<i64>().map(|i| i.to_string()).unwrap_or_else(|_| gd_string(v))
 }
@@ -356,11 +356,11 @@ fn property_types(def: &EntityDef) -> Option<String> {
     (!types.is_empty()).then(|| format!("\"property_types\": {{{}}}", types.join(", ")))
 }
 
-/// A FuncGodotFGDBaseClass holding the keys of `def`. FuncGodot's worldspawn names it in its editor_properties meta
+/// A TrenchDotFGDBaseClass holding the keys of `def`. TrenchDot's worldspawn names it in its editor_properties meta
 /// property instead of its base classes, since a build fills in the defaults of base class keys a map leaves out, and a
 /// worldspawn with any sky key builds an environment.
 fn editor_keys_resource(def: &EntityDef) -> String {
-    let mut out = "[gd_resource type=\"Resource\" script_class=\"FuncGodotFGDBaseClass\" load_steps=2 format=3]\n\n".to_string();
+    let mut out = "[gd_resource type=\"Resource\" script_class=\"TrenchDotFGDBaseClass\" load_steps=2 format=3]\n\n".to_string();
     out += "[ext_resource type=\"Script\" path=\"res://addons/func_godot/src/fgd/func_godot_fgd_base_class.gd\" id=\"1_class\"]\n";
     out += &format!("\n[resource]\nscript = ExtResource(\"1_class\")\nclassname = \"WorldspawnKeys\"\ndescription = {}\n", gd_string(&def.description));
     out += &class_properties(def);
@@ -371,7 +371,7 @@ fn editor_keys_resource(def: &EntityDef) -> String {
 pub fn fgd_resource(def: &EntityDef) -> String {
     let solid = def.kind == EntityKind::Solid;
     let base = if solid { "func_godot_fgd_solid_class" } else { "func_godot_fgd_point_class" };
-    let class = if solid { "FuncGodotFGDSolidClass" } else { "FuncGodotFGDPointClass" };
+    let class = if solid { "TrenchDotFGDSolidClass" } else { "TrenchDotFGDPointClass" };
     let mut out = format!("[gd_resource type=\"Resource\" script_class=\"{class}\" load_steps={} format=3]\n\n", if def.script.is_empty() { 2 } else { 3 });
     out += &format!("[ext_resource type=\"Script\" path=\"res://addons/func_godot/src/fgd/{base}.gd\" id=\"1_class\"]\n");
     if !def.script.is_empty() {
@@ -434,13 +434,13 @@ pub fn project_definition(def: &EntityDef) -> [(String, String); 2] {
 pub const PROBE_VOLUMES: [&str; 2] = ["ReflectionProbe", "VoxelGI"];
 
 /// Classnames whose definitions ship with the Godot addon in `addons/func_godot/fgd/trenchdot/`. The other core
-/// entities come from FuncGodot's own FGD.
+/// entities come from TrenchDot's own FGD.
 pub const CORE_ENTITIES: [&str; 6] = ["info_player_start", "light", "light_spot", "light_probe", "env_reflection_probe", "env_voxel_gi"];
 
 /// The folders of the addon that hold only generated definitions.
 pub const GENERATED_DIRS: [&str; 2] = ["fgd/trenchdot", "gameplay_pack/definitions"];
 
-/// A FuncGodotFGDFile of `script` (a class of that name) listing the definitions at the res:// paths `defs`.
+/// A TrenchDotFGDFileBase of `script` (a class of that name) listing the definitions at the res:// paths `defs`.
 fn fgd_file(script_class: &str, script: &str, defs: &[(String, String)]) -> String {
     let mut file = format!("[gd_resource type=\"Resource\" script_class=\"{script_class}\" load_steps={} format=3]\n\n", defs.len() + 2);
     file += &format!("[ext_resource type=\"Script\" path=\"{script}\" id=\"1_fgd\"]\n");
@@ -482,7 +482,7 @@ pub fn addon_fgd_files() -> Vec<(String, String)> {
 
     out.push((
         format!("{}/{}", crate::entity_pack::TEMPLATE_IN_ADDON, crate::entity_pack::FGD),
-        fgd_file("FuncGodotFGDFile", "res://addons/func_godot/src/fgd/func_godot_fgd_file.gd", &listed),
+        fgd_file("TrenchDotFGDFileBase", "res://addons/func_godot/src/fgd/func_godot_fgd_file.gd", &listed),
     ));
     out.push((
         format!("{}/{}", crate::entity_pack::TEMPLATE_IN_ADDON, crate::entity_pack::MANIFEST),

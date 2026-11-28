@@ -66,7 +66,7 @@ Colocar nunca sobrescribe un archivo. Si colocas el mismo modelo otra vez, reuti
 Las texturas cuentan como iguales por sus píxeles, así que una que otro programa solo guardó de nuevo se reutiliza igualmente. ¿Pintaste encima de una? Las mallas colocadas antes conservan tu versión, y la siguiente colocación recibe copias nuevas en una carpeta numerada, con un material nuevo. Para dar tus cambios a colocaciones posteriores, aplícales tu material desde la pestaña Materiales.
 
 > [!NOTE]
-> FuncGodot solo construye el material de una cara a partir del `default_material` del proyecto cuando no hay un archivo de material con el mismo nombre. Las caras de un modelo colocado que recibieron un archivo de material se dibujan con ese archivo, así que un shader propio puesto como `default_material` no las alcanza. Edita el archivo en Godot para cambiarlas. Un proyecto cuya extensión de material no es `tres` no recibe archivos de material, y se aplica su material predeterminado.
+> TrenchDot solo construye el material de una cara a partir del `default_material` del proyecto cuando no hay un archivo de material con el mismo nombre. Las caras de un modelo colocado que recibieron un archivo de material se dibujan con ese archivo, así que un shader propio puesto como `default_material` no las alcanza. Edita el archivo en Godot para cambiarlas. Un proyecto cuya extensión de material no es `tres` no recibe archivos de material, y se aplica su material predeterminado.
 
 ## Más sobre una miniatura { #more-on-a-thumbnail }
 

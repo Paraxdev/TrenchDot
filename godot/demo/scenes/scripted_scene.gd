@@ -8,7 +8,7 @@ const SETTINGS := "res://demo/demo_map_settings.tres"
 
 func _ready() -> void:
 	add_child(TrenchDotDebugOverlay.new())
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = MAP
 	add_child(map)

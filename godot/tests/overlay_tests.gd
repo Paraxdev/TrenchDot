@@ -23,11 +23,11 @@ static func run(t) -> void:
 	await _test_night_district_overlay(t)
 
 ## A level scene in the tree with a map built from [param text] (basic.tdm when empty).
-static func _level(t, text := "") -> FuncGodotMap:
+static func _level(t, text := "") -> TrenchDotMap:
 	var level := Node3D.new()
 	level.name = "Level"
 	t.root.add_child(level)
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.name = "Map"
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = MAP
@@ -39,7 +39,7 @@ static func _level(t, text := "") -> FuncGodotMap:
 		map.build_from_text(text)
 	return map
 
-static func _overlay(map: FuncGodotMap) -> TrenchDotOverlay:
+static func _overlay(map: TrenchDotMap) -> TrenchDotOverlay:
 	var overlay := TrenchDotOverlay.new()
 	overlay.name = "Overlay"
 	overlay.share_with_editor = false
@@ -223,7 +223,7 @@ static func _test_anchor_follows_entity(t) -> void:
 	t.check(anchor.refresh(), "the anchor finds its entity")
 	t.check(anchor.bound and anchor.offset.origin.is_equal_approx(Vector3(0, 1, 0)), "the anchor binds at the offset it was placed at, got %s" % anchor.offset.origin)
 
-	var maps: Array[FuncGodotMap] = [map]
+	var maps: Array[TrenchDotMap] = [map]
 	var session := TrenchDotLiveSession.new(MAP, maps)
 	session.begin(text)
 	session.apply([{ "op": "translate", "ids": [10], "offset": [64.0, 0.0, 0.0] }])
@@ -259,7 +259,7 @@ static func _test_live_session_and_hot_reload(t) -> void:
 	var probe := _add(overlay, PROBE.new(), "Probe")
 	_io(probe, "overlay_probe")
 	await t.process_frame
-	var maps: Array[FuncGodotMap] = [map]
+	var maps: Array[TrenchDotMap] = [map]
 	var session := TrenchDotLiveSession.new(MAP, maps)
 	t.check(session.begin(text), "the live session takes the map")
 	var lamp_json: Dictionary = session._nodes[15].duplicate(true)
@@ -314,7 +314,7 @@ static func _test_external_overlay(t) -> void:
 	level.free()
 
 static func _test_streamer_leaves_overlay_alone(t) -> void:
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	var overlay := TrenchDotOverlay.new()
 	map.add_child(overlay)
 	var big := MeshInstance3D.new()
@@ -340,7 +340,7 @@ static func _test_sidecar(t) -> void:
 		DirAccess.remove_absolute(sidecar)
 	var level := Node3D.new()
 	t.root.add_child(level)
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.name = "Map"
 	map.map_settings = load(SETTINGS)
 	map.global_map_file = map_file
@@ -384,7 +384,7 @@ static func _test_night_district_overlay(t) -> void:
 	var level := Node3D.new()
 	level.name = "NightDistrict"
 	t.root.add_child(level)
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.name = "Map"
 	map.map_settings = load(SETTINGS)
 	map.local_map_file = "res://demo/maps/showcase/night_district.tdm"

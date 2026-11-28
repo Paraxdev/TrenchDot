@@ -547,7 +547,7 @@ func test_built_map() -> void:
 	var path := OS.get_temp_dir().path_join("td_math_logic_test_%d.tdm" % OS.get_process_id())
 	var map_json := { "format": "trenchdot-map", "properties": {}, "layers": [{ "type": "layer", "id": 1, "children": children }] }
 	FileAccess.open(path, FileAccess.WRITE).store_string(JSON.stringify(map_json))
-	var map := FuncGodotMap.new()
+	var map := TrenchDotMap.new()
 	map.map_settings = load("res://demo/demo_map_settings.tres")
 	map.global_map_file = path
 	t.root.add_child(map)

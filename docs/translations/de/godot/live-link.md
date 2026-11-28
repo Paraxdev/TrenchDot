@@ -42,7 +42,7 @@ Ein Client sendet diese Events. Die Spalte Antwort nennt die Felder, mit denen G
 
 `walkable` bäckt das Navigationsmesh der ganzen bearbeiteten Szene mit `TrenchDotNav` für `agent` (`radius`, `height`, `max_climb`, `max_slope` in Metern und Grad) und liefert es in den Einheiten und Achsen der Karte zurück. Mit `text` baut Godot diese Karte zuerst, außer sie wurde zuletzt aus demselben Text gebaut.
 
-Pfade sind absolut und haben Schrägstriche. Nur `FuncGodotMap`-Nodes in der bearbeiteten Szene, also dem Szenen-Tab, den Godot zeigt, mit aktivem *Auto Rebuild On Save* nehmen teil. `scene` ist ihr `res://`-Pfad, bei geschlossener Szene leer.
+Pfade sind absolut und haben Schrägstriche. Nur `TrenchDotMap`-Nodes in der bearbeiteten Szene, also dem Szenen-Tab, den Godot zeigt, mit aktivem *Auto Rebuild On Save* nehmen teil. `scene` ist ihr `res://`-Pfad, bei geschlossener Szene leer.
 
 `waiting` listet die anderen offenen Szenen-Tabs, die die Karte nutzen. Nach einem `map_saved` bauen sie die Datei, sobald ihr Tab angezeigt wird, nach einem `build` nicht. Ein `map_saved` für ein Prefab baut außerdem die Karten der bearbeiteten Szene neu, die es instanziieren, direkt oder über andere Prefabs, und zählt sie in `rebuilt` mit.
 
@@ -65,13 +65,13 @@ Ist der Port belegt, meistens durch einen zweiten Godot-Editor mit demselben Pro
 | `translate` | `ids`, `offset` | Nodes verschieben, beim Ziehen statt der Geometrie gesendet |
 | `properties` | `properties` | Die worldspawn-Eigenschaften ersetzen |
 
-Die `epoch` einer Karte steigt, wann immer sie außerhalb einer Live-Sitzung gebaut wird oder sich die `FuncGodotMap`-Nodes ändern, die sie nutzen. Zeigt der nächste `status` eine neue Epoch, fang mit `live_begin` von vorn an.
+Die `epoch` einer Karte steigt, wann immer sie außerhalb einer Live-Sitzung gebaut wird oder sich die `TrenchDotMap`-Nodes ändern, die sie nutzen. Zeigt der nächste `status` eine neue Epoch, fang mit `live_begin` von vorn an.
 
 Erzeugte Nodes tragen ihre Karten-Node-ID in den Metadaten `_td_id`, Ebenen- und Gruppen-Nodes in `_td_group`.
 
 ## Ohne Fenster testen { #testing-without-a-window }
 
-Der Link funktioniert auch mit einem Godot-Editor im Headless-Modus, was sich für automatisierte Tests anbietet. Öffne eine Szene mit einer `FuncGodotMap` und sende dann `inspect` an Port 7842, um zu sehen, was Godot gebaut hat:
+Der Link funktioniert auch mit einem Godot-Editor im Headless-Modus, was sich für automatisierte Tests anbietet. Öffne eine Szene mit einer `TrenchDotMap` und sende dann `inspect` an Port 7842, um zu sehen, was Godot gebaut hat:
 
 ```sh
 godot --headless --editor --path godot res://path/scene.tscn

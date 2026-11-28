@@ -18,7 +18,7 @@ it is a targetname you gave another entity. The other forms reach groups of thin
 | `!self` | The entity that owns the output | An entity acting on itself, like a button that disables itself |
 | `/root/Game` | An absolute node path, it must start with `/` | Autoloads and other game code outside the map |
 
-Targetnames are looked up inside the nearest `FuncGodotMap`, so two maps in one scene cannot reach each other's names.
+Targetnames are looked up inside the nearest `TrenchDotMap`, so two maps in one scene cannot reach each other's names.
 Groups, node paths and `!player` work across the whole tree, use them when one map has to talk to another.
 
 > [!NOTE]

@@ -34,7 +34,7 @@ Un prop referencia su modelo por una ruta `res://`, así que el archivo tiene qu
 
 ## Velo en Godot { #see-it-in-godot }
 
-Guarda el mapa dentro de tu proyecto de Godot y constrúyelo con un `FuncGodotMap`, mira [Construir mapas](../godot/building.md). Cada parte del mapa se convierte en un tipo distinto de nodo:
+Guarda el mapa dentro de tu proyecto de Godot y constrúyelo con un `TrenchDotMap`, mira [Construir mapas](../godot/building.md). Cada parte del mapa se convierte en un tipo distinto de nodo:
 
 | Parte del mapa | Qué obtienes en Godot |
 | --- | --- |

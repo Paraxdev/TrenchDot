@@ -63,7 +63,7 @@ source: 18fb3370f830b9fda2728d12b95c3b5cef06be64
 
 1. 安装插件
 
-    点击顶部的“安装插件”按钮，把 TrenchDot 的 FuncGodot 分支下载到你的项目中，这对 TrenchDot 至关重要。
+    点击顶部的“安装插件”按钮，把 TrenchDot 的 TrenchDot 分支下载到你的项目中，这对 TrenchDot 至关重要。
     （注：这会从 GitHub 发布页下载。如果你没有网络，请先下载 `func_godot-trenchdot-addon.zip`，再把它解压到项目根目录，手动安装。）
 
     完成后，点击“启用插件”，让 Godot 加载它。
@@ -161,10 +161,10 @@ source: 18fb3370f830b9fda2728d12b95c3b5cef06be64
 
 ## 5. 在 Godot 中看到它 { #5-see-it-in-godot }
 
-在 Godot 中，关卡是一个场景：一棵节点树，保存为 `.tscn` 文件，其中每个节点是一样东西，比如网格、灯光或摄像机。Godot 用 `res://` 来书写项目内的路径，所以 `res://maps/room.tdm` 就是你项目文件夹里的 `maps/room.tdm` 这个文件。地图由插件中的一个节点 `FuncGodotMap` 变成节点。
+在 Godot 中，关卡是一个场景：一棵节点树，保存为 `.tscn` 文件，其中每个节点是一样东西，比如网格、灯光或摄像机。Godot 用 `res://` 来书写项目内的路径，所以 `res://maps/room.tdm` 就是你项目文件夹里的 `maps/room.tdm` 这个文件。地图由插件中的一个节点 `TrenchDotMap` 变成节点。
 
 1. 在 Godot 编辑器中，选择 *Scene > New Scene*，然后在左侧的 Scene 面板中点击 **3D Scene**。
-2. 按 Ctrl+A（*Add Child Node*），搜索 `FuncGodotMap` 并添加它。
+2. 按 Ctrl+A（*Add Child Node*），搜索 `TrenchDotMap` 并添加它。
 3. 选中新节点后，在 Godot 自己的检查器里把 *Local Map File* 设为你的 `.tdm`，检查器就是 Godot 编辑器右侧的面板。它的用法和 TrenchDot 里的检查器一样，但属于 Godot。
 4. 点击那个检查器顶部的 **Build Map**，然后用 Ctrl+S 保存场景。
 
@@ -173,7 +173,7 @@ source: 18fb3370f830b9fda2728d12b95c3b5cef06be64
 让那个场景在 Godot 中保持打开，TrenchDot 里的每次保存都会重新构建它：当它的标签页是当前页时会立刻构建，否则在你切换回来时构建。在 Godot 中保存场景才能保留结果。如果某次保存没有触发重新构建，状态栏会说明原因，请看[保存时重新构建](godot/live.md#rebuild-on-save)。
 
 > [!WARNING]
-> 每次构建都会先删除 `FuncGodotMap` 的子节点。请把你自己的节点放在地图节点旁边，或者放进[叠加层](godot/overlays.md)里。
+> 每次构建都会先删除 `TrenchDotMap` 的子节点。请把你自己的节点放在地图节点旁边，或者放进[叠加层](godot/overlays.md)里。
 
 ## 试试演示项目 { #try-the-demo-project }
 

@@ -42,7 +42,7 @@ Live Link 是 TrenchDot 和 Godot 编辑器互相通信的方式。插件会在 
 
 `walkable` 用 `TrenchDotNav` 针对 `agent`（`radius`、`height`、`max_climb`、`max_slope`，单位分别是米和度）烘焙整个正在编辑的场景的导航网格，并以地图的单位和坐标轴返回。带 `text` 时，Godot 会先构建那张地图，除非它上一次就是根据同样的文本构建的。
 
-路径是带正斜杠的绝对路径。只有正在编辑的场景（即 Godot 显示的场景标签页）里开启了 *Auto Rebuild On Save* 的 `FuncGodotMap` 节点会参与。`scene` 是它的 `res://` 路径，没有打开场景时为空。
+路径是带正斜杠的绝对路径。只有正在编辑的场景（即 Godot 显示的场景标签页）里开启了 *Auto Rebuild On Save* 的 `TrenchDotMap` 节点会参与。`scene` 是它的 `res://` 路径，没有打开场景时为空。
 
 `waiting` 列出其他使用这张地图的已打开场景标签页。`map_saved` 之后，它们会在标签页显示时构建该文件，`build` 之后则不会。对预制体的 `map_saved` 还会重新构建正在编辑的场景里直接或通过其他预制体实例化它的那些地图，并把它们计入 `rebuilt`。
 
@@ -65,13 +65,13 @@ Live Link 是 TrenchDot 和 Godot 编辑器互相通信的方式。插件会在 
 | `translate` | `ids`、`offset` | 移动节点，拖动时发送它来代替几何体 |
 | `properties` | `properties` | 替换 worldspawn 属性 |
 
-只要地图在实时会话之外被构建，或者使用它的 `FuncGodotMap` 节点发生变化，地图的 `epoch` 就会增加。下一次 `status` 显示新的 epoch 时，就用 `live_begin` 重新开始。
+只要地图在实时会话之外被构建，或者使用它的 `TrenchDotMap` 节点发生变化，地图的 `epoch` 就会增加。下一次 `status` 显示新的 epoch 时，就用 `live_begin` 重新开始。
 
 生成的节点在 `_td_id` 元数据里带着它们的地图节点 id，图层和分组节点则在 `_td_group` 里。
 
 ## 不开窗口测试 { #testing-without-a-window }
 
-这条链接也能配合无头的 Godot 编辑器使用，适合自动化测试。打开一个带有 `FuncGodotMap` 的场景，然后向 7842 端口发送 `inspect`，就能看到 Godot 构建出了什么：
+这条链接也能配合无头的 Godot 编辑器使用，适合自动化测试。打开一个带有 `TrenchDotMap` 的场景，然后向 7842 端口发送 `inspect`，就能看到 Godot 构建出了什么：
 
 ```sh
 godot --headless --editor --path godot res://path/scene.tscn

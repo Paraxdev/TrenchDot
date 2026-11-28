@@ -34,7 +34,7 @@ source: 5d131fe08a12db6615a97a4cbd455746685c5f02
 
 ## 在 Godot 里看看 { #see-it-in-godot }
 
-把地图保存在你的 Godot 项目里，然后用 `FuncGodotMap` 构建它，参见[构建地图](../godot/building.md)。地图的每个部分会变成不同种类的节点：
+把地图保存在你的 Godot 项目里，然后用 `TrenchDotMap` 构建它，参见[构建地图](../godot/building.md)。地图的每个部分会变成不同种类的节点：
 
 | 地图部分 | 你在 Godot 里得到什么 |
 | --- | --- |

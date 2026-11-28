@@ -2907,7 +2907,7 @@ fn write_model_textures(
         write_new(&dir.join(file), png).map_err(failed)?;
     }
 
-    // Only a .tres is text. Without a file FuncGodot builds the material from its default one.
+    // Only a .tres is text. Without a file TrenchDot builds the material from its default one.
     let tres = target.material_ext.eq_ignore_ascii_case("tres");
     let res = |file: String| td_formats::game::to_res_path(&target.project_root, &dir.join(file));
     let mut names = Vec::new();
@@ -5983,12 +5983,12 @@ mod tests {
         let (mut state, dir) = fresh_project("place_material_dir");
         state.game.textures.material_dir = "res://materials".into();
         place_model_mesh(&mut state, &nature_model("grass_tall"), DVec3::ZERO).unwrap();
-        assert!(dir.join("materials/models/grass_tall/tex0.tres").is_file(), "FuncGodot looks for it in its material folder");
+        assert!(dir.join("materials/models/grass_tall/tex0.tres").is_file(), "TrenchDot looks for it in its material folder");
         assert!(!dir.join("textures/models/grass_tall/tex0.tres").exists());
         let grass = state.materials.info("models/grass_tall/tex0").expect("the editor finds it there too");
         assert_eq!(grass.transparency, td_formats::godot_material::Transparency::Scissor(0.5));
 
-        // Only text resources are written, FuncGodot makes the material from its default one otherwise.
+        // Only text resources are written, TrenchDot makes the material from its default one otherwise.
         state.game.textures.material_extension = "material".into();
         place_model_mesh(&mut state, &nature_model("fern"), DVec3::ZERO).unwrap();
         assert_eq!(placed_materials(&state), ["models/fern/tex0"]);

@@ -65,7 +65,7 @@ var region := await TrenchDotNav.bake_region(map, TrenchDotNav.profile(0.5, 1.2)
 
 1. Godotでシーンを開く
 
-    マップをプロジェクトの中に保存し、そのマップをビルドする`FuncGodotMap`を含むシーンで、プロジェクトをGodotエディターで開きます。
+    マップをプロジェクトの中に保存し、そのマップをビルドする`TrenchDotMap`を含むシーンで、プロジェクトをGodotエディターで開きます。
 
 2. 歩行可能エリアをオンにする
 
