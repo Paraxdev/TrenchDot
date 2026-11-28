@@ -3351,8 +3351,8 @@ mod tests {
         assert!(id_list(&json!({ "ids": [1, -3] }), "ids").is_err());
         assert!(face_list(&json!({ "faces": [[1]] }), "faces").is_err());
         assert_eq!(
-            path_text(std::path::Path::new("D:/dev/TrenchWorld/godot\\demo/textures\\night\\lit.tres")),
-            "D:/dev/TrenchWorld/godot/demo/textures/night/lit.tres"
+            path_text(std::path::Path::new("D:/dev/TrenchDot/godot\\demo/textures\\night\\lit.tres")),
+            "D:/dev/TrenchDot/godot/demo/textures/night/lit.tres"
         );
         assert_eq!(path_value(None::<&std::path::Path>), Value::Null);
         assert_eq!(id_list(&json!({ "ids": [[1, 2], 3, [[4]]] }), "ids"), Ok(vec![NodeId(1), NodeId(2), NodeId(3), NodeId(4)]), "joined id lists flatten");
