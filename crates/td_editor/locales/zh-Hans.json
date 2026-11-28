@@ -2937,5 +2937,14 @@
   "Push {dist}, Tab switches to Extrude": "推动 {dist}，Tab 切换到挤出",
   "Extrude {dist}, Tab switches to Cut": "挤出 {dist}，Tab 切换到切割",
   "Cut {dist}, Tab switches to Push": "切割 {dist}，Tab 切换到推动",
-  "The box touches nothing": "框没有接触到任何对象"
+  "The box touches nothing": "框没有接触到任何对象",
+  "It is a git checkout in the old folder res://addons/func_godot. Move it with git mv addons/func_godot addons/trenchdot, this window then points the project's files at the new folder.": "这是旧文件夹 res://addons/func_godot 里的 git 检出。用 git mv addons/func_godot addons/trenchdot 移动它，之后此窗口会把项目文件改为指向新文件夹。",
+  "Pointed {count} project files at res://addons/trenchdot.": "已把项目里的 {count} 个文件改为指向 res://addons/trenchdot。",
+  "An older copy of the addon is still in res://addons/func_godot, next to res://addons/trenchdot. Godot finds each of its classes twice.": "res://addons/func_godot 里仍有一份旧的插件副本，与 res://addons/trenchdot 并存。Godot 会把它的每个类找到两次。",
+  "Files in this project still point at res://addons/func_godot, where the addon used to be.": "此项目中的文件仍指向插件原来所在的 res://addons/func_godot。",
+  "Finish moving the addon": "完成插件的移动",
+  "Points the project's scenes, scripts and settings at res://addons/trenchdot": "把项目的场景、脚本和设置改为指向 res://addons/trenchdot",
+  "The old copy is kept in a backup folder.": "旧副本会保留在备份文件夹中。",
+  "res://addons/func_godot is a git checkout, remove it with git": "res://addons/func_godot 是 git 检出，请用 git 删除它",
+  "res://addons/func_godot is a git checkout, move it to res://addons/trenchdot with git": "res://addons/func_godot 是 git 检出，请用 git 把它移到 res://addons/trenchdot"
 }

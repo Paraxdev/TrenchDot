@@ -2937,5 +2937,14 @@
   "Push {dist}, Tab switches to Extrude": "Empurrar {dist}, Tab muda para Extrudar",
   "Extrude {dist}, Tab switches to Cut": "Extrudar {dist}, Tab muda para Cortar",
   "Cut {dist}, Tab switches to Push": "Cortar {dist}, Tab muda para Empurrar",
-  "The box touches nothing": "A caixa não toca em nada"
+  "The box touches nothing": "A caixa não toca em nada",
+  "It is a git checkout in the old folder res://addons/func_godot. Move it with git mv addons/func_godot addons/trenchdot, this window then points the project's files at the new folder.": "É um checkout git na pasta antiga res://addons/func_godot. Mova-o com git mv addons/func_godot addons/trenchdot, depois esta janela faz os arquivos do projeto apontarem para a pasta nova.",
+  "Pointed {count} project files at res://addons/trenchdot.": "{count} arquivos do projeto agora apontam para res://addons/trenchdot.",
+  "An older copy of the addon is still in res://addons/func_godot, next to res://addons/trenchdot. Godot finds each of its classes twice.": "Ainda há uma cópia antiga do addon em res://addons/func_godot, ao lado de res://addons/trenchdot. O Godot encontra cada uma das suas classes duas vezes.",
+  "Files in this project still point at res://addons/func_godot, where the addon used to be.": "Arquivos deste projeto ainda apontam para res://addons/func_godot, onde o addon ficava.",
+  "Finish moving the addon": "Concluir a mudança do addon",
+  "Points the project's scenes, scripts and settings at res://addons/trenchdot": "Faz as cenas, scripts e configurações do projeto apontarem para res://addons/trenchdot",
+  "The old copy is kept in a backup folder.": "A cópia antiga fica guardada numa pasta de backup.",
+  "res://addons/func_godot is a git checkout, remove it with git": "res://addons/func_godot é um checkout git, remova-o com git",
+  "res://addons/func_godot is a git checkout, move it to res://addons/trenchdot with git": "res://addons/func_godot é um checkout git, mova-o para res://addons/trenchdot com git"
 }

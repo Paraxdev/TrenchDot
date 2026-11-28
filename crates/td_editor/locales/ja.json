@@ -2937,5 +2937,14 @@
   "Push {dist}, Tab switches to Extrude": "押す {dist}、Tab で押し出しへ",
   "Extrude {dist}, Tab switches to Cut": "押し出し {dist}、Tab で切り抜きへ",
   "Cut {dist}, Tab switches to Push": "切り抜き {dist}、Tab で押すへ",
-  "The box touches nothing": "ボックスは何にも触れていません"
+  "The box touches nothing": "ボックスは何にも触れていません",
+  "It is a git checkout in the old folder res://addons/func_godot. Move it with git mv addons/func_godot addons/trenchdot, this window then points the project's files at the new folder.": "古いフォルダres://addons/func_godotにあるgitチェックアウトです。git mv addons/func_godot addons/trenchdotで移動すると、このウィンドウがプロジェクトのファイルを新しいフォルダに向けます。",
+  "Pointed {count} project files at res://addons/trenchdot.": "プロジェクトの{count}個のファイルをres://addons/trenchdotに向けました。",
+  "An older copy of the addon is still in res://addons/func_godot, next to res://addons/trenchdot. Godot finds each of its classes twice.": "res://addons/trenchdotの隣のres://addons/func_godotに、アドオンの古いコピーが残っています。Godotはそのクラスをすべて二重に見つけます。",
+  "Files in this project still point at res://addons/func_godot, where the addon used to be.": "このプロジェクトのファイルが、アドオンが以前あったres://addons/func_godotをまだ参照しています。",
+  "Finish moving the addon": "アドオンの移動を完了",
+  "Points the project's scenes, scripts and settings at res://addons/trenchdot": "プロジェクトのシーン、スクリプト、設定をres://addons/trenchdotに向けます",
+  "The old copy is kept in a backup folder.": "古いコピーはバックアップフォルダに残ります。",
+  "res://addons/func_godot is a git checkout, remove it with git": "res://addons/func_godotはgitチェックアウトです。gitで削除してください",
+  "res://addons/func_godot is a git checkout, move it to res://addons/trenchdot with git": "res://addons/func_godotはgitチェックアウトです。gitでres://addons/trenchdotに移動してください"
 }

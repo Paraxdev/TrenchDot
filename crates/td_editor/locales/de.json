@@ -2937,5 +2937,14 @@
   "Push {dist}, Tab switches to Extrude": "Schieben {dist}, Tab wechselt zu Extrudieren",
   "Extrude {dist}, Tab switches to Cut": "Extrudieren {dist}, Tab wechselt zu Schneiden",
   "Cut {dist}, Tab switches to Push": "Schneiden {dist}, Tab wechselt zu Schieben",
-  "The box touches nothing": "Die Box berührt nichts"
+  "The box touches nothing": "Die Box berührt nichts",
+  "It is a git checkout in the old folder res://addons/func_godot. Move it with git mv addons/func_godot addons/trenchdot, this window then points the project's files at the new folder.": "Es ist ein Git-Checkout im alten Ordner res://addons/func_godot. Verschiebe ihn mit git mv addons/func_godot addons/trenchdot, dieses Fenster stellt danach die Dateien des Projekts auf den neuen Ordner um.",
+  "Pointed {count} project files at res://addons/trenchdot.": "{count} Projektdateien auf res://addons/trenchdot umgestellt.",
+  "An older copy of the addon is still in res://addons/func_godot, next to res://addons/trenchdot. Godot finds each of its classes twice.": "Eine ältere Kopie des Addons liegt noch in res://addons/func_godot, neben res://addons/trenchdot. Godot findet jede ihrer Klassen doppelt.",
+  "Files in this project still point at res://addons/func_godot, where the addon used to be.": "Dateien in diesem Projekt verweisen noch auf res://addons/func_godot, wo das Addon früher lag.",
+  "Finish moving the addon": "Umzug des Addons abschließen",
+  "Points the project's scenes, scripts and settings at res://addons/trenchdot": "Stellt Szenen, Skripte und Einstellungen des Projekts auf res://addons/trenchdot um",
+  "The old copy is kept in a backup folder.": "Die alte Kopie bleibt in einem Backup-Ordner.",
+  "res://addons/func_godot is a git checkout, remove it with git": "res://addons/func_godot ist ein Git-Checkout, entferne ihn mit Git",
+  "res://addons/func_godot is a git checkout, move it to res://addons/trenchdot with git": "res://addons/func_godot ist ein Git-Checkout, verschiebe ihn mit Git nach res://addons/trenchdot"
 }

@@ -2937,5 +2937,14 @@
   "Push {dist}, Tab switches to Extrude": "Pousser {dist}, Tab passe à Extruder",
   "Extrude {dist}, Tab switches to Cut": "Extruder {dist}, Tab passe à Découper",
   "Cut {dist}, Tab switches to Push": "Découper {dist}, Tab passe à Pousser",
-  "The box touches nothing": "La boîte ne touche rien"
+  "The box touches nothing": "La boîte ne touche rien",
+  "It is a git checkout in the old folder res://addons/func_godot. Move it with git mv addons/func_godot addons/trenchdot, this window then points the project's files at the new folder.": "C'est un checkout git dans l'ancien dossier res://addons/func_godot. Déplacez-le avec git mv addons/func_godot addons/trenchdot, cette fenêtre fait ensuite pointer les fichiers du projet vers le nouveau dossier.",
+  "Pointed {count} project files at res://addons/trenchdot.": "{count} fichiers du projet pointent maintenant vers res://addons/trenchdot.",
+  "An older copy of the addon is still in res://addons/func_godot, next to res://addons/trenchdot. Godot finds each of its classes twice.": "Une ancienne copie de l'addon se trouve encore dans res://addons/func_godot, à côté de res://addons/trenchdot. Godot trouve chacune de ses classes deux fois.",
+  "Files in this project still point at res://addons/func_godot, where the addon used to be.": "Des fichiers de ce projet pointent encore vers res://addons/func_godot, où se trouvait l'addon.",
+  "Finish moving the addon": "Terminer le déplacement de l'addon",
+  "Points the project's scenes, scripts and settings at res://addons/trenchdot": "Fait pointer les scènes, scripts et réglages du projet vers res://addons/trenchdot",
+  "The old copy is kept in a backup folder.": "L'ancienne copie est gardée dans un dossier de sauvegarde.",
+  "res://addons/func_godot is a git checkout, remove it with git": "res://addons/func_godot est un checkout git, retirez-le avec git",
+  "res://addons/func_godot is a git checkout, move it to res://addons/trenchdot with git": "res://addons/func_godot est un checkout git, déplacez-le vers res://addons/trenchdot avec git"
 }

@@ -2937,5 +2937,14 @@
   "Push {dist}, Tab switches to Extrude": "Empujar {dist}, Tab cambia a Extruir",
   "Extrude {dist}, Tab switches to Cut": "Extruir {dist}, Tab cambia a Cortar",
   "Cut {dist}, Tab switches to Push": "Cortar {dist}, Tab cambia a Empujar",
-  "The box touches nothing": "La caja no toca nada"
+  "The box touches nothing": "La caja no toca nada",
+  "It is a git checkout in the old folder res://addons/func_godot. Move it with git mv addons/func_godot addons/trenchdot, this window then points the project's files at the new folder.": "Es un checkout de git en la carpeta antigua res://addons/func_godot. Muévelo con git mv addons/func_godot addons/trenchdot, después esta ventana hace que los archivos del proyecto apunten a la carpeta nueva.",
+  "Pointed {count} project files at res://addons/trenchdot.": "{count} archivos del proyecto apuntan ahora a res://addons/trenchdot.",
+  "An older copy of the addon is still in res://addons/func_godot, next to res://addons/trenchdot. Godot finds each of its classes twice.": "Todavía hay una copia antigua del addon en res://addons/func_godot, junto a res://addons/trenchdot. Godot encuentra cada una de sus clases dos veces.",
+  "Files in this project still point at res://addons/func_godot, where the addon used to be.": "Hay archivos de este proyecto que aún apuntan a res://addons/func_godot, donde estaba el addon.",
+  "Finish moving the addon": "Terminar de mover el addon",
+  "Points the project's scenes, scripts and settings at res://addons/trenchdot": "Hace que las escenas, scripts y ajustes del proyecto apunten a res://addons/trenchdot",
+  "The old copy is kept in a backup folder.": "La copia antigua se guarda en una carpeta de respaldo.",
+  "res://addons/func_godot is a git checkout, remove it with git": "res://addons/func_godot es un checkout de git, quítalo con git",
+  "res://addons/func_godot is a git checkout, move it to res://addons/trenchdot with git": "res://addons/func_godot es un checkout de git, muévelo a res://addons/trenchdot con git"
 }

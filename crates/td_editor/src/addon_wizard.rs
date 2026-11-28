@@ -6,9 +6,9 @@ use std::time::Duration;
 
 use egui::{RichText, Ui};
 
-use crate::addon_install::{self, Installed, Job, Outcome, Status};
+use crate::addon_install::{self, Installed, Job, Leftover, Outcome, Status};
 use crate::content::Error;
-use crate::i18n::{self, en, tr, trf};
+use crate::i18n::{self, Msg, en, tr, trf};
 use crate::state::EditorState;
 use crate::theme;
 
@@ -28,6 +28,8 @@ pub struct AddonWizard {
     outcome: Option<Outcome>,
     /// What enabling the plugin said.
     enabled: Option<Result<bool, String>>,
+    /// What finishing a move out of the old addon folder said: how many files changed and where the old copy went.
+    moved: Option<Result<(usize, Option<PathBuf>), Msg>>,
     /// Where the release is looked up, [`crate::content::api_url`] unless a test serves it.
     pub api: Option<String>,
 }
@@ -38,6 +40,7 @@ impl AddonWizard {
         if self.job.is_none() {
             self.outcome = None;
             self.enabled = None;
+            self.moved = None;
         }
 
         self.checked = None;
@@ -65,6 +68,7 @@ impl AddonWizard {
 
         self.outcome = None;
         self.enabled = None;
+        self.moved = None;
         let api = self.api.clone().unwrap_or_else(crate::content::api_url);
         self.job = Some((root.clone(), Job::start(root, api, repaint)));
     }
@@ -135,7 +139,13 @@ impl AddonWizard {
             }
         }
 
+        self.moved_ui(ui);
         let godot_open = state.godot_has_project();
+        if let Some(leftover) = status.leftover {
+            self.leftover_ui(ui, root, leftover, godot_open);
+            return;
+        }
+
         let editor = crate::VERSION;
         let (text, button) = match &status.installed {
             Installed::Missing => {
@@ -172,7 +182,14 @@ impl AddonWizard {
         }
 
         if status.git {
-            ui.label(RichText::new(tr("It is a git checkout, update it with git.")).color(theme::colors().yellow));
+            let text = if status.legacy {
+                tr(
+                    "It is a git checkout in the old folder res://addons/func_godot. Move it with git mv addons/func_godot addons/trenchdot, this window then points the project's files at the new folder.",
+                )
+            } else {
+                tr("It is a git checkout, update it with git.")
+            };
+            ui.label(RichText::new(text).color(theme::colors().yellow));
             return;
         }
 
@@ -188,6 +205,58 @@ impl AddonWizard {
 
         if replacing && !godot_open {
             ui.label(RichText::new(tr("The old addon is kept in a backup folder. Close Godot first if it has this project open.")).weak());
+        }
+    }
+
+    fn moved_ui(&self, ui: &mut Ui) {
+        match &self.moved {
+            Some(Ok((count, backup))) => {
+                let text = trf!("Pointed {count} project files at res://addons/trenchdot.", count);
+                ui.label(RichText::new(text).color(theme::colors().success()));
+                if let Some(backup) = backup
+                    && ui.button(tr("Show Backup")).on_hover_text(tr("Shows the folder with the old addon")).clicked()
+                {
+                    crate::panels::show_in_file_manager(backup);
+                }
+            }
+            Some(Err(e)) => {
+                ui.label(RichText::new(&e.shown).color(theme::colors().warning()));
+            }
+            None => {}
+        }
+    }
+
+    /// The addon reached [`addon_install::DIR`] without the editor moving it, so what the move leaves behind is still
+    /// there.
+    fn leftover_ui(&mut self, ui: &mut Ui, root: &Path, leftover: Leftover, godot_open: bool) {
+        ui.ctx().request_repaint_after(Duration::from_secs_f64(RECHECK));
+        ui.label(match leftover {
+            Leftover::Copy { .. } => {
+                tr("An older copy of the addon is still in res://addons/func_godot, next to res://addons/trenchdot. Godot finds each of its classes twice.")
+            }
+            Leftover::Paths => tr("Files in this project still point at res://addons/func_godot, where the addon used to be."),
+        });
+        if leftover == (Leftover::Copy { git: true }) {
+            ui.label(RichText::new(tr(addon_install::LEGACY_GIT)).color(theme::colors().yellow));
+            return;
+        }
+
+        if godot_open {
+            ui.label(RichText::new(tr("Godot has this project open. Close it first.")).color(theme::colors().yellow));
+        }
+
+        let go = ui.add_enabled(!godot_open, egui::Button::new(RichText::new(tr("Finish moving the addon")).strong()));
+        if go
+            .on_hover_text(tr("Points the project's scenes, scripts and settings at res://addons/trenchdot"))
+            .on_disabled_hover_text(tr("Close Godot first"))
+            .clicked()
+        {
+            self.moved = Some(addon_install::finish_move(root).map_err(|e| e.message()));
+            self.checked = None;
+        }
+
+        if matches!(leftover, Leftover::Copy { .. }) && !godot_open {
+            ui.label(RichText::new(tr("The old copy is kept in a backup folder.")).weak());
         }
     }
 
@@ -407,6 +476,34 @@ mod tests {
         assert!(harness.query_by_label("Show Backup").is_some());
         assert!(harness.query_by_label("the GitHub releases").is_none());
         assert!(root.join(addon_install::BACKUPS).join("trenchdot-0.0.1/plugin.cfg").is_file());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn an_addon_moved_by_hand_gets_its_old_copy_and_paths_cleaned_up() {
+        let server = Server::start();
+        let godot = "[editor_plugins]\n\nenabled=PackedStringArray(\"res://addons/func_godot/plugin.cfg\")\n";
+        let (mut fixture, root) = known("by_hand", godot, &server);
+        let cfg = format!("[plugin]\nname=\"TrenchDot\"\nversion=\"{}\"\n", crate::VERSION);
+        for dir in [addon_install::DIR, td_doc::legacy::ADDON_DIR] {
+            std::fs::create_dir_all(root.join(dir)).unwrap();
+            std::fs::write(root.join(dir).join("plugin.cfg"), &cfg).unwrap();
+        }
+
+        fixture.state.content_request = None;
+        fixture.state.load_project(&root);
+        assert_eq!(fixture.state.content_request, Some(ContentRequest::Addon(root.clone())), "a half done move asks on its own");
+        let mut harness = harness(fixture);
+        harness.run();
+        assert!(harness.query_by_label_contains("An older copy of the addon is still in res://addons/func_godot").is_some());
+        harness.get_by_label("Finish moving the addon").click();
+        harness.run();
+        assert!(harness.query_by_label("Pointed 1 project files at res://addons/trenchdot.").is_some());
+        assert!(harness.query_by_label("Show Backup").is_some());
+        assert!(!root.join(td_doc::legacy::ADDON_DIR).exists());
+        assert!(root.join(addon_install::BACKUPS).join("func_godot/plugin.cfg").is_file());
+        assert!(addon_install::Status::check(&root).enabled);
+        assert!(harness.query_by_label("Finish moving the addon").is_none());
         std::fs::remove_dir_all(&root).unwrap();
     }
 

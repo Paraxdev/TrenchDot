@@ -45,8 +45,13 @@ paths. Godot lists their missing files when you open them, point each one at the
 
 If the download fails, the window links to the [releases](https://github.com/Paraxdev/TrenchDot/releases) and
 [itch.io](https://paraxdev.itch.io/trenchdot), which carry the same `trenchdot-addon.zip`. Extract it
-into the project folder so you get `addons/trenchdot`, and replace the old folder instead of unpacking over it. An
-unpacked zip does not move an addon out of `addons/func_godot`, let TrenchDot do the first update after the move.
+into the project folder so you get `addons/trenchdot`, and replace the old folder instead of unpacking over it.
+
+If you moved the addon out of `addons/func_godot` yourself, by unpacking the zip or with `git mv`, the window notices
+what the move left behind. It offers **Finish moving the addon**, which puts an older copy still in `addons/func_godot`
+into the backups, since Godot would find every class of the addon twice, and points your files and settings at
+`addons/trenchdot`. An addon kept as a git submodule in `addons/func_godot` is never moved by the editor. Run
+`git mv addons/func_godot addons/trenchdot` in the folder that holds `addons`, then finish the move from the window.
 
 ## Core entities and the Gameplay entities pack
 

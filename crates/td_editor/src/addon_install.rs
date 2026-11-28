@@ -28,6 +28,8 @@ pub const BACKUPS: &str = ".trenchdot/addon-backups";
 const UNPACKING: &str = "addon-new-";
 
 const GIT: &str = en!("res://addons/trenchdot is a git checkout, update it with git");
+pub const LEGACY_GIT: &str = en!("res://addons/func_godot is a git checkout, remove it with git");
+const LEGACY_GIT_MOVE: &str = en!("res://addons/func_godot is a git checkout, move it to res://addons/trenchdot with git");
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum Installed {
@@ -40,11 +42,23 @@ pub enum Installed {
     Current,
 }
 
+/// What is left of a move out of [`legacy::ADDON_DIR`] that happened without the editor, by hand or with git.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Leftover {
+    /// An older TrenchDot addon is still in the old folder, so Godot finds each of its classes twice.
+    Copy { git: bool },
+    /// Project files still point into the old folder, which nothing holds.
+    Paths,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Status {
     pub installed: Installed,
     /// The addon folder is a git checkout or submodule, which git updates rather than the editor.
     pub git: bool,
+    /// The addon is in [`legacy::ADDON_DIR`] and [`DIR`] is missing.
+    pub legacy: bool,
+    pub leftover: Option<Leftover>,
     /// Listed among the enabled plugins in project.godot.
     pub enabled: bool,
     /// The project has a trenchdot_game.json, so the addon ran in Godot at least once.
@@ -61,13 +75,21 @@ impl Status {
             None => Installed::Missing,
         };
         let project = std::fs::read_to_string(root.join("project.godot")).unwrap_or_default();
-        let git = dir.join(".git").exists() || (legacy && root.join(legacy::ADDON_DIR).join(".git").exists());
-        Status { installed, git, enabled: plugin_enabled(&project), exported: td_formats::GameConfig::discover(root).is_some() }
+        let old = root.join(legacy::ADDON_DIR);
+        let leftover = match dir.exists() {
+            false => None,
+            true if legacy => Some(Leftover::Copy { git: old.join(".git").exists() }),
+            true if !old.exists() && project.contains(OLD_RES) => Some(Leftover::Paths),
+            true => None,
+        };
+        let moved = dir.exists() || !legacy;
+        let git = if moved { dir.join(".git").exists() } else { old.join(".git").exists() };
+        Status { installed, git, legacy: !moved, leftover, enabled: plugin_enabled(&project), exported: td_formats::GameConfig::discover(root).is_some() }
     }
 
-    /// The addon is missing or does not match the editor.
+    /// The addon is missing, does not match the editor or was moved out of the old folder only halfway.
     pub fn mismatched(&self) -> bool {
-        self.installed != Installed::Current
+        self.installed != Installed::Current || self.leftover.is_some()
     }
 
     /// Names what a person dismissed: this editor's version and what the project had.
@@ -78,7 +100,8 @@ impl Status {
             Installed::Older(v) | Installed::Newer(v) => v,
             Installed::Current => "current",
         };
-        format!("{} {had}", crate::VERSION)
+        let leftover = if self.leftover.is_some() { " leftover" } else { "" };
+        format!("{} {had}{leftover}", crate::VERSION)
     }
 }
 
@@ -304,7 +327,7 @@ pub fn install(root: &Path, api: &str, report: &Reporter) -> Outcome {
     let before = Status::check(root);
     let mut outcome = Outcome { before: before.installed.clone(), ..Default::default() };
     if before.git {
-        outcome.error = Some(Error::Io(Msg::key(GIT)));
+        outcome.error = Some(Error::Io(Msg::key(if before.legacy { LEGACY_GIT_MOVE } else { GIT })));
         return outcome;
     }
 
@@ -364,17 +387,7 @@ fn swap(root: &Path, new: &Path, before: &Installed) -> Result<Option<PathBuf>, 
     }
 
     if old.join(".git").exists() {
-        return Err(Error::Io(Msg::key(GIT)));
-    }
-
-    let backups = root.join(BACKUPS);
-    std::fs::create_dir_all(&backups).map_err(|e| io_error(e, &backups))?;
-    // In case Godot ever looks into hidden folders, and so a project in git does not pick the backups up.
-    for (name, text) in [(".gdignore", ""), (".gitignore", "*\n")] {
-        let path = backups.join(name);
-        if !path.exists() {
-            std::fs::write(&path, text).map_err(|e| io_error(e, &path))?;
-        }
+        return Err(Error::Io(Msg::key(if old == target { GIT } else { LEGACY_GIT_MOVE })));
     }
 
     let version = match before {
@@ -382,10 +395,7 @@ fn swap(root: &Path, new: &Path, before: &Installed) -> Result<Option<PathBuf>, 
         Installed::Current => crate::VERSION.to_string(),
         _ => "unknown".to_string(),
     };
-    let backup = (1..)
-        .map(|n| backups.join(if n == 1 { format!("trenchdot-{version}") } else { format!("trenchdot-{version}-{n}") }))
-        .find(|p| std::fs::symlink_metadata(p).is_err())
-        .expect("a free backup name");
+    let backup = backup_dir(root, &format!("trenchdot-{version}"))?;
     std::fs::rename(&old, &backup).map_err(|e| Error::Io(msg!("Could not move the old addon ({e}). Close Godot and try again.", e)))?;
     if let Err(e) = std::fs::rename(new, &target) {
         let back = std::fs::rename(&backup, &old);
@@ -401,6 +411,42 @@ fn swap(root: &Path, new: &Path, before: &Installed) -> Result<Option<PathBuf>, 
     }
 
     Ok(Some(backup))
+}
+
+/// A free folder in [`BACKUPS`] named after `name`.
+fn backup_dir(root: &Path, name: &str) -> Result<PathBuf, Error> {
+    let backups = root.join(BACKUPS);
+    std::fs::create_dir_all(&backups).map_err(|e| io_error(e, &backups))?;
+    // In case Godot ever looks into hidden folders, and so a project in git does not pick the backups up.
+    for (name, text) in [(".gdignore", ""), (".gitignore", "*\n")] {
+        let path = backups.join(name);
+        if !path.exists() {
+            std::fs::write(&path, text).map_err(|e| io_error(e, &path))?;
+        }
+    }
+
+    Ok((1..)
+        .map(|n| backups.join(if n == 1 { name.to_string() } else { format!("{name}-{n}") }))
+        .find(|p| std::fs::symlink_metadata(p).is_err())
+        .expect("a free backup name"))
+}
+
+/// Finishes a move into [`DIR`] done without the editor: an older copy left in [`legacy::ADDON_DIR`] goes to the
+/// backups, then [`migrate`] points the project at the new folder. Returns how many files changed and the backup.
+pub fn finish_move(root: &Path) -> Result<(usize, Option<PathBuf>), Error> {
+    let old = root.join(legacy::ADDON_DIR);
+    let mut backup = None;
+    if root.join(DIR).exists() && td_formats::game::legacy_addon(root).is_some() {
+        if old.join(".git").exists() {
+            return Err(Error::Io(Msg::key(LEGACY_GIT)));
+        }
+
+        let to = backup_dir(root, "func_godot")?;
+        std::fs::rename(&old, &to).map_err(|e| Error::Io(msg!("Could not move the old addon ({e}). Close Godot and try again.", e)))?;
+        backup = Some(to);
+    }
+
+    Ok((migrate(root)?, backup))
 }
 
 const OLD_RES: &str = "res://addons/func_godot/";
@@ -574,7 +620,7 @@ mod tests {
     fn detects_what_the_project_has() {
         let root = project("detect", "config_version=5\n");
         let status = Status::check(&root);
-        assert_eq!(status, Status { installed: Installed::Missing, git: false, enabled: false, exported: false });
+        assert_eq!(status, Status { installed: Installed::Missing, git: false, legacy: false, leftover: None, enabled: false, exported: false });
         assert!(should_ask(&root, &BTreeMap::new()));
         assert!(!should_ask(&root, &BTreeMap::from([(root.clone(), status.dismiss_key())])), "dismissed for this version");
         assert!(should_ask(&root, &BTreeMap::from([(root.clone(), "0.0.1 missing".to_string())])), "a new editor asks again");
@@ -601,7 +647,7 @@ mod tests {
         std::fs::write(root.join("project.godot"), format!("[editor_plugins]\n\nenabled=PackedStringArray(\"{PLUGIN}\")\n")).unwrap();
         std::fs::write(root.join(td_formats::game::GAME_FILE_NAME), "{}").unwrap();
         let status = Status::check(&root);
-        assert_eq!(status, Status { installed: Installed::Current, git: true, enabled: true, exported: true });
+        assert_eq!(status, Status { installed: Installed::Current, git: true, legacy: false, leftover: None, enabled: true, exported: true });
         assert!(!status.mismatched() && !should_ask(&root, &BTreeMap::new()));
         std::fs::remove_dir_all(&root).unwrap();
     }
@@ -759,6 +805,62 @@ mod tests {
         assert!(upstream.join("plugin.cfg").is_file() && root.join(DIR).join("plugin.cfg").is_file(), "both addons sit side by side");
         assert_eq!(std::fs::read_to_string(root.join("project.godot")).unwrap(), godot);
         assert!(std::fs::read_to_string(root.join("level.tscn")).unwrap().contains("uid://up"));
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn a_move_done_without_the_editor_is_finished() {
+        let godot = "config_version=5\n\n[editor_plugins]\n\nenabled=PackedStringArray(\"res://addons/func_godot/plugin.cfg\")\n\n[func_godot]\n\ndefault_map_settings=\"res://ms.tres\"\n";
+        let root = project("by_hand", godot);
+        addon(&root, crate::VERSION);
+        std::fs::write(
+            root.join("level.tscn"),
+            "[ext_resource type=\"Script\" uid=\"uid://old\" path=\"res://addons/func_godot/src/map/func_godot_map.gd\" id=\"1\"]\n",
+        )
+        .unwrap();
+        let status = Status::check(&root);
+        assert_eq!((status.installed.clone(), status.leftover), (Installed::Current, Some(Leftover::Paths)));
+        assert!(status.mismatched() && should_ask(&root, &BTreeMap::new()));
+
+        let old = root.join(legacy::ADDON_DIR);
+        std::fs::create_dir_all(old.join(".git")).unwrap();
+        std::fs::write(old.join("plugin.cfg"), "[plugin]\n\nname=\"TrenchDot\"\nversion=\"0.0.1\"\n").unwrap();
+        assert_eq!(Status::check(&root).leftover, Some(Leftover::Copy { git: true }));
+        assert!(matches!(finish_move(&root), Err(Error::Io(why)) if why.en.contains("git")));
+        assert!(old.join("plugin.cfg").is_file() && root.join("level.tscn").is_file());
+
+        std::fs::remove_dir_all(old.join(".git")).unwrap();
+        assert_eq!(Status::check(&root).leftover, Some(Leftover::Copy { git: false }));
+        let (changed, backup) = finish_move(&root).unwrap();
+        assert_eq!(changed, 2, "the scene and project.godot");
+        assert!(!old.exists() && backup.is_some_and(|b| b.join("plugin.cfg").is_file()), "the old copy went to the backups");
+        assert_eq!(
+            std::fs::read_to_string(root.join("level.tscn")).unwrap(),
+            "[ext_resource type=\"Script\" path=\"res://addons/trenchdot/src/map/func_godot_map.gd\" id=\"1\"]\n"
+        );
+        let project = std::fs::read_to_string(root.join("project.godot")).unwrap();
+        assert!(plugin_enabled(&project) && !project.contains(OLD_RES), "{project}");
+        assert_eq!(crate::godot_settings::get(&project, "trenchdot", "default_map_settings").as_deref(), Some("res://ms.tres"));
+        let status = Status::check(&root);
+        assert_eq!(status.leftover, None);
+        assert!(!status.mismatched());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn an_addon_in_the_old_folder_under_git_is_left_to_git() {
+        let server = Server::start();
+        server.release("beta", &[(ADDON.asset, &release_zip(crate::VERSION))], true);
+        let root = project("legacy_git", "config_version=5\n");
+        let old = root.join(legacy::ADDON_DIR);
+        std::fs::create_dir_all(&old).unwrap();
+        std::fs::write(old.join("plugin.cfg"), "[plugin]\n\nname=\"TrenchDot\"\nversion=\"0.0.1\"\n").unwrap();
+        std::fs::write(old.join(".git"), "gitdir: ../../.git/modules/func_godot\n").unwrap();
+        let status = Status::check(&root);
+        assert!(status.git && status.legacy && status.leftover.is_none(), "{status:?}");
+        let outcome = install(&root, &server.url, &Reporter::default());
+        assert!(matches!(&outcome.error, Some(Error::Io(why)) if why.en.contains("move it to res://addons/trenchdot")), "{outcome:?}");
+        assert!(old.join("plugin.cfg").is_file());
         std::fs::remove_dir_all(&root).unwrap();
     }
 
