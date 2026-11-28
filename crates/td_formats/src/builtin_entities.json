@@ -34,7 +34,7 @@
     },
     {
       "classname": "light", "type": "point", "description": "Switchable omni light", "color": "#ffe64dff", "node_class": "OmniLight3D",
-      "script": "res://addons/func_godot/src/trenchdot/entities/td_light.gd",
+      "script": "res://addons/trenchdot/src/trenchdot/entities/td_light.gd",
       "properties": [
         { "name": "targetname", "type": "target_source", "description": "Name" },
         { "name": "light_energy", "type": "float", "default": "1.0", "description": "Brightness" },
@@ -59,7 +59,7 @@
     { "classname": "func_illusionary", "type": "solid", "description": "Visible geometry without collision", "color": "#b3b3ffff", "node_class": "Node3D", "properties": [] },
     {
       "classname": "light_spot", "type": "point", "description": "Switchable spot light", "color": "#ffe64dff", "node_class": "SpotLight3D",
-      "script": "res://addons/func_godot/src/trenchdot/entities/td_spot_light.gd",
+      "script": "res://addons/trenchdot/src/trenchdot/entities/td_spot_light.gd",
       "properties": [
         { "name": "targetname", "type": "target_source", "description": "Name" },
         { "name": "light_energy", "type": "float", "default": "1.5", "description": "Brightness" },
@@ -86,7 +86,7 @@
     },
     {
       "classname": "env_reflection_probe", "type": "solid", "description": "The brush becomes the box of a ReflectionProbe, which captures its surroundings for reflections inside it", "color": "#80d4ffff", "node_class": "ReflectionProbe",
-      "script": "res://addons/func_godot/src/trenchdot/entities/td_reflection_probe.gd",
+      "script": "res://addons/trenchdot/src/trenchdot/entities/td_reflection_probe.gd",
       "properties": [
         { "name": "intensity", "type": "float", "default": "1.0", "description": "Brightness of the reflections" },
         { "name": "update", "type": "choices", "default": "once", "description": "Capture once when the scene starts, or every frame for moving objects (costly)", "options": [["once", "once"], ["always", "always"]] },
@@ -97,7 +97,7 @@
     },
     {
       "classname": "env_voxel_gi", "type": "solid", "description": "The brush becomes the box of a VoxelGI, real time bounce light that follows moving lights and objects. It is baked in the Godot editor when the map is built", "color": "#b3ff80ff", "node_class": "VoxelGI",
-      "script": "res://addons/func_godot/src/trenchdot/entities/td_voxel_gi.gd",
+      "script": "res://addons/trenchdot/src/trenchdot/entities/td_voxel_gi.gd",
       "properties": [
         { "name": "subdiv", "type": "choices", "default": "128", "description": "Voxels along the longest side, more is sharper and slower", "options": [["64", "64"], ["128", "128"], ["256", "256"], ["512", "512"]] },
         { "name": "energy", "type": "float", "default": "1.0", "description": "Brightness of the bounce light" },

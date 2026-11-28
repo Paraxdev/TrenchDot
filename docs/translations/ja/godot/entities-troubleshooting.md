@@ -33,7 +33,7 @@ Godotが定義のないエンティティをビルドすると、そのエンテ
 | メッセージの内容 | 理由 | 対処 |
 | --- | --- | --- |
 | ゲームプレイエンティティパックをインストールする | ドア、ボタン、トリガー、プロップ、スポナーはパックに含まれていて、プロジェクトにそれがありません | TrenchDotで*ゲームプレイ > ゲームプレイエンティティをインストール*を選びます。[プロジェクトのセットアップ](project-setup.md#installing-and-updating-the-pack)を参照してください |
-| FGDにゲームプレイエンティティパックがありません。`trenchdot_default_fgd.tres`をそのBase Fgd Filesに追加してください | FGDにBase Fgd Filesがありません | マップ設定がEntity Fgdに指定しているFGDのBase Fgd Filesに、`res://addons/func_godot/fgd/trenchdot_default_fgd.tres`を追加します |
+| FGDにゲームプレイエンティティパックがありません。`trenchdot_default_fgd.tres`をそのBase Fgd Filesに追加してください | FGDにBase Fgd Filesがありません | マップ設定がEntity Fgdに指定しているFGDのBase Fgd Filesに、`res://addons/trenchdot/fgd/trenchdot_default_fgd.tres`を追加します |
 | パックはインストール済みですが、Entity Fgdがアドオンに含まれるFGDです | マップ設定が、アドオン自身のFGDか、アドオンの別のファイルを使っていて、アドオンを更新するとそれが置き換えられます | そのマップ設定のEntity Fgdを、ゲーム設定が使うFGDにします |
 | 自作のクラスに定義がありません | ゲーム設定のFGDにはあるが、Godotがビルドに使うマップ設定のEntity Fgdにはありません | そのマップ設定のEntity Fgdを、ゲーム設定が使うFGDにします。[自分のリソース](project-setup.md#your-own-resources)を参照してください |
 | マップノードが、プロジェクト設定のものではなく、アドオンのデフォルトのマップ設定を使っています | ノードが古いアドオンで追加され、そのアドオンがデフォルトのマップ設定をシーンに保存していました | Godotでマップノードを選び、インスペクターのMap Settingsを空にします |

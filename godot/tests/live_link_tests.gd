@@ -167,7 +167,7 @@ static func _test_play(t) -> void:
 
 ## Override in project points these two settings at its files while Godot is open, any other change is refused whole.
 static func _test_project_settings(t) -> void:
-	const MAP_SETTINGS := "func_godot/default_map_settings"
+	const MAP_SETTINGS := "trenchdot/default_map_settings"
 	const CONFIG := "trenchdot/game_config"
 	var file := FileAccess.get_file_as_bytes("res://project.godot")
 	var before := { MAP_SETTINGS: ProjectSettings.get_setting(MAP_SETTINGS), CONFIG: ProjectSettings.get_setting(CONFIG) }

@@ -19,7 +19,7 @@ esquerdo dele.
 
 ![O painel Referência com Adicionar auxiliar C# ao projeto sob o mouse, o tooltip diz Escreve TrenchDot.cs, a ponte que as entidades em C# usam](../assets/csharp/reference-csharp-helper.png)
 
-Ele escreve `res://addons/func_godot/csharp/TrenchDot.cs`, que guarda os atributos. Sem ele, o código da sua entidade não compila.
+Ele escreve `res://addons/trenchdot/csharp/TrenchDot.cs`, que guarda os atributos. Sem ele, o código da sua entidade não compila.
 
 ## 2. Declare uma entidade { #2-declare-an-entity }
 

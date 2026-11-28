@@ -31,7 +31,7 @@ Voici les réglages que vous voyez dans l'Inspecteur :
 | Local Map File | Le chemin `res://` du `.tdm` à construire. C'est le choix normal. |
 | Global Map File | Un fichier de carte en dehors du projet. Quand les deux sont réglés, celui-ci l'emporte. |
 | Auto Rebuild On Save | Reconstruit le nœud chaque fois que TrenchDot enregistre cette carte, tant que sa scène est l'onglet actuel de l'éditeur Godot, voir [Reconstruire à l'enregistrement](live.md#rebuild-on-save). Activé par défaut. |
-| Map Settings | D'où viennent les textures, les matériaux et les définitions d'entité, et la taille d'une unité de carte. Laissé vide, il utilise le réglage de projet `func_godot/default_map_settings`, voir [Configuration du projet](project-setup.md). Un nœud de carte ajouté avec un ancien addon y a stocké les réglages de carte par défaut de l'addon, et sa construction le signale dans la Sortie de Godot, videz le champ pour suivre le réglage de projet. |
+| Map Settings | D'où viennent les textures, les matériaux et les définitions d'entité, et la taille d'une unité de carte. Laissé vide, il utilise le réglage de projet `trenchdot/default_map_settings`, voir [Configuration du projet](project-setup.md). Un nœud de carte ajouté avec un ancien addon y a stocké les réglages de carte par défaut de l'addon, et sa construction le signale dans la Sortie de Godot, videz le champ pour suivre le réglage de projet. |
 | Use Baked Lighting | Éclaire la carte avec l'éclairage [précalculé dans l'éditeur](baked-lighting.md). Activé par défaut, décochez-le pour utiliser un autre lightmapper. |
 | Warm Up Shaders | Compile les shaders de la carte pendant son chargement, pour que les premières secondes de jeu ne saccadent pas. Voir [Préchauffage des shaders](warm-up.md). |
 

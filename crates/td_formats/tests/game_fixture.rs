@@ -1,4 +1,4 @@
-//! The fixture is exported by the Godot addon (see godot/addons/func_godot/src/trenchdot/export_game_config_cli.gd),
+//! The fixture is exported by the Godot addon (see godot/addons/trenchdot/src/trenchdot/export_game_config_cli.gd),
 //! so this test guards the JSON contract between the addon and the editor.
 
 use td_core::DVec3;

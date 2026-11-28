@@ -33,7 +33,7 @@ source: 1b2a2ceda473607c8db087c552aff86851d08ef2
 | 消息说 | 原因 | 怎么办 |
 | --- | --- | --- |
 | Install the Gameplay entities pack | 门、按钮、触发器、道具和生成器都随这个包提供，而项目里没有它 | 在 TrenchDot 里选择*玩法 > 安装玩法实体*，参见[项目设置](project-setup.md#installing-and-updating-the-pack) |
-| Your FGD lacks the Gameplay entities pack, add `trenchdot_default_fgd.tres` to its Base Fgd Files | 你的 FGD 没有 *Base Fgd Files* | 把 `res://addons/func_godot/fgd/trenchdot_default_fgd.tres` 加进地图设置在 *Entity Fgd* 里指定的那个 FGD 的 *Base Fgd Files* |
+| Your FGD lacks the Gameplay entities pack, add `trenchdot_default_fgd.tres` to its Base Fgd Files | 你的 FGD 没有 *Base Fgd Files* | 把 `res://addons/trenchdot/fgd/trenchdot_default_fgd.tres` 加进地图设置在 *Entity Fgd* 里指定的那个 FGD 的 *Base Fgd Files* |
 | The pack is installed, but the *Entity Fgd* is an FGD of the addon | 地图设置用的是 TrenchDot 自己的 FGD，或者插件里的另一个文件，插件更新时会把它替换掉 | 把那些地图设置的 *Entity Fgd* 设为你的游戏配置用的 FGD |
 | A class of your own has no definition | 它在你的游戏配置的 FGD 里，却不在 Godot 构建所用地图设置的 *Entity Fgd* 里 | 把那些地图设置的 *Entity Fgd* 设为你的游戏配置用的 FGD，参见[你自己的资源](project-setup.md#your-own-resources) |
 | The map node uses the addon's default map settings, not the ones from Project Settings | 这个节点是用旧版插件添加的，它把默认的地图设置存进了场景里 | 在 Godot 里选中这个地图节点，在检查器里清空 *Map Settings* |

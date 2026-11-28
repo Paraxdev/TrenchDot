@@ -113,7 +113,7 @@ To see your saves in a game that is already running:
     In Godot, go to *Project > Project Settings > Globals > Autoload* and add this script:
 
     ```
-    res://addons/func_godot/src/trenchdot/runtime/trenchdot_hot_reload.gd
+    res://addons/trenchdot/src/trenchdot/runtime/trenchdot_hot_reload.gd
     ```
 
 2. Run the game from the Godot editor

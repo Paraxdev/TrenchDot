@@ -301,7 +301,7 @@ impl Clash {
     }
 }
 
-/// The map settings of the project setting `func_godot/default_map_settings` and the classes their Entity Fgd defines,
+/// The map settings of the project setting `trenchdot/default_map_settings` and the classes their Entity Fgd defines,
 /// which can differ from the entities the game config lists.
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct BuildConfig {
@@ -551,9 +551,9 @@ impl EntityDef {
     }
 }
 
-/// The core entities of the Godot addon, mirrored by `addons/func_godot/fgd/trenchdot/` and TrenchDot's own FGD.
+/// The core entities of the Godot addon, mirrored by `addons/trenchdot/fgd/trenchdot/` and TrenchDot's own FGD.
 pub const BUILTIN_ENTITIES: &str = include_str!("builtin_entities.json");
-/// The Gameplay entities pack, mirrored by the pack template in `addons/func_godot/gameplay_pack/`.
+/// The Gameplay entities pack, mirrored by the pack template in `addons/trenchdot/gameplay_pack/`.
 pub const GAMEPLAY_ENTITIES: &str = include_str!("gameplay_entities.json");
 /// Walks up from a file until a folder containing project.godot is found.
 pub fn find_project_root(start: &Path) -> Option<PathBuf> {
@@ -594,7 +594,10 @@ fn parse_plugin_value(text: &str, key: &str) -> Option<String> {
 /// an install from before the rename can carry the very version of this editor without its content, so it gets the old name behind
 /// the version, which no editor version equals.
 pub fn addon_version(project_root: &Path) -> Option<String> {
-    let text = std::fs::read_to_string(project_root.join("addons/func_godot/plugin.cfg")).ok()?;
+    let Ok(text) = std::fs::read_to_string(project_root.join("addons/trenchdot/plugin.cfg")) else {
+        let text = legacy_addon(project_root)?;
+        return Some(format!("{} ({})", parse_plugin_value(&text, "version")?, td_doc::legacy::ADDON_DIR));
+    };
     let version = parse_plugin_value(&text, "version")?;
     let name = parse_plugin_value(&text, "name");
     let old = name.as_deref().and_then(|n| td_doc::legacy::ADDON_NAMES.into_iter().find(|old| n.eq_ignore_ascii_case(old)));
@@ -602,6 +605,14 @@ pub fn addon_version(project_root: &Path) -> Option<String> {
         Some(old) => format!("{version} ({old})"),
         None => version,
     })
+}
+
+/// The plugin.cfg of a TrenchDot addon still in the folder it had before it moved to `addons/trenchdot`, None when
+/// there is none or the folder holds the original FuncGodot addon.
+pub fn legacy_addon(project_root: &Path) -> Option<String> {
+    let text = std::fs::read_to_string(project_root.join(td_doc::legacy::ADDON_DIR).join("plugin.cfg")).ok()?;
+    let upstream = parse_plugin_value(&text, "name").is_some_and(|n| n.eq_ignore_ascii_case(td_doc::legacy::UPSTREAM_ADDON));
+    (!upstream).then_some(text)
 }
 
 /// Converts a file system path inside the project into a res:// path.
@@ -899,7 +910,7 @@ mod tests {
     #[test]
     fn an_override_clash_reads_as_intended_and_older_files_as_unintended() {
         let text = r#"{"format": "trenchdot-game", "version": 1, "clashes": [
-            {"classname": "func_door", "definitions": ["res://addons/func_godot/fgd/func_door.tres", "res://entities/func_door.tres"], "intended": true},
+            {"classname": "func_door", "definitions": ["res://addons/trenchdot/fgd/func_door.tres", "res://entities/func_door.tres"], "intended": true},
             {"classname": "light_spot", "definitions": ["res://a/light_spot.tres", "res://b/light_spot.tres", "res://c/light_spot.tres"], "intended": false},
             {"classname": "info_player_start", "definitions": ["res://x/info_player_start.tres", "res://y/info_player_start.tres"]}]}"#;
         let cfg: GameConfig = serde_json::from_str(text).unwrap();
@@ -973,7 +984,7 @@ mod tests {
         let pack = GameConfig::gameplay_pack();
         let decal = pack.entity("infodecal").expect("the pack defines infodecal");
         assert_eq!((decal.kind, decal.node_class.as_str()), (EntityKind::Point, "Decal"));
-        assert_eq!(decal.script, "res://addons/func_godot/src/trenchdot/runtime/trenchdot_decal.gd");
+        assert_eq!(decal.script, "res://addons/trenchdot/src/trenchdot/runtime/trenchdot_decal.gd");
         let keys: Vec<(&str, &str)> = decal.properties.iter().map(|p| (p.name.as_str(), p.default.as_str())).collect();
         assert_eq!(keys, [("material", ""), ("texture", ""), ("normal_texture", ""), ("size", "64 32 64"), ("modulate", "255 255 255")]);
         assert!(decal.properties.iter().all(|p| !p.description.is_empty()), "every key is described");
@@ -1027,7 +1038,7 @@ mod tests {
     /// The Godot addon hides the same faces, see TrenchDotUtil.filter_face.
     #[test]
     fn nodraw_lists_match_the_addon() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../godot/addons/func_godot/src/util/func_godot_util.gd");
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../godot/addons/trenchdot/src/util/func_godot_util.gd");
         let src = std::fs::read_to_string(&path).expect("the addon submodule is checked out");
         let list = |name: &str| -> Vec<String> {
             let line = src.lines().find(|l| l.starts_with(&format!("const {name}"))).unwrap_or_else(|| panic!("{name} in func_godot_util.gd"));

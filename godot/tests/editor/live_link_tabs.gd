@@ -16,7 +16,7 @@ const NOT_TOOL := "res://tests/helpers/not_tool_entity.gd"
 const FIRST_ROOM := "res://tests/first_room_tests.gd"
 const MAP_JSON := "res://tests/maps/basic_json.tdm"
 ## The TrenchDotFGDFile the demo's FGD has as a base, which brings the installed Gameplay entities pack.
-const CORE_FGD := "res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres"
+const CORE_FGD := "res://addons/trenchdot/fgd/trenchdot/trenchdot_fgd.tres"
 ## A definition and its script class written while a session runs, removed again afterwards.
 const NEW_DEFS := "res://tests/td_tests_new_definitions"
 const NEW_CLASS := "TDTestsNewEntity"
@@ -356,8 +356,8 @@ class Runner extends Node:
 	## A pack FGD with a point class td_tests_late_<name> for each script <name>.gd of [param scripts].
 	func _late_fgd(scripts: Array) -> String:
 		var text := "[gd_resource type=\"Resource\" script_class=\"TrenchDotFGDFileBase\" format=3]\n\n"
-		text += "[ext_resource type=\"Script\" path=\"res://addons/func_godot/src/fgd/func_godot_fgd_file.gd\" id=\"fgd\"]\n"
-		text += "[ext_resource type=\"Script\" path=\"res://addons/func_godot/src/fgd/func_godot_fgd_point_class.gd\" id=\"point\"]\n"
+		text += "[ext_resource type=\"Script\" path=\"res://addons/trenchdot/src/fgd/func_godot_fgd_file.gd\" id=\"fgd\"]\n"
+		text += "[ext_resource type=\"Script\" path=\"res://addons/trenchdot/src/fgd/func_godot_fgd_point_class.gd\" id=\"point\"]\n"
 		for name: String in scripts:
 			text += "[ext_resource type=\"Script\" path=\"%s\" id=\"%s\"]\n" % [LATE_PACK.path_join(name + ".gd"), name]
 		var defs := PackedStringArray()

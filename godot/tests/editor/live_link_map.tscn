@@ -1,6 +1,6 @@
 [gd_scene load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://addons/func_godot/src/map/func_godot_map.gd" id="1_map"]
+[ext_resource type="Script" path="res://addons/trenchdot/src/map/func_godot_map.gd" id="1_map"]
 [ext_resource type="Resource" path="res://demo/demo_map_settings.tres" id="2_settings"]
 
 [node name="LiveLinkMap" type="Node3D"]

@@ -361,7 +361,7 @@ fn property_types(def: &EntityDef) -> Option<String> {
 /// worldspawn with any sky key builds an environment.
 fn editor_keys_resource(def: &EntityDef) -> String {
     let mut out = "[gd_resource type=\"Resource\" script_class=\"TrenchDotFGDBaseClass\" load_steps=2 format=3]\n\n".to_string();
-    out += "[ext_resource type=\"Script\" path=\"res://addons/func_godot/src/fgd/func_godot_fgd_base_class.gd\" id=\"1_class\"]\n";
+    out += "[ext_resource type=\"Script\" path=\"res://addons/trenchdot/src/fgd/func_godot_fgd_base_class.gd\" id=\"1_class\"]\n";
     out += &format!("\n[resource]\nscript = ExtResource(\"1_class\")\nclassname = \"WorldspawnKeys\"\ndescription = {}\n", gd_string(&def.description));
     out += &class_properties(def);
     out += &format!("meta_properties = Dictionary[String, Variant]({{\n{}\n}})\n", property_types(def).unwrap_or_default());
@@ -373,7 +373,7 @@ pub fn fgd_resource(def: &EntityDef) -> String {
     let base = if solid { "func_godot_fgd_solid_class" } else { "func_godot_fgd_point_class" };
     let class = if solid { "TrenchDotFGDSolidClass" } else { "TrenchDotFGDPointClass" };
     let mut out = format!("[gd_resource type=\"Resource\" script_class=\"{class}\" load_steps={} format=3]\n\n", if def.script.is_empty() { 2 } else { 3 });
-    out += &format!("[ext_resource type=\"Script\" path=\"res://addons/func_godot/src/fgd/{base}.gd\" id=\"1_class\"]\n");
+    out += &format!("[ext_resource type=\"Script\" path=\"res://addons/trenchdot/src/fgd/{base}.gd\" id=\"1_class\"]\n");
     if !def.script.is_empty() {
         out += &format!("[ext_resource type=\"Script\" path=\"{}\" id=\"2_script\"]\n", def.script);
     }
@@ -433,7 +433,7 @@ pub fn project_definition(def: &EntityDef) -> [(String, String); 2] {
 /// Node classes of solid entities whose brushes only give the box of a probe.
 pub const PROBE_VOLUMES: [&str; 2] = ["ReflectionProbe", "VoxelGI"];
 
-/// Classnames whose definitions ship with the Godot addon in `addons/func_godot/fgd/trenchdot/`. The other core
+/// Classnames whose definitions ship with the Godot addon in `addons/trenchdot/fgd/trenchdot/`. The other core
 /// entities come from TrenchDot's own FGD.
 pub const CORE_ENTITIES: [&str; 6] = ["info_player_start", "light", "light_spot", "light_probe", "env_reflection_probe", "env_voxel_gi"];
 
@@ -453,7 +453,7 @@ fn fgd_file(script_class: &str, script: &str, defs: &[(String, String)]) -> Stri
     file
 }
 
-/// Every generated file of the addon as (path inside `addons/func_godot`, text): the core definitions with the FGD file
+/// Every generated file of the addon as (path inside `addons/trenchdot`, text): the core definitions with the FGD file
 /// listing them, and the Gameplay entities pack template with its definitions, FGD file and manifest.
 pub fn addon_fgd_files() -> Vec<(String, String)> {
     let core = td_formats::GameConfig::builtin();
@@ -462,7 +462,7 @@ pub fn addon_fgd_files() -> Vec<(String, String)> {
     for class in CORE_ENTITIES {
         if let Some(def) = core.entity(class) {
             out.push((format!("fgd/trenchdot/{class}.tres"), fgd_resource(def)));
-            listed.push((class.to_string(), format!("res://addons/func_godot/fgd/trenchdot/{class}.tres")));
+            listed.push((class.to_string(), format!("res://addons/trenchdot/fgd/trenchdot/{class}.tres")));
         }
     }
 
@@ -470,7 +470,7 @@ pub fn addon_fgd_files() -> Vec<(String, String)> {
         out.push(("fgd/trenchdot/worldspawn_keys.tres".into(), editor_keys_resource(def)));
     }
 
-    out.push(("fgd/trenchdot/trenchdot_fgd.tres".into(), fgd_file("TrenchDotFGDFile", "res://addons/func_godot/src/trenchdot/trenchdot_fgd_file.gd", &listed)));
+    out.push(("fgd/trenchdot/trenchdot_fgd.tres".into(), fgd_file("TrenchDotFGDFile", "res://addons/trenchdot/src/trenchdot/trenchdot_fgd_file.gd", &listed)));
 
     let pack = td_formats::GameConfig::gameplay_pack();
     let mut listed = Vec::new();
@@ -482,7 +482,7 @@ pub fn addon_fgd_files() -> Vec<(String, String)> {
 
     out.push((
         format!("{}/{}", crate::entity_pack::TEMPLATE_IN_ADDON, crate::entity_pack::FGD),
-        fgd_file("TrenchDotFGDFileBase", "res://addons/func_godot/src/fgd/func_godot_fgd_file.gd", &listed),
+        fgd_file("TrenchDotFGDFileBase", "res://addons/trenchdot/src/fgd/func_godot_fgd_file.gd", &listed),
     ));
     out.push((
         format!("{}/{}", crate::entity_pack::TEMPLATE_IN_ADDON, crate::entity_pack::MANIFEST),
@@ -499,7 +499,7 @@ using Godot.Collections;
 public static class TrenchDot
 {
     private static GDScript _io;
-    private static GDScript IO => _io ??= GD.Load<GDScript>("res://addons/func_godot/src/trenchdot/runtime/trenchdot_io.gd");
+    private static GDScript IO => _io ??= GD.Load<GDScript>("res://addons/trenchdot/src/trenchdot/runtime/trenchdot_io.gd");
 
     public static Array<Node> FindTargets(Node from, string target, Node activator = null)
     {

@@ -8,7 +8,7 @@ Die Standardwerte des Addons reichen für deine ersten Karten. Sobald du eigene 
 
 ## Das Addon installieren und aktualisieren { #installing-and-updating-the-addon }
 
-Jedes Mal, wenn du ein Projekt öffnest, prüft TrenchDot sein Addon. Fehlt `addons/func_godot` oder hat es eine andere Version als der Editor, erscheint einmal das Fenster *Dieses Projekt einrichten*, und unten rechts in der Statusleiste bleibt ein gelber Hinweis. Fahr mit der Maus darüber, um beide Versionen zu sehen, und klick darauf, um das Fenster zurückzuholen.
+Jedes Mal, wenn du ein Projekt öffnest, prüft TrenchDot sein Addon. Fehlt `addons/trenchdot` oder hat es eine andere Version als der Editor, erscheint einmal das Fenster *Dieses Projekt einrichten*, und unten rechts in der Statusleiste bleibt ein gelber Hinweis. Fahr mit der Maus darüber, um beide Versionen zu sehen, und klick darauf, um das Fenster zurückzuholen.
 
 ![Die Statusleiste mit dem gelben Hinweis "Addon 0.0.9, Editor 0.1.0" unter dem Mauszeiger und seinem Tooltip](../assets/project-setup/status-addon-mismatch.png)
 
@@ -31,9 +31,9 @@ Es bietet nur den Schritt an, den dein Projekt als Nächstes braucht:
 > [!WARNING]
 > Schließ Godot, bevor du aktualisierst. Es führt das alte Addon weiter aus, bis es neu startet, deshalb bleibt der Knopf ausgegraut, solange der Live Link Godot mit dem Projekt offen sieht. Aktiviere das Plugin ebenfalls bei geschlossenem Godot, sonst schreibt Godot seine eigene Kopie von `project.godot` zurück. Es in Godot unter *Project > Project Settings > Plugins* anzuhaken funktioniert genauso.
 
-Das alte Addon wird nicht gelöscht, es wandert nach `.trenchdot/addon-backups/func_godot-<version>` in deinem Projekt. Godot überspringt Ordner, die mit einem Punkt beginnen, es importiert die Sicherung also nicht und listet sie nicht als zweites Plugin. Lösch sie, sobald das neue Addon funktioniert. (Hinweis: Der Download wird zuerst entpackt und erst dann eingetauscht, ein fehlgeschlagenes oder abgebrochenes Update lässt das alte Addon also, wie es war.)
+Das alte Addon wird nicht gelöscht, es wandert nach `.trenchdot/addon-backups/trenchdot-<version>` in deinem Projekt. Godot überspringt Ordner, die mit einem Punkt beginnen, es importiert die Sicherung also nicht und listet sie nicht als zweites Plugin. Lösch sie, sobald das neue Addon funktioniert. (Hinweis: Der Download wird zuerst entpackt und erst dann eingetauscht, ein fehlgeschlagenes oder abgebrochenes Update lässt das alte Addon also, wie es war.)
 
-Schlägt der Download fehl, verlinkt das Fenster die [Releases](https://github.com/Paraxdev/TrenchDot/releases) und [itch.io](https://paraxdev.itch.io/trenchdot), die dieselbe `func_godot-trenchdot-addon.zip` tragen. Entpack sie in den Projektordner, sodass du `addons/func_godot` bekommst, und ersetze den alten Ordner, statt darüber zu entpacken.
+Schlägt der Download fehl, verlinkt das Fenster die [Releases](https://github.com/Paraxdev/TrenchDot/releases) und [itch.io](https://paraxdev.itch.io/trenchdot), die dieselbe `trenchdot-addon.zip` tragen. Entpack sie in den Projektordner, sodass du `addons/trenchdot` bekommst, und ersetze den alten Ordner, statt darüber zu entpacken.
 
 ## Kernentitäten und das Gameplay-Entitätenpaket { #core-entities-and-the-gameplay-entities-pack }
 
@@ -77,11 +77,11 @@ Die Kopien gehören deinem Projekt. Ändere ein Skript oder eine Definition, lö
 Ältere Karten aus der Zeit, bevor die Entitäten das Addon verlassen haben, funktionieren weiter. Nutzen die Karten eines Projekts Paket-Entitäten, die nichts im Projekt definiert, installiert sich das Paket selbst, sowohl wenn der Editor das Projekt öffnet als auch wenn Godot mit dem aktualisierten Addon startet. Eine `.tdm`-Datei behält in jedem Fall jede Entität, mit oder ohne Definition.
 
 > [!NOTE]
-> Die Vorlage im Addon, `addons/func_godot/gameplay_pack`, hat eine `.gdignore`-Datei, damit Godot sie überspringt. Behalte diese Datei, sonst findet Godot jede Skriptklasse des Pakets doppelt, sobald es installiert ist.
+> Die Vorlage im Addon, `addons/trenchdot/gameplay_pack`, hat eine `.gdignore`-Datei, damit Godot sie überspringt. Behalte diese Datei, sonst findet Godot jede Skriptklasse des Pakets doppelt, sobald es installiert ist.
 
 ### Welche Definition gewinnt { #which-definition-wins }
 
-Die Kern-FGD, `res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres`, liest das installierte Paket selbst, jede auf den Standardwerten des Addons gebaute FGD bekommt das Paket also, ohne es aufzulisten. Teilen zwei Definitionen einen Klassennamen, gewinnt die spätere, in dieser Reihenfolge:
+Die Kern-FGD, `res://addons/trenchdot/fgd/trenchdot/trenchdot_fgd.tres`, liest das installierte Paket selbst, jede auf den Standardwerten des Addons gebaute FGD bekommt das Paket also, ohne es aufzulisten. Teilen zwei Definitionen einen Klassennamen, gewinnt die spätere, in dieser Reihenfolge:
 
 1. Die Klassen von TrenchDot und der Kern des Addons
 2. Das installierte Paket in `res://trenchdot/entities`
@@ -95,10 +95,10 @@ Drei Ressourcen arbeiten zusammen. Die FGD-Datei listet die Entitäten auf, die 
 
 Am schnellsten kopierst du `demo_fgd.tres`, `demo_map_settings.tres` und `demo_game_config.tres` aus [`godot/demo`](https://github.com/Paraxdev/TrenchDot/tree/main/godot/demo) in dein Projekt und korrigierst die Pfade. Um sie selbst anzulegen, geh im Godot-Editor so vor:
 
-1. Leg eine `TrenchDotFGDFileBase` an. Setz *Base Fgd Files* auf `res://addons/func_godot/fgd/trenchdot_default_fgd.tres`, damit du den Kern und das installierte Paket behältst, und füg dann unter *Entity Definitions* deine eigenen Entitäten hinzu. Ohne diese Basis hat deine FGD keine davon, und selbst worldspawn baut ohne Kollision.
+1. Leg eine `TrenchDotFGDFileBase` an. Setz *Base Fgd Files* auf `res://addons/trenchdot/fgd/trenchdot_default_fgd.tres`, damit du den Kern und das installierte Paket behältst, und füg dann unter *Entity Definitions* deine eigenen Entitäten hinzu. Ohne diese Basis hat deine FGD keine davon, und selbst worldspawn baut ohne Kollision.
 2. Leg eine `TrenchDotMapSettings` an. Setz *Entity Fgd* auf die FGD aus Schritt 1 und *Base Texture Dir* auf deinen Texturordner (Standard `res://textures`). Eine neue Karteneinstellungs-Ressource startet auf `trenchdot_default_fgd.tres`, die den Kern und das Paket hat, aber nicht deine eigenen Entitäten.
 3. Leg eine `TrenchDotGameConfig` an. Setz ihre *Fgd File* und *Map Settings* auf die beiden Ressourcen oben. (Optional) Setz *Game Name*, der Editor zeigt ihn oben rechts in der Werkzeugleiste neben dem Projektordner.
-4. Lass in *Project > Project Settings* `func_godot/default_map_settings` auf deine Karteneinstellungen und `trenchdot/game_config` auf deine Spielkonfiguration zeigen. Jeder Karten-Node, dessen Feld *Map Settings* leer ist, folgt dem. Ein mit einem älteren Addon hinzugefügter Node hat die Standardwerte des Addons in diesem Feld gespeichert, leere es dort also.
+4. Lass in *Project > Project Settings* `trenchdot/default_map_settings` auf deine Karteneinstellungen und `trenchdot/game_config` auf deine Spielkonfiguration zeigen. Jeder Karten-Node, dessen Feld *Map Settings* leer ist, folgt dem. Ein mit einem älteren Addon hinzugefügter Node hat die Standardwerte des Addons in diesem Feld gespeichert, leere es dort also.
 
 Der Editor bietet die Entitäten der FGD der Spielkonfiguration an, aber Godot baut mit der FGD der Karteneinstellungen, halte die beiden also gleich. Unterscheiden sie sich, warnt Godot in seinem Bereich Output bei jedem Export der Spielkonfiguration, und der Bereich Probleme von TrenchDot nennt jede Entität, die der FGD fehlt, mit der Godot baut.
 
@@ -110,7 +110,7 @@ Der Editor bietet die Entitäten der FGD der Spielkonfiguration an, aber Godot b
 TrenchDot lernt deine Entitäten, Texturordner und den Einheitenmaßstab aus `res://trenchdot_game.json`, die die Spielkonfiguration schreibt. Das Addon exportiert sie erneut, sobald Godot Dateiänderungen bemerkt, und der Editor lädt sie binnen einer Sekunde neu. Der Export nennt auch die Standard-Karteneinstellungen und die Klassen, die ihre FGD definiert, womit der Editor vor Entitäten warnt, die Godot ohne Definition bauen würde. Um von Hand zu exportieren, nutze in Godot *Project > Tools > TrenchDot: Export Game Config* oder führe es headless aus, zum Beispiel in der CI:
 
 ```sh
-godot --headless --path <project> --script res://addons/func_godot/src/trenchdot/export_game_config_cli.gd
+godot --headless --path <project> --script res://addons/trenchdot/src/trenchdot/export_game_config_cli.gd
 ```
 
 ## Projekteinstellungen { #project-settings }
@@ -119,8 +119,8 @@ Die meisten Projekte ändern nur die erste und die dritte. Die des Live Links si
 
 | Einstellung | Standard | Zweck |
 | --- | --- | --- |
-| `func_godot/default_map_settings` | die Standardwerte des Addons | Karteneinstellungen für jede Karte, die keine eigenen setzt |
-| `func_godot/default_inverse_scale_factor` | 32 | Karteneinheiten pro Meter |
+| `trenchdot/default_map_settings` | die Standardwerte des Addons | Karteneinstellungen für jede Karte, die keine eigenen setzt |
+| `trenchdot/default_inverse_scale_factor` | 32 | Karteneinheiten pro Meter |
 | `trenchdot/game_config` | die Konfiguration des Addons | Die Konfiguration, die `trenchdot_game.json` schreibt |
 | `trenchdot/auto_export_game_config` | true | Die Spielkonfiguration erneut exportieren, wenn sich Dateien ändern |
 | `trenchdot/live_link_enabled` | true | Den Live-Link-Server starten, mit dem TrenchDot spricht |

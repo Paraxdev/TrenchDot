@@ -22,9 +22,9 @@ pub const PLAYER_NODE_CLASS: &str = "CharacterBody3D";
 pub const META: &str = "trenchdot_override";
 
 const SCRIPT_ID: &str = "td_override";
-const FGD_FILE_SCRIPT: &str = "res://addons/func_godot/src/fgd/func_godot_fgd_file.gd";
-const MAP_SETTINGS_SCRIPT: &str = "res://addons/func_godot/src/map/func_godot_map_settings.gd";
-const GAME_CONFIG_SCRIPT: &str = "res://addons/func_godot/src/trenchdot/trenchdot_game_config.gd";
+const FGD_FILE_SCRIPT: &str = "res://addons/trenchdot/src/fgd/func_godot_fgd_file.gd";
+const MAP_SETTINGS_SCRIPT: &str = "res://addons/trenchdot/src/map/func_godot_map_settings.gd";
+const GAME_CONFIG_SCRIPT: &str = "res://addons/trenchdot/src/trenchdot/trenchdot_game_config.gd";
 
 /// What the override's script is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -394,12 +394,12 @@ pub struct Write {
 }
 
 const ADDON_RES: &str = "res://addons/";
-const MAP_SETTINGS_KEY: (&str, &str) = ("func_godot", "default_map_settings");
+const MAP_SETTINGS_KEY: (&str, &str) = ("trenchdot", "default_map_settings");
 const GAME_CONFIG_KEY: (&str, &str) = ("trenchdot", "game_config");
 const LEGACY_GAME_CONFIG_KEY: (&str, &str) = ("godottrench", "game_config");
 /// What the addon builds with while a setting is unset.
-const ADDON_MAP_SETTINGS: &str = "res://addons/func_godot/func_godot_default_map_settings.tres";
-const ADDON_GAME_CONFIG: &str = "res://addons/func_godot/game_config/trenchdot/trenchdot_game_config.tres";
+const ADDON_MAP_SETTINGS: &str = "res://addons/trenchdot/func_godot_default_map_settings.tres";
+const ADDON_GAME_CONFIG: &str = "res://addons/trenchdot/game_config/trenchdot/trenchdot_game_config.tres";
 /// Definitions TrenchDot ships itself, next to the TrenchDot ones in the addon's `fgd` folder.
 const FUNC_GODOT_ENTITIES: [&str; 5] = ["worldspawn", "func_geo", "func_detail", "func_detail_illusionary", "func_illusionary"];
 
@@ -883,16 +883,16 @@ pub fn fixture(godot: &Path) -> Result<Vec<(String, String)>, String> {
 mod tests {
     use super::*;
 
-    const BUTTON: &str = include_str!("../../../godot/addons/func_godot/gameplay_pack/definitions/func_button.tres");
-    const LIGHT: &str = include_str!("../../../godot/addons/func_godot/fgd/trenchdot/light.tres");
-    const START: &str = include_str!("../../../godot/addons/func_godot/fgd/trenchdot/info_player_start.tres");
-    const DETAIL: &str = include_str!("../../../godot/addons/func_godot/fgd/func_detail.tres");
-    const TD_BUTTON: &str = include_str!("../../../godot/addons/func_godot/gameplay_pack/scripts/td_button.gd");
-    const STREAMER: &str = include_str!("../../../godot/addons/func_godot/gameplay_pack/scripts/td_section_streamer.gd");
-    const PACK_FGD: &str = include_str!("../../../godot/addons/func_godot/gameplay_pack/gameplay_fgd.tres");
-    const CORE_FGD: &str = include_str!("../../../godot/addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres");
-    const DEFAULT_MAP_SETTINGS: &str = include_str!("../../../godot/addons/func_godot/func_godot_default_map_settings.tres");
-    const DEFAULT_GAME_CONFIG: &str = include_str!("../../../godot/addons/func_godot/game_config/trenchdot/trenchdot_game_config.tres");
+    const BUTTON: &str = include_str!("../../../godot/addons/trenchdot/gameplay_pack/definitions/func_button.tres");
+    const LIGHT: &str = include_str!("../../../godot/addons/trenchdot/fgd/trenchdot/light.tres");
+    const START: &str = include_str!("../../../godot/addons/trenchdot/fgd/trenchdot/info_player_start.tres");
+    const DETAIL: &str = include_str!("../../../godot/addons/trenchdot/fgd/func_detail.tres");
+    const TD_BUTTON: &str = include_str!("../../../godot/addons/trenchdot/gameplay_pack/scripts/td_button.gd");
+    const STREAMER: &str = include_str!("../../../godot/addons/trenchdot/gameplay_pack/scripts/td_section_streamer.gd");
+    const PACK_FGD: &str = include_str!("../../../godot/addons/trenchdot/gameplay_pack/gameplay_fgd.tres");
+    const CORE_FGD: &str = include_str!("../../../godot/addons/trenchdot/fgd/trenchdot/trenchdot_fgd.tres");
+    const DEFAULT_MAP_SETTINGS: &str = include_str!("../../../godot/addons/trenchdot/func_godot_default_map_settings.tres");
+    const DEFAULT_GAME_CONFIG: &str = include_str!("../../../godot/addons/trenchdot/game_config/trenchdot/trenchdot_game_config.tres");
 
     fn lines(text: &str) -> Vec<&str> {
         text.lines().collect()
@@ -912,13 +912,13 @@ mod tests {
     #[test]
     fn the_header_uid_goes_and_the_uids_of_the_resources_stay() {
         let copy = definition_copy(DETAIL, "func_detail", Script::Extend).unwrap();
-        assert!(DETAIL.lines().next().unwrap().contains("uid=\"uid://cxy7jnh6d7msn\""));
+        assert!(DETAIL.lines().next().unwrap().contains("uid=\"uid://d73tmkcunwkp\""));
         assert_eq!(lines(&copy)[0], "[gd_resource type=\"Resource\" script_class=\"TrenchDotFGDSolidClass\" load_steps=6 format=3]");
-        for uid in ["uid://5cow84q03m6a", "uid://nayxb8n7see2", "uid://doo4ly322b4jc", "uid://bcdsueg5pysfq"] {
+        for uid in ["uid://1026ugd6wxnq", "uid://b3aa2jvuyfk7d", "uid://bja28pnpipn5s", "uid://5bcjqcmeuly4"] {
             assert!(copy.contains(uid), "{uid}");
         }
 
-        assert!(!copy.contains("uid://cxy7jnh6d7msn"));
+        assert!(!copy.contains("uid://d73tmkcunwkp"));
     }
 
     #[test]
@@ -927,10 +927,10 @@ mod tests {
         let want = [
             "[gd_resource type=\"Resource\" script_class=\"TrenchDotFGDSolidClass\" load_steps=6 format=3]",
             "",
-            "[ext_resource type=\"Script\" uid=\"uid://5cow84q03m6a\" path=\"res://addons/func_godot/src/fgd/func_godot_fgd_solid_class.gd\" id=\"1_0fsmp\"]",
-            "[ext_resource type=\"Resource\" uid=\"uid://nayxb8n7see2\" path=\"res://addons/func_godot/fgd/phong_base.tres\" id=\"1_c3bns\"]",
-            "[ext_resource type=\"Resource\" uid=\"uid://doo4ly322b4jc\" path=\"res://addons/func_godot/fgd/vertex_merge_distance_base.tres\" id=\"2_c03gr\"]",
-            "[ext_resource type=\"Resource\" uid=\"uid://bcdsueg5pysfq\" path=\"res://addons/func_godot/fgd/cull_interior_faces.tres\" id=\"3_wuxhx\"]",
+            "[ext_resource type=\"Script\" uid=\"uid://1026ugd6wxnq\" path=\"res://addons/trenchdot/src/fgd/func_godot_fgd_solid_class.gd\" id=\"1_0fsmp\"]",
+            "[ext_resource type=\"Resource\" uid=\"uid://b3aa2jvuyfk7d\" path=\"res://addons/trenchdot/fgd/phong_base.tres\" id=\"1_c3bns\"]",
+            "[ext_resource type=\"Resource\" uid=\"uid://bja28pnpipn5s\" path=\"res://addons/trenchdot/fgd/vertex_merge_distance_base.tres\" id=\"2_c03gr\"]",
+            "[ext_resource type=\"Resource\" uid=\"uid://5bcjqcmeuly4\" path=\"res://addons/trenchdot/fgd/cull_interior_faces.tres\" id=\"3_wuxhx\"]",
             "[ext_resource type=\"Script\" path=\"res://entities/func_detail.gd\" id=\"td_override\"]",
             "",
             "[resource]",
@@ -949,7 +949,7 @@ mod tests {
     fn a_core_script_is_replaced_in_place_and_the_other_lines_are_untouched() {
         let copy = definition_copy(LIGHT, "light", Script::Extend).unwrap();
         let mut want = LIGHT.replace(
-            "path=\"res://addons/func_godot/src/trenchdot/entities/td_light.gd\" id=\"2_script\"",
+            "path=\"res://addons/trenchdot/src/trenchdot/entities/td_light.gd\" id=\"2_script\"",
             "path=\"res://entities/light.gd\" id=\"td_override\"",
         );
         want = want.replace("script_class = ExtResource(\"2_script\")", "script_class = ExtResource(\"td_override\")");
@@ -976,7 +976,7 @@ mod tests {
         let want = "\
 [gd_resource type=\"Resource\" script_class=\"TrenchDotFGDPointClass\" load_steps=3 format=3]
 
-[ext_resource type=\"Script\" path=\"res://addons/func_godot/src/fgd/func_godot_fgd_point_class.gd\" id=\"1_class\"]
+[ext_resource type=\"Script\" path=\"res://addons/trenchdot/src/fgd/func_godot_fgd_point_class.gd\" id=\"1_class\"]
 [ext_resource type=\"Script\" path=\"res://entities/info_player_start.gd\" id=\"td_override\"]
 
 [resource]
@@ -1028,7 +1028,7 @@ metadata/trenchdot_override = true
     #[test]
     fn the_base_script_and_the_node_class_come_from_the_definition() {
         assert_eq!(base_script(BUTTON).as_deref(), Some("res://trenchdot/entities/scripts/td_button.gd"));
-        assert_eq!(base_script(LIGHT).as_deref(), Some("res://addons/func_godot/src/trenchdot/entities/td_light.gd"));
+        assert_eq!(base_script(LIGHT).as_deref(), Some("res://addons/trenchdot/src/trenchdot/entities/td_light.gd"));
         assert_eq!(base_script(START), None);
         assert_eq!(base_script(DETAIL), None);
         assert_eq!(node_class(BUTTON), "AnimatableBody3D");
@@ -1081,8 +1081,8 @@ metadata/trenchdot_override = true
         let want = "\
 [gd_resource type=\"Resource\" script_class=\"TrenchDotFGDFileBase\" load_steps=4 format=3]
 
-[ext_resource type=\"Script\" path=\"res://addons/func_godot/src/fgd/func_godot_fgd_file.gd\" id=\"1_fgd\"]
-[ext_resource type=\"Resource\" path=\"res://addons/func_godot/fgd/trenchdot_default_fgd.tres\" id=\"2_base\"]
+[ext_resource type=\"Script\" path=\"res://addons/trenchdot/src/fgd/func_godot_fgd_file.gd\" id=\"1_fgd\"]
+[ext_resource type=\"Resource\" path=\"res://addons/trenchdot/fgd/trenchdot_default_fgd.tres\" id=\"2_base\"]
 [ext_resource type=\"Resource\" path=\"res://entities/func_door.tres\" id=\"td_func_door\"]
 
 [resource]
@@ -1101,7 +1101,7 @@ entity_definitions = Array[Resource]([ExtResource(\"td_func_door\")])
         let want = "\
 [gd_resource type=\"Resource\" script_class=\"TrenchDotMapSettings\" load_steps=3 format=3]
 
-[ext_resource type=\"Script\" path=\"res://addons/func_godot/src/map/func_godot_map_settings.gd\" id=\"1_ms\"]
+[ext_resource type=\"Script\" path=\"res://addons/trenchdot/src/map/func_godot_map_settings.gd\" id=\"1_ms\"]
 [ext_resource type=\"Resource\" path=\"res://entities/project_fgd.tres\" id=\"2_fgd\"]
 
 [resource]
@@ -1109,14 +1109,14 @@ script = ExtResource(\"1_ms\")
 entity_fgd = ExtResource(\"2_fgd\")
 ";
         assert_eq!(settings, want);
-        assert!(DEFAULT_MAP_SETTINGS.contains("path=\"res://addons/func_godot/src/map/func_godot_map_settings.gd\""));
+        assert!(DEFAULT_MAP_SETTINGS.contains("path=\"res://addons/trenchdot/src/map/func_godot_map_settings.gd\""));
         assert!(DEFAULT_MAP_SETTINGS.lines().last().unwrap().starts_with("entity_fgd = "));
 
         let config = new_game_config("res://entities/project_fgd.tres", "res://entities/project_map_settings.tres");
         let want = "\
 [gd_resource type=\"Resource\" script_class=\"TrenchDotGameConfig\" load_steps=4 format=3]
 
-[ext_resource type=\"Script\" path=\"res://addons/func_godot/src/trenchdot/trenchdot_game_config.gd\" id=\"1_td\"]
+[ext_resource type=\"Script\" path=\"res://addons/trenchdot/src/trenchdot/trenchdot_game_config.gd\" id=\"1_td\"]
 [ext_resource type=\"Resource\" path=\"res://entities/project_fgd.tres\" id=\"2_fgd\"]
 [ext_resource type=\"Resource\" path=\"res://entities/project_map_settings.tres\" id=\"3_ms\"]
 
@@ -1219,7 +1219,7 @@ mod plan_tests {
     const MAP_SETTINGS_WITHOUT_FGD: &str = "[gd_resource type=\"Resource\" format=3]\n\n[resource]\n";
 
     fn addon() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../godot/addons/func_godot")
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../godot/addons/trenchdot")
     }
 
     fn copy_dir(from: &Path, to: &Path) {
@@ -1244,10 +1244,10 @@ mod plan_tests {
     fn project(godot: &str) -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
         let root = dir.path();
-        copy_dir(&addon().join("fgd"), &root.join("addons/func_godot/fgd"));
+        copy_dir(&addon().join("fgd"), &root.join("addons/trenchdot/fgd"));
         copy_dir(&addon().join("gameplay_pack/definitions"), &root.join("trenchdot/entities/definitions"));
         copy_dir(&addon().join("gameplay_pack/scripts"), &root.join("trenchdot/entities/scripts"));
-        copy_dir(&addon().join("src/trenchdot/entities"), &root.join("addons/func_godot/src/trenchdot/entities"));
+        copy_dir(&addon().join("src/trenchdot/entities"), &root.join("addons/trenchdot/src/trenchdot/entities"));
         put(root, "project.godot", godot);
         dir
     }
@@ -1257,7 +1257,7 @@ mod plan_tests {
     }
 
     fn own_settings() -> String {
-        settings_text(&[("func_godot", "default_map_settings", "res://mine/ms.tres"), ("trenchdot", "game_config", "res://mine/gc.tres")])
+        settings_text(&[("trenchdot", "default_map_settings", "res://mine/ms.tres"), ("trenchdot", "game_config", "res://mine/gc.tres")])
     }
 
     fn game() -> GameConfig {
@@ -1336,7 +1336,7 @@ mod plan_tests {
         assert_eq!(
             plan.settings,
             [
-                ("func_godot", "default_map_settings", "res://entities/project_map_settings.tres".to_string()),
+                ("trenchdot", "default_map_settings", "res://entities/project_map_settings.tres".to_string()),
                 ("trenchdot", "game_config", "res://entities/project_game_config.tres".to_string())
             ]
         );
@@ -1384,9 +1384,9 @@ mod plan_tests {
         let first = plan_of(root, "func_door");
         assert_eq!(rels(root, &first)[2..], ["mine/fgd.tres", "entities/project_map_settings.tres"]);
         assert_eq!(first.writes[3].text, new_map_settings("res://mine/fgd.tres"));
-        assert_eq!(first.settings, [("func_godot", "default_map_settings", "res://entities/project_map_settings.tres".to_string())]);
+        assert_eq!(first.settings, [("trenchdot", "default_map_settings", "res://entities/project_map_settings.tres".to_string())]);
 
-        let settings_only = project(&settings_text(&[("func_godot", "default_map_settings", "res://mine/ms.tres")]));
+        let settings_only = project(&settings_text(&[("trenchdot", "default_map_settings", "res://mine/ms.tres")]));
         let root = settings_only.path();
         own_resources(root);
         let second = plan_of(root, "func_door");
@@ -1411,21 +1411,21 @@ mod plan_tests {
     #[test]
     fn settings_that_name_the_addon_or_nothing_count_as_unset() {
         let addon_names = settings_text(&[
-            ("func_godot", "default_map_settings", "res://addons/func_godot/func_godot_default_map_settings.tres"),
-            ("trenchdot", "game_config", "res://addons/func_godot/game_config/trenchdot/trenchdot_game_config.tres"),
+            ("trenchdot", "default_map_settings", "res://addons/trenchdot/func_godot_default_map_settings.tres"),
+            ("trenchdot", "game_config", "res://addons/trenchdot/game_config/trenchdot/trenchdot_game_config.tres"),
         ]);
         let dir = project(&addon_names);
         let plan = plan_of(dir.path(), "func_door");
         assert_eq!(plan.writes.len(), 5);
         assert_eq!(plan.settings.len(), 2);
 
-        let empty = project(&settings_text(&[("func_godot", "default_map_settings", ""), ("trenchdot", "game_config", "")]));
+        let empty = project(&settings_text(&[("trenchdot", "default_map_settings", ""), ("trenchdot", "game_config", "")]));
         assert_eq!(plan_of(empty.path(), "func_door").settings.len(), 2);
     }
 
     #[test]
     fn uid_settings_resolve_to_the_project_and_addon_files_and_an_unknown_uid_refuses() {
-        let dir = project(&settings_text(&[("func_godot", "default_map_settings", "uid://mine_ms"), ("trenchdot", "game_config", "uid://mine_gc")]));
+        let dir = project(&settings_text(&[("trenchdot", "default_map_settings", "uid://mine_ms"), ("trenchdot", "game_config", "uid://mine_gc")]));
         let root = dir.path();
         own_resources(root);
         put(root, "mine/ms.tres", &new_map_settings("res://mine/fgd.tres").replacen("format=3", "format=3 uid=\"uid://mine_ms\"", 1));
@@ -1434,12 +1434,12 @@ mod plan_tests {
         assert_eq!(plan.fgd, "res://mine/fgd.tres");
         assert!(plan.settings.is_empty());
 
-        let addon_uid = project(&settings_text(&[("func_godot", "default_map_settings", "uid://addon_ms")]));
-        put(addon_uid.path(), "addons/func_godot/func_godot_default_map_settings.tres", &tres_with_uid("uid://addon_ms"));
+        let addon_uid = project(&settings_text(&[("trenchdot", "default_map_settings", "uid://addon_ms")]));
+        put(addon_uid.path(), "addons/trenchdot/func_godot_default_map_settings.tres", &tres_with_uid("uid://addon_ms"));
         let plan = plan_of(addon_uid.path(), "func_door");
         assert_eq!(plan.settings.len(), 2);
 
-        for (section, key) in [("func_godot", "default_map_settings"), ("trenchdot", "game_config"), ("godottrench", "game_config")] {
+        for (section, key) in [("trenchdot", "default_map_settings"), ("trenchdot", "game_config"), ("godottrench", "game_config")] {
             let unknown = project(&settings_text(&[(section, key, "uid://binary_res")]));
             put(unknown.path(), "mine/settings.res", "RSRC binary");
             let text = refused(unknown.path(), "func_door");
@@ -1474,7 +1474,7 @@ mod plan_tests {
 
     #[test]
     fn resources_that_build_with_the_addon_fgd_refuse() {
-        let ms = project(&settings_text(&[("func_godot", "default_map_settings", "res://mine/ms.tres")]));
+        let ms = project(&settings_text(&[("trenchdot", "default_map_settings", "res://mine/ms.tres")]));
         put(ms.path(), "mine/ms.tres", &new_map_settings(entity_pack::DEFAULT_FGD));
         assert!(refused(ms.path(), "func_door").starts_with("Your map settings res://mine/ms.tres build with the addon's FGD"));
         put(ms.path(), "mine/ms.tres", MAP_SETTINGS_WITHOUT_FGD);
@@ -1509,9 +1509,9 @@ mod plan_tests {
     fn a_setting_for_a_file_that_is_not_there_refuses() {
         let missing = project(&settings_text(&[("trenchdot", "game_config", "res://mine/nothing.tres")]));
         assert!(refused(missing.path(), "func_door").contains("res://mine/nothing.tres cannot be read"));
-        let odd = project(&settings_text(&[("func_godot", "default_map_settings", "C:/maps/ms.tres")]));
+        let odd = project(&settings_text(&[("trenchdot", "default_map_settings", "C:/maps/ms.tres")]));
         assert!(refused(odd.path(), "func_door").contains("C:/maps/ms.tres, which is not a file"));
-        let up = project(&settings_text(&[("func_godot", "default_map_settings", "res://../ms.tres")]));
+        let up = project(&settings_text(&[("trenchdot", "default_map_settings", "res://../ms.tres")]));
         assert!(refused(up.path(), "func_door").contains("res://../ms.tres, which is not a file"));
         let no_project = project(GODOT);
         std::fs::remove_file(no_project.path().join("project.godot")).unwrap();
@@ -1585,16 +1585,16 @@ mod plan_tests {
         let cannot = "TrenchDot cannot copy light, its script is not GDScript or it builds a scene without a script. Copy its definition by hand";
         let dir = project(GODOT);
         let root = dir.path();
-        let light = text_of(root, "addons/func_godot/fgd/trenchdot/light.tres");
-        put(root, "addons/func_godot/fgd/trenchdot/light.tres", &light.replace("td_light.gd", "TdLight.cs"));
+        let light = text_of(root, "addons/trenchdot/fgd/trenchdot/light.tres");
+        put(root, "addons/trenchdot/fgd/trenchdot/light.tres", &light.replace("td_light.gd", "TdLight.cs"));
         assert_eq!(refused(root, "light"), cannot);
 
         let without_script: String = light.lines().filter(|l| !l.starts_with("script_class = ")).map(|l| format!("{l}\n")).collect();
-        put(root, "addons/func_godot/fgd/trenchdot/light.tres", &format!("{without_script}scene_file = ExtResource(\"9_scene\")\n"));
+        put(root, "addons/trenchdot/fgd/trenchdot/light.tres", &format!("{without_script}scene_file = ExtResource(\"9_scene\")\n"));
         assert_eq!(refused(root, "light"), cannot);
-        put(root, "addons/func_godot/fgd/trenchdot/light.tres", &format!("{without_script}scene_file = null\n"));
+        put(root, "addons/trenchdot/fgd/trenchdot/light.tres", &format!("{without_script}scene_file = null\n"));
         assert!(plan(root, &game(), "light", Script::Extend).is_ok(), "no scene and no script gets the template");
-        put(root, "addons/func_godot/fgd/trenchdot/light.tres", &format!("{light}scene_file = ExtResource(\"9_scene\")\n"));
+        put(root, "addons/trenchdot/fgd/trenchdot/light.tres", &format!("{light}scene_file = ExtResource(\"9_scene\")\n"));
         assert!(plan(root, &game(), "light", Script::Extend).is_ok(), "a scene with a GDScript is extended");
         assert!(!root.join("entities").exists());
     }
@@ -1635,9 +1635,9 @@ mod plan_tests {
         put(root, "trenchdot/entities/definitions/func_button.tres", &(text_of(root, "trenchdot/entities/definitions/func_button.tres") + "# edited\n"));
         assert!(plan_of(root, "func_button").writes[0].text.contains("# edited"), "the installed pack copy is the source, edits included");
 
-        assert_eq!(source(root, "light").unwrap().1, "res://addons/func_godot/fgd/trenchdot/light.tres");
-        assert_eq!(source(root, "func_detail").unwrap().1, "res://addons/func_godot/fgd/func_detail.tres");
-        assert_eq!(source(root, "worldspawn").unwrap().1, "res://addons/func_godot/fgd/worldspawn.tres");
+        assert_eq!(source(root, "light").unwrap().1, "res://addons/trenchdot/fgd/trenchdot/light.tres");
+        assert_eq!(source(root, "func_detail").unwrap().1, "res://addons/trenchdot/fgd/func_detail.tres");
+        assert_eq!(source(root, "worldspawn").unwrap().1, "res://addons/trenchdot/fgd/worldspawn.tres");
     }
 
     #[test]
@@ -1646,8 +1646,8 @@ mod plan_tests {
         let root = dir.path();
         assert!(refused(root, "my_thing").starts_with("Override in project has no definition to copy for my_thing"));
 
-        std::fs::remove_file(root.join("addons/func_godot/fgd/trenchdot/light.tres")).unwrap();
-        assert!(refused(root, "light").contains("no definition at res://addons/func_godot/fgd/trenchdot/light.tres"));
+        std::fs::remove_file(root.join("addons/trenchdot/fgd/trenchdot/light.tres")).unwrap();
+        assert!(refused(root, "light").contains("no definition at res://addons/trenchdot/fgd/trenchdot/light.tres"));
 
         std::fs::remove_file(root.join("trenchdot/entities/definitions/func_door.tres")).unwrap();
         let text = refused(root, "func_door");
@@ -1689,7 +1689,7 @@ mod plan_tests {
             }
         }
 
-        for dir in ["addons", "addons/func_godot/entities", "/addons/x/"] {
+        for dir in ["addons", "addons/trenchdot/entities", "/addons/x/"] {
             let text = refusal(plan_in(fresh.path(), &game(), "light", Script::Extend, dir));
             assert!(text.starts_with("Overrides are never written inside the addons folder"), "{dir}: {text}");
         }
@@ -1782,14 +1782,14 @@ mod plan_tests {
         );
         assert_eq!(
             report.settings,
-            [("func_godot/default_map_settings".to_string(), MAP_SETTINGS_RES.to_string()), ("trenchdot/game_config".to_string(), GAME_CONFIG_RES.to_string())]
+            [("trenchdot/default_map_settings".to_string(), MAP_SETTINGS_RES.to_string()), ("trenchdot/game_config".to_string(), GAME_CONFIG_RES.to_string())]
         );
         assert!(report.created_fgd && !report.godot_open);
         assert_eq!(
             report.message().en,
             "Overrode light with res://entities/light.tres. Change it in res://entities/light.gd. Maps build with res://entities/project_fgd.tres from now on."
         );
-        let expected = settings_text(&[("func_godot", "default_map_settings", MAP_SETTINGS_RES), ("trenchdot", "game_config", GAME_CONFIG_RES)]);
+        let expected = settings_text(&[("trenchdot", "default_map_settings", MAP_SETTINGS_RES), ("trenchdot", "game_config", GAME_CONFIG_RES)]);
         assert_eq!(std::fs::read_to_string(root.join("project.godot")).unwrap(), expected);
         let planned = plan_of(project(GODOT).path(), "light");
         assert_eq!(std::fs::read_to_string(root.join("entities/light.tres")).unwrap(), planned.writes[0].text);
@@ -1838,7 +1838,7 @@ mod plan_tests {
         let report = override_in_project(&mut state, "light", Script::Extend, false).unwrap();
         let (message, files_before) = rx.recv_timeout(std::time::Duration::from_secs(30)).unwrap();
         assert_eq!(message["event"], "project_settings");
-        assert_eq!(message["settings"], serde_json::json!({ "func_godot/default_map_settings": MAP_SETTINGS_RES, "trenchdot/game_config": GAME_CONFIG_RES }));
+        assert_eq!(message["settings"], serde_json::json!({ "trenchdot/default_map_settings": MAP_SETTINGS_RES, "trenchdot/game_config": GAME_CONFIG_RES }));
         assert!(!files_before, "Godot is told before the first file is written");
         assert_eq!(sent(&rx), [("scan".to_string(), true)]);
         assert_eq!(std::fs::read_to_string(root.join("project.godot")).unwrap(), GODOT, "Godot saves project.godot, not the editor");
@@ -1846,7 +1846,7 @@ mod plan_tests {
         assert!(report.message().en.ends_with(" Build your maps again in Godot to use it."), "{}", report.message().en);
         assert_eq!(state.godot_scan, Some(0));
 
-        let saved = settings_text(&[("func_godot", "default_map_settings", MAP_SETTINGS_RES), ("trenchdot", "game_config", GAME_CONFIG_RES)]);
+        let saved = settings_text(&[("trenchdot", "default_map_settings", MAP_SETTINGS_RES), ("trenchdot", "game_config", GAME_CONFIG_RES)]);
         std::fs::write(root.join("project.godot"), saved).unwrap();
         let (port, rx) = fake_godot(root, serde_json::json!({ "scan": { "ok": true } }));
         state.prefs.live_link_port = port;
@@ -1876,22 +1876,22 @@ mod plan_tests {
 
     #[test]
     fn a_failed_write_after_godot_took_the_settings_gives_it_the_old_ones_back() {
-        let addon_config = "res://addons/func_godot/game_config/trenchdot/trenchdot_game_config.tres";
+        let addon_config = "res://addons/trenchdot/game_config/trenchdot/trenchdot_game_config.tres";
         let dir = project(&settings_text(&[("trenchdot", "game_config", addon_config)]));
         let root = dir.path();
         let mut state = open(root);
         let (port, rx) = fake_godot(root, serde_json::json!({ "project_settings": { "ok": true } }));
         connect(&mut state, port);
         let plan = plan(root, &state.game, "light", Script::Extend).unwrap();
-        assert_eq!(plan.before, ["res://addons/func_godot/func_godot_default_map_settings.tres", addon_config]);
+        assert_eq!(plan.before, ["res://addons/trenchdot/func_godot_default_map_settings.tres", addon_config]);
         put(root, "entities", "a file where the folder goes");
         let e = super::apply(&mut state, &plan, false).unwrap_err().en;
         assert!(e.starts_with("Could not write ") && !e.contains("Godot kept"), "{e}");
         let settings: Vec<_> = (0..2).map(|_| rx.recv_timeout(std::time::Duration::from_secs(30)).unwrap().0["settings"].clone()).collect();
-        assert_eq!(settings[0], serde_json::json!({ "func_godot/default_map_settings": MAP_SETTINGS_RES, "trenchdot/game_config": GAME_CONFIG_RES }));
+        assert_eq!(settings[0], serde_json::json!({ "trenchdot/default_map_settings": MAP_SETTINGS_RES, "trenchdot/game_config": GAME_CONFIG_RES }));
         assert_eq!(
             settings[1],
-            serde_json::json!({ "func_godot/default_map_settings": "res://addons/func_godot/func_godot_default_map_settings.tres", "trenchdot/game_config": addon_config })
+            serde_json::json!({ "trenchdot/default_map_settings": "res://addons/trenchdot/func_godot_default_map_settings.tres", "trenchdot/game_config": addon_config })
         );
 
         let once = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -1904,7 +1904,7 @@ mod plan_tests {
         });
         let e = super::apply(&mut state, &plan, false).unwrap_err().en;
         assert!(
-            e.ends_with(" Godot kept the new project settings, set func_godot/default_map_settings, trenchdot/game_config back in its Project Settings."),
+            e.ends_with(" Godot kept the new project settings, set trenchdot/default_map_settings, trenchdot/game_config back in its Project Settings."),
             "{e}"
         );
         assert_eq!(text_of(root, "entities"), "a file where the folder goes");
@@ -1968,7 +1968,7 @@ mod plan_tests {
             put(dir.path(), "project.godot", GODOT);
             put(
                 dir.path(),
-                "addons/func_godot/fgd/trenchdot/info_player_start.tres",
+                "addons/trenchdot/fgd/trenchdot/info_player_start.tres",
                 &std::fs::read_to_string(addon().join("fgd/trenchdot/info_player_start.tres")).unwrap(),
             );
             let state = open(dir.path());

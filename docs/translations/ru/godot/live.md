@@ -89,7 +89,7 @@ Godot сам пересобирает всю карту, когда сцена �
     В Godot откройте *Project > Project Settings > Globals > Autoload* и добавьте этот скрипт:
 
     ```
-    res://addons/func_godot/src/trenchdot/runtime/trenchdot_hot_reload.gd
+    res://addons/trenchdot/src/trenchdot/runtime/trenchdot_hot_reload.gd
     ```
 
 2. Запустите игру из редактора Godot

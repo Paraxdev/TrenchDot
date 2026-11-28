@@ -3325,13 +3325,13 @@ fn copy_dir(from: &std::path::Path, to: &std::path::Path) {
 
 /// A fixture whose project has the addon definitions and the Gameplay pack, like one that installed both.
 fn with_project() -> (Fixture, tempfile::TempDir) {
-    let addon = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../godot/addons/func_godot");
+    let addon = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../godot/addons/trenchdot");
     let dir = tempfile::tempdir().unwrap();
     let root = dir.path();
-    copy_dir(&addon.join("fgd"), &root.join("addons/func_godot/fgd"));
+    copy_dir(&addon.join("fgd"), &root.join("addons/trenchdot/fgd"));
     copy_dir(&addon.join("gameplay_pack/definitions"), &root.join("trenchdot/entities/definitions"));
     copy_dir(&addon.join("gameplay_pack/scripts"), &root.join("trenchdot/entities/scripts"));
-    copy_dir(&addon.join("src/trenchdot/entities"), &root.join("addons/func_godot/src/trenchdot/entities"));
+    copy_dir(&addon.join("src/trenchdot/entities"), &root.join("addons/trenchdot/src/trenchdot/entities"));
     std::fs::write(root.join("project.godot"), "config_version=5\n").unwrap();
     let mut f = Fixture::new();
     f.state.game.project_root = Some(root.to_path_buf());

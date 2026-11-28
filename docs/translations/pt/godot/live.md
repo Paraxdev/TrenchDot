@@ -105,7 +105,7 @@ Para ver seus salvamentos em um jogo que já está rodando:
     No Godot, vá em *Project > Project Settings > Globals > Autoload* e adicione este script:
 
     ```
-    res://addons/func_godot/src/trenchdot/runtime/trenchdot_hot_reload.gd
+    res://addons/trenchdot/src/trenchdot/runtime/trenchdot_hot_reload.gd
     ```
 
 2. Rode o jogo pelo editor do Godot

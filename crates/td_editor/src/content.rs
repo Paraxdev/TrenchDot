@@ -854,7 +854,7 @@ mod tests {
         assert_eq!(entry_path("trenchdot/nature/trees/oak.glb", &folders), Some(PathBuf::from("trenchdot/nature/trees/oak.glb")));
         for bad in [
             "project.godot",
-            "addons/func_godot/plugin.cfg",
+            "addons/trenchdot/plugin.cfg",
             "trenchdot/nature",
             "trenchdot/naturex/a.glb",
             "trenchdot/nature/../../project.godot",
@@ -950,7 +950,7 @@ mod tests {
         for (bad, why) in [
             (zip(&[("demo/ok.txt", b"ok"), ("../evil.txt", b"x")]), "climbs out"),
             (zip(&[("demo/ok.txt", b"ok"), ("project.godot", b"x")]), "the project file"),
-            (zip(&[("demo/ok.txt", b"ok"), ("addons/func_godot/plugin.cfg", b"x")]), "the addon"),
+            (zip(&[("demo/ok.txt", b"ok"), ("addons/trenchdot/plugin.cfg", b"x")]), "the addon"),
             (zip(&[("demo/ok.txt", b"ok"), ("demo/NUL.txt", b"x")]), "a device name on Windows"),
         ] {
             assert!(matches!(check(&bad, true), Err(Error::Unsafe(_))), "{why}");
@@ -1277,9 +1277,9 @@ mod tests {
         // in any project.
         let demo = archived(&DEMO_CONTENT);
         let gameplay =
-            |res: &str| res.strip_prefix("trenchdot/entities/").is_some_and(|rel| repo().join("godot/addons/func_godot/gameplay_pack").join(rel).is_file());
+            |res: &str| res.strip_prefix("trenchdot/entities/").is_some_and(|rel| repo().join("godot/addons/trenchdot/gameplay_pack").join(rel).is_file());
         let shipped =
-            |res: &str| demo.iter().chain(&pack).any(|f| f == res) || res.starts_with("addons/func_godot/") || res.starts_with(".godot/") || gameplay(res);
+            |res: &str| demo.iter().chain(&pack).any(|f| f == res) || res.starts_with("addons/trenchdot/") || res.starts_with(".godot/") || gameplay(res);
         let mut refs = 0;
         for name in demo.iter().filter(|f| !f.ends_with(".md")) {
             let mut bytes = std::fs::read(repo().join("godot").join(name)).unwrap();

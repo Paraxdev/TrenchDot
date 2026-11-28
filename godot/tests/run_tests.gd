@@ -567,7 +567,7 @@ func test_missing_map_settings() -> void:
 	map.local_map_file = MAP
 	root.add_child(map)
 	var report := map.build()
-	check(report["map_settings"] == ProjectSettings.get_setting("func_godot/default_map_settings") and map.get_map_settings() == load(report["map_settings"]), "the default map settings are used, got %s" % report["map_settings"])
+	check(report["map_settings"] == ProjectSettings.get_setting("trenchdot/default_map_settings") and map.get_map_settings() == load(report["map_settings"]), "the default map settings are used, got %s" % report["map_settings"])
 	check(map.map_settings == null, "and the map node does not store them")
 	check(not collect(map, func(n): return n is MeshInstance3D).is_empty(), "and the map builds")
 	map.queue_free()
@@ -739,21 +739,21 @@ func has_albedo(material: Material) -> bool:
 
 func test_default_fgd() -> void:
 	print("- addon defaults include the entity library")
-	var settings: TrenchDotMapSettings = load("res://addons/func_godot/func_godot_default_map_settings.tres")
+	var settings: TrenchDotMapSettings = load("res://addons/trenchdot/func_godot_default_map_settings.tres")
 	var defs := settings.entity_fgd.get_entity_definitions()
 	check(defs.has("func_door") and defs.has("logic_relay") and defs.has("worldspawn"), "default map settings know func_door, logic_relay and worldspawn")
 	check(defs["func_door"].script_class.resource_path.begins_with("res://trenchdot/entities/"), "the pack's entities run the project's copies")
 	# A project without the pack, like a blank one, has only the core.
 	var core := TrenchDotFGDFile.new()
-	var addon_core: TrenchDotFGDFile = load("res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres")
-	core.base_fgd_files = [load("res://addons/func_godot/fgd/func_godot_fgd.tres")]
+	var addon_core: TrenchDotFGDFile = load("res://addons/trenchdot/fgd/trenchdot/trenchdot_fgd.tres")
+	core.base_fgd_files = [load("res://addons/trenchdot/fgd/func_godot_fgd.tres")]
 	core.entity_definitions = addon_core.entity_definitions
 	core.pack_fgd_path = ""
 	var core_defs := core.get_entity_definitions()
 	for classname in ["worldspawn", "func_detail", "func_illusionary", "func_geo", "light", "light_spot", "info_player_start"]:
 		check(core_defs.has(classname), "the core has %s" % classname)
 	check(not core_defs.has("func_door") and not core_defs.has("trigger_once") and not core_defs.has("prop_model"), "the core leaves the gameplay entities to the pack")
-	check(not DirAccess.dir_exists_absolute("res://addons/func_godot/gameplay_pack") or FileAccess.file_exists("res://addons/func_godot/gameplay_pack/.gdignore"), "Godot skips the pack template")
+	check(not DirAccess.dir_exists_absolute("res://addons/trenchdot/gameplay_pack") or FileAccess.file_exists("res://addons/trenchdot/gameplay_pack/.gdignore"), "Godot skips the pack template")
 	var config: TrenchDotGameConfig = load(TrenchDotEditorIntegration.DEFAULT_CONFIG)
 	check(config.fgd_file.get_entity_definitions().has("trigger_once"), "default game config exports trigger_once")
 	# The editor names its tool textures special/..., so a fresh project has to agree or clip brushes draw.
@@ -796,8 +796,8 @@ func test_entity_pack() -> void:
 
 	FileAccess.open(maps.path_join("old.tdm"), FileAccess.WRITE).store_string('{"classname": "func_door", "light": {"classname": "light"}}')
 	var core := TrenchDotFGDFile.new()
-	core.base_fgd_files = [load("res://addons/func_godot/fgd/func_godot_fgd.tres")]
-	core.entity_definitions = (load("res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres") as TrenchDotFGDFileBase).entity_definitions
+	core.base_fgd_files = [load("res://addons/trenchdot/fgd/func_godot_fgd.tres")]
+	core.entity_definitions = (load("res://addons/trenchdot/fgd/trenchdot/trenchdot_fgd.tres") as TrenchDotFGDFileBase).entity_definitions
 	core.pack_fgd_path = ""
 	check(TrenchDotEntityPack.missing(core.get_entity_definitions(), maps) == PackedStringArray(["func_door"]), "a map with a door needs the pack in a core only project")
 	check(TrenchDotEntityPack.missing((load("res://demo/demo_fgd.tres") as TrenchDotFGDFileBase).get_entity_definitions(), maps).is_empty(), "a project that defines func_door needs nothing")
@@ -864,7 +864,7 @@ func test_resource_scripts_without_static_vars() -> void:
 		bases[c["class"]] = c
 	var offenders: Array[String] = []
 	for c in bases.values():
-		if not String(c["path"]).begins_with("res://addons/func_godot/"):
+		if not String(c["path"]).begins_with("res://addons/trenchdot/"):
 			continue
 		var base: StringName = c["base"]
 		while bases.has(base):
@@ -884,7 +884,7 @@ func test_clashes() -> void:
 	door.description = "my door"
 	door.take_over_path("res://tests/my_func_door.tres")
 	var fgd := TrenchDotFGDFileBase.new()
-	fgd.base_fgd_files = [load("res://addons/func_godot/fgd/func_godot_fgd.tres"), load("res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres")]
+	fgd.base_fgd_files = [load("res://addons/trenchdot/fgd/func_godot_fgd.tres"), load("res://addons/trenchdot/fgd/trenchdot/trenchdot_fgd.tres")]
 	fgd.entity_definitions = [door]
 	var config := TrenchDotGameConfig.new()
 	config.fgd_file = fgd
@@ -924,7 +924,7 @@ func _check_intended_clashes() -> void:
 		return out
 
 	var project := TrenchDotFGDFileBase.new()
-	project.base_fgd_files = [load("res://addons/func_godot/fgd/func_godot_fgd.tres"), load("res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres")]
+	project.base_fgd_files = [load("res://addons/trenchdot/fgd/func_godot_fgd.tres"), load("res://addons/trenchdot/fgd/trenchdot/trenchdot_fgd.tres")]
 	project.entity_definitions = [
 		override.call("func_door", "res://tests/override/func_door.tres", true),
 		override.call("func_button", "res://tests/override/func_button.tres", null),
@@ -1163,7 +1163,7 @@ func test_game_config() -> void:
 		var size: Array = by_name["info_player_start"]["size"]
 		check(size[0] == [-16.0, 0.0, -16.0] and size[1] == [16.0, 56.0, 16.0], "sizes converted to Y-up, got %s" % [size])
 	var build: Dictionary = data.get("build", {})
-	var settings: TrenchDotMapSettings = load(ProjectSettings.get_setting("func_godot/default_map_settings"))
+	var settings: TrenchDotMapSettings = load(ProjectSettings.get_setting("trenchdot/default_map_settings"))
 	check(build.get("map_settings") == settings.resource_path and build.get("entity_fgd") == settings.entity_fgd.resource_path, "the build block names the project's map settings and their FGD, got %s %s" % [build.get("map_settings"), build.get("entity_fgd")])
 	var classes: Array = build.get("classes", [])
 	var sorted := classes.duplicate()
@@ -1207,7 +1207,7 @@ func test_game_config_io_types() -> void:
 	check(TrenchDotGameConfig._io_type({ "type": TYPE_OBJECT, "class_name": "TDRelay" }) == "node", "a script class extending Node3D is a node")
 	check(TrenchDotGameConfig._io_type({ "type": TYPE_OBJECT, "class_name": "Resource" }) == "variant", "a resource is not a node")
 	# The editor's own definitions of the pack may narrow a Variant argument but never contradict a declared type.
-	var manifest: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://addons/func_godot/gameplay_pack/pack.json"))
+	var manifest: Dictionary = JSON.parse_string(FileAccess.get_file_as_string("res://addons/trenchdot/gameplay_pack/pack.json"))
 	var typed := 0
 	for def in manifest["entities"]:
 		for list in ["inputs", "outputs"]:
@@ -1317,7 +1317,7 @@ func test_game_config_lint() -> void:
 	fgd.entity_definitions = [point]
 	var config := TrenchDotGameConfig.new()
 	config.fgd_file = fgd
-	config.map_settings = load("res://addons/func_godot/func_godot_default_map_settings.tres")
+	config.map_settings = load("res://addons/trenchdot/func_godot_default_map_settings.tres")
 	var warnings := config.lint()
 	check(warnings.any(func(w): return w.begins_with("test_lint_point: meta_properties.inputs")), "empty inputs array is flagged, got %s" % [warnings])
 	check(warnings.any(func(w): return w.begins_with("test_lint_point: meta_properties.size")), "a non AABB size is flagged, got %s" % [warnings])
@@ -1329,7 +1329,7 @@ func test_game_config_lint() -> void:
 	point.meta_properties = { "size": AABB(Vector3.ZERO, Vector3.ZERO) }
 	check(config.lint().any(func(w): return w.begins_with("test_lint_point: meta_properties.size")), "a zero size AABB is flagged")
 
-	var build_fgd: TrenchDotFGDFileBase = load(ProjectSettings.get_setting("func_godot/default_map_settings")).entity_fgd
+	var build_fgd: TrenchDotFGDFileBase = load(ProjectSettings.get_setting("trenchdot/default_map_settings")).entity_fgd
 	var mismatch := config.lint().filter(func(w: String) -> bool: return w.contains("the FGD maps build with, %s" % build_fgd.resource_path))
 	check(mismatch.size() == 2, "an fgd_file that defines other classes than the build's FGD warns both ways, got %s" % [mismatch])
 	check(mismatch.any(func(w: String) -> bool: return w.begins_with("fgd_file defines test_lint_point, which") and w.contains("build plain nodes")), "naming the class maps cannot build, got %s" % [mismatch])

@@ -676,7 +676,7 @@
           "description": "Strength of the bounced light"
         }
       ],
-      "script": "res://addons/func_godot/src/trenchdot/entities/td_light.gd",
+      "script": "res://addons/trenchdot/src/trenchdot/entities/td_light.gd",
       "outputs": [
         {
           "name": "switched",
@@ -832,7 +832,7 @@
           "description": "Strength of the bounced light"
         }
       ],
-      "script": "res://addons/func_godot/src/trenchdot/entities/td_spot_light.gd",
+      "script": "res://addons/trenchdot/src/trenchdot/entities/td_spot_light.gd",
       "outputs": [
         {
           "name": "switched",
@@ -927,7 +927,7 @@
           "description": "Meters the probe sees past its box, 0 for the box only"
         }
       ],
-      "script": "res://addons/func_godot/src/trenchdot/entities/td_reflection_probe.gd",
+      "script": "res://addons/trenchdot/src/trenchdot/entities/td_reflection_probe.gd",
       "outputs": [],
       "inputs": []
     },
@@ -976,7 +976,7 @@
           "description": "Bakes the volume in the Godot editor each time the map is built"
         }
       ],
-      "script": "res://addons/func_godot/src/trenchdot/entities/td_voxel_gi.gd",
+      "script": "res://addons/trenchdot/src/trenchdot/entities/td_voxel_gi.gd",
       "outputs": [],
       "inputs": [
         {
@@ -1307,7 +1307,7 @@
           "description": "Physics layers the body detects, as layer numbers such as 1, 3. Empty keeps the project default, none detects nothing"
         }
       ],
-      "script": "res://addons/func_godot/src/trenchdot/runtime/trenchdot_prop.gd",
+      "script": "res://addons/trenchdot/src/trenchdot/runtime/trenchdot_prop.gd",
       "outputs": [],
       "inputs": [
         {
@@ -4750,7 +4750,7 @@
           "description": "Tints the decal, white keeps its colors"
         }
       ],
-      "script": "res://addons/func_godot/src/trenchdot/runtime/trenchdot_decal.gd",
+      "script": "res://addons/trenchdot/src/trenchdot/runtime/trenchdot_decal.gd",
       "outputs": [],
       "inputs": []
     },
@@ -5682,7 +5682,7 @@
     {
       "classname": "info_player_start",
       "definitions": [
-        "res://addons/func_godot/fgd/trenchdot/info_player_start.tres",
+        "res://addons/trenchdot/fgd/trenchdot/info_player_start.tres",
         "res://demo/entities/info_player_start.tres"
       ],
       "intended": true

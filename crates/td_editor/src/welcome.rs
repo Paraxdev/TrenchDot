@@ -459,12 +459,12 @@ mod tests {
     #[test]
     fn finds_project_maps_but_not_the_addons_or_godot_folders() {
         let dir = std::env::temp_dir().join(format!("td_welcome_maps_{}", std::process::id()));
-        for sub in ["maps/showcase", "addons/func_godot", ".godot"] {
+        for sub in ["maps/showcase", "addons/trenchdot", ".godot"] {
             std::fs::create_dir_all(dir.join(sub)).unwrap();
         }
 
         let old = format!("maps/c.{}", td_doc::legacy::MAP_EXTS[1]);
-        for file in ["maps/b.tdm", "maps/z.tdm", "maps/showcase/a.tdm", "addons/func_godot/test.tdm", ".godot/cache.tdm", "maps/notes.txt", &old] {
+        for file in ["maps/b.tdm", "maps/z.tdm", "maps/showcase/a.tdm", "addons/trenchdot/test.tdm", ".godot/cache.tdm", "maps/notes.txt", &old] {
             std::fs::write(dir.join(file), "").unwrap();
         }
 

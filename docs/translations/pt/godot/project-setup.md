@@ -9,7 +9,7 @@ dê ao projeto os próprios recursos, porque uma atualização do addon substitu
 
 ## Instalando e atualizando o addon { #installing-and-updating-the-addon }
 
-Toda vez que você abre um projeto, o TrenchDot confere o addon dele. Quando `addons/func_godot` está faltando ou tem uma versão diferente
+Toda vez que você abre um projeto, o TrenchDot confere o addon dele. Quando `addons/trenchdot` está faltando ou tem uma versão diferente
 da do editor, a janela *Configurar este projeto* aparece uma vez, e uma nota amarela fica no canto inferior direito da
 barra de status. Passe o mouse sobre ela para ver as duas versões, clique nela para trazer a janela de volta.
 
@@ -37,14 +37,14 @@ Ela só oferece o passo de que o seu projeto precisa em seguida:
 > grava a própria cópia do `project.godot` de volta. Marcá-lo no Godot em *Project > Project Settings > Plugins* funciona
 > igualmente.
 
-O addon antigo não é apagado, ele vai para `.trenchdot/addon-backups/func_godot-<version>` no seu projeto. O Godot ignora
+O addon antigo não é apagado, ele vai para `.trenchdot/addon-backups/trenchdot-<version>` no seu projeto. O Godot ignora
 pastas que começam com ponto, então não importa o backup nem o lista como um segundo plugin. Apague-o quando o novo
 addon funcionar. (Nota: o download é descompactado primeiro e só depois trocado, então uma atualização que falhou ou foi cancelada deixa o
 addon antigo como estava.)
 
 Se o download falhar, a janela leva às [versões](https://github.com/Paraxdev/TrenchDot/releases) e ao
-[itch.io](https://paraxdev.itch.io/trenchdot), que trazem o mesmo `func_godot-trenchdot-addon.zip`. Extraia-o
-na pasta do projeto para obter `addons/func_godot`, e substitua a pasta antiga em vez de descompactar por cima.
+[itch.io](https://paraxdev.itch.io/trenchdot), que trazem o mesmo `trenchdot-addon.zip`. Extraia-o
+na pasta do projeto para obter `addons/trenchdot`, e substitua a pasta antiga em vez de descompactar por cima.
 
 ## Entidades do núcleo e o pacote de entidades de gameplay { #core-entities-and-the-gameplay-entities-pack }
 
@@ -103,12 +103,12 @@ projeto define, o pacote se instala sozinho, tanto quando o editor abre o projet
 addon atualizado. Um arquivo `.tdm` mantém toda entidade de qualquer jeito, com ou sem definição.
 
 > [!NOTE]
-> O template dentro do addon, `addons/func_godot/gameplay_pack`, tem um arquivo `.gdignore` para que o Godot o ignore.
+> O template dentro do addon, `addons/trenchdot/gameplay_pack`, tem um arquivo `.gdignore` para que o Godot o ignore.
 > Mantenha esse arquivo, ou o Godot acha toda classe de script do pacote duas vezes depois de instalado.
 
 ### Qual definição vence { #which-definition-wins }
 
-O FGD do núcleo, `res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres`, lê o pacote instalado por conta própria, então
+O FGD do núcleo, `res://addons/trenchdot/fgd/trenchdot/trenchdot_fgd.tres`, lê o pacote instalado por conta própria, então
 todo FGD construído sobre os padrões do addon recebe o pacote sem listá-lo. Quando duas definições têm o mesmo classname, a
 última vence, nesta ordem:
 
@@ -131,7 +131,7 @@ O caminho mais rápido é copiar `demo_fgd.tres`, `demo_map_settings.tres` e `de
 [`godot/demo`](https://github.com/Paraxdev/TrenchDot/tree/main/godot/demo) para o seu projeto e corrigir os caminhos. Para
 fazê-los você mesmo, faça isto no editor do Godot:
 
-1. Crie um `TrenchDotFGDFileBase`. Defina *Base Fgd Files* como `res://addons/func_godot/fgd/trenchdot_default_fgd.tres`, para
+1. Crie um `TrenchDotFGDFileBase`. Defina *Base Fgd Files* como `res://addons/trenchdot/fgd/trenchdot_default_fgd.tres`, para
    manter o núcleo e o pacote instalado, depois adicione suas entidades em *Entity Definitions*. Sem essa base
    o seu FGD não tem nenhuma delas, e nem o worldspawn constrói com colisão.
 2. Crie um `TrenchDotMapSettings`. Defina *Entity Fgd* como o FGD do passo 1 e *Base Texture Dir* como a sua pasta de
@@ -139,7 +139,7 @@ fazê-los você mesmo, faça isto no editor do Godot:
    o núcleo e o pacote, mas não as suas entidades.
 3. Crie um `TrenchDotGameConfig`. Defina *Fgd File* e *Map Settings* como os dois recursos acima. (Opcionalmente) defina
    *Game Name*, o editor o mostra no canto superior direito da barra de ferramentas, ao lado da pasta do projeto.
-4. Em *Project > Project Settings*, aponte `func_godot/default_map_settings` para as suas configurações do mapa e
+4. Em *Project > Project Settings*, aponte `trenchdot/default_map_settings` para as suas configurações do mapa e
    `trenchdot/game_config` para a sua configuração do jogo. Todo nó de mapa cujo campo *Map Settings* está vazio a segue. Um
    nó adicionado com um addon mais antigo guardou os padrões do addon nesse campo, então limpe-o lá.
 
@@ -160,7 +160,7 @@ de entidades que o Godot construiria sem definição. Para exportar à mão, use
 Game Config* no Godot, ou rode sem janela, por exemplo no CI:
 
 ```sh
-godot --headless --path <project> --script res://addons/func_godot/src/trenchdot/export_game_config_cli.gd
+godot --headless --path <project> --script res://addons/trenchdot/src/trenchdot/export_game_config_cli.gd
 ```
 
 ## Configurações de projeto { #project-settings }
@@ -170,8 +170,8 @@ porta.
 
 | Configuração | Padrão | Finalidade |
 | --- | --- | --- |
-| `func_godot/default_map_settings` | os padrões do addon | Configurações do mapa para todo mapa que não define as próprias |
-| `func_godot/default_inverse_scale_factor` | 32 | Unidades do mapa por metro |
+| `trenchdot/default_map_settings` | os padrões do addon | Configurações do mapa para todo mapa que não define as próprias |
+| `trenchdot/default_inverse_scale_factor` | 32 | Unidades do mapa por metro |
 | `trenchdot/game_config` | a configuração do addon | A configuração que grava `trenchdot_game.json` |
 | `trenchdot/auto_export_game_config` | true | Exporta a configuração do jogo de novo quando arquivos mudam |
 | `trenchdot/live_link_enabled` | true | Roda o servidor do Live Link com o qual o TrenchDot fala |

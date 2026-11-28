@@ -383,7 +383,7 @@ Click **Export from Godot** under that line to get the textures too: the open Go
 none is open, writes the cache, and the textures show after about 10 seconds. You can run the same step by hand:
 
 ```sh
-godot --headless --path path/to/project --script res://addons/func_godot/src/trenchdot/terrain3d_cli.gd -- export res://terrain3d_data
+godot --headless --path path/to/project --script res://addons/trenchdot/src/trenchdot/terrain3d_cli.gd -- export res://terrain3d_data
 ```
 
 Use `apply` instead of `export` to apply the edits waiting in the folder. It exits with 0 on success and prints a JSON
@@ -433,7 +433,7 @@ hover it, or the status bar does after you click:
 The command line does the same with `settings`, the data folder, the region size and the vertex spacing:
 
 ```sh
-godot --headless --path path/to/project --script res://addons/func_godot/src/trenchdot/terrain3d_cli.gd -- settings res://terrain3d_data 512 1.0
+godot --headless --path path/to/project --script res://addons/trenchdot/src/trenchdot/terrain3d_cli.gd -- settings res://terrain3d_data 512 1.0
 ```
 
 ## Good to know

@@ -14,7 +14,7 @@ Open the **Reference** panel (*View > Panels > Reference*) and press **Add C# he
 
 ![The Reference panel with Add C# helper to project hovered, its tooltip says Writes TrenchDot.cs, the bridge C# entities use](../assets/csharp/reference-csharp-helper.png)
 
-It writes `res://addons/func_godot/csharp/TrenchDot.cs`, which holds the attributes. Without it your entity code
+It writes `res://addons/trenchdot/csharp/TrenchDot.cs`, which holds the attributes. Without it your entity code
 does not compile.
 
 ## 2. Declare an entity

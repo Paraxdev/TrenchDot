@@ -5,7 +5,7 @@ give the project its own resources, because an addon update replaces the default
 
 ## Installing and updating the addon
 
-Every time you open a project, TrenchDot checks its addon. When `addons/func_godot` is missing or has a different
+Every time you open a project, TrenchDot checks its addon. When `addons/trenchdot` is missing or has a different
 version than the editor, the *Set up this project* window pops up once, and a yellow note stays at the bottom right of
 the status bar. Hover it to see both versions, click it to bring the window back.
 
@@ -32,14 +32,21 @@ It only offers the step your project needs next:
 > out while the live link sees Godot with the project open. Enable the plugin with Godot closed too, or Godot writes
 > its own copy of `project.godot` back. Ticking it in Godot under *Project > Project Settings > Plugins* works as well.
 
-The old addon is not deleted, it moves to `.trenchdot/addon-backups/func_godot-<version>` in your project. Godot skips
+The old addon is not deleted, it moves to `.trenchdot/addon-backups/trenchdot-<version>` in your project. Godot skips
 folders that start with a dot, so it neither imports the backup nor lists it as a second plugin. Delete it once the new
 addon works. (Note: the download is unpacked first and only then swapped in, so a failed or canceled update leaves the
 old addon as it was.)
 
+Older addons lived in `addons/func_godot`, the folder the original FuncGodot addon uses. An update moves yours to
+`addons/trenchdot`, points your scenes, resources, scripts and project settings at the new folder, and says how many
+files it changed. Your project can then keep the original FuncGodot addon next to TrenchDot. A folder that holds the
+original FuncGodot addon is never touched. Scenes and resources saved in binary, as `.scn` or `.res`, keep the old
+paths. Godot lists their missing files when you open them, point each one at the same file under `addons/trenchdot`.
+
 If the download fails, the window links to the [releases](https://github.com/Paraxdev/TrenchDot/releases) and
-[itch.io](https://paraxdev.itch.io/trenchdot), which carry the same `func_godot-trenchdot-addon.zip`. Extract it
-into the project folder so you get `addons/func_godot`, and replace the old folder instead of unpacking over it.
+[itch.io](https://paraxdev.itch.io/trenchdot), which carry the same `trenchdot-addon.zip`. Extract it
+into the project folder so you get `addons/trenchdot`, and replace the old folder instead of unpacking over it. An
+unpacked zip does not move an addon out of `addons/func_godot`, let TrenchDot do the first update after the move.
 
 ## Core entities and the Gameplay entities pack
 
@@ -99,12 +106,12 @@ the project defines, the pack installs itself, both when the editor opens the pr
 updated addon. A `.tdm` file keeps every entity either way, with or without a definition.
 
 > [!NOTE]
-> The template inside the addon, `addons/func_godot/gameplay_pack`, has a `.gdignore` file so that Godot skips
+> The template inside the addon, `addons/trenchdot/gameplay_pack`, has a `.gdignore` file so that Godot skips
 > it. Keep that file, or Godot finds every script class of the pack twice once it is installed.
 
 ### Which definition wins
 
-The core FGD, `res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres`, reads the installed pack by itself, so
+The core FGD, `res://addons/trenchdot/fgd/trenchdot/trenchdot_fgd.tres`, reads the installed pack by itself, so
 every FGD built on the addon's defaults gets the pack without listing it. When two definitions share a classname, the
 later one wins, in this order:
 
@@ -142,7 +149,7 @@ Another route is to copy `demo_fgd.tres`, `demo_map_settings.tres` and `demo_gam
 [`godot/demo`](https://github.com/Paraxdev/TrenchDot/tree/main/godot/demo) into your project and fix the paths. To
 make them yourself, do this in the Godot editor:
 
-1. Create a `TrenchDotFGDFileBase`. Set *Base Fgd Files* to `res://addons/func_godot/fgd/trenchdot_default_fgd.tres`, so
+1. Create a `TrenchDotFGDFileBase`. Set *Base Fgd Files* to `res://addons/trenchdot/fgd/trenchdot_default_fgd.tres`, so
    you keep the core and the installed pack, then add your own entities under *Entity Definitions*. Without that base
    your FGD has none of them, and even worldspawn builds without collision.
 2. Create a `TrenchDotMapSettings`. Set *Entity Fgd* to the FGD from step 1 and *Base Texture Dir* to your texture
@@ -150,7 +157,7 @@ make them yourself, do this in the Godot editor:
    the core and the pack but not your own entities.
 3. Create a `TrenchDotGameConfig`. Set its *Fgd File* and *Map Settings* to the two resources above. (Optionally) set
    *Game Name*, the editor shows it at the top right of the toolbar next to the project folder.
-4. In *Project > Project Settings*, point `func_godot/default_map_settings` at your map settings and
+4. In *Project > Project Settings*, point `trenchdot/default_map_settings` at your map settings and
    `trenchdot/game_config` at your game config. Every map node whose *Map Settings* field is empty follows it. A
    node added with an older addon stored the addon's defaults in that field, so clear it there.
 
@@ -175,7 +182,7 @@ To export by hand, use *Project > Tools > TrenchDot: Export Game Config* in Godo
 CI:
 
 ```sh
-godot --headless --path <project> --script res://addons/func_godot/src/trenchdot/export_game_config_cli.gd
+godot --headless --path <project> --script res://addons/trenchdot/src/trenchdot/export_game_config_cli.gd
 ```
 
 ## Project settings
@@ -185,8 +192,8 @@ port.
 
 | Setting | Default | Purpose |
 | --- | --- | --- |
-| `func_godot/default_map_settings` | the addon's defaults | Map settings for every map that does not set its own |
-| `func_godot/default_inverse_scale_factor` | 32 | Map units per meter |
+| `trenchdot/default_map_settings` | the addon's defaults | Map settings for every map that does not set its own |
+| `trenchdot/default_inverse_scale_factor` | 32 | Map units per meter |
 | `trenchdot/game_config` | the addon's config | The config that writes `trenchdot_game.json` |
 | `trenchdot/auto_export_game_config` | true | Export the game config again when files change |
 | `trenchdot/live_link_enabled` | true | Run the live link server that TrenchDot talks to |

@@ -27,7 +27,7 @@ Das sind die Einstellungen, die du im Inspector siehst:
 | Local Map File | Der `res://`-Pfad der `.tdm`, die gebaut werden soll. Das ist die normale Wahl. |
 | Global Map File | Eine Kartendatei außerhalb des Projekts. Sind beide gesetzt, gewinnt diese. |
 | Auto Rebuild On Save | Baut den Node neu, sobald TrenchDot diese Karte speichert, solange ihre Szene der aktuelle Tab im Godot-Editor ist, siehe [Neu bauen beim Speichern](live.md#rebuild-on-save). Standardmäßig an. |
-| Map Settings | Woher Texturen, Materialien und Entitätsdefinitionen kommen und wie groß eine Karteneinheit ist. Bleibt es leer, gilt die Projekteinstellung `func_godot/default_map_settings`, siehe [Projekteinrichtung](project-setup.md). Ein Karten-Node, der mit einem älteren Addon hinzugefügt wurde, hat hier die Standard-Karteneinstellungen des Addons gespeichert, und sein Build warnt in der Ausgabe von Godot davor, leere das Feld, um der Projekteinstellung zu folgen. |
+| Map Settings | Woher Texturen, Materialien und Entitätsdefinitionen kommen und wie groß eine Karteneinheit ist. Bleibt es leer, gilt die Projekteinstellung `trenchdot/default_map_settings`, siehe [Projekteinrichtung](project-setup.md). Ein Karten-Node, der mit einem älteren Addon hinzugefügt wurde, hat hier die Standard-Karteneinstellungen des Addons gespeichert, und sein Build warnt in der Ausgabe von Godot davor, leere das Feld, um der Projekteinstellung zu folgen. |
 | Use Baked Lighting | Beleuchtet die Karte mit der [im Editor gebackenen](baked-lighting.md) Beleuchtung. Standardmäßig an, nimm den Haken heraus, um einen anderen Lightmapper zu nutzen. |
 | Warm Up Shaders | Kompiliert die Shader der Karte beim Laden, damit die ersten Sekunden des Spiels nicht ruckeln. Siehe [Shader-Warm-up](warm-up.md). |
 

@@ -12,7 +12,7 @@ const OLD_PACK := "res://tests/td_tests_old_pack"
 const OLD_GAME_FILE := "res://godottrench_game.json"
 const GAME_FILE := "res://trenchdot_game.json"
 const OLD_PROJECT := "res://tests/td_tests_old_project"
-const ADDON := "res://addons/func_godot/"
+const ADDON := "res://addons/trenchdot/"
 
 ## The run_tests.gd runner, untyped so its check() is reachable.
 var t
@@ -154,12 +154,12 @@ func test_project_settings() -> void:
 	ProjectSettings.set_setting("godottrench/live_link_port", 7911)
 	ProjectSettings.set_setting("godottrench/collision/model_shape", "box")
 	ProjectSettings.set_setting("godottrench/threaded_build", false)
-	ProjectSettings.set_setting("godottrench/game_config", "res://addons/func_godot/game_config/godottrench/godottrench_game_config.tres")
+	ProjectSettings.set_setting("godottrench/game_config", "res://addons/trenchdot/game_config/godottrench/godottrench_game_config.tres")
 	ProjectSettings.set_setting("trenchdot/threaded_build", true)
 	check(TrenchDotLegacy.migrate_settings(), "old settings are moved")
 	check(ProjectSettings.get_setting("trenchdot/live_link_port") == 7911 and ProjectSettings.get_setting("trenchdot/collision/model_shape") == "box", "their values arrive under the new names, nested keys too")
 	check(ProjectSettings.get_setting("trenchdot/threaded_build") == true, "a new setting that is set already keeps its value")
-	check(ProjectSettings.get_setting("trenchdot/game_config") == "res://addons/func_godot/game_config/trenchdot/trenchdot_game_config.tres", "the old default game config becomes the new one")
+	check(ProjectSettings.get_setting("trenchdot/game_config") == "res://addons/trenchdot/game_config/trenchdot/trenchdot_game_config.tres", "the old default game config becomes the new one")
 	check(not old_keys.any(func(k: String) -> bool: return ProjectSettings.has_setting(k)), "and the old ones are gone")
 	var saved := "user://td_tests_legacy_project.godot"
 	ProjectSettings.save_custom(saved)
@@ -267,7 +267,7 @@ func _remove_old_pack() -> void:
 func test_old_pack() -> void:
 	print("- an entity pack installed under the old name keeps working beside the new one")
 	_write_old_pack()
-	var core := load("res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres") as TrenchDotFGDFile
+	var core := load("res://addons/trenchdot/fgd/trenchdot/trenchdot_fgd.tres") as TrenchDotFGDFile
 	var fgd := core.duplicate() as TrenchDotFGDFile
 	check(fgd.legacy_pack_path == TrenchDotLegacy.PACK_FGD and TrenchDotLegacy.PACK_FGD == "res://godottrench/entities/gameplay_fgd.tres", "the old pack is read from where it was installed")
 	check(fgd.legacy_pack_fgd() == null, "a project without it gets nothing from there")
@@ -356,16 +356,16 @@ func test_old_names_stay_in_one_place() -> void:
 	var found: Array[String] = []
 	for c in ProjectSettings.get_global_class_list():
 		var class_name_text := String(c["class"])
-		if String(c["path"]).begins_with("res://addons/func_godot/") and (class_name_text.begins_with("GodotTrench") or class_name_text.begins_with("GT")):
+		if String(c["path"]).begins_with("res://addons/trenchdot/") and (class_name_text.begins_with("GodotTrench") or class_name_text.begins_with("GT")):
 			found.append(class_name_text)
 			check(c["base"] == class_name_text.replace("GodotTrench", "TrenchDot"), "%s extends the class that replaced it" % class_name_text)
-		if String(c["path"]).begins_with("res://addons/func_godot/"):
+		if String(c["path"]).begins_with("res://addons/trenchdot/"):
 			check(not class_name_text.begins_with("FuncGodot"), "%s does not take a name of the original FuncGodot addon" % class_name_text)
 	found.sort()
 	check(found == stand_ins, "the only old class names are the stand ins for entity scripts of an old pack, got %s" % [found])
 	var old := RegEx.create_from_string("(?i:godottrench)|\\bgt_|\\bGT[A-Z][a-z]|\\bgtm\\b")
 	var offenders: Array[String] = []
-	var dirs: Array[String] = ["res://addons/func_godot"]
+	var dirs: Array[String] = ["res://addons/trenchdot"]
 	while not dirs.is_empty():
 		var dir: String = dirs.pop_back()
 		for sub in DirAccess.get_directories_at(dir):
@@ -373,5 +373,5 @@ func test_old_names_stay_in_one_place() -> void:
 		for file in DirAccess.get_files_at(dir):
 			var path := dir.path_join(file)
 			if file.get_extension() == "gd" and not path.contains("/legacy/") and not path.contains("/src/godottrench/") and not file.begins_with("trenchdot_legacy") and old.search(FileAccess.get_file_as_string(path)):
-				offenders.append(path.trim_prefix("res://addons/func_godot/"))
+				offenders.append(path.trim_prefix("res://addons/trenchdot/"))
 	check(offenders.is_empty(), "no other script spells an old name, got %s" % [offenders])

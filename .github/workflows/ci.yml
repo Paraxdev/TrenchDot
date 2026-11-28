@@ -256,12 +256,12 @@ jobs:
         env:
           TRENCHDOT_BUILD: ${{ needs.stamp.outputs.build }}
         run: |
-          sed -i "s/^version=.*/version=\"${TRENCHDOT_BUILD}\"/" godot/addons/func_godot/plugin.cfg
-          grep -qx "version=\"${TRENCHDOT_BUILD}\"" godot/addons/func_godot/plugin.cfg
+          sed -i "s/^version=.*/version=\"${TRENCHDOT_BUILD}\"/" godot/addons/trenchdot/plugin.cfg
+          grep -qx "version=\"${TRENCHDOT_BUILD}\"" godot/addons/trenchdot/plugin.cfg
           # The addon is a submodule, its .git file and git settings stay out of the zips.
-          (cd godot && zip -qr "../dist/func_godot-trenchdot-addon.zip" addons/func_godot -x "addons/func_godot/.git*")
+          (cd godot && zip -qr "../dist/trenchdot-addon.zip" addons/trenchdot -x "addons/trenchdot/.git*")
           # The Terrain3D valley needs the Terrain3D addon, which is fetched for development and never shipped.
-          zip -qr dist/trenchdot-demo-project.zip godot -x "godot/.godot/*" "godot/addons/func_godot/.git*" "godot/addons/terrain_3d/*" "godot/terrain3d_valley/*" "godot/demo/*terrain3d_valley.*"
+          zip -qr dist/trenchdot-demo-project.zip godot -x "godot/.godot/*" "godot/addons/trenchdot/.git*" "godot/addons/terrain_3d/*" "godot/terrain3d_valley/*" "godot/demo/*terrain3d_valley.*"
           # What the editor's content wizard downloads into a project, laid out as in the project. The folders must be the
           # ones crates/td_editor/src/content.rs accepts, its tests read these two lines.
           (cd godot && zip -qr "../dist/trenchdot-nature-pack.zip" trenchdot/nature -x "*.import")
@@ -272,7 +272,7 @@ jobs:
           compression-level: 0
           overwrite: true
           path: |
-            dist/func_godot-trenchdot-addon.zip
+            dist/trenchdot-addon.zip
             dist/trenchdot-demo-project.zip
             dist/trenchdot-nature-pack.zip
             dist/trenchdot-demo-content.zip
@@ -290,7 +290,7 @@ jobs:
           * trenchdot-macos-arm64.zip: the macOS app. Unzip it and move TrenchDot.app to Applications. It is not notarized, so the first time macOS refuses to open it, click Open Anyway in System Settings > Privacy & Security.
           * trenchdot-windows-x86_64.exe and trenchdot-linux-x86_64: the editor on its own, run it from any folder you can write to. On Linux make it executable first with chmod +x.
           * trenchdot-macos-arm64: the bare macOS executable that older editors update themselves from, use the zip instead.
-          * func_godot-trenchdot-addon.zip: the Godot addon. The editor installs it into a project from its setup window, or extract it into your Godot project so it becomes res://addons/func_godot.
+          * trenchdot-addon.zip: the Godot addon. The editor installs it into a project from its setup window, or extract it into your Godot project so it becomes res://addons/trenchdot.
           * trenchdot-demo-project.zip: the demo Godot project with the showcase maps.
           * trenchdot-nature-pack.zip and trenchdot-demo-content.zip: the nature models and the demo content that the editor's Godot > Add Content to Project adds to a project, no need to download them by hand.
 
@@ -378,9 +378,9 @@ jobs:
           push dist/trenchdot-windows-x86_64.exe windows
           ship dist/trenchdot-macos-arm64.zip "paraxdev/trenchdot:mac" --userversion "$version"
           push dist/trenchdot-windows-x86_64-setup.exe windows-installer
-          # The addon, demo project and content ship as their own zips so their folder layout (addons/func_godot, the
+          # The addon, demo project and content ship as their own zips so their folder layout (addons/trenchdot, the
           # project, trenchdot/nature, demo and models) survives.
-          ship dist/func_godot-trenchdot-addon.zip "paraxdev/trenchdot:addon" --userversion "$version"
+          ship dist/trenchdot-addon.zip "paraxdev/trenchdot:addon" --userversion "$version"
           ship dist/trenchdot-demo-project.zip "paraxdev/trenchdot:demo-project" --userversion "$version"
           ship dist/trenchdot-nature-pack.zip "paraxdev/trenchdot:nature-pack" --userversion "$version"
           ship dist/trenchdot-demo-content.zip "paraxdev/trenchdot:demo-content" --userversion "$version"

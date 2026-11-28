@@ -1,4 +1,4 @@
-//! Hashes the addon in godot/addons/func_godot, which the release zip is made of, so the editor knows the bytes of the
+//! Hashes the addon in godot/addons/trenchdot, which the release zip is made of, so the editor knows the bytes of the
 //! addon and the Gameplay pack it installs, see `code_scan.rs`. On Windows it also embeds the exe icon.
 
 use std::path::{Path, PathBuf};
@@ -7,7 +7,7 @@ fn main() {
     // Read at run time, since worktrees sharing a target dir share this script's binary and env! would bake in the path
     // of whichever tree compiled it first.
     let crate_dir = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").expect("cargo sets CARGO_MANIFEST_DIR"));
-    let addon = crate_dir.join("../../godot/addons/func_godot");
+    let addon = crate_dir.join("../../godot/addons/trenchdot");
     println!("cargo::rerun-if-changed={}", addon.display());
     let mut files = Vec::new();
     walk(&addon, &addon, &mut files);

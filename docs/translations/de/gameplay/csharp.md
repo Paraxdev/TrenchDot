@@ -14,7 +14,7 @@ Um C#-Entitäten auszuführen, brauchst du den .NET-Build von Godot. Der Editor 
 
 ![Das Panel Referenz mit C#-Helfer zum Projekt hinzufügen unter dem Mauszeiger, sein Tooltip sagt Schreibt TrenchDot.cs, die Brücke, die C#-Entitäten nutzen](../assets/csharp/reference-csharp-helper.png)
 
-Es schreibt `res://addons/func_godot/csharp/TrenchDot.cs`, das die Attribute enthält. Ohne diese Datei kompiliert der Code deiner Entität nicht.
+Es schreibt `res://addons/trenchdot/csharp/TrenchDot.cs`, das die Attribute enthält. Ohne diese Datei kompiliert der Code deiner Entität nicht.
 
 ## 2. Eine Entität deklarieren { #2-declare-an-entity }
 

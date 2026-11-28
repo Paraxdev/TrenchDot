@@ -148,8 +148,13 @@ pub fn get(text: &str, section: &str, key: &str) -> Option<String> {
 /// of its section, and the section at the end of the file, when they are missing. New lines follow the file's line
 /// endings.
 pub fn with_setting(text: &str, section: &str, key: &str, value: &str) -> String {
+    with_raw(text, section, key, &quote(value))
+}
+
+/// [`with_setting`] with `value` written as it is, for a value that is not a string.
+fn with_raw(text: &str, section: &str, key: &str, value: &str) -> String {
     let nl = if text.contains("\r\n") { "\r\n" } else { "\n" };
-    let line = format!("{key}={}", quote(value));
+    let line = format!("{key}={value}");
     let mut inside = section.is_empty();
     let mut last_entry = None;
     let mut existing = None;
@@ -179,7 +184,7 @@ pub fn with_setting(text: &str, section: &str, key: &str, value: &str) -> String
     let mut out = String::with_capacity(text.len() + line.len() + section.len() + 8);
     if let Some((from, to)) = existing {
         out.push_str(&text[..from]);
-        out.push_str(&quote(value));
+        out.push_str(value);
         out.push_str(&text[to..]);
     } else if let Some(at) = last_entry {
         out.push_str(&text[..at]);
@@ -205,6 +210,51 @@ pub fn with_setting(text: &str, section: &str, key: &str, value: &str) -> String
         }
     }
 
+    out
+}
+
+/// `text` with `key` moved from `[from]` to the end of `[to]`, its value as written. Unchanged when `[from]` lacks the
+/// key or `[to]` has it already.
+pub fn moved_setting(text: &str, from: &str, to: &str, key: &str) -> String {
+    let mut inside = from.is_empty();
+    let mut raw = None;
+    for item in items(text) {
+        match &item.kind {
+            Kind::Header(header) => inside = header == from,
+            Kind::Key(k, eq) if inside && k == key => {
+                let after = &text[item.start + eq + 1..item.end];
+                raw = Some(after[..value_end(after)].trim_start().to_string());
+            }
+            Kind::Key(..) => {}
+        }
+    }
+
+    match raw {
+        Some(raw) if get(text, to, key).is_none() => with_raw(&without_setting(text, from, key), to, key, &raw),
+        _ => text.to_string(),
+    }
+}
+
+/// `text` without `key` in `[section]`, every other byte as it was.
+pub fn without_setting(text: &str, section: &str, key: &str) -> String {
+    let mut inside = section.is_empty();
+    let mut out = String::with_capacity(text.len());
+    let mut copied = 0;
+    for item in items(text) {
+        match &item.kind {
+            Kind::Header(header) => inside = header == section,
+            Kind::Key(k, _) if inside && k == key => {
+                let rest = &text[item.end..];
+                let end = item.end + rest.len() - rest.trim_start_matches([' ', '\t']).len();
+                let end = end + if text[end..].starts_with("\r\n") { 2 } else { usize::from(text[end..].starts_with('\n')) };
+                out.push_str(&text[copied..item.start]);
+                copied = end;
+            }
+            Kind::Key(..) => {}
+        }
+    }
+
+    out.push_str(&text[copied..]);
     out
 }
 
@@ -438,11 +488,11 @@ mod tests {
     #[test]
     fn resolve_finds_uids_in_addons_and_ignores_dot_folders() {
         let dir = tempfile::tempdir().unwrap();
-        write(dir.path(), "addons/func_godot/x.tres", &tres("uid://in_addons"));
+        write(dir.path(), "addons/trenchdot/x.tres", &tres("uid://in_addons"));
         write(dir.path(), ".godot/imported/y.tres", &tres("uid://in_godot"));
         write(dir.path(), "game/.hidden/w.tres", &tres("uid://in_hidden"));
         write(dir.path(), "game/addons/z.tres", &tres("uid://nested"));
-        assert_eq!(resolve(dir.path(), "uid://in_addons"), Ok(Some("res://addons/func_godot/x.tres".into())));
+        assert_eq!(resolve(dir.path(), "uid://in_addons"), Ok(Some("res://addons/trenchdot/x.tres".into())));
         assert_eq!(resolve(dir.path(), "uid://in_godot"), Ok(None));
         assert_eq!(resolve(dir.path(), "uid://in_hidden"), Ok(None));
         assert_eq!(resolve(dir.path(), "uid://nested"), Ok(Some("res://game/addons/z.tres".into())));
@@ -458,5 +508,22 @@ mod tests {
         assert_eq!(resolve(dir.path(), "uid://abc"), Ok(None));
         assert_eq!(resolve(dir.path(), "uid://body"), Ok(None));
         assert_eq!(resolve(dir.path(), "uid://abcd"), Ok(Some("res://b.tres".into())));
+    }
+
+    #[test]
+    fn moved_setting_keeps_the_value_as_written() {
+        let text = "[func_godot]\n\ndefault_inverse_scale_factor=16.0\nother=1\n\n[trenchdot]\n\ngame_config=\"res://g.tres\"\n";
+        let moved = moved_setting(text, "func_godot", "trenchdot", "default_inverse_scale_factor");
+        assert_eq!(moved, "[func_godot]\n\nother=1\n\n[trenchdot]\n\ngame_config=\"res://g.tres\"\ndefault_inverse_scale_factor=16.0\n");
+        assert_eq!(moved_setting(&moved, "func_godot", "trenchdot", "default_inverse_scale_factor"), moved, "nothing left to move");
+        let both = format!("{text}default_inverse_scale_factor=8.0\n");
+        assert_eq!(moved_setting(&both, "func_godot", "trenchdot", "default_inverse_scale_factor"), both, "the new section wins");
+    }
+
+    #[test]
+    fn without_setting_drops_only_that_key() {
+        assert_eq!(without_setting(FILE, "func_godot", "default_map_settings"), FILE.replace("default_map_settings=\"res://old.tres\"\n", ""));
+        assert_eq!(without_setting(FILE, "func_godot", "missing"), FILE);
+        assert_eq!(without_setting("[a]\r\nk=1\r\nj=2\r\n", "a", "k"), "[a]\r\nj=2\r\n");
     }
 }

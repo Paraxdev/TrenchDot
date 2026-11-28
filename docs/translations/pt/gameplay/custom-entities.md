@@ -51,7 +51,7 @@ Esta é a definição do alarme acima, salva como `res://entities/alarm.tres` ao
 ```
 [gd_resource type="Resource" script_class="TrenchDotFGDPointClass" load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://addons/func_godot/src/fgd/func_godot_fgd_point_class.gd" id="1_class"]
+[ext_resource type="Script" path="res://addons/trenchdot/src/fgd/func_godot_fgd_point_class.gd" id="1_class"]
 [ext_resource type="Script" path="res://entities/alarm.gd" id="2_script"]
 
 [resource]

@@ -8,7 +8,7 @@ Esta página es para ti si quieres compilar el editor desde el código fuente, c
 
 ## Compilar { #building }
 
-Clona con los submódulos, el addon de Godot en `godot/addons/func_godot` es uno:
+Clona con los submódulos, el addon de Godot en `godot/addons/trenchdot` es uno:
 
 ```sh
 git clone --recursive https://github.com/Paraxdev/TrenchDot.git
@@ -70,10 +70,10 @@ Algunos archivos los hace un script, no una persona. Cuando cambies lo que lee u
 
 ## El addon de Godot { #the-godot-addon }
 
-El addon tiene su propio repositorio, [trenchdot_func](https://github.com/Paraxdev/trenchdot_func), clonado en `godot/addons/func_godot`. Sus pruebas viven aquí, en `godot/tests`, porque necesitan el proyecto de demo. Para cambiar el addon:
+El addon tiene su propio repositorio, [trenchdot_func](https://github.com/Paraxdev/trenchdot_func), clonado en `godot/addons/trenchdot`. Sus pruebas viven aquí, en `godot/tests`, porque necesitan el proyecto de demo. Para cambiar el addon:
 
-1. Haz commit del cambio dentro de `godot/addons/func_godot` y haz push a trenchdot_func.
-2. Prepara aquí el nuevo commit del submódulo con `git add godot/addons/func_godot` y haz commit junto con los cambios de TrenchDot que lo necesiten.
+1. Haz commit del cambio dentro de `godot/addons/trenchdot` y haz push a trenchdot_func.
+2. Prepara aquí el nuevo commit del submódulo con `git add godot/addons/trenchdot` y haz commit junto con los cambios de TrenchDot que lo necesiten.
 
 Haz push del addon primero. Un commit de TrenchDot que apunta a un commit del addon que GitHub no tiene falla al hacer checkout en CI.
 
@@ -190,7 +190,7 @@ El editor descarga el addon y el contenido solo de las releases de GitHub. itch.
 
 | Zip de la release | Se instala con |
 | --- | --- |
-| `func_godot-trenchdot-addon.zip` | *Godot > Instalar o actualizar addon…* |
+| `trenchdot-addon.zip` | *Godot > Instalar o actualizar addon…* |
 | `trenchdot-nature-pack.zip` | *Godot > Añadir contenido al proyecto…* |
 | `trenchdot-demo-content.zip` | *Godot > Añadir contenido al proyecto…* |
 

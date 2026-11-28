@@ -88,7 +88,7 @@ Some bare bones entities are always included, like a simple `info_player_start` 
     Click the "Install the addon" button at the top to download TrenchDot's fork of FuncGodot into your project, this
     is crucial for TrenchDot.
     (Note: this pulls from GitHub releases. If you don't have internet access, download
-    `func_godot-trenchdot-addon.zip` first and extract it into the project root to install it by hand.)
+    `trenchdot-addon.zip` first and extract it into the project root to install it by hand.)
 
     Once you did that, click "Enable the plugin" so Godot loads it.
     (Note: close Godot first if it has the project open, otherwise Godot writes its own copy of `project.godot` back

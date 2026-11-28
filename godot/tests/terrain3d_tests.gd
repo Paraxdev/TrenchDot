@@ -473,7 +473,7 @@ static func _test_scripts_name_no_terrain3d_class(t) -> void:
 	var word := RegEx.create_from_string("\\bTerrain3D\\w*")
 	var strings := RegEx.create_from_string("&?\"(?:[^\"\\\\]|\\\\.)*\"")
 	var offenders: Array[String] = []
-	var stack: Array[String] = ["res://addons/func_godot"]
+	var stack: Array[String] = ["res://addons/trenchdot"]
 	var scanned := 0
 	while not stack.is_empty():
 		var dir: String = stack.pop_back()

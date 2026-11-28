@@ -110,7 +110,7 @@ Pour voir vos enregistrements dans un jeu déjà lancé :
     Dans Godot, allez dans *Project > Project Settings > Globals > Autoload* et ajoutez ce script :
 
     ```
-    res://addons/func_godot/src/trenchdot/runtime/trenchdot_hot_reload.gd
+    res://addons/trenchdot/src/trenchdot/runtime/trenchdot_hot_reload.gd
     ```
 
 2. Lancez le jeu depuis l'éditeur Godot

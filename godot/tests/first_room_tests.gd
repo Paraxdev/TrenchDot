@@ -8,7 +8,7 @@ extends RefCounted
 
 const FIXTURE := "res://tests/first_room/project/entities"
 const SETTINGS := FIXTURE + "/project_map_settings.tres"
-const ADDON_SETTINGS := "res://addons/func_godot/func_godot_default_map_settings.tres"
+const ADDON_SETTINGS := "res://addons/trenchdot/func_godot_default_map_settings.tres"
 const START := Vector3(-40, 0, -64)
 
 static func run(t) -> void:

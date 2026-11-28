@@ -19,7 +19,7 @@ haut à gauche.
 
 ![Le panneau Référence avec Ajouter l'aide C# au projet survolé, son infobulle dit Écrit TrenchDot.cs, le pont qu'utilisent les entités C#](../assets/csharp/reference-csharp-helper.png)
 
-Il écrit `res://addons/func_godot/csharp/TrenchDot.cs`, qui contient les attributs. Sans lui, le code de votre entité ne
+Il écrit `res://addons/trenchdot/csharp/TrenchDot.cs`, qui contient les attributs. Sans lui, le code de votre entité ne
 compile pas.
 
 ## 2. Déclarer une entité { #2-declare-an-entity }

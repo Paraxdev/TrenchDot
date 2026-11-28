@@ -27,7 +27,7 @@ Estas são as configurações que você vê no Inspetor:
 | Local Map File | O caminho `res://` do `.tdm` a construir. Esta é a escolha normal. |
 | Global Map File | Um arquivo de mapa fora do projeto. Quando os dois estão definidos, este vence. |
 | Auto Rebuild On Save | Reconstrói o nó sempre que o TrenchDot salva este mapa, enquanto a cena dele é a aba atual no editor do Godot, veja [Reconstruir ao salvar](live.md#rebuild-on-save). Ligado por padrão. |
-| Map Settings | De onde vêm as texturas, os materiais e as definições de entidade e qual o tamanho de uma unidade do mapa. Deixado vazio, usa a configuração de projeto `func_godot/default_map_settings`, veja [Configuração do projeto](project-setup.md). Um nó de mapa adicionado com um addon mais antigo guardava aqui as configurações de mapa padrão do addon, e a construção dele avisa disso no Output do Godot, limpe o campo para seguir a configuração do projeto. |
+| Map Settings | De onde vêm as texturas, os materiais e as definições de entidade e qual o tamanho de uma unidade do mapa. Deixado vazio, usa a configuração de projeto `trenchdot/default_map_settings`, veja [Configuração do projeto](project-setup.md). Um nó de mapa adicionado com um addon mais antigo guardava aqui as configurações de mapa padrão do addon, e a construção dele avisa disso no Output do Godot, limpe o campo para seguir a configuração do projeto. |
 | Use Baked Lighting | Ilumina o mapa com a iluminação [pré-calculada no editor](baked-lighting.md). Ligado por padrão, desmarque para usar outro lightmapper. |
 | Warm Up Shaders | Compila os shaders do mapa enquanto ele carrega, para que os primeiros segundos de jogo não engasguem. Veja [Aquecimento de shaders](warm-up.md). |
 

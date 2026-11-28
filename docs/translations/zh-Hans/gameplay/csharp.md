@@ -14,7 +14,7 @@ C# 类不需要 `.tres` 定义，就可以成为可放置的实体。插件会�
 
 ![参考面板，悬停在向项目添加 C# 辅助上，提示写着：写出 TrenchDot.cs，C# 实体使用的桥接文件](../assets/csharp/reference-csharp-helper.png)
 
-它会写出 `res://addons/func_godot/csharp/TrenchDot.cs`，里面是各种特性。没有它，你的实体代码无法编译。
+它会写出 `res://addons/trenchdot/csharp/TrenchDot.cs`，里面是各种特性。没有它，你的实体代码无法编译。
 
 ## 2. 声明一个实体 { #2-declare-an-entity }
 

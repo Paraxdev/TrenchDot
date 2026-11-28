@@ -3209,7 +3209,7 @@ pub fn reference(ui: &mut Ui, state: &mut EditorState, ps: &mut PanelState, acti
         if let Some(root) = state.game.project_root.clone()
             && ui.small_button(tr("Add C# helper to project")).on_hover_text(tr("Writes TrenchDot.cs, the bridge C# entities use")).clicked()
         {
-            let path = root.join("addons/func_godot/csharp/TrenchDot.cs");
+            let path = root.join("addons/trenchdot/csharp/TrenchDot.cs");
             let result = std::fs::create_dir_all(path.parent().unwrap_or(&root)).and_then(|_| std::fs::write(&path, code_refs::CSHARP_HELPER));
             state.set_status(match result {
                 Ok(()) => msg!("Wrote {path}", path = path.display()),

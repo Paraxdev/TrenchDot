@@ -609,7 +609,7 @@ mod tests {
         let door = found.iter().find(|i| i.code == "unknown_class" && i.message.contains("func_door")).unwrap();
         assert_eq!(
             door.message,
-            "No entity definition for 'func_door', your FGD lacks the Gameplay entities pack. Add res://addons/func_godot/fgd/trenchdot_default_fgd.tres to its Base Fgd Files"
+            "No entity definition for 'func_door', your FGD lacks the Gameplay entities pack. Add res://addons/trenchdot/fgd/trenchdot_default_fgd.tres to its Base Fgd Files"
         );
     }
 
@@ -653,7 +653,7 @@ mod tests {
 
         game.build = Some(td_formats::BuildConfig {
             map_settings: "res://my_settings.tres".into(),
-            entity_fgd: "res://addons/func_godot/fgd/func_godot_fgd.tres".into(),
+            entity_fgd: "res://addons/trenchdot/fgd/func_godot_fgd.tres".into(),
             classes: vec!["light".into(), "worldspawn".into()],
         });
         let found = lacking(&game);
@@ -661,7 +661,7 @@ mod tests {
         assert_eq!(found[0].node, Some(door));
         assert_eq!(
             found[0].message,
-            "Godot builds with res://my_settings.tres, whose FGD res://addons/func_godot/fgd/func_godot_fgd.tres has no 'func_door'. Set its Entity Fgd to your game config's FGD"
+            "Godot builds with res://my_settings.tres, whose FGD res://addons/trenchdot/fgd/func_godot_fgd.tres has no 'func_door'. Set its Entity Fgd to your game config's FGD"
         );
     }
 
@@ -743,7 +743,7 @@ mod tests {
             found.into_iter().find(|i| i.code == "godot_missing_class").map(|i| i.message).unwrap_or_default()
         };
         assert!(hint(&game).ends_with("Base Fgd Files of its Entity Fgd"), "{}", hint(&game));
-        for fgd in ["res://addons/func_godot/fgd/func_godot_fgd.tres", crate::entity_pack::DEFAULT_FGD] {
+        for fgd in ["res://addons/trenchdot/fgd/func_godot_fgd.tres", crate::entity_pack::DEFAULT_FGD] {
             game.build = Some(td_formats::BuildConfig { map_settings: "res://s.tres".into(), entity_fgd: fgd.into(), ..Default::default() });
             assert!(hint(&game).ends_with("Set its Entity Fgd to your game config's FGD"), "{fgd}: {}", hint(&game));
         }
@@ -833,7 +833,7 @@ mod tests {
         let mut game = GameConfig::with_gameplay_pack();
         let clash = |class: &str, intended: bool| td_formats::Clash {
             classname: class.into(),
-            definitions: vec![format!("res://addons/func_godot/fgd/{class}.tres"), format!("res://entities/{class}.tres")],
+            definitions: vec![format!("res://addons/trenchdot/fgd/{class}.tres"), format!("res://entities/{class}.tres")],
             intended,
         };
         game.clashes.extend([clash("func_door", true), clash("trigger_once", false), clash("logic_relay", true), clash("light_spot", false)]);
@@ -847,7 +847,7 @@ mod tests {
         let clashes: Vec<&str> = found.iter().filter(|i| i.code == "entity_clash").map(|i| i.message.as_str()).collect();
         assert_eq!(
             clashes,
-            ["trigger_once is defined more than once. res://entities/trigger_once.tres wins over res://addons/func_godot/fgd/trigger_once.tres"]
+            ["trigger_once is defined more than once. res://entities/trigger_once.tres wins over res://addons/trenchdot/fgd/trigger_once.tres"]
         );
     }
 

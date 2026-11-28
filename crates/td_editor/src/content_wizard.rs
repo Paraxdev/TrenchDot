@@ -592,9 +592,9 @@ mod tests {
 ",
         )
         .unwrap();
-        let addon = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../godot/addons/func_godot");
-        copy_dir(&addon.join("fgd"), &dir.join("addons/func_godot/fgd"));
-        copy_dir(&addon.join("src/trenchdot/entities"), &dir.join("addons/func_godot/src/trenchdot/entities"));
+        let addon = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../godot/addons/trenchdot");
+        copy_dir(&addon.join("fgd"), &dir.join("addons/trenchdot/fgd"));
+        copy_dir(&addon.join("src/trenchdot/entities"), &dir.join("addons/trenchdot/src/trenchdot/entities"));
         let mut state = EditorState::new(Prefs::default());
         state.load_project(&dir);
         let root = state.game.project_root.clone().unwrap();

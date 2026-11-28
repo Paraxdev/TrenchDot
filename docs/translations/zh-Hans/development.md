@@ -8,7 +8,7 @@ source: d0d174df9061792086d11223ac4029e9d23f9d56
 
 ## 构建 { #building }
 
-克隆时要带上子模块，`godot/addons/func_godot` 里的 Godot 插件就是一个子模块：
+克隆时要带上子模块，`godot/addons/trenchdot` 里的 Godot 插件就是一个子模块：
 
 ```sh
 git clone --recursive https://github.com/Paraxdev/TrenchDot.git
@@ -68,10 +68,10 @@ e2e 测试会启动真正的编辑器，并用模拟输入来驱动它。这需�
 
 ## Godot 插件 { #the-godot-addon }
 
-插件有自己的仓库 [trenchdot_func](https://github.com/Paraxdev/trenchdot_func)，检出在 `godot/addons/func_godot`。它的测试放在这里的 `godot/tests` 里，因为它们需要演示项目。要修改插件：
+插件有自己的仓库 [trenchdot_func](https://github.com/Paraxdev/trenchdot_func)，检出在 `godot/addons/trenchdot`。它的测试放在这里的 `godot/tests` 里，因为它们需要演示项目。要修改插件：
 
-1. 在 `godot/addons/func_godot` 里提交修改，并把它推送到 trenchdot_func。
-2. 在这里用 `git add godot/addons/func_godot` 暂存新的子模块提交，并和需要它的 TrenchDot 改动一起提交。
+1. 在 `godot/addons/trenchdot` 里提交修改，并把它推送到 trenchdot_func。
+2. 在这里用 `git add godot/addons/trenchdot` 暂存新的子模块提交，并和需要它的 TrenchDot 改动一起提交。
 
 请先推送插件。如果一个 TrenchDot 提交指向了 GitHub 上没有的插件提交，它在 CI 里检出时会失败。
 
@@ -186,7 +186,7 @@ CI 会跳过只改动文档或 Markdown 的 `main` 推送。其他每一次成�
 
 | 发布页里的 zip | 由什么安装 |
 | --- | --- |
-| `func_godot-trenchdot-addon.zip` | *Godot > 安装或更新插件…* |
+| `trenchdot-addon.zip` | *Godot > 安装或更新插件…* |
 | `trenchdot-nature-pack.zip` | *Godot > 向项目添加内容…* |
 | `trenchdot-demo-content.zip` | *Godot > 向项目添加内容…* |
 

@@ -660,7 +660,7 @@ static func _test_build_exports_in_editor_only(t) -> void:
 ## Runs the export CLI in a headless Godot, returns its exit code and the JSON of its last line.
 static func _cli(args: Array) -> Array:
 	var output: Array = []
-	var cli_args := ["--headless", "--path", ProjectSettings.globalize_path("res://"), "--script", "res://addons/func_godot/src/trenchdot/terrain3d_cli.gd", "--"]
+	var cli_args := ["--headless", "--path", ProjectSettings.globalize_path("res://"), "--script", "res://addons/trenchdot/src/trenchdot/terrain3d_cli.gd", "--"]
 	var code := OS.execute(OS.get_executable_path(), cli_args + args, output, true)
 	var lines := "
 ".join(output).strip_edges().split("
@@ -818,7 +818,7 @@ static func _test_cli(t) -> void:
 	var usage := _cli(["import", folder])
 	t.check(usage[0] == 1 and str(usage[1].get("error")).contains("usage"), "the CLI refuses an unknown command, got %s" % [usage])
 
-	var cli: GDScript = load("res://addons/func_godot/src/trenchdot/terrain3d_cli.gd")
+	var cli: GDScript = load("res://addons/trenchdot/src/trenchdot/terrain3d_cli.gd")
 	var args := PackedStringArray(["export", folder])
 	var absent: String = cli.refusal(args, &"NoSuchTerrain3D")
 	t.check(absent.contains("not installed"), "the CLI refuses a project without Terrain3D, got %s" % [absent])

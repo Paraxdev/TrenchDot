@@ -8,7 +8,7 @@ source: 0b6155b82bf9e0fff2345e05627d7c675a868912
 
 ## アドオンをインストール、更新する { #installing-and-updating-the-addon }
 
-TrenchDotは、プロジェクトを開くたびに、そのアドオンを確認します。`addons/func_godot`がないか、エディターと異なるバージョンのときは、*このプロジェクトを設定*ウィンドウが一度表示され、ステータスバーの右下に黄色の注意書きが残ります。カーソルを重ねると両方のバージョンが表示され、クリックするとウィンドウがもう一度出ます。
+TrenchDotは、プロジェクトを開くたびに、そのアドオンを確認します。`addons/trenchdot`がないか、エディターと異なるバージョンのときは、*このプロジェクトを設定*ウィンドウが一度表示され、ステータスバーの右下に黄色の注意書きが残ります。カーソルを重ねると両方のバージョンが表示され、クリックするとウィンドウがもう一度出ます。
 
 ![黄色の「アドオン 0.0.9、エディター 0.1.0」の注意書きにカーソルを重ね、そのツールチップが表示されたステータスバー](../assets/project-setup/status-addon-mismatch.png)
 
@@ -31,9 +31,9 @@ TrenchDotは、プロジェクトを開くたびに、そのアドオンを確�
 > [!WARNING]
 > 更新する前に、Godotを閉じてください。Godotは再起動するまで古いアドオンを実行し続けるので、Live LinkがプロジェクトをGodotが開いているのを検知しているあいだは、ボタンはグレーのままです。プラグインを有効にするときも、Godotを閉じておいてください。そうしないと、Godotが自分の`project.godot`のコピーを書き戻してしまいます。Godotの*Project > Project Settings > Plugins*でチェックを付ける方法でも有効にできます。
 
-古いアドオンは削除されず、プロジェクトの`.trenchdot/addon-backups/func_godot-<version>`に移されます。Godotはドットで始まるフォルダを読み飛ばすので、バックアップをインポートすることも、2つ目のプラグインとして一覧に出すこともありません。新しいアドオンが動いたら、削除してください。(補足：ダウンロードしたものは、先に展開してから入れ替えます。そのため、失敗またはキャンセルされた更新では、古いアドオンがそのまま残ります。)
+古いアドオンは削除されず、プロジェクトの`.trenchdot/addon-backups/trenchdot-<version>`に移されます。Godotはドットで始まるフォルダを読み飛ばすので、バックアップをインポートすることも、2つ目のプラグインとして一覧に出すこともありません。新しいアドオンが動いたら、削除してください。(補足：ダウンロードしたものは、先に展開してから入れ替えます。そのため、失敗またはキャンセルされた更新では、古いアドオンがそのまま残ります。)
 
-ダウンロードに失敗したときは、ウィンドウが[リリース](https://github.com/Paraxdev/TrenchDot/releases)と[itch.io](https://paraxdev.itch.io/trenchdot)へのリンクを表示します。どちらにも、同じ`func_godot-trenchdot-addon.zip`があります。`addons/func_godot`ができるようにプロジェクトのフォルダへ展開し、古いフォルダの上に展開するのではなく、置き換えてください。
+ダウンロードに失敗したときは、ウィンドウが[リリース](https://github.com/Paraxdev/TrenchDot/releases)と[itch.io](https://paraxdev.itch.io/trenchdot)へのリンクを表示します。どちらにも、同じ`trenchdot-addon.zip`があります。`addons/trenchdot`ができるようにプロジェクトのフォルダへ展開し、古いフォルダの上に展開するのではなく、置き換えてください。
 
 ## コアエンティティとゲームプレイエンティティパック { #core-entities-and-the-gameplay-entities-pack }
 
@@ -77,11 +77,11 @@ TrenchDotは、プロジェクトを開くたびに、そのアドオンを確�
 エンティティがアドオンから切り離される前に作った古いマップも、引き続き動きます。プロジェクトのマップがパックのエンティティを使っていて、プロジェクト内のどこにもそれが定義されていないときは、エディターがプロジェクトを開いたとき、および更新したアドオンでGodotが起動したときに、パックが自動でインストールされます。どちらの場合も、`.tdm`ファイルはすべてのエンティティを保持します。定義の有無は関係ありません。
 
 > [!NOTE]
-> アドオンの中のテンプレート`addons/func_godot/gameplay_pack`には、Godotが読み飛ばすように`.gdignore`ファイルがあります。そのファイルは残してください。そうしないと、パックをインストールしたあとで、Godotがパックのスクリプトクラスをすべて二重に見つけてしまいます。
+> アドオンの中のテンプレート`addons/trenchdot/gameplay_pack`には、Godotが読み飛ばすように`.gdignore`ファイルがあります。そのファイルは残してください。そうしないと、パックをインストールしたあとで、Godotがパックのスクリプトクラスをすべて二重に見つけてしまいます。
 
 ### どの定義が優先されるか { #which-definition-wins }
 
-コアのFGDである`res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres`は、インストールされたパックを自分で読み込みます。そのため、アドオンのデフォルトをもとにしたFGDなら、どれも、一覧に書かなくてもパックを受け取ります。2つの定義が同じクラス名を持つときは、次の順で、あとのものが優先されます。
+コアのFGDである`res://addons/trenchdot/fgd/trenchdot/trenchdot_fgd.tres`は、インストールされたパックを自分で読み込みます。そのため、アドオンのデフォルトをもとにしたFGDなら、どれも、一覧に書かなくてもパックを受け取ります。2つの定義が同じクラス名を持つときは、次の順で、あとのものが優先されます。
 
 1. TrenchDotのクラスとアドオンのコア
 2. `res://trenchdot/entities`にインストールされたパック
@@ -95,10 +95,10 @@ TrenchDotは、プロジェクトを開くたびに、そのアドオンを確�
 
 いちばん手早いのは、[`godot/demo`](https://github.com/Paraxdev/TrenchDot/tree/main/godot/demo)から`demo_fgd.tres`、`demo_map_settings.tres`、`demo_game_config.tres`をプロジェクトにコピーして、パスを直す方法です。自分で作るときは、Godotエディターで次のようにします。
 
-1. `TrenchDotFGDFileBase`を作ります。*Base Fgd Files*を`res://addons/func_godot/fgd/trenchdot_default_fgd.tres`に設定して、コアとインストールしたパックを残し、*Entity Definitions*に自分のエンティティを追加します。このベースがないと、FGDにはそれらがひとつもなく、worldspawnですらコリジョンなしでビルドされます。
+1. `TrenchDotFGDFileBase`を作ります。*Base Fgd Files*を`res://addons/trenchdot/fgd/trenchdot_default_fgd.tres`に設定して、コアとインストールしたパックを残し、*Entity Definitions*に自分のエンティティを追加します。このベースがないと、FGDにはそれらがひとつもなく、worldspawnですらコリジョンなしでビルドされます。
 2. `TrenchDotMapSettings`を作ります。*Entity Fgd*を手順1のFGDに、*Base Texture Dir*をテクスチャのフォルダ(デフォルトは`res://textures`)に設定します。新しいマップ設定リソースは、`trenchdot_default_fgd.tres`から始まります。これにはコアとパックはありますが、自分のエンティティはありません。
 3. `TrenchDotGameConfig`を作ります。*Fgd File*と*Map Settings*を、上の2つのリソースに設定します。(任意で)*Game Name*を設定すると、エディターがツールバーの右上、プロジェクトフォルダの隣に表示します。
-4. *Project > Project Settings*で、`func_godot/default_map_settings`を自分のマップ設定に、`trenchdot/game_config`を自分のゲーム設定に向けます。*Map Settings*欄が空のマップノードは、すべてこれに従います。古いアドオンで追加したノードは、その欄にアドオンのデフォルトを保存しているので、そこを空にしてください。
+4. *Project > Project Settings*で、`trenchdot/default_map_settings`を自分のマップ設定に、`trenchdot/game_config`を自分のゲーム設定に向けます。*Map Settings*欄が空のマップノードは、すべてこれに従います。古いアドオンで追加したノードは、その欄にアドオンのデフォルトを保存しているので、そこを空にしてください。
 
 エディターが提供するのはゲーム設定のFGDのエンティティですが、Godotがビルドに使うのはマップ設定のFGDなので、この2つは同じにしてください。違っているときは、ゲーム設定をエクスポートするたびに、GodotがOutputパネルで警告し、TrenchDotの問題パネルが、Godotがビルドに使うFGDにないエンティティをすべて挙げます。
 
@@ -110,7 +110,7 @@ TrenchDotは、プロジェクトを開くたびに、そのアドオンを確�
 TrenchDotは、エンティティ、テクスチャフォルダ、単位のスケールを、ゲーム設定が書き出す`res://trenchdot_game.json`から知ります。アドオンは、Godotがファイルの変化に気づくたびに、これをもう一度エクスポートし、エディターは1秒以内に読み込み直します。エクスポートには、デフォルトのマップ設定と、そのFGDが定義するクラスの名前も入っています。これが、Godotなら定義なしでビルドするエンティティについて、エディターが警告できる仕組みです。手動でエクスポートするには、Godotで*Project > Tools > TrenchDot: Export Game Config*を使うか、たとえばCIで、ヘッドレスで実行します。
 
 ```sh
-godot --headless --path <project> --script res://addons/func_godot/src/trenchdot/export_game_config_cli.gd
+godot --headless --path <project> --script res://addons/trenchdot/src/trenchdot/export_game_config_cli.gd
 ```
 
 ## プロジェクト設定 { #project-settings }
@@ -119,8 +119,8 @@ godot --headless --path <project> --script res://addons/func_godot/src/trenchdot
 
 | 設定 | デフォルト | 目的 |
 | --- | --- | --- |
-| `func_godot/default_map_settings` | アドオンのデフォルト | 自分で設定を持たないすべてのマップのマップ設定 |
-| `func_godot/default_inverse_scale_factor` | 32 | 1メートルあたりのマップユニット |
+| `trenchdot/default_map_settings` | アドオンのデフォルト | 自分で設定を持たないすべてのマップのマップ設定 |
+| `trenchdot/default_inverse_scale_factor` | 32 | 1メートルあたりのマップユニット |
 | `trenchdot/game_config` | アドオンの設定 | `trenchdot_game.json`を書き出す設定 |
 | `trenchdot/auto_export_game_config` | true | ファイルが変わったときに、ゲーム設定をもう一度エクスポートする |
 | `trenchdot/live_link_enabled` | true | TrenchDotが通信するLive Linkサーバーを動かす |

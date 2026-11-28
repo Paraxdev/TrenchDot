@@ -64,7 +64,7 @@ source: 18fb3370f830b9fda2728d12b95c3b5cef06be64
 1. 安装插件
 
     点击顶部的“安装插件”按钮，把 TrenchDot 的 TrenchDot 分支下载到你的项目中，这对 TrenchDot 至关重要。
-    （注：这会从 GitHub 发布页下载。如果你没有网络，请先下载 `func_godot-trenchdot-addon.zip`，再把它解压到项目根目录，手动安装。）
+    （注：这会从 GitHub 发布页下载。如果你没有网络，请先下载 `trenchdot-addon.zip`，再把它解压到项目根目录，手动安装。）
 
     完成后，点击“启用插件”，让 Godot 加载它。
     （注：如果 Godot 已经打开了这个项目，请先关闭它，否则 Godot 会把它自己的 `project.godot` 副本写回去，插件就会保持关闭。）

@@ -8,7 +8,7 @@ Whoever opens the pull request vouches for every line in it, see the disclosure 
 * `crates/td_core` math primitives, `td_geom` brushes, CSG, displacements and terrain geometry, `td_doc` the map
   document and entities, `td_formats` `.tdm` and other file formats plus the Godot API data, `td_render` the wgpu
   renderer, `td_editor` the egui app and its MCP server, `td_samples` the demo Blockbench models.
-* `godot/addons/func_godot` is the Godot addon that builds `.tdm` maps, a git submodule of
+* `godot/addons/trenchdot` is the Godot addon that builds `.tdm` maps, a git submodule of
   [trenchdot_func](https://github.com/Paraxdev/trenchdot_func). Clone with `git clone --recursive`, or run `git submodule update --init` in an
   existing clone. Addon changes are committed and pushed there first, then the submodule is bumped here.
   `godot/tests` holds the addon tests, `godot/demo` the demo project.

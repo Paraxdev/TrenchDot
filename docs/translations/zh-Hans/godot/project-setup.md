@@ -8,7 +8,7 @@ source: 0b6155b82bf9e0fff2345e05627d7c675a868912
 
 ## 安装和更新插件 { #installing-and-updating-the-addon }
 
-每次你打开项目，TrenchDot 都会检查它的插件。当 `addons/func_godot` 不存在，或者版本和编辑器不同时，*设置此项目*窗口会弹出一次，状态栏右下角会一直留着一条黄色的提示。把鼠标悬停上去能看到两个版本，点击它就能把窗口叫回来。
+每次你打开项目，TrenchDot 都会检查它的插件。当 `addons/trenchdot` 不存在，或者版本和编辑器不同时，*设置此项目*窗口会弹出一次，状态栏右下角会一直留着一条黄色的提示。把鼠标悬停上去能看到两个版本，点击它就能把窗口叫回来。
 
 ![状态栏上，鼠标悬停在黄色的“插件 0.0.9，编辑器 0.1.0”提示上，显示它的工具提示](../assets/project-setup/status-addon-mismatch.png)
 
@@ -31,9 +31,9 @@ source: 0b6155b82bf9e0fff2345e05627d7c675a868912
 > [!WARNING]
 > 更新之前请先关闭 Godot。它在重启之前会一直运行旧的插件，所以只要 Live Link 看到 Godot 打开着这个项目，按钮就会保持灰色。启用插件时也要关着 Godot，否则 Godot 会把它自己那份 `project.godot` 写回去。在 Godot 的 *Project > Project Settings > Plugins* 里勾选它，同样可以。
 
-旧的插件不会被删除，它会移到你项目里的 `.trenchdot/addon-backups/func_godot-<version>`。Godot 会跳过以点开头的文件夹，所以它既不会导入这份备份，也不会把它当成第二个插件列出来。新插件能用之后，就把它删掉。（注意：下载的内容会先解压，然后才换进去，所以失败或取消的更新会让旧插件保持原样。）
+旧的插件不会被删除，它会移到你项目里的 `.trenchdot/addon-backups/trenchdot-<version>`。Godot 会跳过以点开头的文件夹，所以它既不会导入这份备份，也不会把它当成第二个插件列出来。新插件能用之后，就把它删掉。（注意：下载的内容会先解压，然后才换进去，所以失败或取消的更新会让旧插件保持原样。）
 
-如果下载失败，窗口会链接到[发布页](https://github.com/Paraxdev/TrenchDot/releases)和 [itch.io](https://paraxdev.itch.io/trenchdot)，它们提供的是同一个 `func_godot-trenchdot-addon.zip`。把它解压到项目文件夹里，得到 `addons/func_godot`，并且要替换掉旧文件夹，而不是直接解压覆盖在上面。
+如果下载失败，窗口会链接到[发布页](https://github.com/Paraxdev/TrenchDot/releases)和 [itch.io](https://paraxdev.itch.io/trenchdot)，它们提供的是同一个 `trenchdot-addon.zip`。把它解压到项目文件夹里，得到 `addons/trenchdot`，并且要替换掉旧文件夹，而不是直接解压覆盖在上面。
 
 ## 核心实体和玩法实体包 { #core-entities-and-the-gameplay-entities-pack }
 
@@ -77,11 +77,11 @@ source: 0b6155b82bf9e0fff2345e05627d7c675a868912
 实体还在插件里的时候做的旧地图继续有效。当某个项目的地图用到了项目里没有任何东西定义的实体包实体时，这个包会自己安装，编辑器打开项目时是这样，Godot 带着更新后的插件启动时也是这样。不论有没有定义，`.tdm` 文件都会保留每个实体。
 
 > [!NOTE]
-> 插件里的模板 `addons/func_godot/gameplay_pack` 有一个 `.gdignore` 文件，好让 Godot 跳过它。请保留这个文件，否则包一旦安装，Godot 就会把这个包的每个脚本类找到两遍。
+> 插件里的模板 `addons/trenchdot/gameplay_pack` 有一个 `.gdignore` 文件，好让 Godot 跳过它。请保留这个文件，否则包一旦安装，Godot 就会把这个包的每个脚本类找到两遍。
 
 ### 哪个定义生效 { #which-definition-wins }
 
-核心 FGD `res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres` 会自己读取已安装的包，所以每个基于插件默认值建立的 FGD，不用列出它就能得到这个包。当两个定义用了同一个类名时，后面的生效，顺序如下：
+核心 FGD `res://addons/trenchdot/fgd/trenchdot/trenchdot_fgd.tres` 会自己读取已安装的包，所以每个基于插件默认值建立的 FGD，不用列出它就能得到这个包。当两个定义用了同一个类名时，后面的生效，顺序如下：
 
 1. TrenchDot 的类和插件的核心
 2. `res://trenchdot/entities` 里已安装的包
@@ -95,10 +95,10 @@ source: 0b6155b82bf9e0fff2345e05627d7c675a868912
 
 最快的办法是把 `demo_fgd.tres`、`demo_map_settings.tres` 和 `demo_game_config.tres` 从 [`godot/demo`](https://github.com/Paraxdev/TrenchDot/tree/main/godot/demo) 复制到你的项目里，再改好路径。想自己做的话，在 Godot 编辑器里这样做：
 
-1. 创建一个 `TrenchDotFGDFileBase`。把 *Base Fgd Files* 设为 `res://addons/func_godot/fgd/trenchdot_default_fgd.tres`，这样你就保留了核心和已安装的包，然后在 *Entity Definitions* 下添加你自己的实体。没有这个基础的话，你的 FGD 里一个都没有，连 worldspawn 构建出来也没有碰撞。
+1. 创建一个 `TrenchDotFGDFileBase`。把 *Base Fgd Files* 设为 `res://addons/trenchdot/fgd/trenchdot_default_fgd.tres`，这样你就保留了核心和已安装的包，然后在 *Entity Definitions* 下添加你自己的实体。没有这个基础的话，你的 FGD 里一个都没有，连 worldspawn 构建出来也没有碰撞。
 2. 创建一个 `TrenchDotMapSettings`。把 *Entity Fgd* 设为第 1 步的 FGD，把 *Base Texture Dir* 设为你的纹理文件夹（默认是 `res://textures`）。新的地图设置资源一开始用的是 `trenchdot_default_fgd.tres`，它有核心和包，但没有你自己的实体。
 3. 创建一个 `TrenchDotGameConfig`。把它的 *Fgd File* 和 *Map Settings* 设为上面那两个资源。（可选）设置 *Game Name*，编辑器会把它显示在工具栏右上角、项目文件夹的旁边。
-4. 在 *Project > Project Settings* 里，把 `func_godot/default_map_settings` 指向你的地图设置，把 `trenchdot/game_config` 指向你的游戏配置。每个 *Map Settings* 字段为空的地图节点都会跟随它。用旧版插件添加的节点，会在那个字段里存着插件的默认值，所以请在那里把它清空。
+4. 在 *Project > Project Settings* 里，把 `trenchdot/default_map_settings` 指向你的地图设置，把 `trenchdot/game_config` 指向你的游戏配置。每个 *Map Settings* 字段为空的地图节点都会跟随它。用旧版插件添加的节点，会在那个字段里存着插件的默认值，所以请在那里把它清空。
 
 编辑器提供的是游戏配置的 FGD 里的实体，但 Godot 用的是地图设置的 FGD 来构建，所以请让两者保持一致。当它们不同时，Godot 每次导出游戏配置都会在它的输出面板里警告，TrenchDot 的“问题”面板则会点出 Godot 构建所用的 FGD 里缺少的每个实体。
 
@@ -110,7 +110,7 @@ source: 0b6155b82bf9e0fff2345e05627d7c675a868912
 TrenchDot 从 `res://trenchdot_game.json` 了解你的实体、纹理文件夹和单位比例，这个文件是由游戏配置写出来的。每当 Godot 发现文件变化时，插件就会再次导出它，编辑器会在一秒内重新加载它。导出的内容还会写明默认的地图设置，以及它们的 FGD 定义的类，编辑器就是靠这个来警告 Godot 会在没有定义的情况下构建的实体。想手动导出，就在 Godot 里用 *Project > Tools > TrenchDot: Export Game Config*，或者以无头方式运行它，比如在 CI 里：
 
 ```sh
-godot --headless --path <project> --script res://addons/func_godot/src/trenchdot/export_game_config_cli.gd
+godot --headless --path <project> --script res://addons/trenchdot/src/trenchdot/export_game_config_cli.gd
 ```
 
 ## 项目设置 { #project-settings }
@@ -119,8 +119,8 @@ godot --headless --path <project> --script res://addons/func_godot/src/trenchdot
 
 | 设置 | 默认值 | 用途 |
 | --- | --- | --- |
-| `func_godot/default_map_settings` | 插件的默认值 | 每张没有设置自己的那份的地图所用的地图设置 |
-| `func_godot/default_inverse_scale_factor` | 32 | 每米的地图单位数 |
+| `trenchdot/default_map_settings` | 插件的默认值 | 每张没有设置自己的那份的地图所用的地图设置 |
+| `trenchdot/default_inverse_scale_factor` | 32 | 每米的地图单位数 |
 | `trenchdot/game_config` | 插件的配置 | 写出 `trenchdot_game.json` 的那份配置 |
 | `trenchdot/auto_export_game_config` | true | 文件变化时再次导出游戏配置 |
 | `trenchdot/live_link_enabled` | true | 运行 TrenchDot 与之通信的 Live Link 服务器 |

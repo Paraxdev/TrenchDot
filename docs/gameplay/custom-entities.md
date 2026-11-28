@@ -55,7 +55,7 @@ This is the definition of the alarm above, saved as `res://entities/alarm.tres` 
 ```
 [gd_resource type="Resource" script_class="TrenchDotFGDPointClass" load_steps=3 format=3]
 
-[ext_resource type="Script" path="res://addons/func_godot/src/fgd/func_godot_fgd_point_class.gd" id="1_class"]
+[ext_resource type="Script" path="res://addons/trenchdot/src/fgd/func_godot_fgd_point_class.gd" id="1_class"]
 [ext_resource type="Script" path="res://entities/alarm.gd" id="2_script"]
 
 [resource]
@@ -109,7 +109,7 @@ It writes two files and wires them up:
 
 The copy also has to be in the FGD that Godot builds with. If your project has an FGD of its own, the copy is added to
 its *Entity Definitions*. If it has none, **Override in project** creates `res://entities/project_fgd.tres`,
-`project_map_settings.tres` and `project_game_config.tres`, and sets the project settings `func_godot/default_map_settings` and
+`project_map_settings.tres` and `project_game_config.tres`, and sets the project settings `trenchdot/default_map_settings` and
 `trenchdot/game_config` to them while they are still unset or name the addon's defaults, see
 [Project setup](../godot/project-setup.md#your-own-resources). The status bar then says what was written. Build your
 maps again in Godot, because a scene that was built before keeps the old nodes.

@@ -89,7 +89,7 @@ Godotに定義がないクラスのエンティティをライブモードがビ
     Godotで*Project > Project Settings > Globals > Autoload*を開き、次のスクリプトを追加します。
 
     ```
-    res://addons/func_godot/src/trenchdot/runtime/trenchdot_hot_reload.gd
+    res://addons/trenchdot/src/trenchdot/runtime/trenchdot_hot_reload.gd
     ```
 
 2. Godotエディターからゲームを実行する

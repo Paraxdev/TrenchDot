@@ -151,7 +151,7 @@ impl AddonWizard {
                 trf!("Replace the addon with {editor}", editor),
             ),
             Installed::Unknown => (
-                tr("res://addons/func_godot has no version in its plugin.cfg, it is damaged or not the TrenchDot addon.").to_string(),
+                tr("res://addons/trenchdot has no version in its plugin.cfg, it is damaged or not the TrenchDot addon.").to_string(),
                 trf!("Replace the addon with {editor}", editor),
             ),
             Installed::Current => {
@@ -332,7 +332,7 @@ mod tests {
 
     fn release(server: &Server, version: &str) {
         let cfg = format!("[plugin]\nname=\"TrenchDot\"\nversion=\"{version}\"\n");
-        server.release("beta", &[(addon_install::ADDON.asset, &zip(&[("addons/func_godot/plugin.cfg", cfg.as_bytes())]))], true);
+        server.release("beta", &[(addon_install::ADDON.asset, &zip(&[("addons/trenchdot/plugin.cfg", cfg.as_bytes())]))], true);
     }
 
     #[test]
@@ -406,7 +406,7 @@ mod tests {
         assert!(harness.query_by_label_contains("Updated the addon from 0.0.1").is_some());
         assert!(harness.query_by_label("Show Backup").is_some());
         assert!(harness.query_by_label("the GitHub releases").is_none());
-        assert!(root.join(addon_install::BACKUPS).join("func_godot-0.0.1/plugin.cfg").is_file());
+        assert!(root.join(addon_install::BACKUPS).join("trenchdot-0.0.1/plugin.cfg").is_file());
         std::fs::remove_dir_all(&root).unwrap();
     }
 

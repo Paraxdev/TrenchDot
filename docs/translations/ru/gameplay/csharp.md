@@ -14,7 +14,7 @@ source: 602da12da979c292b377fb3a10cadcc22f1babd5
 
 ![Панель «Справка» с наведённой кнопкой «Добавить C#-помощник в проект», подсказка гласит: записывает TrenchDot.cs, мост для сущностей на C#](../assets/csharp/reference-csharp-helper.png)
 
-Он записывает `res://addons/func_godot/csharp/TrenchDot.cs`, где лежат атрибуты. Без него код вашей сущности не компилируется.
+Он записывает `res://addons/trenchdot/csharp/TrenchDot.cs`, где лежат атрибуты. Без него код вашей сущности не компилируется.
 
 ## 2. Объявите сущность { #2-declare-an-entity }
 

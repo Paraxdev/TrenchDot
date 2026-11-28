@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="TrenchDotGameConfig" load_steps=4 format=3]
 
-[ext_resource type="Script" path="res://addons/func_godot/src/trenchdot/trenchdot_game_config.gd" id="1_td"]
+[ext_resource type="Script" path="res://addons/trenchdot/src/trenchdot/trenchdot_game_config.gd" id="1_td"]
 [ext_resource type="Resource" path="res://demo/demo_fgd.tres" id="2_fgd"]
 [ext_resource type="Resource" path="res://demo/demo_map_settings.tres" id="3_ms"]
 

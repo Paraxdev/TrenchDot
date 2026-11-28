@@ -1,13 +1,13 @@
 //! Writes the Godot addon's entity definitions from the editor's entity libraries, so the editor and Godot agree on
-//! classnames, properties, inputs, outputs and gizmos: the core ones in addons/func_godot/fgd/trenchdot/ and the
-//! Gameplay entities pack template in addons/func_godot/gameplay_pack/. Then updates the demo project's installed copy
+//! classnames, properties, inputs, outputs and gizmos: the core ones in addons/trenchdot/fgd/trenchdot/ and the
+//! Gameplay entities pack template in addons/trenchdot/gameplay_pack/. Then updates the demo project's installed copy
 //! of the pack. cargo run -p td_editor --example export_addon_fgd
 
 use std::path::PathBuf;
 
 fn main() {
     let godot = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../godot");
-    let addon = godot.join("addons/func_godot");
+    let addon = godot.join("addons/trenchdot");
     let files = td_editor::code_refs::addon_fgd_files();
     for (name, text) in &files {
         let path = addon.join(name);

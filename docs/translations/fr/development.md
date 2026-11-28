@@ -9,7 +9,7 @@ documentation.
 
 ## Compiler { #building }
 
-Clonez avec les sous-modules, l'addon Godot dans `godot/addons/func_godot` en est un :
+Clonez avec les sous-modules, l'addon Godot dans `godot/addons/trenchdot` en est un :
 
 ```sh
 git clone --recursive https://github.com/Paraxdev/TrenchDot.git
@@ -81,11 +81,11 @@ Certains fichiers sont faits par un script, pas à la main. Quand vous changez c
 ## L'addon Godot { #the-godot-addon }
 
 L'addon a son propre dépôt, [trenchdot_func](https://github.com/Paraxdev/trenchdot_func), récupéré dans
-`godot/addons/func_godot`. Ses tests vivent ici dans `godot/tests`, puisqu'ils ont besoin du projet de démo. Pour modifier
+`godot/addons/trenchdot`. Ses tests vivent ici dans `godot/tests`, puisqu'ils ont besoin du projet de démo. Pour modifier
 l'addon :
 
-1. Validez la modification dans `godot/addons/func_godot` et poussez-la vers trenchdot_func.
-2. Indexez ici le nouveau commit du sous-module avec `git add godot/addons/func_godot` et validez-le avec les
+1. Validez la modification dans `godot/addons/trenchdot` et poussez-la vers trenchdot_func.
+2. Indexez ici le nouveau commit du sous-module avec `git add godot/addons/trenchdot` et validez-le avec les
    modifications de TrenchDot qui en ont besoin.
 
 Poussez l'addon d'abord. Un commit TrenchDot qui pointe vers un commit d'addon que GitHub n'a pas ne s'extrait pas dans
@@ -285,7 +285,7 @@ seule version, donc elle remplit ces canaux simples.
 
 | Zip dans la release | Installé par |
 | --- | --- |
-| `func_godot-trenchdot-addon.zip` | *Godot > Installer ou mettre à jour l'addon…* |
+| `trenchdot-addon.zip` | *Godot > Installer ou mettre à jour l'addon…* |
 | `trenchdot-nature-pack.zip` | *Godot > Ajouter du contenu au projet…* |
 | `trenchdot-demo-content.zip` | *Godot > Ajouter du contenu au projet…* |
 

@@ -8,6 +8,13 @@ pub const NAME: &str = "GodotTrench";
 /// The names an old addon's plugin.cfg may carry. Beta builds briefly called it LevelBench, with the GodotTrench names inside.
 pub const ADDON_NAMES: [&str; 2] = [NAME, "LevelBench"];
 
+/// Where the addon lived before it moved to `addons/trenchdot`. The original FuncGodot addon installs there too, so a
+/// folder there is only ours when its plugin.cfg does not name [`UPSTREAM_ADDON`].
+pub const ADDON_DIR: &str = "addons/func_godot";
+pub const UPSTREAM_ADDON: &str = "FuncGodot";
+/// The project.godot section the old addon kept its map settings in, which the original FuncGodot addon still uses.
+pub const SETTINGS_SECTION: &str = "func_godot";
+
 pub const MAP_FORMAT: &str = "godottrench-map";
 pub const GAME_FORMAT: &str = "godottrench-game";
 pub const GAME_FILE: &str = "godottrench_game.json";

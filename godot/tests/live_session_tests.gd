@@ -6,7 +6,7 @@ const SETTINGS := "res://demo/demo_map_settings.tres"
 const MAP := "res://tests/maps/basic.tdm"
 const MAP_JSON := "res://tests/maps/basic_json.tdm"
 ## The TrenchDotFGDFile the demo's FGD has as a base, which brings the installed Gameplay entities pack.
-const CORE_FGD := "res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres"
+const CORE_FGD := "res://addons/trenchdot/fgd/trenchdot/trenchdot_fgd.tres"
 const CSHARP_DIR := "user://td_tests_live_csharp"
 const PREFAB := "res://tests/maps/prefab.tdm"
 const NESTED_DIR := "user://td_tests_live_prefabs"

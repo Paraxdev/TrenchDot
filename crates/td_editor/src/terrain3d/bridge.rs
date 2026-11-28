@@ -18,7 +18,7 @@ use td_geom::terrain3d::{Grid, Loc, Region3D};
 use crate::i18n::{Msg, en, msg, msg_n};
 use crate::live_link;
 
-const CLI_SCRIPT: &str = "res://addons/func_godot/src/trenchdot/terrain3d_cli.gd";
+const CLI_SCRIPT: &str = "res://addons/trenchdot/src/trenchdot/terrain3d_cli.gd";
 const LIVE_REPLY: Duration = Duration::from_secs(60);
 const HEADLESS_TIMEOUT: Duration = Duration::from_secs(120);
 const OLD_ADDON: &str = "unknown event";

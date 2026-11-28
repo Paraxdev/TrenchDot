@@ -14,9 +14,9 @@ use base64::Engine;
 /// SHA-256 of each file of the addon this editor was built with, by path inside the addon, sorted. build.rs makes it.
 const ADDON_FILES: &[(&str, [u8; 32])] = include!(concat!(env!("OUT_DIR"), "/addon_files.rs"));
 
-const ADDON: &str = "addons/func_godot/";
+const ADDON: &str = "addons/trenchdot/";
 const PACK: &str = "trenchdot/entities/";
-const OWN: [&str; 2] = ["res://addons/func_godot/", "res://trenchdot/entities/"];
+const OWN: [&str; 2] = ["res://addons/trenchdot/", "res://trenchdot/entities/"];
 
 /// How much one scan looks through before it gives up and counts the project as holding code.
 pub struct Limits {
@@ -925,7 +925,7 @@ mod tests {
 
     /// The addon this editor was built with, copied the way the release zip has it.
     fn copy_addon(root: &Path) {
-        let from = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../godot/addons/func_godot");
+        let from = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../godot/addons/trenchdot");
         for (rel, _) in ADDON_FILES {
             write(root, &format!("{ADDON}{rel}"), std::fs::read(from.join(rel)).unwrap());
         }
@@ -947,7 +947,7 @@ mod tests {
         write(root, ".godot/imported/yard.tdm-2.tres", imported_map(&td_doc::format::to_bytes(&map).unwrap()));
         write(root, ".godot/imported/icon.svg-1.ctex", b"GST2....");
         write(root, ".godot/editor/project_metadata.cfg", "[editor_metadata]\n\nexecutable_path=\"C:/Godot/godot.exe\"\n");
-        write(root, ".godot/uid_cache.bin", uid_cache_bytes(&["res://icon.svg", "res://addons/func_godot/plugin.cfg"]));
+        write(root, ".godot/uid_cache.bin", uid_cache_bytes(&["res://icon.svg", "res://addons/trenchdot/plugin.cfg"]));
         write(root, ".godot/global_script_class_cache.cfg", "list=[]\n");
         dir
     }
@@ -955,7 +955,7 @@ mod tests {
     fn imported_map(bytes: &[u8]) -> String {
         let b64 = base64::engine::general_purpose::STANDARD.encode(bytes);
         format!(
-            "[gd_resource type=\"Resource\" script_class=\"TrenchDotImportedMap\" format=4]\n\n[ext_resource type=\"Script\" uid=\"uid://c3\" path=\"res://addons/func_godot/src/import/tdm_imported_map.gd\" id=\"1_ab\"]\n\n[resource]\nscript = ExtResource(\"1_ab\")\nrevision = 1\nmap_bytes = PackedByteArray(\"{b64}\")\n"
+            "[gd_resource type=\"Resource\" script_class=\"TrenchDotImportedMap\" format=4]\n\n[ext_resource type=\"Script\" uid=\"uid://c3\" path=\"res://addons/trenchdot/src/import/tdm_imported_map.gd\" id=\"1_ab\"]\n\n[resource]\nscript = ExtResource(\"1_ab\")\nrevision = 1\nmap_bytes = PackedByteArray(\"{b64}\")\n"
         )
     }
 
@@ -989,15 +989,15 @@ mod tests {
         let root = dir.path();
         assert_eq!(find(root), None);
 
-        let plugin = root.join("addons/func_godot/plugin.cfg");
+        let plugin = root.join("addons/trenchdot/plugin.cfg");
         let original = std::fs::read(&plugin).unwrap();
         std::fs::write(&plugin, [original.as_slice(), b"\n"].concat()).unwrap();
         let changed = find(root).unwrap();
-        assert_eq!(changed.path, "addons/func_godot/plugin.cfg");
+        assert_eq!(changed.path, "addons/trenchdot/plugin.cfg");
         assert!(changed.why.contains("differs from the TrenchDot addon"), "{}", changed.why);
         std::fs::write(&plugin, original).unwrap();
 
-        for extra in ["addons/func_godot/notes.txt", "trenchdot/entities/scripts/td_mine.gd", "trenchdot/entities/definitions/mine.tres"] {
+        for extra in ["addons/trenchdot/notes.txt", "trenchdot/entities/scripts/td_mine.gd", "trenchdot/entities/definitions/mine.tres"] {
             write(root, extra, "x");
             assert_eq!(found(root).as_deref(), Some(extra), "an extra file in TrenchDot's folders counts");
             std::fs::remove_file(root.join(extra)).unwrap();
@@ -1043,7 +1043,7 @@ mod tests {
                 "[sub_resource type=\"GDScript\" id=\"G\"]\nscript/source = \"extends Node\nfunc _ready():\n\tOS.execute(\\\"calc\\\", [])\n\"\n\n[node name=\"Main\" type=\"Node\"]\nscript = SubResource(\"G\")",
             ),
             scene("[ext_resource type=\"Script\" path=\"res://player.gd\" id=\"1\"]\n\n[node name=\"Main\" type=\"Node\"]\nscript = ExtResource(\"1\")"),
-            scene("[ext_resource type=\"Script\" path=\"res://addons/func_godot/\\u002e\\u002e/evil.gd\" id=\"1\"]"),
+            scene("[ext_resource type=\"Script\" path=\"res://addons/trenchdot/\\u002e\\u002e/evil.gd\" id=\"1\"]"),
             scene("[ext_resource type=\"PackedScene\" path=\"res://../outside/level.tscn\" id=\"1\"]"),
             scene("[ext_resource type=\"PackedScene\" path=\"C:/Users/someone/level.tscn\" id=\"1\"]"),
             scene("[node name=\"Main\" type=\"Node\"]\nscript = Resource(\"res://player.gd\")"),
@@ -1063,7 +1063,7 @@ mod tests {
             root,
             "main.tscn",
             scene(
-                "[ext_resource type=\"Script\" path=\"res://addons/func_godot/src/map/func_godot_map.gd\" id=\"1\"]\n[ext_resource type=\"Texture2D\" path=\"res://icon.svg\" id=\"2\"]\n\n[node name=\"Map\" type=\"Node3D\"]\nscript = ExtResource(\"1\")\nlabel = \"see ../notes and /help\"\n\n[connection signal=\"ready\" from=\".\" to=\".\" method=\"show\"]",
+                "[ext_resource type=\"Script\" path=\"res://addons/trenchdot/src/map/func_godot_map.gd\" id=\"1\"]\n[ext_resource type=\"Texture2D\" path=\"res://icon.svg\" id=\"2\"]\n\n[node name=\"Map\" type=\"Node3D\"]\nscript = ExtResource(\"1\")\nlabel = \"see ../notes and /help\"\n\n[connection signal=\"ready\" from=\".\" to=\".\" method=\"show\"]",
             ),
         );
         write(root, "wall.tres", "[gd_resource type=\"StandardMaterial3D\" format=3]\n\n[resource]\nalbedo_color = Color(1, 0, 0, 1)\n");
@@ -1100,7 +1100,7 @@ mod tests {
         let cases = [
             "[autoload]\n\nGame=\"*res://game.tscn\"\n",
             "[autoload]\n\nGame=\"*uid://c4\"\n",
-            "[editor_plugins]\n\nenabled=PackedStringArray(\"res://addons/func_godot/plugin.cfg\", \"res://addons/other/plugin.cfg\")\n",
+            "[editor_plugins]\n\nenabled=PackedStringArray(\"res://addons/trenchdot/plugin.cfg\", \"res://addons/other/plugin.cfg\")\n",
             "[editor]\n\nrun/main_run_args=\"calc.exe %command%\"\n",
             "[editor/run]\n\nmain_run_args=\"calc.exe %command%\"\n",
             "[application]\n\nrun/main_loop_type=\"MyLoop\"\n",
@@ -1122,7 +1122,7 @@ mod tests {
             dir.path(),
             "project.godot",
             format!(
-                "{base}\n[autoload]\n\nReload=\"*res://addons/func_godot/src/trenchdot/runtime/trenchdot_hot_reload.gd\"\n\n[editor_plugins]\n\nenabled=PackedStringArray(\"res://addons/func_godot/plugin.cfg\")\n"
+                "{base}\n[autoload]\n\nReload=\"*res://addons/trenchdot/src/trenchdot/runtime/trenchdot_hot_reload.gd\"\n\n[editor_plugins]\n\nenabled=PackedStringArray(\"res://addons/trenchdot/plugin.cfg\")\n"
             ),
         );
         assert_eq!(find(dir.path()), None, "TrenchDot's own plugin and scripts are fine");

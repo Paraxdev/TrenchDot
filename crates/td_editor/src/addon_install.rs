@@ -8,14 +8,16 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicU64;
 use std::sync::mpsc;
 
+use td_doc::legacy;
+
 use crate::content::{Added, Download, Error, Progress, Reporter, io_error};
 use crate::i18n::{self, Msg, en, msg};
 
-pub const ADDON: Download = Download { asset: "func_godot-trenchdot-addon.zip", folders: &["addons/func_godot"], approx_mb: 1 };
+pub const ADDON: Download = Download { asset: "trenchdot-addon.zip", folders: &["addons/trenchdot"], approx_mb: 1 };
 /// Where the addon lives in a project.
-pub const DIR: &str = "addons/func_godot";
+pub const DIR: &str = "addons/trenchdot";
 /// How `project.godot` names the addon among its enabled plugins.
-pub const PLUGIN: &str = "res://addons/func_godot/plugin.cfg";
+pub const PLUGIN: &str = "res://addons/trenchdot/plugin.cfg";
 /// Holds the addon while it is unpacked, and the old addons an update replaced. Godot neither imports nor lists folders
 /// whose names start with a dot. A backup under `addons` would still show as a second TrenchDot in Godot's plugin
 /// list, even with a `.gdignore` in it.
@@ -25,7 +27,7 @@ pub const BACKUPS: &str = ".trenchdot/addon-backups";
 /// install.
 const UNPACKING: &str = "addon-new-";
 
-const GIT: &str = en!("res://addons/func_godot is a git checkout, update it with git");
+const GIT: &str = en!("res://addons/trenchdot is a git checkout, update it with git");
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum Installed {
@@ -52,13 +54,15 @@ pub struct Status {
 impl Status {
     pub fn check(root: &Path) -> Status {
         let dir = root.join(DIR);
+        let legacy = td_formats::game::legacy_addon(root).is_some();
         let installed = match td_formats::game::addon_version(root) {
             Some(version) => installed(version, crate::VERSION),
-            None if dir.exists() => Installed::Unknown,
+            None if dir.exists() || legacy => Installed::Unknown,
             None => Installed::Missing,
         };
         let project = std::fs::read_to_string(root.join("project.godot")).unwrap_or_default();
-        Status { installed, git: dir.join(".git").exists(), enabled: plugin_enabled(&project), exported: td_formats::GameConfig::discover(root).is_some() }
+        let git = dir.join(".git").exists() || (legacy && root.join(legacy::ADDON_DIR).join(".git").exists());
+        Status { installed, git, enabled: plugin_enabled(&project), exported: td_formats::GameConfig::discover(root).is_some() }
     }
 
     /// The addon is missing or does not match the editor.
@@ -256,6 +260,8 @@ pub struct Outcome {
     pub tag: Option<String>,
     /// Where the replaced addon went.
     pub backup: Option<PathBuf>,
+    /// How many project files [`migrate`] pointed at the addon's new folder.
+    pub migrated: usize,
     pub error: Option<Error>,
 }
 
@@ -270,6 +276,11 @@ impl Outcome {
         }
 
         let version = self.version.as_deref().unwrap_or_default();
+        if self.migrated > 0 {
+            let count = self.migrated;
+            return msg!("Moved the addon to res://addons/trenchdot, updated it to {version} and pointed {count} project files at it.", version, count);
+        }
+
         if self.backup.is_none() {
             return msg!("Installed the addon {version}.", version);
         }
@@ -315,17 +326,20 @@ pub fn install(root: &Path, api: &str, report: &Reporter) -> Outcome {
         crate::content::extract(archive, ADDON.asset, &unpacked, ADDON.folders, report, &mut Added::default())?;
         let version = td_formats::game::addon_version(&unpacked).ok_or_else(|| Error::Damaged(format!("it has no {DIR}/plugin.cfg with a version")))?;
         report.check()?;
+        let moving = std::fs::symlink_metadata(root.join(DIR)).is_err() && td_formats::game::legacy_addon(root).is_some();
         let backup = swap(root, &unpacked.join(DIR), &before.installed)?;
-        Ok((asset.tag, version, backup))
+        let migrated = if moving { migrate(root)? } else { 0 };
+        Ok((asset.tag, version, backup, migrated))
     })();
     let _ = std::fs::remove_dir_all(&unpacked);
     // Only goes when empty, that is when there are no backups.
     let _ = std::fs::remove_dir(&work);
     match result {
-        Ok((tag, version, backup)) => {
+        Ok((tag, version, backup, migrated)) => {
             outcome.tag = Some(tag);
             outcome.version = Some(version);
             outcome.backup = backup;
+            outcome.migrated = migrated;
         }
         Err(e) => outcome.error = Some(e),
     }
@@ -333,18 +347,23 @@ pub fn install(root: &Path, api: &str, report: &Reporter) -> Outcome {
     outcome
 }
 
-/// Moves the unpacked addon `new` into place. An addon already there moves to a backup folder first, and back when the
-/// new one cannot take its place. Returns where the old one went.
+/// Moves the unpacked addon `new` into place. An addon already there, or still in its old folder, moves to a backup
+/// folder first, and back when the new one cannot take its place. Returns where the old one went.
 fn swap(root: &Path, new: &Path, before: &Installed) -> Result<Option<PathBuf>, Error> {
     let target = root.join(DIR);
-    if std::fs::symlink_metadata(&target).is_err() {
+    let old = if std::fs::symlink_metadata(&target).is_err() && td_formats::game::legacy_addon(root).is_some() {
+        root.join(legacy::ADDON_DIR)
+    } else {
+        target.clone()
+    };
+    if std::fs::symlink_metadata(&old).is_err() {
         let addons = root.join("addons");
         std::fs::create_dir_all(&addons).map_err(|e| io_error(e, &addons))?;
         std::fs::rename(new, &target).map_err(|e| io_error(e, &target))?;
         return Ok(None);
     }
 
-    if target.join(".git").exists() {
+    if old.join(".git").exists() {
         return Err(Error::Io(Msg::key(GIT)));
     }
 
@@ -364,24 +383,95 @@ fn swap(root: &Path, new: &Path, before: &Installed) -> Result<Option<PathBuf>, 
         _ => "unknown".to_string(),
     };
     let backup = (1..)
-        .map(|n| backups.join(if n == 1 { format!("func_godot-{version}") } else { format!("func_godot-{version}-{n}") }))
+        .map(|n| backups.join(if n == 1 { format!("trenchdot-{version}") } else { format!("trenchdot-{version}-{n}") }))
         .find(|p| std::fs::symlink_metadata(p).is_err())
         .expect("a free backup name");
-    std::fs::rename(&target, &backup).map_err(|e| Error::Io(msg!("Could not move the old addon ({e}). Close Godot and try again.", e)))?;
+    std::fs::rename(&old, &backup).map_err(|e| Error::Io(msg!("Could not move the old addon ({e}). Close Godot and try again.", e)))?;
     if let Err(e) = std::fs::rename(new, &target) {
-        let back = std::fs::rename(&backup, &target);
+        let back = std::fs::rename(&backup, &old);
         return Err(Error::Io(match back {
             Ok(()) => msg!("Could not put the new addon in place ({e}), the old one is back where it was.", e),
             Err(_) => msg!(
                 "Could not put the new addon in place ({e}). The old one is in {backup}, move it back to {target}.",
                 e,
                 backup = backup.display(),
-                target = target.display()
+                target = old.display()
             ),
         }));
     }
 
     Ok(Some(backup))
+}
+
+const OLD_RES: &str = "res://addons/func_godot/";
+const NEW_RES: &str = "res://addons/trenchdot/";
+/// The project settings the addon kept in [`legacy::SETTINGS_SECTION`].
+const MOVED_SETTINGS: [&str; 2] = ["default_map_settings", "default_inverse_scale_factor"];
+
+/// Points a project whose addon was in [`legacy::ADDON_DIR`] at [`DIR`]: its scenes, resources and scripts, the plugin
+/// list and the addon's project settings. The addon's files have other uids than before the move, so references into
+/// it lose theirs and Godot finds them by path, writing the new uids the next time it saves them. Folders starting
+/// with a dot and the other addons stay as they are. Returns how many files changed.
+pub fn migrate(root: &Path) -> Result<usize, Error> {
+    let mut changed = 0;
+    let mut dirs = vec![root.to_path_buf()];
+    while let Some(dir) = dirs.pop() {
+        for entry in std::fs::read_dir(&dir).map_err(|e| io_error(e, &dir))?.flatten() {
+            let path = entry.path();
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let Ok(kind) = entry.file_type() else { continue };
+            if kind.is_dir() {
+                if !name.starts_with('.') && path != root.join("addons") {
+                    dirs.push(path);
+                }
+
+                continue;
+            }
+
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or_default();
+            let project = dir == root && name == "project.godot";
+            if !project && !["tscn", "tres", "gd", "gdshader", "cs", "cfg", "json"].contains(&ext) {
+                continue;
+            }
+
+            let Ok(text) = std::fs::read_to_string(&path) else { continue };
+            let mut new = repointed(&text, ext == "tscn" || ext == "tres");
+            if project {
+                new = MOVED_SETTINGS.iter().fold(new, |t, key| crate::godot_settings::moved_setting(&t, legacy::SETTINGS_SECTION, "trenchdot", key));
+            }
+
+            if new != text {
+                td_formats::write_atomic(&path, &mut new.as_bytes()).map_err(|e| io_error(e, &path))?;
+                changed += 1;
+            }
+        }
+    }
+
+    Ok(changed)
+}
+
+/// `text` with its paths into the old addon folder moved to the new one. In a scene or resource those references also
+/// drop their uid, which named the file before the move.
+fn repointed(text: &str, resource: bool) -> String {
+    if !text.contains(OLD_RES) {
+        return text.to_string();
+    }
+
+    let text = text.replace(OLD_RES, NEW_RES);
+    if !resource {
+        return text;
+    }
+
+    let into_addon = format!("path=\"{NEW_RES}");
+    text.split_inclusive('\n')
+        .map(|line| match line.find(" uid=\"") {
+            Some(at) if line.starts_with("[ext_resource") && line.contains(&into_addon) => {
+                let end = line[at + 6..].find('"').map_or(line.len(), |e| at + 7 + e);
+                format!("{}{}", &line[..at], &line[end..])
+            }
+            _ => line.to_string(),
+        })
+        .collect()
 }
 
 /// An install running on its own thread.
@@ -447,8 +537,8 @@ mod tests {
 
     fn release_zip(version: &str) -> Vec<u8> {
         zip(&[
-            ("addons/func_godot/plugin.cfg", format!("[plugin]\nname=\"TrenchDot\"\nversion=\"{version}\"\n").as_bytes()),
-            ("addons/func_godot/src/func_godot_plugin.gd", b"@tool\nextends EditorPlugin\n"),
+            ("addons/trenchdot/plugin.cfg", format!("[plugin]\nname=\"TrenchDot\"\nversion=\"{version}\"\n").as_bytes()),
+            ("addons/trenchdot/src/func_godot_plugin.gd", b"@tool\nextends EditorPlugin\n"),
         ])
     }
 
@@ -550,7 +640,7 @@ mod tests {
         );
         let no_key = "[editor_plugins]\n\nsomething=1\n\n[z]\n";
         assert_eq!(enabled(no_key), format!("[editor_plugins]\nenabled=PackedStringArray(\"{PLUGIN}\")\n\nsomething=1\n\n[z]\n"));
-        assert!(!plugin_enabled("[other]\nenabled=PackedStringArray(\"res://addons/func_godot/plugin.cfg\")\n"), "only in [editor_plugins]");
+        assert!(!plugin_enabled("[other]\nenabled=PackedStringArray(\"res://addons/trenchdot/plugin.cfg\")\n"), "only in [editor_plugins]");
 
         assert_eq!(with_plugin_enabled("[editor_plugins]\nenabled=PoolStringArray(\"x\")\n"), Err(UNREADABLE.to_string()));
         assert_eq!(with_plugin_enabled("[editor_plugins]\nenabled=PackedStringArray(\"x\"\n"), Err(UNREADABLE.to_string()));
@@ -595,7 +685,7 @@ mod tests {
         std::fs::write(root.join(DIR).join("removed_since.gd"), "old").unwrap();
         let outcome = install(&root, &server.url, &Reporter::default());
         assert_eq!(outcome.error, None);
-        let backup = root.join(BACKUPS).join("func_godot-0.0.1");
+        let backup = root.join(BACKUPS).join("trenchdot-0.0.1");
         assert_eq!(outcome.backup.as_ref(), Some(&backup));
         assert!(!root.join(DIR).join("removed_since.gd").exists(), "the folder is replaced as a whole");
         assert_eq!(std::fs::read_to_string(backup.join("removed_since.gd")).unwrap(), "old");
@@ -606,7 +696,69 @@ mod tests {
         assert_eq!(std::fs::read_dir(root.join(WORK_DIR)).unwrap().count(), 1, "only the backups stay");
 
         addon(&root, "0.0.1");
-        assert_eq!(install(&root, &server.url, &Reporter::default()).backup, Some(root.join(BACKUPS).join("func_godot-0.0.1-2")), "an older backup stays");
+        assert_eq!(install(&root, &server.url, &Reporter::default()).backup, Some(root.join(BACKUPS).join("trenchdot-0.0.1-2")), "an older backup stays");
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn an_addon_in_the_old_folder_moves_and_the_project_follows() {
+        let server = Server::start();
+        server.release("beta", &[(ADDON.asset, &release_zip(crate::VERSION))], true);
+        let godot = "config_version=5\n\n[editor_plugins]\n\nenabled=PackedStringArray(\"res://addons/func_godot/plugin.cfg\")\n\n[func_godot]\n\ndefault_map_settings=\"res://ms.tres\"\ndefault_inverse_scale_factor=16.0\n";
+        let root = project("move", godot);
+        let old = root.join(legacy::ADDON_DIR);
+        std::fs::create_dir_all(&old).unwrap();
+        std::fs::write(old.join("plugin.cfg"), "[plugin]\n\nname=\"TrenchDot\"\nversion=\"0.0.1\"\n").unwrap();
+        assert!(matches!(Status::check(&root).installed, Installed::Older(_)), "the old folder counts as an older addon");
+        let scene = "[gd_scene format=3 uid=\"uid://scene\"]\n\n[ext_resource type=\"Script\" uid=\"uid://old\" path=\"res://addons/func_godot/src/map/func_godot_map.gd\" id=\"1\"]\n[ext_resource type=\"Script\" uid=\"uid://mine\" path=\"res://mine.gd\" id=\"2\"]\n";
+        std::fs::create_dir_all(root.join("levels")).unwrap();
+        std::fs::write(root.join("levels/level.tscn"), scene).unwrap();
+        std::fs::write(root.join("mine.gd"), "extends \"res://addons/func_godot/src/map/func_godot_map.gd\"\n").unwrap();
+        std::fs::create_dir_all(root.join("addons/other")).unwrap();
+        std::fs::write(root.join("addons/other/x.gd"), "# res://addons/func_godot/\n").unwrap();
+
+        let outcome = install(&root, &server.url, &Reporter::default());
+        assert_eq!(outcome.error, None);
+        assert_eq!(outcome.migrated, 3, "the scene, the script and project.godot");
+        assert!(outcome.summary().starts_with("Moved the addon to res://addons/trenchdot"), "{}", outcome.summary());
+        assert!(!old.exists() && outcome.backup.as_ref().is_some_and(|b| b.join("plugin.cfg").is_file()), "the old folder went to the backups");
+        assert_eq!(Status::check(&root).installed, Installed::Current);
+        assert_eq!(
+            std::fs::read_to_string(root.join("levels/level.tscn")).unwrap(),
+            scene.replace("uid=\"uid://old\" path=\"res://addons/func_godot/", "path=\"res://addons/trenchdot/"),
+            "references into the addon follow it by path, others keep their uid"
+        );
+        assert_eq!(std::fs::read_to_string(root.join("mine.gd")).unwrap(), "extends \"res://addons/trenchdot/src/map/func_godot_map.gd\"\n");
+        assert_eq!(std::fs::read_to_string(root.join("addons/other/x.gd")).unwrap(), "# res://addons/func_godot/\n", "other addons stay as they are");
+        let project = std::fs::read_to_string(root.join("project.godot")).unwrap();
+        assert!(plugin_enabled(&project), "{project}");
+        assert_eq!(crate::godot_settings::get(&project, "trenchdot", "default_map_settings").as_deref(), Some("res://ms.tres"));
+        assert_eq!(crate::godot_settings::get(&project, "trenchdot", "default_inverse_scale_factor").as_deref(), Some("16.0"));
+        assert_eq!(crate::godot_settings::get(&project, legacy::SETTINGS_SECTION, "default_map_settings"), None);
+        std::fs::remove_dir_all(&root).unwrap();
+    }
+
+    #[test]
+    fn the_original_func_godot_addon_is_left_alone() {
+        let server = Server::start();
+        server.release("beta", &[(ADDON.asset, &release_zip(crate::VERSION))], true);
+        let godot = "config_version=5\n\n[func_godot]\n\ndefault_map_settings=\"res://addons/func_godot/func_godot_default_map_settings.tres\"\n";
+        let root = project("upstream", godot);
+        let upstream = root.join(legacy::ADDON_DIR);
+        std::fs::create_dir_all(&upstream).unwrap();
+        std::fs::write(upstream.join("plugin.cfg"), "[plugin]\n\nname=\"FuncGodot\"\nversion=\"2025.1\"\n").unwrap();
+        std::fs::write(
+            root.join("level.tscn"),
+            "[ext_resource type=\"Script\" uid=\"uid://up\" path=\"res://addons/func_godot/src/map/func_godot_map.gd\" id=\"1\"]\n",
+        )
+        .unwrap();
+        assert_eq!(Status::check(&root).installed, Installed::Missing);
+
+        let outcome = install(&root, &server.url, &Reporter::default());
+        assert_eq!((outcome.error, outcome.backup, outcome.migrated), (None, None, 0));
+        assert!(upstream.join("plugin.cfg").is_file() && root.join(DIR).join("plugin.cfg").is_file(), "both addons sit side by side");
+        assert_eq!(std::fs::read_to_string(root.join("project.godot")).unwrap(), godot);
+        assert!(std::fs::read_to_string(root.join("level.tscn")).unwrap().contains("uid://up"));
         std::fs::remove_dir_all(&root).unwrap();
     }
 
@@ -640,9 +792,9 @@ mod tests {
         server.release("beta", &[], true);
         assert_eq!(install(&root, &server.url, &Reporter::default()).error, Some(Error::NotPublished(ADDON.asset)));
 
-        server.release("beta", &[(ADDON.asset, &zip(&[("addons/func_godot/readme.txt", b"no plugin.cfg")]))], true);
+        server.release("beta", &[(ADDON.asset, &zip(&[("addons/trenchdot/readme.txt", b"no plugin.cfg")]))], true);
         assert!(matches!(install(&root, &server.url, &Reporter::default()).error, Some(Error::Damaged(_))));
-        server.release("beta", &[(ADDON.asset, &zip(&[("addons/func_godot/plugin.cfg", b"x"), ("project.godot", b"x")]))], true);
+        server.release("beta", &[(ADDON.asset, &zip(&[("addons/trenchdot/plugin.cfg", b"x"), ("project.godot", b"x")]))], true);
         assert!(matches!(install(&root, &server.url, &Reporter::default()).error, Some(Error::Unsafe(_))));
 
         let cancelled = Reporter::default();

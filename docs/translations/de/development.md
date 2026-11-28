@@ -8,7 +8,7 @@ Diese Seite ist für dich, wenn du den Editor aus dem Quellcode bauen, das Addon
 
 ## Bauen { #building }
 
-Klone mit Submodulen, das Godot-Addon in `godot/addons/func_godot` ist eins:
+Klone mit Submodulen, das Godot-Addon in `godot/addons/trenchdot` ist eins:
 
 ```sh
 git clone --recursive https://github.com/Paraxdev/TrenchDot.git
@@ -70,10 +70,10 @@ Manche Dateien macht ein Skript, nicht die Hand. Änderst du, was ein Skript lie
 
 ## Das Godot-Addon { #the-godot-addon }
 
-Das Addon hat ein eigenes Repository, [trenchdot_func](https://github.com/Paraxdev/trenchdot_func), ausgecheckt in `godot/addons/func_godot`. Seine Tests liegen hier in `godot/tests`, denn sie brauchen das Demo-Projekt. So änderst du das Addon:
+Das Addon hat ein eigenes Repository, [trenchdot_func](https://github.com/Paraxdev/trenchdot_func), ausgecheckt in `godot/addons/trenchdot`. Seine Tests liegen hier in `godot/tests`, denn sie brauchen das Demo-Projekt. So änderst du das Addon:
 
-1. Committe die Änderung in `godot/addons/func_godot` und pushe sie nach trenchdot_func.
-2. Stage den neuen Submodul-Commit hier mit `git add godot/addons/func_godot` und committe ihn mit den TrenchDot-Änderungen, die ihn brauchen.
+1. Committe die Änderung in `godot/addons/trenchdot` und pushe sie nach trenchdot_func.
+2. Stage den neuen Submodul-Commit hier mit `git add godot/addons/trenchdot` und committe ihn mit den TrenchDot-Änderungen, die ihn brauchen.
 
 Pushe das Addon zuerst. Ein TrenchDot-Commit, der auf einen Addon-Commit zeigt, den GitHub nicht hat, lässt sich in CI nicht auschecken.
 
@@ -191,7 +191,7 @@ Der Editor lädt Addon und Inhalte nur von den GitHub-Releases. itch.io ist ein 
 
 | Zip im Release | Installiert durch |
 | --- | --- |
-| `func_godot-trenchdot-addon.zip` | *Godot > Addon installieren oder aktualisieren…* |
+| `trenchdot-addon.zip` | *Godot > Addon installieren oder aktualisieren…* |
 | `trenchdot-nature-pack.zip` | *Godot > Inhalt zum Projekt hinzufügen…* |
 | `trenchdot-demo-content.zip` | *Godot > Inhalt zum Projekt hinzufügen…* |
 

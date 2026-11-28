@@ -549,7 +549,7 @@ mod tests {
 
     fn publish(server: &Server, title: &str, exe: &[u8]) {
         let exe = exe_bytes(exe);
-        server.titled_release(TAG, title, &[(ASSET.unwrap(), &exe), ("func_godot-trenchdot-addon.zip", b"addon")], true);
+        server.titled_release(TAG, title, &[(ASSET.unwrap(), &exe), ("trenchdot-addon.zip", b"addon")], true);
     }
 
     fn release_of(server: &Server) -> Release {

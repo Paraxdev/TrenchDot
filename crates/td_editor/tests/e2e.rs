@@ -6413,7 +6413,7 @@ fn add_pack_template(dir: &std::path::Path) {
         }
     }
 
-    copy(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../godot/addons/func_godot/gameplay_pack"), &dir.join("addons/func_godot/gameplay_pack"));
+    copy(&PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../godot/addons/trenchdot/gameplay_pack"), &dir.join("addons/trenchdot/gameplay_pack"));
 }
 
 /// The door wizard installs the Gameplay entities pack into a project that lacks it, so the door it makes has its
@@ -6853,9 +6853,9 @@ fn a_new_project_asks_about_content_but_not_an_agent_at_work() {
     let old = artifacts().join("content_old_addon");
     let _ = std::fs::remove_dir_all(&old);
     std::fs::create_dir_all(old.join("trenchdot/nature")).unwrap();
-    std::fs::create_dir_all(old.join("addons/func_godot")).unwrap();
+    std::fs::create_dir_all(old.join("addons/trenchdot")).unwrap();
     std::fs::write(old.join("project.godot"), "config_version=5\n").unwrap();
-    std::fs::write(old.join("addons/func_godot/plugin.cfg"), "[plugin]\nversion=\"0.0.1\"\n").unwrap();
+    std::fs::write(old.join("addons/trenchdot/plugin.cfg"), "[plugin]\nversion=\"0.0.1\"\n").unwrap();
     let ed = Editor::launch_with("content_addon", &["--project", old.to_str().unwrap()]);
     let deadline = Instant::now() + Duration::from_secs(20);
     while !window_titles(&ed).contains(&"Set up this project".to_string()) {
@@ -6866,7 +6866,7 @@ fn a_new_project_asks_about_content_but_not_an_agent_at_work() {
     ed.screenshot("window", "addon_wizard");
     ed.box_brush([0.0, 0.0, 0.0], [64.0, 64.0, 64.0]);
     assert_eq!(window_titles(&ed), Vec::<String>::new(), "an agent's first edit closes it");
-    assert_eq!(std::fs::read_to_string(old.join("addons/func_godot/plugin.cfg")).unwrap(), "[plugin]\nversion=\"0.0.1\"\n");
+    assert_eq!(std::fs::read_to_string(old.join("addons/trenchdot/plugin.cfg")).unwrap(), "[plugin]\nversion=\"0.0.1\"\n");
     assert!(!old.join(".trenchdot").exists(), "nothing changes without a click");
 }
 
@@ -8745,13 +8745,13 @@ fn override_project(name: &str) -> PathBuf {
 
     let dir = linked_project(name, json!([]));
     add_pack_template(&dir);
-    let addon = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../godot/addons/func_godot");
-    copy(&addon.join("fgd"), &dir.join("addons/func_godot/fgd"));
-    copy(&addon.join("src/trenchdot/entities"), &dir.join("addons/func_godot/src/trenchdot/entities"));
+    let addon = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../godot/addons/trenchdot");
+    copy(&addon.join("fgd"), &dir.join("addons/trenchdot/fgd"));
+    copy(&addon.join("src/trenchdot/entities"), &dir.join("addons/trenchdot/src/trenchdot/entities"));
     dir
 }
 
-const OVERRIDE_SETTINGS: [(&str, &str); 2] = [("func_godot", "default_map_settings"), ("trenchdot", "game_config")];
+const OVERRIDE_SETTINGS: [(&str, &str); 2] = [("trenchdot", "default_map_settings"), ("trenchdot", "game_config")];
 
 /// Override in project through MCP writes the copy and its script, builds the project FGD, map settings and game
 /// config, points project.godot at them while Godot is closed, never touches the addon, and refuses a repeat.
@@ -8768,7 +8768,7 @@ fn override_entity_wires_a_project_that_godot_has_closed() {
     assert_eq!(door["script"], "res://entities/func_door.gd");
     assert_eq!(door["fgd"], "res://entities/project_fgd.tres");
     assert_eq!(door["godot"], "not open");
-    let wired = json!({ "func_godot/default_map_settings": "res://entities/project_map_settings.tres", "trenchdot/game_config": "res://entities/project_game_config.tres" });
+    let wired = json!({ "trenchdot/default_map_settings": "res://entities/project_map_settings.tres", "trenchdot/game_config": "res://entities/project_game_config.tres" });
     assert_eq!(door["project_settings"], wired);
     let written =
         ["func_door.tres", "func_door.gd", "project_fgd.tres", "project_map_settings.tres", "project_game_config.tres"].map(|f| format!("res://entities/{f}"));
@@ -8832,7 +8832,7 @@ fn override_entity_has_an_open_godot_take_the_settings() {
     let settings = &sent_events(&sent, "project_settings")[0]["settings"];
     assert_eq!(
         settings,
-        &json!({ "func_godot/default_map_settings": "res://entities/project_map_settings.tres", "trenchdot/game_config": "res://entities/project_game_config.tres" })
+        &json!({ "trenchdot/default_map_settings": "res://entities/project_map_settings.tres", "trenchdot/game_config": "res://entities/project_game_config.tres" })
     );
     assert_eq!(std::fs::read_to_string(dir.join("project.godot")).unwrap(), before, "Godot writes project.godot itself");
     assert!(dir.join("entities/info_player_start.gd").is_file() && dir.join("entities/project_game_config.tres").is_file());

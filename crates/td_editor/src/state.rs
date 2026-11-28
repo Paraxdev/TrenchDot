@@ -3043,7 +3043,7 @@ mod tests {
             let clashes: Vec<serde_json::Value> = clashes
                 .iter()
                 .map(|(class, intended)| {
-                    let definitions = [format!("res://addons/func_godot/fgd/{class}.tres"), format!("res://entities/{class}.tres")];
+                    let definitions = [format!("res://addons/trenchdot/fgd/{class}.tres"), format!("res://entities/{class}.tres")];
                     serde_json::json!({ "classname": class, "definitions": definitions, "intended": intended })
                 })
                 .collect();
@@ -3053,7 +3053,7 @@ mod tests {
             state.load_project(dir.path());
             state.status.to_string()
         };
-        let named = |class: &str| format!("{class} is defined more than once. res://entities/{class}.tres wins over res://addons/func_godot/fgd/{class}.tres.");
+        let named = |class: &str| format!("{class} is defined more than once. res://entities/{class}.tres wins over res://addons/trenchdot/fgd/{class}.tres.");
 
         let none = open(&[("func_door", true)]);
         assert!(none.starts_with("Loaded game config") && !none.contains("defined"), "{none}");
@@ -3074,7 +3074,7 @@ mod tests {
     #[test]
     fn load_project_reads_the_addon_version() {
         let dir = std::env::temp_dir().join(format!("td_addon_version_test_{}", std::process::id()));
-        let addon = dir.join("addons/func_godot");
+        let addon = dir.join("addons/trenchdot");
         std::fs::create_dir_all(&addon).unwrap();
         std::fs::write(dir.join("project.godot"), "").unwrap();
         std::fs::write(addon.join("plugin.cfg"), "[plugin]\nversion=\"0.0.1-not-the-editor\"\n").unwrap();
@@ -3124,8 +3124,8 @@ mod tests {
         state.content_request = None;
         state.load_project(&dir);
         assert_eq!(state.content_request, None, "a recent project has had its first start, and the addon was let be");
-        std::fs::create_dir_all(dir.join("addons/func_godot")).unwrap();
-        std::fs::write(dir.join("addons/func_godot/plugin.cfg"), format!("[plugin]\nversion=\"{}\"\n", crate::VERSION)).unwrap();
+        std::fs::create_dir_all(dir.join("addons/trenchdot")).unwrap();
+        std::fs::write(dir.join("addons/trenchdot/plugin.cfg"), format!("[plugin]\nversion=\"{}\"\n", crate::VERSION)).unwrap();
         state.load_project(&dir);
         assert_eq!(state.content_request, None);
 

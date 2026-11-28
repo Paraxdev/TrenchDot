@@ -8,7 +8,7 @@ source: d0d174df9061792086d11223ac4029e9d23f9d56
 
 ## ビルド { #building }
 
-サブモジュール付きでクローンします。`godot/addons/func_godot`のGodotアドオンがサブモジュールです。
+サブモジュール付きでクローンします。`godot/addons/trenchdot`のGodotアドオンがサブモジュールです。
 
 ```sh
 git clone --recursive https://github.com/Paraxdev/TrenchDot.git
@@ -68,10 +68,10 @@ e2eテストは、本物のエディターを起動して、シミュレート�
 
 ## Godotアドオン { #the-godot-addon }
 
-アドオンには専用のリポジトリ[trenchdot_func](https://github.com/Paraxdev/trenchdot_func)があり、`godot/addons/func_godot`にチェックアウトされます。テストはデモプロジェクトが必要なので、ここの`godot/tests`にあります。アドオンを変更するには、次のようにします。
+アドオンには専用のリポジトリ[trenchdot_func](https://github.com/Paraxdev/trenchdot_func)があり、`godot/addons/trenchdot`にチェックアウトされます。テストはデモプロジェクトが必要なので、ここの`godot/tests`にあります。アドオンを変更するには、次のようにします。
 
-1. `godot/addons/func_godot`の中で変更をコミットして、trenchdot_funcにプッシュします。
-2. 新しいサブモジュールのコミットを、ここで`git add godot/addons/func_godot`でステージし、それを必要とするTrenchDotの変更と一緒にコミットします。
+1. `godot/addons/trenchdot`の中で変更をコミットして、trenchdot_funcにプッシュします。
+2. 新しいサブモジュールのコミットを、ここで`git add godot/addons/trenchdot`でステージし、それを必要とするTrenchDotの変更と一緒にコミットします。
 
 アドオンを先にプッシュしてください。GitHubにないアドオンのコミットを指すTrenchDotのコミットは、CIでチェックアウトに失敗します。
 
@@ -186,7 +186,7 @@ CIは、ドキュメントやMarkdownだけを変える`main`へのプッシュ�
 
 | リリースのzip | インストールするもの |
 | --- | --- |
-| `func_godot-trenchdot-addon.zip` | *Godot > アドオンをインストールまたは更新…* |
+| `trenchdot-addon.zip` | *Godot > アドオンをインストールまたは更新…* |
 | `trenchdot-nature-pack.zip` | *Godot > プロジェクトにコンテンツを追加…* |
 | `trenchdot-demo-content.zip` | *Godot > プロジェクトにコンテンツを追加…* |
 

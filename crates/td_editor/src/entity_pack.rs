@@ -1,5 +1,5 @@
 //! The Gameplay entities pack: doors, buttons, lifts, triggers, logic, spawners, props and effects. The addon carries it
-//! as a template in `addons/func_godot/gameplay_pack`, which a `.gdignore` hides from Godot, and installing it copies
+//! as a template in `addons/trenchdot/gameplay_pack`, which a `.gdignore` hides from Godot, and installing it copies
 //! the definitions and scripts into `res://trenchdot/entities`. The project owns those copies, so nothing the addon
 //! ships shares a classname or a class_name with them, and an update only replaces the files nobody edited.
 
@@ -21,7 +21,7 @@ pub const MANIFEST: &str = "pack.json";
 /// The pack's TrenchDotFGDFileBase, which the addon's core FGD reads when it is there.
 pub const FGD: &str = "gameplay_fgd.tres";
 /// The addon's FGD with TrenchDot's entities, the core entities and the pack, for an FGD's Base Fgd Files.
-pub const DEFAULT_FGD: &str = "res://addons/func_godot/fgd/trenchdot_default_fgd.tres";
+pub const DEFAULT_FGD: &str = "res://addons/trenchdot/fgd/trenchdot_default_fgd.tres";
 pub const FORMAT: &str = "trenchdot-entity-pack";
 pub const NAME: &str = en!("Gameplay entities");
 
@@ -694,7 +694,7 @@ mod tests {
 
         // The config the old addon exported still names func_door, with a script the update removed.
         let mut game = GameConfig::with_gameplay_pack();
-        game.entities.iter_mut().find(|e| e.classname == "func_door").unwrap().script = "res://addons/func_godot/src/trenchdot/entities/td_door.gd".into();
+        game.entities.iter_mut().find(|e| e.classname == "func_door").unwrap().script = "res://addons/trenchdot/src/trenchdot/entities/td_door.gd".into();
         game.project_root = Some(root.to_path_buf());
         state.game = game;
         let status = install_for_maps(&mut state).expect("installed");

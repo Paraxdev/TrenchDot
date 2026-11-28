@@ -4,7 +4,7 @@ This page is for you if you want to build the editor from source, change the add
 
 ## Building
 
-Clone with submodules, the Godot addon in `godot/addons/func_godot` is one:
+Clone with submodules, the Godot addon in `godot/addons/trenchdot` is one:
 
 ```sh
 git clone --recursive https://github.com/Paraxdev/TrenchDot.git
@@ -85,10 +85,10 @@ Some files are made by a script, not by hand. When you change what a script read
 ## The Godot addon
 
 The addon has its own repository, [trenchdot_func](https://github.com/Paraxdev/trenchdot_func), checked out at
-`godot/addons/func_godot`. Its tests live here in `godot/tests`, since they need the demo project. To change the addon:
+`godot/addons/trenchdot`. Its tests live here in `godot/tests`, since they need the demo project. To change the addon:
 
-1. Commit the change inside `godot/addons/func_godot` and push it to trenchdot_func.
-2. Stage the new submodule commit here with `git add godot/addons/func_godot` and commit it with the TrenchDot
+1. Commit the change inside `godot/addons/trenchdot` and push it to trenchdot_func.
+2. Stage the new submodule commit here with `git add godot/addons/trenchdot` and commit it with the TrenchDot
    changes that need it.
 
 Push the addon first. A TrenchDot commit pointing at an addon commit GitHub doesn't have fails to check out in CI.
@@ -273,7 +273,7 @@ fills those plain channels.
 
 | Zip in the release | Installed by |
 | --- | --- |
-| `func_godot-trenchdot-addon.zip` | *Godot > Install or Update Addon…* |
+| `trenchdot-addon.zip` | *Godot > Install or Update Addon…* |
 | `trenchdot-nature-pack.zip` | *Godot > Add Content to Project…* |
 | `trenchdot-demo-content.zip` | *Godot > Add Content to Project…* |
 

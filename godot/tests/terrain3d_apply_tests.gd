@@ -629,7 +629,7 @@ static func _test_settings_refusals(t) -> void:
 	t.check(not result.ok and result.error.contains("not applied") and _tree(waiting) == before and int(terrain.get(&"region_size")) == SIZE, "a folder with pending edits is refused with nothing written, got %s" % [result])
 	terrain.free()
 
-	var cli: GDScript = load("res://addons/func_godot/src/trenchdot/terrain3d_cli.gd")
+	var cli: GDScript = load("res://addons/trenchdot/src/trenchdot/terrain3d_cli.gd")
 	for args in [["settings", wide], ["settings", wide, "128"], ["settings", wide, "128", "2.5", "1"], ["export", wide, "128", "2.5"], ["settings", wide, "big", "2.5"], ["settings", wide, "128.5", "2.5"], ["settings", wide, "128", "wide"]]:
 		t.check(cli.refusal(PackedStringArray(args)).begins_with("usage"), "the CLI refuses %s with its usage, got %s" % [args, cli.refusal(PackedStringArray(args))])
 	for config in [[["settings", wide, "100", "2.5"], "no region size 100"], [["settings", wide, "128", "0.125"], "0.25 to 100"], [["settings", wide, "4096", "1"], "no region size 4096"], [["settings", wide, "128", "-1"], "0.25 to 100"]]:

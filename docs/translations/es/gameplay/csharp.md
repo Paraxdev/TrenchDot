@@ -14,7 +14,7 @@ Abre el panel **Referencia** (*Ver > Paneles > Referencia*) y pulsa **Añadir ay
 
 ![El panel Referencia con Añadir ayudante C# al proyecto bajo el cursor, su tooltip dice Escribe TrenchDot.cs, el puente que usan las entidades C#](../assets/csharp/reference-csharp-helper.png)
 
-Escribe `res://addons/func_godot/csharp/TrenchDot.cs`, que contiene los atributos. Sin él, el código de tu entidad no compila.
+Escribe `res://addons/trenchdot/csharp/TrenchDot.cs`, que contiene los atributos. Sin él, el código de tu entidad no compila.
 
 ## 2. Declara una entidad { #2-declare-an-entity }
 

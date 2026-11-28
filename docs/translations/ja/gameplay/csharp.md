@@ -14,7 +14,7 @@ C#のエンティティを動かすには、Godotの.NET版が必要です。エ
 
 ![リファレンスパネルでC# ヘルパーをプロジェクトに追加にカーソルが重なっている。ツールチップにはTrenchDot.csを書き出す、C#のエンティティが使うブリッジ、と出ている](../assets/csharp/reference-csharp-helper.png)
 
-アトリビュートを収めた`res://addons/func_godot/csharp/TrenchDot.cs`が書き出されます。これがないと、エンティティのコードはコンパイルできません。
+アトリビュートを収めた`res://addons/trenchdot/csharp/TrenchDot.cs`が書き出されます。これがないと、エンティティのコードはコンパイルできません。
 
 ## 2. エンティティを宣言する { #2-declare-an-entity }
 

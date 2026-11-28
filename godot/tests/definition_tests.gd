@@ -4,8 +4,8 @@ extends RefCounted
 
 const SETTINGS := "res://demo/demo_map_settings.tres"
 const MAP := "res://tests/maps/basic.tdm"
-const UPSTREAM_FGD := "res://addons/func_godot/fgd/func_godot_fgd.tres"
-const TRENCHDOT_FGD := "res://addons/func_godot/fgd/trenchdot_default_fgd.tres"
+const UPSTREAM_FGD := "res://addons/trenchdot/fgd/func_godot_fgd.tres"
+const TRENCHDOT_FGD := "res://addons/trenchdot/fgd/trenchdot_default_fgd.tres"
 ## Map settings without the Gameplay entities pack, a path the build report can name.
 const NO_PACK_SETTINGS := "res://tests/td_no_pack_settings.tres"
 const CHILD_ADDER := "res://tests/helpers/child_adder.gd"
@@ -91,7 +91,7 @@ func test_missing_class_warning() -> void:
 	var own_map := _build(_settings(own), [_entity(5, "func_door", [_box(6, 128)])])
 	var own_lines := Array(own_map.build_report["warnings"]).filter(func(w: String) -> bool: return w.contains("no definition"))
 	_free(own_map)
-	check(own_lines.size() == 1 and own_lines[0].contains("does not include res://addons/func_godot/fgd/trenchdot_default_fgd.tres"), "and with an FGD of the project it names the FGD that brings it, got %s" % [own_lines])
+	check(own_lines.size() == 1 and own_lines[0].contains("does not include res://addons/trenchdot/fgd/trenchdot_default_fgd.tres"), "and with an FGD of the project it names the FGD that brings it, got %s" % [own_lines])
 
 	var clean := _build(load(SETTINGS), [_entity(2, "light")])
 	var clean_report := clean.build_report

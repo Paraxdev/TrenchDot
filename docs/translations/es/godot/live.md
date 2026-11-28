@@ -89,7 +89,7 @@ Para ver tus guardados en un juego que ya está en marcha:
     En Godot, ve a *Project > Project Settings > Globals > Autoload* y añade este script:
 
     ```
-    res://addons/func_godot/src/trenchdot/runtime/trenchdot_hot_reload.gd
+    res://addons/trenchdot/src/trenchdot/runtime/trenchdot_hot_reload.gd
     ```
 
 2. Ejecuta el juego desde el editor de Godot

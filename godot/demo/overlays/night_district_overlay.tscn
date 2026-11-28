@@ -1,15 +1,15 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://addons/func_godot/src/trenchdot/runtime/trenchdot_overlay.gd" id="1_hipb1"]
+[ext_resource type="Script" path="res://addons/trenchdot/src/trenchdot/runtime/trenchdot_overlay.gd" id="1_hipb1"]
 [ext_resource type="Script" path="res://demo/overlays/overlay_breaker.gd" id="2_ygy5b"]
 [ext_resource type="PackedScene" path="res://models/polyhaven/industrial/utility_box_01.gltf" id="3_f3oyw"]
-[ext_resource type="Script" path="res://addons/func_godot/src/trenchdot/runtime/trenchdot_overlay_io.gd" id="4_tojds"]
-[ext_resource type="Script" path="res://addons/func_godot/src/trenchdot/runtime/trenchdot_output.gd" id="5_fyf5o"]
+[ext_resource type="Script" path="res://addons/trenchdot/src/trenchdot/runtime/trenchdot_overlay_io.gd" id="4_tojds"]
+[ext_resource type="Script" path="res://addons/trenchdot/src/trenchdot/runtime/trenchdot_output.gd" id="5_fyf5o"]
 [ext_resource type="Script" path="res://demo/overlays/string_lights.gd" id="6_f413j"]
 [ext_resource type="PackedScene" path="res://models/polyhaven/lighting/wooden_lantern_01.gltf" id="7_007gd"]
 [ext_resource type="PackedScene" path="res://models/polyhaven/decorative/ceramic_pot.gltf" id="8_22rqd"]
 [ext_resource type="PackedScene" path="res://models/polyhaven/containers/wooden_bucket_01.gltf" id="9_lkvwy"]
-[ext_resource type="Script" path="res://addons/func_godot/src/trenchdot/runtime/trenchdot_anchor.gd" id="10_ljih3"]
+[ext_resource type="Script" path="res://addons/trenchdot/src/trenchdot/runtime/trenchdot_anchor.gd" id="10_ljih3"]
 
 [sub_resource type="BoxShape3D" id="BoxShape3D_lsaqb"]
 size = Vector3(0.52, 1.12, 0.43)

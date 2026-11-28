@@ -1,8 +1,8 @@
 [gd_resource type="Resource" script_class="TrenchDotFGDFileBase" load_steps=7 format=3]
 
-[ext_resource type="Script" path="res://addons/func_godot/src/fgd/func_godot_fgd_file.gd" id="1_fgd"]
-[ext_resource type="Resource" path="res://addons/func_godot/fgd/func_godot_fgd.tres" id="2_base"]
-[ext_resource type="Resource" path="res://addons/func_godot/fgd/trenchdot/trenchdot_fgd.tres" id="3_td"]
+[ext_resource type="Script" path="res://addons/trenchdot/src/fgd/func_godot_fgd_file.gd" id="1_fgd"]
+[ext_resource type="Resource" path="res://addons/trenchdot/fgd/func_godot_fgd.tres" id="2_base"]
+[ext_resource type="Resource" path="res://addons/trenchdot/fgd/trenchdot/trenchdot_fgd.tres" id="3_td"]
 [ext_resource type="Resource" path="res://demo/entities/func_rotating.tres" id="10_rot"]
 [ext_resource type="Resource" path="res://demo/entities/light_rotating.tres" id="12_beam"]
 

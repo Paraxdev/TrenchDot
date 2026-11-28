@@ -27,7 +27,7 @@ TrenchDot 保存的是 `.tdm` 文件，它自己从不写 Godot 场景。在 God
 | Local Map File | 要构建的 `.tdm` 的 `res://` 路径。这是通常的选择。 |
 | Global Map File | 项目之外的地图文件。两者都设置时，以这个为准。 |
 | Auto Rebuild On Save | 只要 TrenchDot 保存这张地图，并且它的场景是 Godot 编辑器里的当前标签页，就重新构建这个节点，参见[保存时重建](live.md#rebuild-on-save)。默认开启。 |
-| Map Settings | 纹理、材质和实体定义从哪里来，以及一个地图单位有多大。留空时，它使用项目设置 `func_godot/default_map_settings`，参见[项目设置](project-setup.md)。用旧版插件添加的地图节点，会在这里存下插件的默认地图设置，它的构建会在 Godot 的输出里对此发出警告，清空这个字段就会跟随项目设置。 |
+| Map Settings | 纹理、材质和实体定义从哪里来，以及一个地图单位有多大。留空时，它使用项目设置 `trenchdot/default_map_settings`，参见[项目设置](project-setup.md)。用旧版插件添加的地图节点，会在这里存下插件的默认地图设置，它的构建会在 Godot 的输出里对此发出警告，清空这个字段就会跟随项目设置。 |
 | Use Baked Lighting | 用[在编辑器里烘焙](baked-lighting.md)的光照给地图打光。默认开启，取消勾选就可以改用别的光照贴图工具。 |
 | Warm Up Shaders | 在加载地图时编译它的着色器，这样游玩的头几秒不会卡顿。参见[着色器预热](warm-up.md)。 |
 

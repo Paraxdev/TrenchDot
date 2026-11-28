@@ -89,7 +89,7 @@ source: 15ac2f37b7d278fa849fb066b91734f671f35658
     在 Godot 里进入 *Project > Project Settings > Globals > Autoload*，添加这个脚本：
 
     ```
-    res://addons/func_godot/src/trenchdot/runtime/trenchdot_hot_reload.gd
+    res://addons/trenchdot/src/trenchdot/runtime/trenchdot_hot_reload.gd
     ```
 
 2. 从 Godot 编辑器运行游戏

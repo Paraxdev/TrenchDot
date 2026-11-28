@@ -21,7 +21,7 @@ fn files(root: &Path, dir: &Path, out: &mut Vec<String>) {
 
 #[test]
 fn addon_fgd_matches_the_entity_libraries() {
-    let addon = godot().join("addons/func_godot");
+    let addon = godot().join("addons/trenchdot");
     let generated = td_editor::code_refs::addon_fgd_files();
     for (name, text) in &generated {
         let on_disk = std::fs::read_to_string(addon.join(name)).unwrap_or_default().replace("\r\n", "\n");

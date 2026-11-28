@@ -8,7 +8,7 @@ source: d0d174df9061792086d11223ac4029e9d23f9d56
 
 ## Сборка { #building }
 
-Клонируйте вместе с подмодулями, аддон Godot в `godot/addons/func_godot` один из них:
+Клонируйте вместе с подмодулями, аддон Godot в `godot/addons/trenchdot` один из них:
 
 ```sh
 git clone --recursive https://github.com/Paraxdev/TrenchDot.git
@@ -79,10 +79,10 @@ E2e-тесты запускают настоящий редактор и упр�
 ## Аддон Godot { #the-godot-addon }
 
 У аддона свой репозиторий, [trenchdot_func](https://github.com/Paraxdev/trenchdot_func), он выгружен в
-`godot/addons/func_godot`. Его тесты лежат здесь, в `godot/tests`, потому что им нужен демо-проект. Чтобы изменить аддон:
+`godot/addons/trenchdot`. Его тесты лежат здесь, в `godot/tests`, потому что им нужен демо-проект. Чтобы изменить аддон:
 
-1. Закоммитьте изменение внутри `godot/addons/func_godot` и отправьте его в trenchdot_func.
-2. Добавьте новый коммит подмодуля в индекс здесь командой `git add godot/addons/func_godot` и закоммитьте его вместе с
+1. Закоммитьте изменение внутри `godot/addons/trenchdot` и отправьте его в trenchdot_func.
+2. Добавьте новый коммит подмодуля в индекс здесь командой `git add godot/addons/trenchdot` и закоммитьте его вместе с
     изменениями TrenchDot, которым он нужен.
 
 Сначала отправляйте аддон. Коммит TrenchDot, указывающий на коммит аддона, которого нет на GitHub, не выгрузится в CI.
@@ -271,7 +271,7 @@ CI пропускает отправки в `main`, которые меняют 
 
 | Архив в релизе | Чем устанавливается |
 | --- | --- |
-| `func_godot-trenchdot-addon.zip` | *Godot > Установить или обновить аддон…* |
+| `trenchdot-addon.zip` | *Godot > Установить или обновить аддон…* |
 | `trenchdot-nature-pack.zip` | *Godot > Добавить контент в проект…* |
 | `trenchdot-demo-content.zip` | *Godot > Добавить контент в проект…* |
 

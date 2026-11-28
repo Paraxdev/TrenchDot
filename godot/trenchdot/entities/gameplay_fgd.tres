@@ -1,6 +1,6 @@
 [gd_resource type="Resource" script_class="TrenchDotFGDFileBase" load_steps=46 format=3]
 
-[ext_resource type="Script" path="res://addons/func_godot/src/fgd/func_godot_fgd_file.gd" id="1_fgd"]
+[ext_resource type="Script" path="res://addons/trenchdot/src/fgd/func_godot_fgd_file.gd" id="1_fgd"]
 [ext_resource type="Resource" path="res://trenchdot/entities/definitions/info_teleport_destination.tres" id="2_info_teleport_destination"]
 [ext_resource type="Resource" path="res://trenchdot/entities/definitions/info_landmark.tres" id="3_info_landmark"]
 [ext_resource type="Resource" path="res://trenchdot/entities/definitions/func_section_stream.tres" id="4_func_section_stream"]

@@ -70,7 +70,7 @@ Algumas entidades básicas sempre vêm incluídas, como um simples `info_player_
     Clique no botão "Instalar o addon" no alto para baixar o fork do TrenchDot feito pelo TrenchDot para o seu projeto,
     isso é essencial para o TrenchDot.
     (Nota: isso baixa dos releases do GitHub. Se você não tem acesso à internet, baixe primeiro
-    `func_godot-trenchdot-addon.zip` e extraia na raiz do projeto para instalar à mão.)
+    `trenchdot-addon.zip` e extraia na raiz do projeto para instalar à mão.)
 
     Depois disso, clique em "Ativar o plugin" para o Godot carregá-lo.
     (Nota: feche o Godot antes, se ele estiver com o projeto aberto, senão o Godot grava de volta a própria cópia do `project.godot`
