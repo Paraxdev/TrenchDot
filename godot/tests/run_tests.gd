@@ -73,6 +73,7 @@ func _initialize() -> void:
 	await test_build()
 	await test_terrain()
 	test_displacement_power()
+	test_terrain_layer_texture()
 	await test_meshes_terrain_props()
 	await test_decal_mesh()
 	await test_warm_up()
@@ -381,6 +382,22 @@ func test_terrain() -> void:
 		check(near(decal.position, Vector3(4, 2, 4)), "decal position, got %s" % decal.position)
 	map.queue_free()
 	await process_frame
+
+func test_terrain_layer_texture() -> void:
+	print("- terrain layers take the albedo of their material")
+	var settings: FuncGodotMapSettings = load(SETTINGS).duplicate()
+	settings.default_material_albedo_uniform = "albedo_texture"
+	var albedo := ImageTexture.create_from_image(Image.create(4, 4, false, Image.FORMAT_RGB8))
+	var named := StandardMaterial3D.new()
+	named.albedo_texture = albedo
+	check(TrenchDotTerrain._layer_texture("no_such_image", named, settings) == albedo, "a material without a same named image paints its albedo")
+	var shader := ShaderMaterial.new()
+	shader.shader = Shader.new()
+	shader.shader.code = "shader_type spatial;
+uniform sampler2D %s;" % settings.default_material_albedo_uniform
+	shader.set_shader_parameter(settings.default_material_albedo_uniform, albedo)
+	check(TrenchDotTerrain._layer_texture("no_such_image", shader, settings) == albedo, "a shader material paints its albedo uniform")
+	check(TrenchDotTerrain._layer_texture("no_such_image", StandardMaterial3D.new(), settings).resource_path == FuncGodotUtil.default_texture_path, "a material without albedo falls back to the texture lookup")
 
 func test_displacement_power() -> void:
 	print("- displacements outside the editor's powers stay flat")
