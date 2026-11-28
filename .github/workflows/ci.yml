@@ -189,6 +189,32 @@ jobs:
           ext=""
           if [ "$RUNNER_OS" = "Windows" ]; then ext=".exe"; fi
           cp "target/release/${{ matrix.exe }}" "dist/trenchdot-${{ matrix.name }}${ext}"
+      - name: macOS app
+        # A bare binary from a browser download has no extension and no execute bit, so Finder opens it in TextEdit.
+        # The zipped app keeps both, and ditto keeps the ad hoc signature intact.
+        if: runner.os == 'macOS'
+        run: |
+          app=dist/TrenchDot.app
+          mkdir -p "$app/Contents/MacOS"
+          cp target/release/trenchdot "$app/Contents/MacOS/trenchdot"
+          cat > "$app/Contents/Info.plist" <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>CFBundleName</key><string>TrenchDot</string>
+            <key>CFBundleIdentifier</key><string>com.paraxdev.trenchdot</string>
+            <key>CFBundleExecutable</key><string>trenchdot</string>
+            <key>CFBundlePackageType</key><string>APPL</string>
+            <key>CFBundleShortVersionString</key><string>0.1.0</string>
+            <key>LSMinimumSystemVersion</key><string>11.0</string>
+            <key>NSHighResolutionCapable</key><true/>
+          </dict>
+          </plist>
+          EOF
+          codesign --force --deep --sign - "$app"
+          ditto -c -k --keepParent "$app" dist/trenchdot-macos-arm64.zip
+          rm -rf "$app"
       - name: Windows installer
         if: runner.os == 'Windows'
         shell: pwsh
@@ -261,7 +287,9 @@ jobs:
           fi
           shots="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/${GITHUB_SHA}/docs/screenshots"
           downloads="* trenchdot-windows-x86_64-setup.exe: the Windows installer. It puts the editor in your user folder with a Start menu entry, and the editor keeps itself up to date from there.
-          * trenchdot-windows-x86_64.exe, trenchdot-linux-x86_64 and trenchdot-macos-arm64: the editor on its own, run it from any folder you can write to. On Linux and macOS make it executable first with chmod +x.
+          * trenchdot-macos-arm64.zip: the macOS app. Unzip it and move TrenchDot.app to Applications. It is not notarized, so the first time macOS refuses to open it, click Open Anyway in System Settings > Privacy & Security.
+          * trenchdot-windows-x86_64.exe and trenchdot-linux-x86_64: the editor on its own, run it from any folder you can write to. On Linux make it executable first with chmod +x.
+          * trenchdot-macos-arm64: the bare macOS executable that older editors update themselves from, use the zip instead.
           * func_godot-trenchdot-addon.zip: the Godot addon. The editor installs it into a project from its setup window, or extract it into your Godot project so it becomes res://addons/func_godot.
           * trenchdot-demo-project.zip: the demo Godot project with the showcase maps.
           * trenchdot-nature-pack.zip and trenchdot-demo-content.zip: the nature models and the demo content that the editor's Godot > Add Content to Project adds to a project, no need to download them by hand.
@@ -348,7 +376,7 @@ jobs:
           }
           push dist/trenchdot-linux-x86_64 linux
           push dist/trenchdot-windows-x86_64.exe windows
-          push dist/trenchdot-macos-arm64 mac
+          ship dist/trenchdot-macos-arm64.zip "paraxdev/trenchdot:mac" --userversion "$version"
           push dist/trenchdot-windows-x86_64-setup.exe windows-installer
           # The addon, demo project and content ship as their own zips so their folder layout (addons/func_godot, the
           # project, trenchdot/nature, demo and models) survives.

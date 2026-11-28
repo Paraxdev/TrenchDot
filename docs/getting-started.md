@@ -17,8 +17,10 @@ to TrenchDot's.
 
 * Godot 4.7 or newer, the .NET build if you want to write entities in C#
 * The newest [TrenchDot release](https://github.com/Paraxdev/TrenchDot/releases/tag/beta). On Windows, run
-  `trenchdot-windows-x86_64-setup.exe` and start TrenchDot from the Start menu. On Linux and macOS, download
-  `trenchdot-linux-x86_64` or `trenchdot-macos-arm64` and make it executable with `chmod +x`.
+  `trenchdot-windows-x86_64-setup.exe` and start TrenchDot from the Start menu. On macOS, download
+  `trenchdot-macos-arm64.zip`, unzip it and move TrenchDot.app to Applications. The app is not notarized, so the first
+  time macOS refuses to open it, click *Open Anyway* in *System Settings > Privacy & Security*. On Linux, download
+  `trenchdot-linux-x86_64` and make it executable with `chmod +x`.
 
 ## Ensure TrenchDot can see the Godot executable
 
